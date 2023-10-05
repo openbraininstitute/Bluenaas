@@ -20,7 +20,7 @@ node_modules:
 	npm install
 
 run_dev: | node_modules
-	VERSION=$(VERSION) NEURON_VERSION=$(NEURON_VERSION) WS_URL=ws://$$(dnsdomainname -A|xargs):8000 npm start
+	VERSION=$(VERSION) NEURON_VERSION=$(NEURON_VERSION) WS_URL=ws://localhost:8000 npm start
 
 js_build: | node_modules
 	npm run build
@@ -29,7 +29,7 @@ docker_build:
 	docker build -t $(IMAGE_NAME):dev \
 		--build-arg http_proxy=http://bbpproxy.epfl.ch:80/ \
 		--build-arg https_proxy=http://bbpproxy.epfl.ch:80/ \
-		--build-arg WS_URL=ws://localhost:8000 \
+		--build-arg WS_URL=wss://blue-naas-single-cell.sbo.kcp.bbp.epfl.ch \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg NEURON_VERSION=$(NEURON_VERSION) \
 		.

@@ -1,16 +1,10 @@
 '''Main app module.'''
-import io
-import itertools
 import json
-import os
 import sys
 from pathlib import Path
 from random import choice
 from string import ascii_uppercase
-from urllib.parse import urlunsplit
-from zipfile import ZipFile
 
-import requests
 import tornado.ioloop
 import tornado.web
 import tornado.websocket
@@ -18,37 +12,11 @@ import tornado.websocket
 from blue_naas import settings
 from blue_naas.cell import HocCell, PythonCell
 from blue_naas.settings import L
-from blue_naas.util import NumpyAwareJSONEncoder, is_python_model, locate_model
+from blue_naas.util import (NumpyAwareJSONEncoder, extract_zip_model, is_python_model, locate_model,
+                            model_exists)
 
 CLIENT_ID = None
 CELL = None
-
-
-def _load_from_url(url):
-    try:
-        zip_url = urlunsplit(('https',
-                              'object.cscs.ch',
-                              'v1/AUTH_c0a333ecf7c045809321ce9d9ecdfdea/' + url,
-                              None,
-                              None))
-        L.debug('downloading emodel from url: %s', zip_url)
-        response = requests.get(zip_url, stream=True, timeout=10)
-        try:
-            response.raise_for_status()
-            chunks = response.iter_content(chunk_size=1024)
-            with ZipFile(io.BytesIO(bytes(itertools.chain.from_iterable(chunks))), 'r') as zf:
-                zf.extractall('/opt/blue-naas/tmp')
-        finally:
-            response.close()
-
-        # first subfolder which doesn't start with __ (zip made on Mac contains __MACOSX)
-        model_id = next((subfolder for subfolder in next(os.walk('/opt/blue-naas/tmp'), ('', []))[1]
-                         if not subfolder.startswith('__')), None)
-        return model_id
-
-    except Exception:
-        L.exception('Model download failed!')
-        raise
 
 
 def ready():
@@ -89,6 +57,34 @@ def check_allowed_ip(ip):
     if not ip:
         return False
     return any(ip.startswith(allowed.strip()) for allowed in settings.ALLOWED_IP.split(','))
+
+
+# pylint: disable=abstract-method
+class ModelHandler(tornado.web.RequestHandler):
+    '''Handle requests to create or check existence of the model.'''
+
+    def set_default_headers(self):
+        self.set_header("Access-Control-Allow-Origin", "*")
+        self.set_header('Access-Control-Allow-Methods', ' HEAD, POST, OPTIONS')
+
+    def options(self):
+        '''Handle CORS pre-flight requests.'''
+        self.set_status(204)
+        self.finish()
+
+    def head(self, model_id):
+        '''Check if a model exists.'''
+        self.set_status(204 if model_exists(model_id) else 404)
+        self.finish()
+
+    def post(self, model_id):
+        '''Handle model updoad.'''
+        model_file = self.request.files['file'][0]
+
+        extract_zip_model(model_file['body'], model_id)
+
+        self.set_status(201)
+        self.finish()
 
 
 class WSHandler(tornado.websocket.WebSocketHandler):
@@ -139,12 +135,8 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         cmd = msg['cmd']
 
         try:
-            if cmd in ['set_model', 'set_url']:
-                if cmd == 'set_url':
-                    url = msg.get('data')
-                    model_id = _load_from_url(url)
-                else:
-                    model_id = msg.get('data')
+            if cmd == 'set_model':
+                model_id = msg.get('data')
 
                 if model_id is None:
                     raise Exception('Missing model id')
@@ -221,6 +213,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 if __name__ == '__main__':
     app = tornado.web.Application([
         (r'/ws', WSHandler),
+        (r'/models/([0-9a-z-]+)', ModelHandler)
     ], debug=settings.DEBUG)
     L.debug('autoreload: %s', app.settings.get('autoreload'))
     app.listen(8000, xheaders=True)

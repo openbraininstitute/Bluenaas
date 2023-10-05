@@ -5,6 +5,8 @@ import os
 import re
 import subprocess
 import tarfile
+import zipfile
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
@@ -73,6 +75,19 @@ def _extract_model(model_path):
     return next(Path('/opt/blue-naas/tmp').iterdir())
 
 
+def extract_zip_model(content, model_id):
+    '''Extract zip model to models folder.'''
+    print(model_id)
+    with zipfile.ZipFile(BytesIO(content), 'r') as zip_ref:
+        zip_ref.extractall(Path('/opt/blue-naas/models') / model_id)
+
+
+def model_exists(model_id):
+    '''Check if model exists in the mounted volume.'''
+    model_path = Path('/opt/blue-naas/models') / model_id
+    return model_path.exists()
+
+
 def locate_model(model_id):
     '''Locate model according to the priorities.
 
@@ -102,6 +117,12 @@ def is_python_model(model_path):
 
 def compile_mechanisms(model_path, no_throw=False):
     '''Compile model mechanisms.'''
+    # Bail out if the mechanisms are already compiled
+    compiled_path = model_path / 'x86_64'
+    if compiled_path.is_dir():
+        L.debug('Found already compiled mechanisms')
+        return
+
     mech_path = model_path / 'mechanisms'
     if not mech_path.is_dir():
         if not no_throw:
