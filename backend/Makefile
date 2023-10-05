@@ -45,7 +45,7 @@ docker_build:
 run_dev: docker_build
 	docker run --rm -it \
 		-e DEBUG=True \
-		-e ALLOWED_ORIGIN=http://$$(dnsdomainname -A|xargs):8080 \
+		-e ALLOWED_ORIGIN=http://localhost:8080 \
 		-v $$(pwd)/blue_naas:/usr/local/lib/python3.9/site-packages/blue_naas \
 		-v $$(pwd)/models:/opt/blue-naas/models \
 		-p 8000:8000 \

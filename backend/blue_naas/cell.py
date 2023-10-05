@@ -74,9 +74,7 @@ class Cell():
         os.chdir(self._model_path)
 
         # load the model
-        bsp_template = self._model_path / 'checkpoints' / 'cell.hoc'
-        nmc_template = self._model_path / 'template.hoc'
-        new_template = self._model_path / 'cell.hoc'
+        sbo_template = self._model_path / 'cell.hoc'
 
         self._prepare_neuron_output_file()
 
@@ -88,47 +86,16 @@ class Cell():
         neuron.h.load_file('stdrun.hoc')
         neuron.h.load_file('import3d.hoc')
 
-        if bsp_template.exists():
+        if sbo_template.exists():
             try:
                 with self._neuron_output:
-                    cmd = ['awk', '/^begintemplate / { print $2 }', str(bsp_template)]
+                    cmd = ['awk', '/^begintemplate / { print $2 }', str(sbo_template)]
                     self._template_name = subprocess.check_output(cmd).decode().strip()
-                    neuron.h.load_file(str(self._model_path / 'checkpoints' / 'cell.hoc'))
+                    neuron.h.load_file(str(sbo_template))
                     template = getattr(neuron.h, self._template_name)
-                    self.template = template(str(self._model_path / 'morphology'))
-            except Exception as ex:
-                raise Exception(self.get_neuron_output()) from ex
-
-        elif nmc_template.exists():
-            try:
-                with self._neuron_output:
-                    cmd = ['awk', '/^begintemplate / { print $2 }', str(nmc_template)]
-                    self._template_name = subprocess.check_output(cmd).decode().strip()
-                    neuron.h.load_file(str(nmc_template))
-                    template = getattr(neuron.h, self._template_name)
-                    self.template = template(0)
-
-                    holding_current = 0
-                    current_amps = Path('current_amps.dat')
-                    if current_amps.is_file():
-                        # nmc-portal models use these defaults
-                        # read holding current: the first value, cwd is current model for nmc
-                        data = current_amps.read_text(encoding='utf8')
-                        holding_current = [float(i.strip()) for i in data.split(' ')][0]
-
-                    self._init_params = {'hypamp': holding_current, 'vinit': -65, 'dt': 0.025}
-            except Exception as ex:
-                raise Exception(self.get_neuron_output()) from ex
-
-        elif new_template.exists():
-            try:
-                with self._neuron_output:
-                    cmd = ['awk', '/^begintemplate / { print $2 }', str(new_template)]
-                    self._template_name = subprocess.check_output(cmd).decode().strip()
-                    neuron.h.load_file(str(new_template))
-                    template = getattr(neuron.h, self._template_name)
-                    self.template = template(1,
-                                             str(next((self._model_path / 'morphology').iterdir())))
+                    morph_path = str(self._model_path / 'morphology')
+                    morph_name = str(next((self._model_path / 'morphology').iterdir()).name)
+                    self.template = template(1, morph_path, morph_name)
             except Exception as ex:
                 raise Exception(self.get_neuron_output()) from ex
 
