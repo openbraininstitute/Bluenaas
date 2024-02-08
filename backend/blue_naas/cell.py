@@ -18,7 +18,7 @@ MAX_SAMPLES = 300
 TIME = 'time'
 
 
-class Cell():
+class BaseCell():
     '''Neuron model.'''
 
     def __init__(self, model_id):
@@ -303,7 +303,7 @@ class Cell():
         self._nrn.h.stoprun = 1
 
 
-class HocCell(Cell):
+class HocCell(BaseCell):
     '''Cell model with hoc.'''
 
     def __init__(self, model_id, hoc_path=None, morph_path=None):
@@ -330,7 +330,7 @@ class HocCell(Cell):
         self._hyp_iclamp = self._nrn.h.IClamp(0.5, sec=self.template.soma[0])
 
 
-class PythonCell(Cell):
+class PythonCell(BaseCell):
     '''Cell model with python.'''
 
     def _evaluate_dict(self, current_ref, d, func_calls):
