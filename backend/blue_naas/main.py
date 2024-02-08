@@ -171,14 +171,14 @@ class WSHandler(tornado.websocket.WebSocketHandler):
                 self.send_message('topology', CELL.get_topology())
                 self.send_message('dendrogram', CELL.get_dendrogram())
                 self.send_message('synapses', CELL.get_synapses())
-                self.send_message('iclamp', CELL.get_iclamp())
+                self.send_message('injection_location', CELL.get_injection_location())
 
             elif cmd == 'get_sec_info':
                 self.send_message('sec_info', CELL.get_sec_info(msg['data']))
 
-            elif cmd == 'set_iclamp':
-                CELL.set_iclamp(msg['data'])
-                self.send_message('iclamp', CELL.get_iclamp())
+            elif cmd == 'set_injection_location':
+                CELL.set_injection_location(msg['data'])
+                self.send_message('injection_location', CELL.get_injection_location())
 
             elif cmd == 'start_simulation':
                 call_later_fn = tornado.ioloop.IOLoop.current().call_later

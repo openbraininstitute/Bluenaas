@@ -107,7 +107,7 @@ export class Params {
     simCtrlGlyph = startGlyph;
     simCtrlLabel = startLabel;
     simFileName;
-    iclampSection;
+    injectionSection;
     fixedTimestepPlaceholder = 'Variable time step';
     simCtrlBtnDisabled = false;
     uploaded = false;
@@ -206,10 +206,10 @@ export class Params {
                 let t = new Date();
                 if (this.ws.modelId) {
                     this.simFileName = `sim_${this.ws.modelId}_${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`
-                                      + `_${pad(t.getHours())}-${pad(t.getMinutes())}-${pad(t.getSeconds())}_amp-${this.iclampSection}-${this.model.amp}nA.csv`;
+                                      + `_${pad(t.getHours())}-${pad(t.getMinutes())}-${pad(t.getSeconds())}_amp-${this.injectionSection}-${this.model.amp}nA.csv`;
                 } else if (this.ws.url) {
                     this.simFileName = `sim_${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`
-                                      + `_${pad(t.getHours())}-${pad(t.getMinutes())}-${pad(t.getSeconds())}_amp-${this.iclampSection}-${this.model.amp}nA.csv`;
+                                      + `_${pad(t.getHours())}-${pad(t.getMinutes())}-${pad(t.getSeconds())}_amp-${this.injectionSection}-${this.model.amp}nA.csv`;
                 }
             });
             this.isSimRunning = false;
@@ -233,8 +233,8 @@ export class Params {
             this.g.updateOptions({ file: data, labels: labels, series: series });
             this.simCtrlBtnDisabled = false;
         }));
-        this.subscriptions.push(this.ea.subscribe('iclamp', sec => {
-            this.iclampSection = sec.replace('[', '_').replace(']', '');
+        this.subscriptions.push(this.ea.subscribe('injection_location', sec => {
+            this.injectionSection = sec;
         }));
     }
 
