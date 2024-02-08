@@ -107,8 +107,8 @@ export default class WebSocketSvc {
                     this.ea.publish('dendrogram', msg.data);
                 } else if (msg.cmd === 'synapses') {
                     this.ea.publish('synapses', msg.data);
-                } else if (msg.cmd === 'iclamp') {
-                    this.ea.publish('iclamp', msg.data);
+                } else if (msg.cmd === 'injection_location') {
+                    this.ea.publish('injection_location', msg.data);
                 } else if (msg.cmd === 'model') {
                     this.ea.publish('model', msg.data);
                 } else if (msg.cmd === 'error') {

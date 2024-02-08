@@ -99,6 +99,7 @@ class BaseCell():
             except Exception as ex:
                 raise Exception(self.get_neuron_output()) from ex
 
+            self._injection_location = self._cell.soma
         else:
             raise Exception("HOC file not found! Expecting '/checkpoints/cell.hoc' for "
                             "BSP model format or `/template.hoc`!")
@@ -173,16 +174,13 @@ class BaseCell():
             self._nrn.h.psection(sec=self._all_sec_array[self._all_sec_map[sec_name]['index']])
         return {'txt': self.get_neuron_output()}
 
-    def get_iclamp(self):
-        '''Get IClamp location, return the name of the section where IClamp is attached.'''
-        self._iclamp.get_loc()
-        name = get_sec_name(self._template_name, self._nrn.h.cas())
-        self._nrn.h.pop_section()
-        return name
+    def get_injection_location(self):
+        '''Get injection location, return the name of the section where injection_location is attached.'''
+        return get_sec_name(self._template_name, self._injection_location)
 
-    def set_iclamp(self, sec_name):
-        '''Move IClamp to the middle of the section.'''
-        self._iclamp.loc(0.5, sec=self._all_sec_array[self._all_sec_map[sec_name]['index']])
+    def set_injection_location(self, sec_name):
+        '''Move injection_location to the middle of the section.'''
+        self._injection_location = self._get_section_from_name(sec_name)
 
     def _send_voltage(self, send_message_fn):
         '''Send voltage trace message.'''

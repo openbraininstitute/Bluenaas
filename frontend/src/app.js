@@ -22,7 +22,7 @@ export class App {
     toggle3dCtrl;
     toggle3dSwitch;
     currentPlaceDisabled = true;
-    iclampSection = null;
+    injectionSection = null;
 
     constructor(app, ea, ws, dlgSvc) {
         this.app = app;
@@ -92,9 +92,9 @@ export class App {
             });
             console.log(`${data.msg}:`, data.raw);
         }));
-        this.subscriptions.push(this.ea.subscribe('iclamp', sec => {
-            // server messag where iclamp is placed
-            this.iclampSection = sec;
+        this.subscriptions.push(this.ea.subscribe('injection_location', sec => {
+            // server messag where injection_location is placed
+            this.injectionSection = sec;
         }));
         this.subscriptions.push(this.ea.subscribe('sec:selected', () => {
             this.currentPlaceDisabled = false;
@@ -143,10 +143,10 @@ export class App {
     }
 
     placeCurrentInjection() {
-        this.ea.publish('place:iclamp');
+        this.ea.publish('place:injection_location');
     }
 
-    locateIClamp() {
-        this.ea.publish('locate:iclamp', this.iclampSection);
+    locateInjectionLocation() {
+        this.ea.publish('locate:injection_location', this.injectionSection);
     }
 }

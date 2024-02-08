@@ -69,20 +69,20 @@ export class Morphology {
     }
 
     attached() {
-        this.subscriptions.push(this.ea.subscribe('locate:iclamp', (iclampSection) => {
-            iclampSection = iclampSection.replace('[', '\\[');
-            this.tree.searchText = iclampSection;
-            this.tree.searchTextChanged(iclampSection);
+        this.subscriptions.push(this.ea.subscribe('locate:injection_location', (injectionSection) => {
+            injectionSection = injectionSection.replace('[', '\\[');
+            this.tree.searchText = injectionSection;
+            this.tree.searchTextChanged(injectionSection);
         }));
-        this.subscriptions.push(this.ea.subscribe('place:iclamp', () => {
+        this.subscriptions.push(this.ea.subscribe('place:injection_location', () => {
             if (this._treeSelected) {
-                this.ws.sendMessage('set_iclamp', this._treeSelected);
+                this.ws.sendMessage('set_injection_location', this._treeSelected);
             } else {
                 UIUtils.toast({message: 'Please select the section where to place the current injection', theme: 'warning', glyph: 'glyph-alert-question'});
             }
         }));
-        this.subscriptions.push(this.ea.subscribe('iclamp', sec => {
-            // server messag where iclamp is placed
+        this.subscriptions.push(this.ea.subscribe('injection_location', sec => {
+            // server messag where injection_location is placed
             let model = this.treeModel;
             this._forEachTreeNode(model, (node) => {
                 if (node.id == sec) {
