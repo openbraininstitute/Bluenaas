@@ -10,10 +10,9 @@ import tornado.web
 import tornado.websocket
 
 from blue_naas import settings
-from blue_naas.cell import HocCell, PythonCell
+from blue_naas.cell import HocCell
 from blue_naas.settings import L
-from blue_naas.util import (NumpyAwareJSONEncoder, extract_zip_model, is_python_model, locate_model,
-                            model_exists)
+from blue_naas.util import NumpyAwareJSONEncoder, extract_zip_model, locate_model, model_exists
 
 CLIENT_ID = None
 CELL = None
@@ -144,11 +143,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
                 global CELL  # pylint: disable=global-statement
                 if CELL is None:
                     L.debug('loading model %s', model_id)
-                    model_path = locate_model(model_id)
-                    if is_python_model(model_path):
-                        CELL = PythonCell(model_id, model_path=model_path)
-                    else:
-                        CELL = HocCell(model_id)
+                    CELL = HocCell(model_id)
 
                 elif CELL.model_id != model_id:
                     L.debug('Trying to load different model, '
