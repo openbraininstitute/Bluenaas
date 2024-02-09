@@ -110,11 +110,6 @@ def locate_model(model_id):
     raise Exception(f'Model id not found: {model_id}')
 
 
-def is_python_model(model_path):
-    '''Check if the model is python based.'''
-    return Path(model_path, 'neuronservice.py').is_file()
-
-
 def compile_mechanisms(model_path, no_throw=False):
     '''Compile model mechanisms.'''
     # Bail out if the mechanisms are already compiled
