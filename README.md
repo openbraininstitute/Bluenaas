@@ -16,6 +16,8 @@ You can use the application on the EBRAINS platform at https://ebrains-cls-inter
 ## Documentation
 The user documentation for the service can be found [here](https://ebrains-cls-interactive.github.io/docs/online_usecases/single_cell_in_silico/single_cell_clamp/single_cell_clamp.html).
 
+From version 2.0 we are using [BlueCelluLab](https://github.com/BlueBrain/BlueCelluLab) library to run simulations.
+
 ## Build frontend/backend dev images
 ```bash
 make build
@@ -26,6 +28,16 @@ make build
 make run_dev_frontend &
 make run_dev_backend &
 ```
+
+## Simulate your own models.
+You can upload your own models and run single cell simulations. The `.zip` file format must be:
+model_name.zip
+  - model_name
+    - mechanisms /
+      - *.mod files
+    - morphology /
+      - morphology file loaded by cell.hoc
+    - cell.hoc
 
 ## Citation
 When you use the BlueNaaS-SingleCell software, we ask you to cite the following:
