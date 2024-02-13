@@ -130,17 +130,17 @@ def compile_mechanisms(model_path, no_throw=False):
 
 def get_sec_name(template_name, sec):
     '''Get section name.'''
-    return sec.name().replace(template_name + '[0].', '')
+    return sec.name().replace(template_name + '.', '')
 
 
-def get_morph_data(nrn):
+def get_morph_data(cell):
     '''Get 3d morphology points, for each section, align soma at center.'''
     x = []
     y = []
     z = []
     arc = []
-    for sec in nrn.h.allsec():
-        sec_point_count = int(nrn.h.n3d(sec=sec))
+    for sec in cell.all:
+        sec_point_count = sec.n3d()
 
         x_ = np.empty(sec_point_count)
         y_ = np.empty(sec_point_count)
@@ -148,10 +148,10 @@ def get_morph_data(nrn):
         arc_ = np.empty(sec_point_count)
 
         for i in range(sec_point_count):
-            x_[i] = nrn.h.x3d(i, sec=sec)
-            y_[i] = nrn.h.y3d(i, sec=sec)
-            z_[i] = nrn.h.z3d(i, sec=sec)
-            arc_[i] = nrn.h.arc3d(i, sec=sec)
+            x_[i] = sec.x3d(i)
+            y_[i] = sec.y3d(i)
+            z_[i] = sec.z3d(i)
+            arc_[i] = sec.arc3d(i)
 
         x.append(x_)
         y.append(y_)
@@ -170,21 +170,21 @@ def get_morph_data(nrn):
 
 def get_sec_name_seg_idx(template_name, seg):
     '''Get section name from segment.'''
-    name = seg.sec.name().replace(template_name + '[0].', '')
+    name = seg.sec.name().replace(template_name + '.', '')
     seg_idx = int(np.fix(seg.sec.nseg * seg.x * 0.9999999))
     return name, seg_idx
 
 
-def get_sections(nrn, template_name):
+def get_sections(cell):
     '''Get section segment cylinders and spines.'''
     # pylint: disable=too-many-statements,too-many-locals
     all_sec_array = []
     all_sec_map = {}
 
-    x, y, z, arc = get_morph_data(nrn)
+    x, y, z, arc = get_morph_data(cell)
 
-    for sec_idx, sec in enumerate(nrn.h.allsec()):
-        sec_name = get_sec_name(template_name, sec)
+    for sec_idx, sec in enumerate(cell.all):
+        sec_name = get_sec_name(cell.cellname, sec)
         sec_data = {'index': sec_idx}
 
         all_sec_map[sec_name] = sec_data
@@ -232,7 +232,7 @@ def get_sections(nrn, template_name):
             if is_spine(sec_name):  # spine location correction
                 assert sec_data['nseg'] == 1, 'spine sections should have one segment'
                 parent_seg = sec.parentseg()
-                parent_sec_name, parent_seg_idx = get_sec_name_seg_idx(template_name, parent_seg)
+                parent_sec_name, parent_seg_idx = get_sec_name_seg_idx(cell.cellname, parent_seg)
                 parent_sec = all_sec_map[parent_sec_name]
                 if is_spine(parent_sec_name):
                     # another section in spine -> continue in the direction of the parent

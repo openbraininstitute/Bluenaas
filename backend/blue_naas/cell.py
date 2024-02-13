@@ -1,15 +1,11 @@
 '''Cell module.'''
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 
-import numpy as np
-from numpy.lib.recfunctions import join_by, merge_arrays
-
 from blue_naas.settings import L
-from blue_naas.util import (NeuronOutput, compile_mechanisms, get_sec_name, get_sections, get_syns,
+from blue_naas.util import (NeuronOutput, compile_mechanisms, get_sec_name, get_sections,
                             locate_model, set_sec_dendrogram)
 
 # for the simulation time interval not more than voltage samples from all segments
@@ -23,9 +19,7 @@ class BaseCell():
 
     def __init__(self, model_id):
         self._model_id = model_id
-        self._model_path = None
         self._template_name = None
-        self._recordings = {}
         self._all_sec_array = []
         self._all_sec_map = {}
         self._dendrogram = {}
@@ -35,6 +29,9 @@ class BaseCell():
         self._init_params = {}
         self.template = None
         self.delta_t = None
+        self._recording_position = 0.5  # 0.5 middle of the section
+        self._cell = None
+        self._injection_location = None
 
     def _prepare_neuron_output_file(self):
         '''Redirect std output to fifo file.'''
@@ -67,73 +64,48 @@ class BaseCell():
         # pylint: disable=too-many-statements
         os.chdir('/opt/blue-naas')  # in dev, if tornado reloads, cwd will not be root for nmc
 
-        self._model_path = locate_model(model_id)
-        compile_mechanisms(self._model_path)
+        model_path = locate_model(model_id)
+        compile_mechanisms(model_path)
 
         # make sure x86_64 is in current dir before importing neuron
-        os.chdir(self._model_path)
+        os.chdir(model_path)
+
+        # importing here to avoid segmentation fault
+        from bluecellulab import Cell  # pylint: disable=import-outside-toplevel
+        from bluecellulab.circuit.circuit_access import \
+            EmodelProperties  # pylint: disable=import-outside-toplevel
+        from bluecellulab.importer import neuron  # pylint: disable=import-outside-toplevel
 
         # load the model
-        sbo_template = self._model_path / 'cell.hoc'
+        sbo_template = model_path / 'cell.hoc'
+        morph_path = model_path / "morphology"
+        morph_file_name = os.listdir(morph_path)[0]
+        morph_file = morph_path / morph_file_name
+        L.debug('morph_file: %s', morph_file)
 
         self._prepare_neuron_output_file()
-
-        # hoc base model,import NEURON after we compile the mechanisms
-        import neuron  # pylint: disable=import-outside-toplevel
-        self._nrn = neuron
-
-        neuron.h.load_file('stdlib.hoc')
-        neuron.h.load_file('stdrun.hoc')
-        neuron.h.load_file('import3d.hoc')
 
         if sbo_template.exists():
             try:
                 with self._neuron_output:
-                    cmd = ['awk', '/^begintemplate / { print $2 }', str(sbo_template)]
-                    self._template_name = subprocess.check_output(cmd).decode().strip()
-                    neuron.h.load_file(str(sbo_template))
-                    template = getattr(neuron.h, self._template_name)
-                    morph_path = str(self._model_path / 'morphology')
-                    morph_name = str(next((self._model_path / 'morphology').iterdir()).name)
-                    self.template = template(1, morph_path, morph_name)
+                    emodel_properties = EmodelProperties(threshold_current=0,
+                                                         holding_current=0,
+                                                         AIS_scaler=1)
+                    self._cell = Cell(sbo_template,
+                                      morph_file,
+                                      template_format="v6",
+                                      emodel_properties=emodel_properties)
             except Exception as ex:
                 raise Exception(self.get_neuron_output()) from ex
 
+            self._all_sec_array, self._all_sec_map = get_sections(self._cell)
+            self._nrn = neuron
+            self._template_name = self._cell.cellname
             self._injection_location = self._cell.soma
+            set_sec_dendrogram(self._template_name, self._cell.soma, self._dendrogram)
         else:
             raise Exception("HOC file not found! Expecting '/checkpoints/cell.hoc' for "
                             "BSP model format or `/template.hoc`!")
-
-    def _load_from_path(self, hoc_path, morph_path):
-        os.chdir(os.path.dirname(hoc_path))
-
-        cmd = ['nrnivmodl']
-        compilation_output = subprocess.check_output(cmd)
-        L.debug(compilation_output.decode())
-
-        # import NEURON after we compile the mechanisms
-        import neuron  # pylint: disable=import-outside-toplevel
-        self._nrn = neuron
-
-        self._prepare_neuron_output_file()
-
-        neuron.h.load_file('stdlib.hoc')
-        neuron.h.load_file('stdrun.hoc')
-        neuron.h.load_file('import3d.hoc')
-
-        # load the model
-        hoc_name = os.path.basename(hoc_path)
-        morph_name = os.path.basename(morph_path)
-
-        with self._neuron_output:
-            cmd = ['awk', '/^begintemplate / { print $2 }', hoc_name]
-            self._template_name = subprocess.check_output(cmd).decode().strip()
-            neuron.h.load_file(hoc_name)
-            template = getattr(neuron.h, self._template_name)
-            if any(mod.startswith('CaDynamics') for mod in os.listdir('.')):
-                self.template = template(1, '.', morph_name)
-            else:
-                self.template = template('.', morph_name)
 
     def get_init_params(self):
         '''Get initial parameters.'''
@@ -162,10 +134,10 @@ class BaseCell():
 
     def get_topology(self):
         '''Get topology.'''
-        topology_root = {'id': get_sec_name(self._template_name, self.template.soma[0]),
+        topology_root = {'id': get_sec_name(self._template_name, self._cell.soma),
                          'children': [],
                          'level': 0}
-        return [self._topology_children(self.template.soma[0], topology_root)]
+        return [self._topology_children(self._cell.soma, topology_root)]
 
     def get_sec_info(self, sec_name):
         '''Get section info from NEURON.'''
@@ -175,7 +147,7 @@ class BaseCell():
         return {'txt': self.get_neuron_output()}
 
     def get_injection_location(self):
-        '''Get injection location, return the name of the section where injection_location is attached.'''
+        '''Get injection location, return the name of the section where injection is attached.'''
         return get_sec_name(self._template_name, self._injection_location)
 
     def set_injection_location(self, sec_name):
@@ -191,108 +163,107 @@ class BaseCell():
 
         send_message_fn('sim_voltage', voltages)
 
-    def start_simulation(self, params, send_message_fn, call_later_fn):
+    def _get_section_from_name(self, name):
+        (section_name, section_id) = re.findall(r'(\w+)\[(\d)\]', name)[0]
+        if section_name.startswith('soma'):
+            return self._cell.soma
+        elif section_name.startswith('apic'):
+            return self._cell.apical[int(section_id)]
+        elif section_name.startswith('dend'):
+            return self._cell.basal[int(section_id)]
+        elif section_name.startswith('axon'):
+            return self._cell.axonal[int(section_id)]
+        else:
+            raise Exception('section name not found')
+
+    def _add_recordings(self, params):
+        self._all_sec_array = []
+        for recording_point in params['recordFrom']:
+            section = self._get_section_from_name(recording_point)
+            self._cell.add_voltage_recording(section, self._recording_position)
+            self._all_sec_array.append(section)
+
+    def _add_iclamp(self, params):
+        from bluecellulab.cell.injector import \
+            Hyperpolarizing  # pylint: disable=import-outside-toplevel
+
+        hyperpolarizing = Hyperpolarizing("single-cell", delay=0, duration=params['tstop'])
+        self._cell.hypamp = params['hypamp']
+        self._cell.add_replay_hypamp(hyperpolarizing)
+        self._cell.add_step(start_time=params['delay'],
+                            stop_time=params['dur'] + params['delay'],
+                            level=params['amp'],
+                            section=self._injection_location)
+
+    def _get_callback_step(self, send_message_fn):
+        def send_voltage():
+            voltages = [self._nrn.h.t]
+            for section in self._all_sec_array:
+                # get segments without 0 and 1
+                for seg in list(section.allseg())[1:-1]:
+                    voltages.append(seg.v)
+            send_message_fn('sim_voltage', voltages)
+
+        def callback():
+            send_voltage()
+            # schedule next step
+            self._nrn.h.cvode.event(self._nrn.h.t + self.delta_t, callback)
+
+        return callback
+
+    def _run_simulation(self, sim, params):
+        if params['dt'] is None:
+            sim.run(params['tstop'], cvode=False, celsius=params['celsius'], v_init=params['vinit'])
+        else:
+            sim.run(params['tstop'], cvode=True, celsius=params['celsius'], v_init=params['vinit'],
+                    dt=params['dt'])
+
+    def _get_simulation_results(self, params):
+        time = self._cell.get_time()
+        headers = ['time']
+        results = [time]
+        for recording_point in params['recordFrom']:
+            headers.append(recording_point)
+            section = self._get_section_from_name(recording_point)
+            voltage = self._cell.get_voltage_recording(section, self._recording_position)
+            results.append(voltage)
+
+        # TODO: improve this
+        # [('time', 'soma[0]_0'), (0.0, -73.0), (0.1, -70.0), (0.2, -60.0), ...
+        recordings = [tuple(headers)] + list(tuple(zip(*results)))
+        return recordings
+
+    def start_simulation(self, params, send_message_fn):
         '''Initialize the simulation and recordings.'''
+        from bluecellulab import Simulation  # pylint: disable=import-outside-toplevel
+
         try:
             with self._neuron_output:
                 L.debug('params %s', params)
 
-                v = self._nrn.h.Vector()
-                # pylint: disable=protected-access
-                v.record(self._nrn.h._ref_t, sec=self.template.soma[0])
+                sim = Simulation()
+                sim.add_cell(self._cell)
 
-                self._recordings = {}
-                self._recordings[TIME] = v
-
-                for seg_name in params['recordFrom']:
-                    sec_name, seg_str = seg_name.split('_')
-                    seg_idx = int(seg_str)
-                    sec_data = self._all_sec_map[sec_name]
-                    sec = self._all_sec_array[sec_data['index']]
-                    segx = sec_data['segx'][seg_idx]
-
-                    v = self._nrn.h.Vector()
-                    v.record(sec(segx)._ref_v, sec=sec)
-
-                    self._recordings[seg_name] = v
-
-                tstop = params['tstop']
-                self._nrn.h.tstop = tstop
-                self._iclamp.amp = params['amp']
-                self._iclamp.delay = params['delay']
-                self._iclamp.dur = params['dur']
-                dt = params['dt']
-
-                # holding current
-                self._hyp_iclamp.delay = 0
-                self._hyp_iclamp.dur = tstop
-                self._hyp_iclamp.amp = params['hypamp']
-
-                self.delta_t = tstop / MAX_SAMPLES
+                self.delta_t = params['tstop'] / MAX_SAMPLES
                 L.debug('delta_t: %s', self.delta_t)
 
-                if dt is None:
-                    L.debug('sim with variable timestamp')
-                    self._nrn.h.cvode_active(1)
-                else:
-                    L.debug('sim with timestamp %sms', dt)
-                    self._nrn.h.cvode_active(0)
-                    self._nrn.h.dt = dt
-                    self._nrn.h.steps_per_ms = 1.0 / dt
+                self._add_recordings(params)
 
-                self._nrn.h.celsius = params['celsius']
-                self._nrn.h.stoprun = 0
-                self._nrn.h.stdinit()
-                self._nrn.h.finitialize(params['vinit'])
+                # TODO: add more stimulus protocols
+                self._add_iclamp(params)
 
-                self._send_voltage(send_message_fn)
+                callback_fn = self._get_callback_step(send_message_fn)
+                # https://github.com/neuronsimulator/nrn/blob/master/docs/guide/finitialize_handler.rst
+                simulation_initilizer_fn = self._nrn.h.FInitializeHandler
+                # TODO: fix if the value is not assigned, the function is not called.
+                _ = simulation_initilizer_fn(1, callback_fn)  # pylint: disable=unused-variable
+
+                self._run_simulation(sim, params)
+                recordings = self._get_simulation_results(params)
+                send_message_fn('sim_done', recordings)
+
         except Exception:  # pylint: disable=broad-except
             send_message_fn('error', {'msg': 'Start-Simulation error',
-                                      'raw': self.get_neuron_output()})
-        else:
-            call_later_fn(0, self.step_simulation, send_message_fn, call_later_fn)
-
-    def step_simulation(self, send_message_fn, call_later_fn):
-        '''Execute one step of the simulation.
-
-        Run additional steps until we exceed the delta_t
-        then respond with the voltage trace across all segments
-        and schedule next time interval for the simulation.
-        When simulation is done send all recorded traces.
-        '''
-        try:
-            with self._neuron_output:
-                t_stop = self._nrn.h.t + self.delta_t
-
-                self._nrn.h.step()
-
-                while (self._nrn.h.t < t_stop
-                        and self._nrn.h.stoprun == 0
-                        and self._nrn.h.t < self._nrn.h.tstop):
-
-                    self._nrn.h.step()
-
-                self._send_voltage(send_message_fn)
-
-                if self._nrn.h.stoprun == 1 or self._nrn.h.tstop <= self._nrn.h.t:
-                    # simulation ended
-                    # convert map of the recorded vectors to list of panda csv like with header
-                    recordings = merge_arrays([v.as_numpy().view(dtype=[(k, 'd')])
-                                               for k, v in self._recordings.items()])
-
-                    # load experimental traces in case they are present
-                    trace_file = self._model_path / 'traces.dat'
-                    if trace_file.is_file():
-                        traces = np.genfromtxt(str(trace_file), delimiter=',',
-                                               names=True, deletechars='')
-                        recordings = join_by('time', traces, recordings, 'outer')
-
-                    send_message_fn('sim_done', [recordings.dtype.names] + recordings.tolist())
-                else:
-                    # continue next simulation interval and give tornado a chance to process msgs
-                    call_later_fn(0, self.step_simulation, send_message_fn, call_later_fn)
-        except Exception:  # pylint: disable=broad-except
-            send_message_fn('error', {'msg': 'Step-Simulation error',
                                       'raw': self.get_neuron_output()})
 
     def stop_simulation(self):
@@ -304,26 +275,9 @@ class BaseCell():
 class HocCell(BaseCell):
     '''Cell model with hoc.'''
 
-    def __init__(self, model_id, hoc_path=None, morph_path=None):
+    def __init__(self, model_id):
         super().__init__(model_id)
 
-        if hoc_path is None:
-            self._load_by_model_id(model_id)
-        else:
-            self._load_from_path(hoc_path, morph_path)
+        self._load_by_model_id(model_id)
 
         L.debug('Loading model output: %s', self.get_neuron_output())
-
-        self._nrn.h.define_shape()
-
-        self._all_sec_array, self._all_sec_map = get_sections(self._nrn, self._template_name)
-        set_sec_dendrogram(self._template_name, self.template.soma[0], self._dendrogram)
-        path = self._model_path / 'synapses_meta.json'
-        if path.is_file():
-            self._synapses = get_syns(self._nrn, path, self._template_name, self._all_sec_map)
-
-        self._iclamp = self._nrn.h.IClamp(0.5, sec=self.template.soma[0])
-
-        # setup holding current
-        self._hyp_iclamp = self._nrn.h.IClamp(0.5, sec=self.template.soma[0])
-
