@@ -12,7 +12,7 @@ import tornado.websocket
 from blue_naas import settings
 from blue_naas.cell import HocCell
 from blue_naas.settings import L
-from blue_naas.util import NumpyAwareJSONEncoder, extract_zip_model, locate_model, model_exists
+from blue_naas.util import NumpyAwareJSONEncoder, extract_zip_model, model_exists
 
 CLIENT_ID = None
 CELL = None
@@ -177,8 +177,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 
             elif cmd == 'start_simulation':
                 call_later_fn = tornado.ioloop.IOLoop.current().call_later
-                call_later_fn(0, CELL.start_simulation, msg['data'], self.send_message,
-                              call_later_fn)
+                call_later_fn(0, CELL.start_simulation, msg['data'], self.send_message)
 
             elif cmd == 'stop_simulation':
                 CELL.stop_simulation()

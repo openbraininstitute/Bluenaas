@@ -9,7 +9,7 @@ setup(
     version=os.environ['VERSION'],
     url='https://blue-naas-bsp-epfl.apps.hbp.eu',
     author='Blue Brain Project, EPFL',
-    install_requires=('requests', 'tornado', 'neuron'),
+    install_requires=('requests', 'tornado', 'neuron', 'bluecellulab'),
     packages=find_packages(exclude=[]),
     scripts=[],
 )
