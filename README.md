@@ -18,6 +18,8 @@ The user documentation for the service can be found [here](https://ebrains-cls-i
 
 From version 2.0 we are using [BlueCelluLab](https://github.com/BlueBrain/BlueCelluLab) library to run simulations.
 
+To get the code for legacy (neuron) version check out [v1 branch](https://bbpgitlab.epfl.ch/project/sbo/bluenaas-single-cell/-/tree/v1)
+
 ## Build frontend/backend dev images
 ```bash
 make build
