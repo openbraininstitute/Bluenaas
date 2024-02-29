@@ -295,8 +295,7 @@ def set_sec_dendrogram(template_name, sec, data):
 
     max_seg_diam = 0
     for seg in sec:
-        if seg.diam > max_seg_diam:
-            max_seg_diam = seg.diam
+        max_seg_diam = max(max_seg_diam, seg.diam)
         segments.append({'length': sec.L / sec.nseg, 'diam': seg.diam})
     data['width'] = max_seg_diam + PADDING * 2
 
