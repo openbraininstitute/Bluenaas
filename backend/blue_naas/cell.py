@@ -100,7 +100,7 @@ class BaseCell():
 
             self._all_sec_array, self._all_sec_map = get_sections(self._cell)
             self._nrn = neuron
-            self._template_name = self._cell.cellname
+            self._template_name = self._cell.hocname
             self._injection_location = self._cell.soma
             set_sec_dendrogram(self._template_name, self._cell.soma, self._dendrogram)
         else:
