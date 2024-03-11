@@ -184,7 +184,7 @@ def get_sections(cell):
     x, y, z, arc = get_morph_data(cell)
 
     for sec_idx, sec in enumerate(cell.all):
-        sec_name = get_sec_name(cell.cellname, sec)
+        sec_name = get_sec_name(cell.hocname, sec)
         sec_data = {'index': sec_idx}
 
         all_sec_map[sec_name] = sec_data
@@ -232,7 +232,7 @@ def get_sections(cell):
             if is_spine(sec_name):  # spine location correction
                 assert sec_data['nseg'] == 1, 'spine sections should have one segment'
                 parent_seg = sec.parentseg()
-                parent_sec_name, parent_seg_idx = get_sec_name_seg_idx(cell.cellname, parent_seg)
+                parent_sec_name, parent_seg_idx = get_sec_name_seg_idx(cell.hocname, parent_seg)
                 parent_sec = all_sec_map[parent_sec_name]
                 if is_spine(parent_sec_name):
                     # another section in spine -> continue in the direction of the parent
