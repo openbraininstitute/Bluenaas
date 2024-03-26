@@ -139,7 +139,7 @@ def get_morph_data(cell):
     y = []
     z = []
     arc = []
-    for sec in cell.all:
+    for sec in cell.sections.values():
         sec_point_count = sec.n3d()
 
         x_ = np.empty(sec_point_count)
@@ -183,7 +183,7 @@ def get_sections(cell):
 
     x, y, z, arc = get_morph_data(cell)
 
-    for sec_idx, sec in enumerate(cell.all):
+    for sec_idx, sec in enumerate(cell.sections.values()):
         sec_name = get_sec_name(cell.hocname, sec)
         sec_data = {'index': sec_idx}
 
