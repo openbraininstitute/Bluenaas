@@ -1,12 +1,10 @@
 '''Cell module.'''
 import os
 import re
-import sys
-from pathlib import Path
 
 from blue_naas.settings import L
-from blue_naas.util import (NeuronOutput, compile_mechanisms, get_sec_name, get_sections,
-                            locate_model, set_sec_dendrogram)
+from blue_naas.util import (compile_mechanisms, get_sec_name, get_sections, locate_model,
+                            set_sec_dendrogram)
 
 # for the simulation time interval not more than voltage samples from all segments
 MAX_SAMPLES = 300
@@ -24,7 +22,6 @@ class BaseCell():
         self._all_sec_map = {}
         self._dendrogram = {}
         self._synapses = {}
-        self._neuron_output = None
         self._nrn = None
         self._init_params = {}
         self.template = None
@@ -32,22 +29,6 @@ class BaseCell():
         self._recording_position = 0.5  # 0.5 middle of the section
         self._cell = None
         self._injection_location = None
-
-    def _prepare_neuron_output_file(self):
-        '''Redirect std output to fifo file.'''
-        neuron_output_file_name = '/opt/blue-naas/tmp/neuron_output'
-
-        Path(neuron_output_file_name).unlink(missing_ok=True)
-
-        os.mkfifo(neuron_output_file_name)
-        neuron_output_fd = os.open(neuron_output_file_name, os.O_RDONLY | os.O_NONBLOCK)
-        self._neuron_output = NeuronOutput(neuron_output_fd)
-
-        neuron_output_fd_w = os.open(neuron_output_file_name, os.O_WRONLY)
-        # if you are running in docker with ipdb breakpoint -> comment the following 2 lines,
-        # to be able to stop at the breakpoint
-        os.dup2(neuron_output_fd_w, sys.stdout.fileno())
-        os.dup2(neuron_output_fd_w, sys.stderr.fileno())
 
     def _topology_children(self, sec, topology):
         children = topology['children']
@@ -60,9 +41,9 @@ class BaseCell():
             self._topology_children(child_sec, child_topology)
         return topology
 
-    def _load_by_model_id(self, model_id):
+    def _load_by_model_id(self, model_id, threshold_current, holding_current):
         # pylint: disable=too-many-statements
-        os.chdir('/opt/blue-naas')  # in dev, if tornado reloads, cwd will not be root for nmc
+        os.chdir('/opt/blue-naas')
 
         model_path = locate_model(model_id)
         compile_mechanisms(model_path)
@@ -83,20 +64,18 @@ class BaseCell():
         morph_file = morph_path / morph_file_name
         L.debug('morph_file: %s', morph_file)
 
-        self._prepare_neuron_output_file()
-
         if sbo_template.exists():
             try:
-                with self._neuron_output:
-                    emodel_properties = EmodelProperties(threshold_current=0,
-                                                         holding_current=0,
-                                                         AIS_scaler=1)
-                    self._cell = Cell(sbo_template,
-                                      morph_file,
-                                      template_format="v6",
-                                      emodel_properties=emodel_properties)
+                emodel_properties = EmodelProperties(threshold_current,
+                                                     holding_current,
+                                                     AIS_scaler=1)
+                self._cell = Cell(sbo_template,
+                                  morph_file,
+                                  template_format="v6",
+                                  emodel_properties=emodel_properties)
             except Exception as ex:
-                raise Exception(self.get_neuron_output()) from ex
+                L.error("Error creating Cell object: %s", ex)
+                raise Exception(ex) from ex
 
             self._all_sec_array, self._all_sec_map = get_sections(self._cell)
             self._nrn = neuron
@@ -110,10 +89,6 @@ class BaseCell():
     def get_init_params(self):
         '''Get initial parameters.'''
         return getattr(self, '_init_params', None)
-
-    def get_neuron_output(self):
-        '''Get NEURON output.'''
-        return str(self._neuron_output)
 
     @property
     def model_id(self):
@@ -142,9 +117,9 @@ class BaseCell():
     def get_sec_info(self, sec_name):
         '''Get section info from NEURON.'''
         L.debug(sec_name)
-        with self._neuron_output:
-            self._nrn.h.psection(sec=self._all_sec_array[self._all_sec_map[sec_name]['index']])
-        return {'txt': self.get_neuron_output()}
+        self._nrn.h.psection(sec=self._all_sec_array[self._all_sec_map[sec_name]['index']])
+        # TODO: rework this
+        return {'txt': ''}
 
     def get_injection_location(self):
         '''Get injection location, return the name of the section where injection is attached.'''
@@ -153,15 +128,6 @@ class BaseCell():
     def set_injection_location(self, sec_name):
         '''Move injection_location to the middle of the section.'''
         self._injection_location = self._get_section_from_name(sec_name)
-
-    def _send_voltage(self, send_message_fn):
-        '''Send voltage trace message.'''
-        voltages = [self._nrn.h.t]
-        for sec in self._all_sec_array:
-            for _, seg in enumerate(sec):
-                voltages.append(seg.v)
-
-        send_message_fn('sim_voltage', voltages)
 
     def _get_section_from_name(self, name):
         (section_name, section_id) = re.findall(r'(\w+)\[(\d)\]', name)[0]
@@ -176,95 +142,59 @@ class BaseCell():
         else:
             raise Exception('section name not found')
 
-    def _add_recordings(self, params):
-        self._all_sec_array = []
-        for recording_point in params['recordFrom']:
-            section = self._get_section_from_name(recording_point)
-            self._cell.add_voltage_recording(section, self._recording_position)
-            self._all_sec_array.append(section)
+    def _get_simulation_results(self, responses):
+        recordings = []
+        for stimulus, recording in responses.items():
+            recordings.append({
+                't': list(recording.time),
+                'v': list(recording.voltage),
+                'name': stimulus,
+            })
 
-    def _add_iclamp(self, params):
-        from bluecellulab.cell.injector import \
-            Hyperpolarizing  # pylint: disable=import-outside-toplevel
-
-        hyperpolarizing = Hyperpolarizing("single-cell", delay=0, duration=params['tstop'])
-        self._cell.hypamp = params['hypamp']
-        self._cell.add_replay_hypamp(hyperpolarizing)
-        self._cell.add_step(start_time=params['delay'],
-                            stop_time=params['dur'] + params['delay'],
-                            level=params['amp'],
-                            section=self._injection_location)
-
-    def _get_callback_step(self, send_message_fn):
-        def send_voltage():
-            voltages = [self._nrn.h.t]
-            for section in self._all_sec_array:
-                # get segments without 0 and 1
-                for seg in list(section.allseg())[1:-1]:
-                    voltages.append(seg.v)
-            send_message_fn('sim_voltage', voltages)
-
-        def callback():
-            send_voltage()
-            # schedule next step
-            self._nrn.h.cvode.event(self._nrn.h.t + self.delta_t, callback)
-
-        return callback
-
-    def _run_simulation(self, sim, params):
-        if params['dt'] is None:
-            sim.run(params['tstop'], cvode=False, celsius=params['celsius'], v_init=params['vinit'])
-        else:
-            sim.run(params['tstop'], cvode=True, celsius=params['celsius'], v_init=params['vinit'],
-                    dt=params['dt'])
-
-    def _get_simulation_results(self, params):
-        time = self._cell.get_time()
-        headers = ['time']
-        results = [time]
-        for recording_point in params['recordFrom']:
-            headers.append(recording_point)
-            section = self._get_section_from_name(recording_point)
-            voltage = self._cell.get_voltage_recording(section, self._recording_position)
-            results.append(voltage)
-
-        # TODO: improve this
-        # [('time', 'soma[0]_0'), (0.0, -73.0), (0.1, -70.0), (0.2, -60.0), ...
-        recordings = [tuple(headers)] + list(tuple(zip(*results)))
         return recordings
 
-    def start_simulation(self, params, send_message_fn):
+    def _get_stimulus_name(self, protocol_name):
+        from bluecellulab.analysis.inject_sequence import \
+            StimulusName  # pylint: disable=import-outside-toplevel
+        protocol_mapping = {
+            'ap_waveform': StimulusName.AP_WAVEFORM,
+            'idrest': StimulusName.IDREST,
+            'iv': StimulusName.IV,
+            'fire_pattern': StimulusName.FIRE_PATTERN,
+        }
+
+        if protocol_name not in protocol_mapping:
+            raise Exception('Protocol does not have StimulusName assigned')
+
+        return protocol_mapping[protocol_name]
+
+    def start_simulation(self, params):
         '''Initialize the simulation and recordings.'''
-        from bluecellulab import Simulation  # pylint: disable=import-outside-toplevel
+        from bluecellulab.analysis.inject_sequence import \
+            apply_multiple_step_stimuli  # pylint: disable=import-outside-toplevel
 
         try:
-            with self._neuron_output:
-                L.debug('params %s', params)
+            L.debug('params %s', params)
+            self.delta_t = params['tstop'] / MAX_SAMPLES
+            L.debug('delta_t: %s', self.delta_t)
 
-                sim = Simulation()
-                sim.add_cell(self._cell)
+            stimulus_name = self._get_stimulus_name(params['stimulus']['stimulusProtocol'])
 
-                self.delta_t = params['tstop'] / MAX_SAMPLES
-                L.debug('delta_t: %s', self.delta_t)
+            amplitudes = params['stimulus']['amplitudes']
+            responses = apply_multiple_step_stimuli(
+                self._cell,
+                stimulus_name,
+                amplitudes,
+                duration=params['tstop'],
+                section_name=params['injectTo']
+            )
 
-                self._add_recordings(params)
+            recordings = self._get_simulation_results(responses)
+            return recordings
 
-                # TODO: add more stimulus protocols
-                self._add_iclamp(params)
-
-                callback_fn = self._get_callback_step(send_message_fn)
-                # https://github.com/neuronsimulator/nrn/blob/master/docs/guide/finitialize_handler.rst
-                simulation_initilizer_fn = self._nrn.h.FInitializeHandler
-                # TODO: fix if the value is not assigned, the function is not called.
-                _ = simulation_initilizer_fn(1, callback_fn)  # pylint: disable=unused-variable
-
-                self._run_simulation(sim, params)
-                recordings = self._get_simulation_results(params)
-                send_message_fn('sim_done', recordings)
-
-        except Exception:  # pylint: disable=broad-except
-            send_message_fn('error', {'msg': 'Start-Simulation error',
-                                      'raw': self.get_neuron_output()})
+        except Exception as e:  # pylint: disable=broad-except
+            L.error('Start-Simulation error: %s', e)
+            raise Exception(f'Start-Simulation error: {e}') from e
 
     def stop_simulation(self):
         '''Stop simulation.'''
@@ -275,9 +205,7 @@ class BaseCell():
 class HocCell(BaseCell):
     '''Cell model with hoc.'''
 
-    def __init__(self, model_id):
+    def __init__(self, model_id, threshold_current=0, holding_current=0):
         super().__init__(model_id)
 
-        self._load_by_model_id(model_id)
-
-        L.debug('Loading model output: %s', self.get_neuron_output())
+        self._load_by_model_id(model_id, threshold_current, holding_current)

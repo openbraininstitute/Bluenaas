@@ -1,1 +1,7 @@
 venv
+models
+dist
+blue_naas.egg-info
+__pycache__
+/*.sh
+!/entrypoint.sh

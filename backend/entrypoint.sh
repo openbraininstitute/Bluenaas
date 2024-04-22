@@ -1,4 +1,2 @@
-#!/bin/bash
-touch probes/alive
-
-/usr/bin/env python -u -m blue_naas.main
+#!/bin/sh
+timeout 1200 uvicorn blue_naas.main:APP --host 0.0.0.0 --port 8080 --proxy-headers --log-config logging.yaml
