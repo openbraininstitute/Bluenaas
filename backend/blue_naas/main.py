@@ -97,13 +97,13 @@ def process_message(msg: dict):
         L.info("all chunks were sent")
         send_message(apigw, conn, {'cmd': result['cmd'], 'data': True})
 
-    if result['cmd'] == 'get_ui_data_done':
+    elif result['cmd'] == 'get_ui_data_done':
         partial_morph_cmd = 'partial_morphology_data'
 
         # TODO: improve this
         # strinfigy and divide in chunks the object
         morph_str = json.dumps(result['data']['morphology'])
-        chunks = re.findall(r'.{1,20000}', morph_str)
+        chunks = re.findall(r'.{1,100000}', morph_str)
 
         L.info('Sending chunk for morphology...')
         for index, chunk in enumerate(chunks):

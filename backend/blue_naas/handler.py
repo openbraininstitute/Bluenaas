@@ -11,7 +11,7 @@ function_mapping = {
     'get_ui_data': get_ui_data,
 }
 
-SIZE = 200  # elements per chunk
+SIZE = 3000  # elements per chunk
 
 
 def message_handler(msg):
