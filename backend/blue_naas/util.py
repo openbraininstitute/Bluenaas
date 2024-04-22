@@ -1,7 +1,5 @@
 '''Util.'''
-import errno
 import json
-import os
 import re
 import subprocess
 import tarfile
@@ -11,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from blue_naas.settings import STDOUT_FD_W, L
+from blue_naas.settings import L
 
 PADDING = 2.0
 
@@ -24,43 +22,6 @@ class NumpyAwareJSONEncoder(json.JSONEncoder):
         if isinstance(o, np.ndarray) and o.ndim == 1:
             return o.tolist()
         return json.JSONEncoder.default(self, o)
-
-
-class NeuronOutput():
-    '''Capture output from neuron stdout.'''
-
-    BUFFER_SIZE = 2**20
-
-    def _drain_fd(self):
-        result = ''
-        while True:
-            try:
-                buf = os.read(self._fd, self.BUFFER_SIZE)
-                if not buf:
-                    return result  # EOF
-                result += buf.decode()
-                os.write(STDOUT_FD_W, buf)
-            except OSError as err:
-                if err.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
-                    return result  # no data
-                else:
-                    raise  # something else has happened -- better reraise
-
-    def __init__(self, file_desc):
-        self._fd = file_desc
-        self._result = None
-
-    def __enter__(self):
-        '''Start NEURON output capture.'''
-        self._drain_fd()
-
-    def __exit__(self, *args):
-        '''Stop NEURON output capture.'''
-        self._result = self._drain_fd()
-
-    def __str__(self):
-        '''Get NEURON output.'''
-        return self._result
 
 
 def is_spine(sec_name):
@@ -175,6 +136,17 @@ def get_sec_name_seg_idx(template_name, seg):
     return name, seg_idx
 
 
+def convert_numpy_dict_to_standard_dict(numpy_dict):
+    '''Convert numpy dict to standard dict.'''
+    standard_dict = {}
+    for key, value in numpy_dict.items():
+        if isinstance(value, np.ndarray):
+            standard_dict[key] = value.tolist()
+        else:
+            standard_dict[key] = value
+    return standard_dict
+
+
 def get_sections(cell):
     '''Get section segment cylinders and spines.'''
     # pylint: disable=too-many-statements,too-many-locals
@@ -282,7 +254,12 @@ def get_sections(cell):
                 sec_data['ycenter'] = (sec_data['ystart'] + sec_data['yend']) / 2.0
                 sec_data['zcenter'] = (sec_data['zstart'] + sec_data['zend']) / 2.0
 
-    return all_sec_array, all_sec_map
+    # TODO: rework this
+    all_sec_map_no_numpy = {}
+    for section, values in all_sec_map.items():
+        all_sec_map_no_numpy.update({section: convert_numpy_dict_to_standard_dict(values)})
+
+    return all_sec_array, all_sec_map_no_numpy
 
 
 def set_sec_dendrogram(template_name, sec, data):

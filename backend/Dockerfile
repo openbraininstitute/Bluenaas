@@ -1,10 +1,10 @@
-FROM python:3.9-slim AS builder
+FROM python:3.12-slim AS builder
 WORKDIR /app
 ARG VERSION
 COPY . .
 RUN python setup.py sdist
 
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -21,11 +21,9 @@ WORKDIR /opt/blue-naas
 COPY --from=builder /app/dist/blue-naas-${VERSION}.tar.gz ./
 RUN pip install --no-cache-dir blue-naas-${VERSION}.tar.gz
 
-ADD entrypoint.sh entrypoint.sh
-RUN mkdir probes && chmod a+rw probes \
-    && mkdir tmp && chmod a+rw tmp \
-    && mkdir x86_64 && chmod a+rw x86_64
+COPY entrypoint.sh entrypoint.sh
+COPY logging.yaml logging.yaml
 
-EXPOSE 8000
+EXPOSE 8080
 
 ENTRYPOINT ["./entrypoint.sh"]

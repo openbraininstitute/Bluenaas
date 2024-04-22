@@ -1,0 +1,35 @@
+version: 1
+disable_existing_loggers: False
+formatters:
+  simple:
+    format: "%(asctime)s %(levelname)s %(name)s: %(message)s"
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: simple
+    stream: ext://sys.stderr
+loggers:
+  uvicorn:
+    level: INFO
+    handlers: [console]
+    propagate: no
+  botocore:
+    level: INFO
+    handlers: [console]
+    propagate: no
+  urllib3:
+    level: INFO
+    handlers: [console]
+    propagate: no
+  matplotlib:
+    level: INFO
+    handlers: [console]
+    propagate: no
+  bluecellulab:
+    level: INFO
+    handlers: [console]
+    propagate: no
+root:
+  level: DEBUG
+  handlers: [console]
