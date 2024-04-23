@@ -6,9 +6,6 @@ from blue_naas.settings import L
 from blue_naas.util import (compile_mechanisms, get_sec_name, get_sections, locate_model,
                             set_sec_dendrogram)
 
-# for the simulation time interval not more than voltage samples from all segments
-MAX_SAMPLES = 300
-
 TIME = 'time'
 
 
@@ -175,8 +172,6 @@ class BaseCell():
 
         try:
             L.debug('params %s', params)
-            self.delta_t = params['tstop'] / MAX_SAMPLES
-            L.debug('delta_t: %s', self.delta_t)
 
             stimulus_name = self._get_stimulus_name(params['stimulus']['stimulusProtocol'])
 
@@ -185,7 +180,6 @@ class BaseCell():
                 self._cell,
                 stimulus_name,
                 amplitudes,
-                duration=params['tstop'],
                 section_name=params['injectTo']
             )
 
