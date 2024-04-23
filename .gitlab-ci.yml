@@ -1,0 +1,8 @@
+# Template taken from https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Python.gitlab-ci.yml
+image: python:latest
+
+test_backend:
+  script:
+    - pushd backend
+    - make python_build
+    - popd
