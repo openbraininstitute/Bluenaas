@@ -1,4 +1,5 @@
 '''Cell module.'''
+# pylint: disable=import-outside-toplevel
 import os
 import re
 
@@ -49,10 +50,9 @@ class BaseCell():
         os.chdir(model_path)
 
         # importing here to avoid segmentation fault
-        from bluecellulab import Cell  # pylint: disable=import-outside-toplevel
-        from bluecellulab.circuit.circuit_access import \
-            EmodelProperties  # pylint: disable=import-outside-toplevel
-        from bluecellulab.importer import neuron  # pylint: disable=import-outside-toplevel
+        from bluecellulab import Cell
+        from bluecellulab.circuit.circuit_access import EmodelProperties
+        from bluecellulab.importer import neuron
 
         # load the model
         sbo_template = model_path / 'cell.hoc'
@@ -151,8 +151,7 @@ class BaseCell():
         return recordings
 
     def _get_stimulus_name(self, protocol_name):
-        from bluecellulab.analysis.inject_sequence import \
-            StimulusName  # pylint: disable=import-outside-toplevel
+        from bluecellulab.analysis.inject_sequence import StimulusName
         protocol_mapping = {
             'ap_waveform': StimulusName.AP_WAVEFORM,
             'idrest': StimulusName.IDREST,
@@ -167,8 +166,7 @@ class BaseCell():
 
     def start_simulation(self, params):
         '''Initialize the simulation and recordings.'''
-        from bluecellulab.analysis.inject_sequence import \
-            apply_multiple_step_stimuli  # pylint: disable=import-outside-toplevel
+        from bluecellulab.analysis.inject_sequence import apply_multiple_step_stimuli
 
         try:
             L.debug('params %s', params)
