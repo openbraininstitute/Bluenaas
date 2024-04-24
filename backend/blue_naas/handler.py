@@ -1,5 +1,5 @@
 '''Handler.'''
-from .simulation import (get_sec_info, get_ui_data, set_injection_location, set_model,
+from .simulation import (get_sec_info, get_ui_data, set_injection_location, set_model, set_token,
                          start_simulation, stop_simulation)
 
 function_mapping = {
@@ -16,6 +16,13 @@ SIZE = 3000  # elements per chunk
 
 def message_handler(msg):
     '''Handle message.'''
+    if 'token' in msg:
+        set_token(msg['token'])
+        return {'message': 'Token set'}
+
+    if 'cmd' not in msg:
+        return {'message': 'Service up'}
+
     command_name = msg['cmd']
     data = msg['data']
 
