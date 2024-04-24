@@ -3,6 +3,14 @@ from .cell import HocCell
 from .settings import L
 
 CELL = None
+TOKEN = None
+
+
+def set_token(token):
+    '''Set token to fetch model in the future.'''
+    global TOKEN  # pylint: disable=global-statement
+    L.info('Setting token...')
+    TOKEN = token
 
 
 def set_model(values):

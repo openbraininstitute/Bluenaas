@@ -81,7 +81,8 @@ def process_message(msg: dict):
 
     apigw = boto3.client("apigatewaymanagementapi", endpoint_url=apigw, region_name=region)
 
-    if result['cmd'] == 'start_simulation_done':
+    result_cmd = result['cmd'] if 'cmd' in result else None
+    if result_cmd == 'start_simulation_done':
         partial_data_cmd = 'partial_simulation_data'
 
         for recording in result['data']:
@@ -97,7 +98,7 @@ def process_message(msg: dict):
         L.info("all chunks were sent")
         send_message(apigw, conn, {'cmd': result['cmd'], 'data': True})
 
-    elif result['cmd'] == 'get_ui_data_done':
+    elif result_cmd == 'get_ui_data_done':
         partial_morph_cmd = 'partial_morphology_data'
 
         # TODO: improve this
@@ -118,6 +119,17 @@ def process_message(msg: dict):
         send_message(apigw, conn, {'cmd': result['cmd'], 'data': True})
     else:
         send_message(apigw, conn, result)
+
+
+@APP.post("/init")
+def init(msg: dict):
+    """Initialize service."""
+    L.info("INIT msg=%s", msg.keys())
+    try:
+        message_handler(msg)
+    except Exception as e:
+        L.exception("Error during processing msg=%s: %s", msg, e)
+        raise Exception(e) from e
 
 
 @APP.post("/default")
