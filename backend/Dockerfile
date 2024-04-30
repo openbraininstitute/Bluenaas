@@ -18,8 +18,8 @@ RUN apt-get update \
 
 WORKDIR /opt/blue-naas
 
-COPY --from=builder /app/dist/blue-naas-${VERSION}.tar.gz ./
-RUN pip install --no-cache-dir blue-naas-${VERSION}.tar.gz
+COPY --from=builder /app/dist/blue_naas-${VERSION}.tar.gz ./
+RUN pip install --no-cache-dir blue_naas-${VERSION}.tar.gz
 
 COPY entrypoint.sh entrypoint.sh
 COPY logging.yaml logging.yaml
