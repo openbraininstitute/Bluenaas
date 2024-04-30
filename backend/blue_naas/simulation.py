@@ -1,6 +1,7 @@
 '''Simulation.'''
 from .cell import HocCell
 from .settings import L
+from .StimulusFactoryPlot import StimulusFactoryPlot
 
 CELL = None
 TOKEN = None
@@ -65,3 +66,10 @@ def get_ui_data(_):
     '''Get UI data.'''
     results = {'morphology': CELL.get_cell_morph()}
     return results
+
+
+def get_stimuli_plot_data(values):
+    '''Get stimuli plot data.'''
+    stimulus_factory_plot = StimulusFactoryPlot(values)
+    result_data = stimulus_factory_plot.apply_stim()
+    return result_data
