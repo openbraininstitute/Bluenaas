@@ -1,6 +1,6 @@
 '''Handler.'''
-from .simulation import (get_sec_info, get_ui_data, set_injection_location, set_model, set_token,
-                         start_simulation, stop_simulation)
+from .simulation import (get_sec_info, get_stimuli_plot_data, get_ui_data, set_injection_location,
+                         set_model, set_token, start_simulation, stop_simulation)
 
 function_mapping = {
     'set_model': set_model,
@@ -9,6 +9,7 @@ function_mapping = {
     'set_injection_location': set_injection_location,
     'stop_simulation': stop_simulation,
     'get_ui_data': get_ui_data,
+    'get_stimuli_plot_data': get_stimuli_plot_data,
 }
 
 SIZE = 3000  # elements per chunk
@@ -54,7 +55,7 @@ def divide_sim_chunks(cmd, stimulus_name, voltages, times):
     offset = 0
     for i in range(0, len(times), SIZE):
         chunk_data = {
-            'name': stimulus_name,
+            'name': stimulus_name.replace('StimulusName.', ''),
             'offset': offset,
             'v': list(voltages[i:i + SIZE]),
             't': list(times[i:i + SIZE]),
