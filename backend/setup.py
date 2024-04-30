@@ -9,7 +9,7 @@ setup(
     version=os.environ['VERSION'],
     url='https://blue-naas-bsp-epfl.apps.hbp.eu',
     author='Blue Brain Project, EPFL',
-    install_requires=('uvicorn[standard]', 'fastapi', 'boto3', 'bluecellulab>=2.2.2,<3.0.0'),
+    install_requires=('uvicorn[standard]', 'fastapi', 'boto3', 'bluecellulab>=2.2.2,<3.0.0', 'requests'),
     packages=find_packages(exclude=[]),
     scripts=[],
 )
