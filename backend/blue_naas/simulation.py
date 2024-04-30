@@ -1,5 +1,6 @@
 '''Simulation.'''
 from .cell import HocCell
+from .Nexus import Nexus
 from .settings import L
 from .StimulusFactoryPlot import StimulusFactoryPlot
 
@@ -22,6 +23,12 @@ def set_model(values):
 
     if model_id is None:
         raise Exception('Missing model id')
+
+    nexus_helper = Nexus({
+        'token': TOKEN,
+        'emodel_id': model_id
+    })
+    nexus_helper.download_model()
 
     global CELL  # pylint: disable=global-statement
     if CELL is None:
