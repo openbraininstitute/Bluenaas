@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 
 setup(
-    name='blue-naas',
+    name='blue_naas',
     description='BlueNaaS (Neuron as a Service)',
     version=os.environ['VERSION'],
     url='https://blue-naas-bsp-epfl.apps.hbp.eu',
