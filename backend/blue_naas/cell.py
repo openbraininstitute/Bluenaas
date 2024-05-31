@@ -166,7 +166,7 @@ class BaseCell():
 
     def start_simulation(self, params):
         '''Initialize the simulation and recordings.'''
-        from bluecellulab.analysis.inject_sequence import apply_multiple_step_stimuli
+        from bluecellulab.analysis.inject_sequence import apply_multiple_stimuli
 
         try:
             L.debug('params %s', params)
@@ -174,7 +174,7 @@ class BaseCell():
             stimulus_name = self._get_stimulus_name(params['stimulus']['stimulusProtocol'])
 
             amplitudes = params['stimulus']['amplitudes']
-            responses = apply_multiple_step_stimuli(
+            responses = apply_multiple_stimuli(
                 self._cell,
                 stimulus_name,
                 amplitudes,

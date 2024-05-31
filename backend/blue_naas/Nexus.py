@@ -197,7 +197,7 @@ class Nexus:
             self.create_file(output_dir / 'mechanisms' / mech_name, mechanism['content'])
 
     def download_model(self):
-        L.debug('Creating zip model...')
+        L.debug('Getting model...')
         emodel_resource = self.fetch_resource_by_id(self.emodel_id)
         L.debug('E-Model resource fetched')
         configuration = self.get_emodel_configuration(emodel_resource)
@@ -210,3 +210,14 @@ class Nexus:
         L.debug('E-Model morphology fetched')
         self.create_model_folder(hoc_file, morphology_obj, mechanisms)
         L.debug('E-Model folder created')
+
+    def get_currents(self):
+        L.debug('Getting model...')
+        emodel_resource = self.fetch_resource_by_id(self.emodel_id)
+        L.debug('Getting currents...')
+        emodel_script = self.get_script_resource(emodel_resource)
+        L.debug(emodel_script)
+        return [
+            emodel_script['holding_current'] or 0,
+            emodel_script['threshold_current'] or 0,
+        ]
