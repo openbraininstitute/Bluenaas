@@ -18,8 +18,6 @@ def set_token(token):
 def set_model(values):
     '''Set model.'''
     model_id = values.get('model_id', 'sbo-model')
-    threshold_current = values.get('threshold_current', 0)
-    holding_current = values.get('holding_current', 0)
 
     if model_id is None:
         raise Exception('Missing model id')
@@ -29,6 +27,7 @@ def set_model(values):
         'emodel_id': model_id
     })
     nexus_helper.download_model()
+    [holding_current, threshold_current] = nexus_helper.get_currents()
 
     global CELL  # pylint: disable=global-statement
     if CELL is None:

@@ -13,23 +13,28 @@ loggers:
   uvicorn:
     level: INFO
     handlers: [console]
-    propagate: no
+    propagate: yes
   botocore:
     level: INFO
     handlers: [console]
-    propagate: no
+    propagate: yes
   urllib3:
     level: INFO
     handlers: [console]
-    propagate: no
+    propagate: yes
   matplotlib:
     level: INFO
     handlers: [console]
-    propagate: no
+    propagate: yes
   bluecellulab:
     level: INFO
     handlers: [console]
-    propagate: no
+    propagate: yes
+  charset_normalizer:
+    level: INFO
+    handlers: [console]
+    propagate: yes
 root:
-  level: DEBUG
+  level: INFO
   handlers: [console]
+  propagate: yes
