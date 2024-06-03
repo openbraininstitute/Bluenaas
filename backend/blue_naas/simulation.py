@@ -25,7 +25,7 @@ def set_model(values):
 
     nexus_helper = Nexus({
         'token': TOKEN,
-        'emodel_id': model_id
+        'model_id': model_id
     })
     nexus_helper.download_model()
     [holding_current, threshold_current] = nexus_helper.get_currents()
