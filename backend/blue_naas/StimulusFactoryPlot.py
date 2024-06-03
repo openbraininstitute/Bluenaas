@@ -5,7 +5,7 @@ import numpy as np
 class StimulusFactoryPlot:
     '''Generates stimuli preview plot data.'''
 
-    def __init__(self, params):
+    def __init__(self, params, threshold_current):
         from bluecellulab.stimulus.factory import \
             StimulusFactory  # pylint: disable=import-outside-toplevel
         self.dt = 0.1
@@ -13,7 +13,7 @@ class StimulusFactoryPlot:
 
         stimulus_param = params['stimulus']
         self.protocol_name = stimulus_param['stimulusProtocol']
-        self.threshold_current = stimulus_param['thresholdCurrent']
+        self.threshold_current = threshold_current
         self.amplitudes = stimulus_param['amplitudes']
 
         if not isinstance(self.amplitudes, list):

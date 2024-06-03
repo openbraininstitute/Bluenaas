@@ -6,6 +6,7 @@ from .StimulusFactoryPlot import StimulusFactoryPlot
 
 CELL = None
 TOKEN = None
+THRESHOLD_CURRENT = 1
 
 
 def set_token(token):
@@ -28,6 +29,9 @@ def set_model(values):
     })
     nexus_helper.download_model()
     [holding_current, threshold_current] = nexus_helper.get_currents()
+
+    global THRESHOLD_CURRENT  # pylint: disable=global-statement
+    THRESHOLD_CURRENT = threshold_current
 
     global CELL  # pylint: disable=global-statement
     if CELL is None:
@@ -76,6 +80,7 @@ def get_ui_data(_):
 
 def get_stimuli_plot_data(values):
     '''Get stimuli plot data.'''
-    stimulus_factory_plot = StimulusFactoryPlot(values)
+    # as the model need to be initialized first, the THRESHOLD_CURRENT is set already
+    stimulus_factory_plot = StimulusFactoryPlot(values, THRESHOLD_CURRENT)
     result_data = stimulus_factory_plot.apply_stim()
     return result_data
