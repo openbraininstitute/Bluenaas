@@ -254,6 +254,6 @@ class Nexus:
         L.debug('Getting currents...')
         emodel_script = self.get_script_resource(emodel_resource)
         return [
-            emodel_script['holding_current'] or 0,
-            emodel_script['threshold_current'] or 0,
+            0 if 'holding_current' not in emodel_script else emodel_script['holding_current'],
+            0 if 'threshold_current' not in emodel_script else emodel_script['threshold_current'],
         ]
