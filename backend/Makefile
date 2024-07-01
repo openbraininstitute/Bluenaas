@@ -48,5 +48,5 @@ run_dev: docker_build
 		-e ALLOWED_ORIGIN=http://localhost:8080 \
 		-v $$(pwd)/blue_naas:/usr/local/lib/python3.9/site-packages/blue_naas \
 		-v $$(pwd)/models:/opt/blue-naas/models \
-		-p 8000:8000 \
+		-p 8000:8080 \
 		$(IMAGE_NAME):dev

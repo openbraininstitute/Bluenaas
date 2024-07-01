@@ -1,17 +1,15 @@
 '''Nexus module.'''
 
-import urllib.parse
 import zipfile
 from pathlib import Path
+from urllib.parse import quote_plus
 
 import requests
 
 from .settings import L
 
-# TODO: this will change when AWS models are ready
-NEXUS_BASE = 'https://bbp.epfl.ch/nexus/v1/resources/bbp/mmb-point-neuron-framework-model/_/'
+NEXUS_BASE = 'https://sbo-nexus-delta.shapes-registry.org/v1/resources/bbp/mmb-point-neuron-framework-model/_/'  # noqa: E501 # pylint: disable=line-too-long
 NEXUS_ID_BASE = 'https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model/'
-QUERY_ENDPOINT = 'https://bbp.epfl.ch/nexus/v1/views/bbp/mmb-point-neuron-framework-model/https%3A%2F%2Fbbp.epfl.ch%2Fneurosciencegraph%2Fdata%2Fviews%2Fes%2Fdataset/_search'  # noqa: E501 # pylint: disable=line-too-long
 HTTP_TIMEOUT = 10  # seconds
 
 model_dir = Path('/opt/blue-naas/') / 'models'
@@ -41,7 +39,7 @@ class Nexus:
         return r
 
     def compose_url(self, url):
-        return NEXUS_BASE + urllib.parse.quote_plus(url)
+        return NEXUS_BASE + quote_plus(url)
 
     def get_workflow_id(self, emodel_resource):
         return emodel_resource['generation']['activity']['followedWorkflow']['@id']
@@ -125,23 +123,6 @@ class Nexus:
             mechanisms.append({'name': distribution['name'], 'content': file.text})
 
         return mechanisms
-
-    def query_es(self, query):
-        r = requests.post(
-            QUERY_ENDPOINT,
-            json=query,
-            headers=self.headers,
-            timeout=HTTP_TIMEOUT
-        )
-        if not r.ok:
-            raise Exception('Error executing query', r.status_code)
-
-        results = []
-        j = r.json()
-        for hint in j['hits']['hits']:
-            results.append(hint['_source'])
-
-        return results
 
     def get_script_resource(self, emodel_resource):
         workflow_id = self.get_workflow_id(emodel_resource)
