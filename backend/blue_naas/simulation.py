@@ -18,15 +18,16 @@ def set_token(token):
 
 def set_model(values):
     '''Set model.'''
-    model_id = values.get('model_id', 'sbo-model')
+    model_self_url = values.get('model_self_url', None)
 
-    if model_id is None:
-        raise Exception('Missing model id')
+    if model_self_url is None:
+        raise Exception('Missing model _self url')
 
     nexus_helper = Nexus({
         'token': TOKEN,
-        'model_id': model_id
+        'model_self_url': model_self_url
     })
+    model_uuid = nexus_helper.get_model_uuid()
     nexus_helper.download_model()
     [holding_current, threshold_current] = nexus_helper.get_currents()
 
@@ -35,14 +36,14 @@ def set_model(values):
 
     global CELL  # pylint: disable=global-statement
     if CELL is None:
-        L.debug('loading model %s', model_id)
+        L.debug('loading model %s', model_uuid)
         L.debug('threshold_current %s', threshold_current)
         L.debug('holding_current %s', holding_current)
-        CELL = HocCell(model_id, threshold_current, holding_current)
+        CELL = HocCell(model_uuid, threshold_current, holding_current)
 
-    elif CELL.model_id != model_id:
+    elif CELL.model_uuid != model_uuid:
         L.debug('Trying to load different model, '
-                'current: %s, new: %s, discarding the pod', CELL.model_id, model_id)
+                'current: %s, new: %s, discarding the pod', CELL.model_uuid, model_uuid)
         raise Exception('Different model')
     return True
 

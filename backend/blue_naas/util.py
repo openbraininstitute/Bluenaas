@@ -36,20 +36,19 @@ def _extract_model(model_path):
     return next(Path('/opt/blue-naas/tmp').iterdir())
 
 
-def extract_zip_model(content, model_id):
+def extract_zip_model(content, model_uuid):
     '''Extract zip model to models folder.'''
-    print(model_id)
     with zipfile.ZipFile(BytesIO(content), 'r') as zip_ref:
-        zip_ref.extractall(Path('/opt/blue-naas/models') / model_id)
+        zip_ref.extractall(Path('/opt/blue-naas/models') / model_uuid)
 
 
-def model_exists(model_id):
+def model_exists(model_uuid):
     '''Check if model exists in the mounted volume.'''
-    model_path = Path('/opt/blue-naas/models') / model_id
+    model_path = Path('/opt/blue-naas/models') / model_uuid
     return model_path.exists()
 
 
-def locate_model(model_id):
+def locate_model(model_uuid):
     '''Locate model according to the priorities.
 
     First will look-up in models folder, then in the tmp folder, where unzipped models are going.
@@ -60,15 +59,15 @@ def locate_model(model_id):
     Raises:
         Exception: if model not found
     '''
-    model_path = Path('/opt/blue-naas/models') / model_id
+    model_path = Path('/opt/blue-naas/models') / model_uuid
     if model_path.suffixes == ['.tar', '.xz']:
         return _extract_model(model_path)
     if model_path.exists():
         return model_path
-    model_path = Path('/opt/blue-naas/tmp') / model_id  # model catalog models go in here
+    model_path = Path('/opt/blue-naas/tmp') / model_uuid  # model catalog models go in here
     if model_path.exists():
         return model_path
-    raise Exception(f'Model id not found: {model_id}')
+    raise Exception(f'Model uuid not found: {model_uuid}')
 
 
 def compile_mechanisms(model_path, no_throw=False):
