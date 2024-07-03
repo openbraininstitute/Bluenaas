@@ -13,8 +13,8 @@ TIME = 'time'
 class BaseCell():
     '''Neuron model.'''
 
-    def __init__(self, model_id):
-        self._model_id = model_id
+    def __init__(self, model_uuid):
+        self._model_uuid = model_uuid
         self._template_name = None
         self._all_sec_array = []
         self._all_sec_map = {}
@@ -39,11 +39,11 @@ class BaseCell():
             self._topology_children(child_sec, child_topology)
         return topology
 
-    def _load_by_model_id(self, model_id, threshold_current, holding_current):
+    def _load_by_model_uuid(self, model_uuid, threshold_current, holding_current):
         # pylint: disable=too-many-statements
         os.chdir('/opt/blue-naas')
 
-        model_path = locate_model(model_id)
+        model_path = locate_model(model_uuid)
         compile_mechanisms(model_path)
 
         # make sure x86_64 is in current dir before importing neuron
@@ -88,9 +88,9 @@ class BaseCell():
         return getattr(self, '_init_params', None)
 
     @property
-    def model_id(self):
+    def model_uuid(self):
         '''Get model id.'''
-        return self._model_id
+        return self._model_uuid
 
     def get_cell_morph(self):
         '''Get neuron morphology.'''
@@ -197,7 +197,7 @@ class BaseCell():
 class HocCell(BaseCell):
     '''Cell model with hoc.'''
 
-    def __init__(self, model_id, threshold_current=0, holding_current=0):
-        super().__init__(model_id)
+    def __init__(self, model_uuid, threshold_current=0, holding_current=0):
+        super().__init__(model_uuid)
 
-        self._load_by_model_id(model_id, threshold_current, holding_current)
+        self._load_by_model_uuid(model_uuid, threshold_current, holding_current)

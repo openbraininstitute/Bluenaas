@@ -2,14 +2,12 @@
 
 import zipfile
 from pathlib import Path
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, unquote
 
 import requests
 
 from .settings import L
 
-NEXUS_BASE = 'https://sbo-nexus-delta.shapes-registry.org/v1/resources/bbp/mmb-point-neuron-framework-model/_/'  # noqa: E501 # pylint: disable=line-too-long
-NEXUS_ID_BASE = 'https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model/'
 HTTP_TIMEOUT = 10  # seconds
 
 model_dir = Path('/opt/blue-naas/') / 'models'
@@ -21,8 +19,13 @@ class Nexus:
     # pylint: disable=missing-function-docstring
     def __init__(self, params):
         self.headers = {}
-        self.model_uuid = params['model_id']
-        self.model_id = NEXUS_ID_BASE + self.model_uuid
+        self.model_self_url = params['model_self_url']
+
+        base_and_id = self.model_self_url.split('/')
+        self.model_id = unquote(base_and_id[-1])
+        self.model_uuid = self.model_id.split('/')[-1]
+        # join all except the last part (id)
+        self.nexus_base = f'{"/".join(base_and_id[:-1])}/'
         self.headers.update({'Authorization': params['token']})
 
     def fetch_resource_by_id(self, resource_id):
@@ -39,7 +42,7 @@ class Nexus:
         return r
 
     def compose_url(self, url):
-        return NEXUS_BASE + quote_plus(url)
+        return self.nexus_base + quote_plus(url, safe=':')
 
     def get_workflow_id(self, emodel_resource):
         return emodel_resource['generation']['activity']['followedWorkflow']['@id']
@@ -238,3 +241,6 @@ class Nexus:
             0 if 'holding_current' not in emodel_script else emodel_script['holding_current'],
             0 if 'threshold_current' not in emodel_script else emodel_script['threshold_current'],
         ]
+
+    def get_model_uuid(self):
+        return self.model_uuid
