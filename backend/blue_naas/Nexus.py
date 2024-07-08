@@ -232,10 +232,15 @@ class Nexus:
         L.debug('E-Model folder created')
 
     def get_currents(self):
-        L.debug('Getting model...')
         resource = self.fetch_resource_by_id(self.model_id)
+        if 'MEModel' in resource['@type']:
+            L.debug('Getting currents from ME-Model')
+            return [
+                resource['holding_current'],
+                resource['threshold_current']
+            ]
+        L.debug('Getting currents from E-Model')
         emodel_resource = self.get_emodel_resource(resource)
-        L.debug('Getting currents...')
         emodel_script = self.get_script_resource(emodel_resource)
         return [
             0 if 'holding_current' not in emodel_script else emodel_script['holding_current'],
