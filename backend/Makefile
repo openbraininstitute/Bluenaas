@@ -46,7 +46,9 @@ run_dev: docker_build
 	docker run --rm -it \
 		-e DEBUG=True \
 		-e ALLOWED_ORIGIN=http://localhost:8080 \
-		-v $$(pwd)/blue_naas:/usr/local/lib/python3.9/site-packages/blue_naas \
+		-v $$(pwd)/blue_naas:/usr/local/lib/python3.12/site-packages/blue_naas \
 		-v $$(pwd)/models:/opt/blue-naas/models \
+		-v $$(pwd)/entrypoint.sh:/opt/blue-naas/entrypoint.sh \
+		-v $$(pwd)/logging.yaml:/opt/blue-naas/logging.yaml \
 		-p 8000:8080 \
 		$(IMAGE_NAME):dev
