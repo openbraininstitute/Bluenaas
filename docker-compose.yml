@@ -1,6 +1,6 @@
 services:
   bluenaas:
-    image: bluenaas-svc
+    image: bluenaas-single-cell-svc
     container_name: bluenaas-http-svc
     env_file: "./.env.local"
     command:
