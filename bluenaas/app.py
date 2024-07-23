@@ -13,6 +13,7 @@ from bluenaas.core.exceptions import (
 )
 from bluenaas.routes.morphology import router as morphology_router
 from bluenaas.routes.simulation import router as simulation_router
+from starlette.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     debug=True,
@@ -20,6 +21,16 @@ app = FastAPI(
     openapi_url=f"{settings.BASE_PATH}/openapi.json",
     docs_url=f"{settings.BASE_PATH}/docs",
 )
+
+# TODO: reduce origins to only the allowed ones
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 requests = []
 
