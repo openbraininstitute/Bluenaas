@@ -40,7 +40,7 @@ def run_simulation(
 
         def yield_chunks():
             for recording in result:
-                yield json.dumps(recording) + "\n"
+                yield json.dumps(recording)
 
         return StreamingResponse(
             yield_chunks(),

@@ -54,6 +54,9 @@ class BaseCell:
         os.chdir("/opt/blue-naas")
 
         model_path = locate_model(model_uuid)
+        if model_path is None:
+            raise Exception(f"Model path was not found for {model_uuid}")
+
         compile_mechanisms(model_path)
 
         # make sure x86_64 is in current dir before importing neuron
@@ -133,6 +136,7 @@ class BaseCell:
         self._nrn.h.psection(
             sec=self._all_sec_array[self._all_sec_map[sec_name]["index"]]
         )
+        print("SEC___VALUE", self._all_sec_array[self._all_sec_map[sec_name]["index"]])
         # TODO: rework this
         return {"txt": ""}
 

@@ -18,6 +18,7 @@ requests = "^2.32.3"
 pydantic-settings = "^2.3.4"
 python-dotenv = "^1.0.1"
 python-keycloak = "^4.2.2"
+sympy = "^1.13.1"
 
 
 [build-system]
