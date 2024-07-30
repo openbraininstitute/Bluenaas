@@ -19,6 +19,7 @@ pydantic-settings = "^2.3.4"
 python-dotenv = "^1.0.1"
 python-keycloak = "^4.2.2"
 sympy = "^1.13.1"
+dill = {extras = ["graph"], version = "^0.3.8"}
 
 
 [build-system]

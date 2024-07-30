@@ -1,11 +1,11 @@
 """Cell module."""
 
 # pylint: disable=import-outside-toplevel
+import multiprocessing as mp
 import os
 import re
 
 from loguru import logger as L
-
 from bluenaas.domains.simulation import SimulationConfigBody
 from bluenaas.utils.util import (
     compile_mechanisms,
@@ -75,10 +75,12 @@ class BaseCell:
         L.debug(f"morph_file: {morph_file}")
 
         if sbo_template.exists():
+            L.debug(f"template exists {sbo_template}")
             try:
                 emodel_properties = EmodelProperties(
                     threshold_current, holding_current, AIS_scaler=1
                 )
+                L.debug(f"emodel_properties {emodel_properties}")
                 self._cell = Cell(
                     sbo_template,
                     morph_file,
@@ -189,30 +191,53 @@ class BaseCell:
 
         return protocol_mapping[protocol_name]
 
-    def start_simulation(self, params: SimulationConfigBody):
-        """Initialize the simulation and recordings."""
-        from bluecellulab.analysis.inject_sequence import apply_multiple_stimuli
+    # def start_simulation(self, params: SimulationConfigBody):
+    #     """Initialize the simulation and recordings."""
+    #     from bluecellulab.analysis.inject_sequence import apply_multiple_stimuli
+
+    #     try:
+    #         L.debug(f"params {params}")
+
+    #         stimulus_name = self._get_stimulus_name(params.stimulus.stimulusProtocol)
+
+    #         responses = apply_multiple_stimuli(
+    #             self._cell,
+    #             stimulus_name,
+    #             params.stimulus.amplitudes,
+    #             section_name=params.injectTo,
+    #         )
+
+    #         recordings = self._get_simulation_results(responses)
+    #         return recordings
+
+    #     except Exception as e:  # pylint: disable=broad-except
+    #         L.error(
+    #             f"Start-Simulation error: {e}",
+    #         )
+    #         raise Exception(f"Start-Simulation error: {e}") from e
+
+    def start_simulation(
+        self,
+        config: SimulationConfigBody,
+        simulation_queue: mp.Queue,
+        req_id: str,
+    ):
+        from bluenaas.core.stimulation import apply_multiple_stimulus
 
         try:
-            L.debug(f"params {params}")
-
-            stimulus_name = self._get_stimulus_name(params.stimulus.stimulusProtocol)
-
-            responses = apply_multiple_stimuli(
-                self._cell,
-                stimulus_name,
-                params.stimulus.amplitudes,
-                section_name=params.injectTo,
+            apply_multiple_stimulus(
+                cell=self._cell,
+                stimulus_name=config.stimulus.stimulusProtocol,
+                amplitudes=config.stimulus.amplitudes,
+                section_name=config.injectTo,
+                simulation_queue=simulation_queue,
+                req_id=req_id
             )
-
-            recordings = self._get_simulation_results(responses)
-            return recordings
-
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:
             L.error(
-                f"Start-Simulation error: {e}",
+                f"Apply Simulation error: {e}",
             )
-            raise Exception(f"Start-Simulation error: {e}") from e
+            raise Exception(f"Apply Simulation error: {e}") from e
 
     def stop_simulation(self):
         """Stop simulation."""

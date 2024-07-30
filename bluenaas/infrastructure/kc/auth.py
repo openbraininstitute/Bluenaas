@@ -10,6 +10,7 @@ from fastapi.security import (
 from bluenaas.config.settings import settings
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.infrastructure.kc.config import kc_auth
+from bluenaas.utils.bearer_token import token_to_bearer
 
 auth_header: HTTPBearer | OAuth2AuthorizationCodeBearer = HTTPBearer(auto_error=False)
 
@@ -31,7 +32,7 @@ def verify_jwt(
     try:
         token = header.credentials
         kc_auth.decode_token(token=token, validate=True)
-        return token
+        return token_to_bearer(token)
     except Exception:
         raise BlueNaasError(
             message="The supplied authentication is not authorized to access",
