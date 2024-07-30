@@ -36,7 +36,7 @@ class Model:
         self.token: str = token
         self.CELL: HocCell = None
         self.THRESHOLD_CURRENT: int = 1
-
+    
     def build_model(self):
         """Prepare model."""
         if self.model_id is None:
@@ -104,14 +104,16 @@ class Model:
             position=position,
         )
 
-    def _calc_synapse_count(self, config: SynapseConfig, distance: float):
+    def _calc_synapse_count(
+        self, config: SynapseConfig, distance: float, sec_length: float
+    ):
         x_symbol, X_symbol = symbols("x X")
         formula = (
             distribution_type_to_formula.get(config.distribution)
             if config.distribution in distribution_type_to_formula is not None
             else config.formula
         )
-        expression = parse_expr(formula)
+        expression = parse_expr(f"{formula} * {sec_length}")
         synapse_count = ceil(expression.subs({x_symbol: distance, X_symbol: distance}))
         return synapse_count
 
@@ -126,7 +128,10 @@ class Model:
         #     for key, value in section_map.items()
         #     if key.startswith(params.config.target) and not key.startswith("soma")
         # }
+        seed(params.config.seed, version=2)
 
+        seed(params.seed, version=2)
+        
         for section_key, section_value in sections.items():
             try:
                 section_info = LocationData.model_validate(
@@ -144,11 +149,10 @@ class Model:
                 continue
 
             synapse_count = self._calc_synapse_count(
-                config,
-                section_info.distance_from_soma,
+                config, section_info.distance_from_soma, section_info.sec_length
             )
 
-            seed(params.seed, version=2)
+            
             segment_count = section_info.nseg
 
             synapse = SectionSynapses(
@@ -165,3 +169,17 @@ class Model:
         return SynapsePlacementResponse(
             synapses=synapses,
         )
+
+
+def model_factory(
+    model_id: str,
+    bearer_token: str,
+):
+    model = Model(
+        model_id=model_id,
+        token=bearer_token,
+    )
+
+    model.build_model()
+
+    return model

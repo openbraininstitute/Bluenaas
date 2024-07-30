@@ -152,7 +152,7 @@ def convert_numpy_dict_to_standard_dict(numpy_dict):
     return standard_dict
 
 
-def get_sections(cell: Cell) -> tuple[list, dict[str, LocationData]]:
+def get_sections(cell) -> tuple[list, dict[str, LocationData]]:
     from neuron import h
     """Get section segment cylinders and spines."""
     # pylint: disable=too-many-statements,too-many-locals

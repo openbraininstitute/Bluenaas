@@ -1,5 +1,8 @@
+from contextlib import asynccontextmanager
+from multiprocessing.pool import Pool
 import time
 from uuid import uuid4
+import uuid
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -15,12 +18,23 @@ from bluenaas.routes.morphology import router as morphology_router
 from bluenaas.routes.simulation import router as simulation_router
 from starlette.middleware.cors import CORSMiddleware
 
+
+
 app = FastAPI(
     debug=True,
     title=settings.APP_NAME,
     openapi_url=f"{settings.BASE_PATH}/openapi.json",
     docs_url=f"{settings.BASE_PATH}/docs",
 )
+
+@app.middleware("http")
+async def add_request_id_middleware(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 # TODO: reduce origins to only the allowed ones
 app.add_middleware(

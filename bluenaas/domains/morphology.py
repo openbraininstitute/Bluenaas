@@ -36,6 +36,7 @@ class SynapseConfig(BaseModel):
     type: int
     distribution: Literal["exponential", "linear", "formula"]
     formula: Optional[str | None] = None  # Check that this is a valid string if `distribution` is "formula"
+    seed: int
 
     @field_validator('formula', mode='before')
     @classmethod
