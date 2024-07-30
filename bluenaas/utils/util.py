@@ -7,9 +7,11 @@ import tarfile
 import zipfile
 from io import BytesIO
 from pathlib import Path
-
+import random
+from matplotlib.table import Cell
 import numpy as np
 from loguru import logger as L
+from bluenaas.domains.morphology import LocationData
 
 PADDING = 2.0
 
@@ -48,7 +50,7 @@ def model_exists(model_uuid):
     return model_path.exists()
 
 
-def locate_model(model_uuid):
+def locate_model(model_uuid) -> Path | None:
     """Locate model according to the priorities.
 
     First will look-up in models folder, then in the tmp folder, where unzipped models are going.
@@ -69,7 +71,7 @@ def locate_model(model_uuid):
     )  # model catalog models go in here
     if model_path.exists():
         return model_path
-    raise Exception(f"Model uuid not found: {model_uuid}")
+    return None
 
 
 def compile_mechanisms(model_path, no_throw=False):
@@ -150,7 +152,8 @@ def convert_numpy_dict_to_standard_dict(numpy_dict):
     return standard_dict
 
 
-def get_sections(cell):
+def get_sections(cell: Cell) -> tuple[list, dict[str, LocationData]]:
+    from neuron import h
     """Get section segment cylinders and spines."""
     # pylint: disable=too-many-statements,too-many-locals
     all_sec_array = []
@@ -206,73 +209,75 @@ def get_sections(cell):
                 + sec_data["zdirection"] * sec_data["zdirection"]
             )
 
-            if is_spine(sec_name):  # spine location correction
-                assert sec_data["nseg"] == 1, "spine sections should have one segment"
-                parent_seg = sec.parentseg()
-                parent_sec_name, parent_seg_idx = get_sec_name_seg_idx(
-                    cell.hocname, parent_seg
-                )
-                parent_sec = all_sec_map[parent_sec_name]
-                if is_spine(parent_sec_name):
-                    # another section in spine -> continue in the direction of the parent
-                    dir_ = np.array(
-                        [
-                            parent_sec["xdirection"][parent_seg_idx],
-                            parent_sec["ydirection"][parent_seg_idx],
-                            parent_sec["zdirection"][parent_seg_idx],
-                        ]
-                    )
-                    dir_norm = dir_ / np.linalg.norm(dir_)
-                    sec_data["xstart"][0] = parent_sec["xend"][parent_seg_idx]
-                    sec_data["ystart"][0] = parent_sec["yend"][parent_seg_idx]
-                    sec_data["zstart"][0] = parent_sec["zend"][parent_seg_idx]
-                    spine_end = spine_start + dir_norm * sec_data["length"][0]
-                    sec_data["xend"][0] = spine_end[0]
-                    sec_data["yend"][0] = spine_end[1]
-                    sec_data["zend"][0] = spine_end[2]
-                else:
-                    seg_x_step = 1 / parent_seg.sec.nseg
-                    seg_x_offset_normalized = (
-                        parent_seg.x - seg_x_step * parent_seg_idx
-                    ) / seg_x_step
-                    parent_start = np.array(
-                        [
-                            parent_sec["xstart"][parent_seg_idx],
-                            parent_sec["ystart"][parent_seg_idx],
-                            parent_sec["zstart"][parent_seg_idx],
-                        ]
-                    )
-                    parent_dir = np.array(
-                        [
-                            parent_sec["xdirection"][parent_seg_idx],
-                            parent_sec["ydirection"][parent_seg_idx],
-                            parent_sec["zdirection"][parent_seg_idx],
-                        ]
-                    )
-                    parent_dir = parent_dir / np.linalg.norm(parent_dir)
-                    pos_in_parent = parent_start + parent_dir * seg_x_offset_normalized
-                    # choose random spin orientation orthogonal to the parent section
-                    random = np.random.uniform(-1, 1, 3)
-                    dir_ = np.cross(parent_dir, random)
-                    dir_norm = dir_ / np.linalg.norm(dir_)
-                    spine_start = (
-                        pos_in_parent
-                        + dir_norm * parent_sec["diam"][parent_seg_idx] / 2
-                    )
-                    sec_data["xstart"][0] = spine_start[0]
-                    sec_data["ystart"][0] = spine_start[1]
-                    sec_data["zstart"][0] = spine_start[2]
-                    spine_end = spine_start + dir_norm * sec_data["length"][0]
-                    sec_data["xend"][0] = spine_end[0]
-                    sec_data["yend"][0] = spine_end[1]
-                    sec_data["zend"][0] = spine_end[2]
+            sec_data["distance_from_soma"] = h.distance(cell.soma(0), sec(0))
+            sec_data["sec_length"] = sec.L
+            # if is_spine(sec_name):  # spine location correction
+            #     assert sec_data["nseg"] == 1, "spine sections should have one segment"
+            #     parent_seg = sec.parentseg()
+            #     parent_sec_name, parent_seg_idx = get_sec_name_seg_idx(
+            #         cell.hocname, parent_seg
+            #     )
+            #     parent_sec = all_sec_map[parent_sec_name]
+            #     if is_spine(parent_sec_name):
+            #         # another section in spine -> continue in the direction of the parent
+            #         dir_ = np.array(
+            #             [
+            #                 parent_sec["xdirection"][parent_seg_idx],
+            #                 parent_sec["ydirection"][parent_seg_idx],
+            #                 parent_sec["zdirection"][parent_seg_idx],
+            #             ]
+            #         )
+            #         dir_norm = dir_ / np.linalg.norm(dir_)
+            #         sec_data["xstart"][0] = parent_sec["xend"][parent_seg_idx]
+            #         sec_data["ystart"][0] = parent_sec["yend"][parent_seg_idx]
+            #         sec_data["zstart"][0] = parent_sec["zend"][parent_seg_idx]
+            #         spine_end = spine_start + dir_norm * sec_data["length"][0]
+            #         sec_data["xend"][0] = spine_end[0]
+            #         sec_data["yend"][0] = spine_end[1]
+            #         sec_data["zend"][0] = spine_end[2]
+            #     else:
+            #         seg_x_step = 1 / parent_seg.sec.nseg
+            #         seg_x_offset_normalized = (
+            #             parent_seg.x - seg_x_step * parent_seg_idx
+            #         ) / seg_x_step
+            #         parent_start = np.array(
+            #             [
+            #                 parent_sec["xstart"][parent_seg_idx],
+            #                 parent_sec["ystart"][parent_seg_idx],
+            #                 parent_sec["zstart"][parent_seg_idx],
+            #             ]
+            #         )
+            #         parent_dir = np.array(
+            #             [
+            #                 parent_sec["xdirection"][parent_seg_idx],
+            #                 parent_sec["ydirection"][parent_seg_idx],
+            #                 parent_sec["zdirection"][parent_seg_idx],
+            #             ]
+            #         )
+            #         parent_dir = parent_dir / np.linalg.norm(parent_dir)
+            #         pos_in_parent = parent_start + parent_dir * seg_x_offset_normalized
+            #         # choose random spin orientation orthogonal to the parent section
+            #         random = np.random.uniform(-1, 1, 3)
+            #         dir_ = np.cross(parent_dir, random)
+            #         dir_norm = dir_ / np.linalg.norm(dir_)
+            #         spine_start = (
+            #             pos_in_parent
+            #             + dir_norm * parent_sec["diam"][parent_seg_idx] / 2
+            #         )
+            #         sec_data["xstart"][0] = spine_start[0]
+            #         sec_data["ystart"][0] = spine_start[1]
+            #         sec_data["zstart"][0] = spine_start[2]
+            #         spine_end = spine_start + dir_norm * sec_data["length"][0]
+            #         sec_data["xend"][0] = spine_end[0]
+            #         sec_data["yend"][0] = spine_end[1]
+            #         sec_data["zend"][0] = spine_end[2]
 
-                sec_data["xdirection"][0] = sec_data["xend"][0] - sec_data["xstart"][0]
-                sec_data["ydirection"][0] = sec_data["yend"][0] - sec_data["ystart"][0]
-                sec_data["zdirection"][0] = sec_data["zend"][0] - sec_data["zstart"][0]
-                sec_data["xcenter"] = (sec_data["xstart"] + sec_data["xend"]) / 2.0
-                sec_data["ycenter"] = (sec_data["ystart"] + sec_data["yend"]) / 2.0
-                sec_data["zcenter"] = (sec_data["zstart"] + sec_data["zend"]) / 2.0
+            #     sec_data["xdirection"][0] = sec_data["xend"][0] - sec_data["xstart"][0]
+            #     sec_data["ydirection"][0] = sec_data["yend"][0] - sec_data["ystart"][0]
+            #     sec_data["zdirection"][0] = sec_data["zend"][0] - sec_data["zstart"][0]
+            #     sec_data["xcenter"] = (sec_data["xstart"] + sec_data["xend"]) / 2.0
+            #     sec_data["ycenter"] = (sec_data["ystart"] + sec_data["yend"]) / 2.0
+            #     sec_data["zcenter"] = (sec_data["zstart"] + sec_data["zend"]) / 2.0
 
     # TODO: rework this
     all_sec_map_no_numpy = {}
@@ -339,3 +344,85 @@ def get_syns(nrn, path, template_name, all_sec_map):
                             {"sec_name": sec_name, "seg_idx": seg_idx, "id": id_}
                         ]
     return synapses
+
+
+def point_between_vectors(
+    vec1: np.ndarray, vec2: np.ndarray, position: float
+) -> np.ndarray:
+    # Compute the random point as an interpolation between vec1 and vec2
+    random_point = (1 - position) * vec1 + position * vec2
+
+    return random_point
+
+
+def perpendicular_vector(v: np.ndarray) -> np.ndarray:
+    """
+    Finds a perpendicular vector to the given vector v using the cross product method.
+
+    Args:
+    v: numpy array, the input vector.
+
+    Returns:
+    numpy array, a vector perpendicular to v.
+    """
+    # Choose an arbitrary vector that is not parallel to v
+    if np.all(v == 0):
+        raise ValueError("Cannot find a perpendicular vector for the zero vector")
+
+    # Choose a vector that is not parallel
+    if v[0] == 0 and v[1] == 0:
+        # If the vector is along the z-axis, choose a vector in the xy-plane
+        arbitrary_vector = np.array([1, 0, 0])
+    else:
+        arbitrary_vector = np.array([0, 0, 1])
+
+    # Compute the cross product to get a perpendicular vector
+    perp_vector = np.cross(v, arbitrary_vector)
+
+    return perp_vector
+
+
+def set_vector_length(vector: np.ndarray, length: float) -> np.ndarray:
+    # Compute the magnitude (length) of the original vector
+    magnitude = np.linalg.norm(vector)
+
+    if magnitude == 0:
+        raise ValueError("Cannot set length for a zero vector")
+
+    # Normalize the vector (make it a unit vector)
+    unit_vector = vector / magnitude
+
+    # Scale the unit vector to the desired length
+    scaled_vector = unit_vector * length
+
+    return scaled_vector
+
+
+def project_vector(v1: np.ndarray, v2: np.ndarray) -> np.ndarray:
+    """
+    Projects vector v1 onto vector v2.
+
+    Args:
+    v1: numpy array, the vector to be projected.
+    v2: numpy array, the vector onto which v1 is projected.
+
+    Returns:
+    numpy array, the projection of v1 onto v2.
+    """
+    # Compute the dot product of v1 and v2
+    dot_product = np.dot(v1, v2)
+
+    # Compute the dot product of v2 with itself
+    magnitude_squared = np.dot(v2, v2)
+
+    # Compute the projection scalar
+    projection_scalar = dot_product / magnitude_squared
+
+    # Compute the projection vector
+    projection_vector = projection_scalar * v2
+
+    return projection_vector
+
+
+def random_target_segment(nSeg: int):
+    return random.randint(0, nSeg)

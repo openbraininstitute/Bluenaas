@@ -22,7 +22,6 @@ class SimulationConfigBody(BaseModel):
 class StimulationPlotConfig(BaseModel):
     stimulusProtocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
     amplitudes: List[int]
-    timestamp: int
 
 
 class SimulationItemResponse(BaseModel):

@@ -9,7 +9,11 @@ from loguru import logger as L
 
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.core.model import Model
-from bluenaas.domains.morphology import LocationData
+from bluenaas.domains.morphology import (
+    LocationData,
+    SynapsePlacementBody,
+    SynapsePlacementResponse,
+)
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.utils.bearer_token import token_to_bearer
 
@@ -49,3 +53,19 @@ def retrieve_morphology(
             message="retrieving morphology data failed",
             details=ex.__str__(),
         ) from ex
+
+
+@router.post("/synapses", response_model=SynapsePlacementResponse)
+def place_synapses(
+    params: SynapsePlacementBody,
+    model_id: str = Query(),
+    token: str = Depends(verify_jwt),
+) -> SynapsePlacementResponse:
+    model = Model(
+        model_id=model_id,
+        token=token_to_bearer(token),
+    )
+
+    model.build_model()
+
+    return model.add_synapses(params)

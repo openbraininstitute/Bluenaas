@@ -30,10 +30,7 @@ def verify_jwt(
 ) -> str:
     try:
         token = header.credentials
-        kc_auth.decode_token(
-            token=token,
-            validate=True
-        )
+        kc_auth.decode_token(token=token, validate=True)
         return token
     except Exception:
         raise BlueNaasError(
