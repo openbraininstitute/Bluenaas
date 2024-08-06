@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import quote_plus, unquote
 from loguru import logger as L
 import requests
-
+import os
 
 HTTP_TIMEOUT = 10  # seconds
 
@@ -31,7 +31,13 @@ class Nexus:
         endpoint = self.compose_url(resource_id)
         r = requests.get(endpoint, headers=self.headers, timeout=HTTP_TIMEOUT)
         if not r.ok:
-            raise Exception("Error fetching resource", r.status_code)
+            raise Exception("Error fetching resource", r.json())
+        return r.json()
+
+    def fetch_resource_by_self(self, resource_self):
+        r = requests.get(resource_self, headers=self.headers, timeout=HTTP_TIMEOUT)
+        if not r.ok:
+            raise Exception("Error fetching resource", r.json())
         return r.json()
 
     def fetch_file_by_url(self, file_url):
@@ -118,9 +124,29 @@ class Nexus:
             script_resource = self.fetch_resource_by_id(script["@id"])
             model_resources.append(script_resource)
 
+        # TODO: Add these configuration to the model
+        extra_mechanisms = [
+            "https://sbo-nexus-delta.shapes-registry.org/v1/resources/bbp/mmb-point-neuron-framework-model/_/https:%2F%2Fbbp.epfl.ch%2Fneurosciencegraph%2Fdata%2Fsynapticphysiologymodels%2Fe3c32384-5cb1-4dd3-a8c9-f6c23bea6b27",
+            "https://sbo-nexus-delta.shapes-registry.org/v1/resources/bbp/mmb-point-neuron-framework-model/_/https:%2F%2Fbbp.epfl.ch%2Fneurosciencegraph%2Fdata%2Fsynapticphysiologymodels%2F3965bc40-ca30-475b-98be-cfa3e22057b5",
+        ]
+        for extra_mech in extra_mechanisms:
+            mech = self.fetch_resource_by_self(extra_mech)
+            model_resources.append(mech)
+
         mechanisms = []
         for model_resource in model_resources:
             distribution = model_resource["distribution"]
+            if isinstance(distribution, list):
+                distribution = list(
+                    filter(
+                        lambda x: x["encodingFormat"] == "application/mod"
+                        or x["encodingFormat"] == "application/neuron-mod",
+                        distribution,
+                    )
+                )[0]
+
+            L.debug(f"Distribution {distribution}")
+
             file = self.fetch_file_by_url(distribution["contentUrl"])
             mechanisms.append({"name": distribution["name"], "content": file.text})
 
@@ -180,6 +206,10 @@ class Nexus:
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
+    def copy_file_content(self, source_file: Path, target_file: Path):
+        with open(source_file, "r") as src, open(target_file, "w") as dst:
+            dst.write(src.read())
+
     def create_model_folder(self, hoc_file, morphology_obj, mechanisms):
         output_dir = model_dir / self.model_uuid
         self.create_file(output_dir / "cell.hoc", hoc_file)
@@ -194,6 +224,11 @@ class Nexus:
             self.create_file(
                 output_dir / "mechanisms" / mech_name, mechanism["content"]
             )
+
+        self.copy_file_content(
+            Path("/app/bluenaas/config/VecStim.mod"),
+            output_dir / "mechanisms" / "VecStim.mod",
+        )
 
     def get_emodel_resource(self, resource):
         if "MEModel" in resource["@type"]:

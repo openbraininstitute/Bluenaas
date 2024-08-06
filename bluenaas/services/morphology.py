@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 from http import HTTPStatus as status
 from threading import Event
-
+from queue import Empty as QueueEmptyException
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.core.model import model_factory
 from bluenaas.utils.const import QUEUE_STOP_EVENT
@@ -40,6 +40,7 @@ def _build_morphology(
         queue.put(QUEUE_STOP_EVENT)
 
     except Exception as ex:
+        queue.put(QUEUE_STOP_EVENT)
         logger.debug(f"Morphology builder error: {ex}")
     finally:
         logger.debug("Morphology builder ended")
@@ -72,8 +73,20 @@ def get_single_morphology(
             stop_event: Event,
         ):
             while True:
-                q_result = que.get()
-
+                try:
+                    q_result = que.get(timeout=1)
+                except QueueEmptyException:
+                    if process.is_alive():
+                        continue
+                    if not que.empty():
+                        # Checking if queue is empty again to avoid the following race condition:
+                        # t0 - Empty exception is raised from queue.get()
+                        # t1 - Child process writes to queue
+                        # t2 - Child process finishes
+                        # t3 - Queue should be checked again for emptiness to capture the last message
+                        continue
+                    else:
+                        raise Exception("Child process died unexpectedly")
                 if q_result == QUEUE_STOP_EVENT or stop_event.is_set():
                     break
 
@@ -88,6 +101,9 @@ def get_single_morphology(
         )
 
     except Exception as ex:
+        import traceback
+
+        traceback.print_exc()
         logger.error(f"retrieving morphology data failed {ex}")
         raise BlueNaasError(
             http_status_code=status.INTERNAL_SERVER_ERROR,
