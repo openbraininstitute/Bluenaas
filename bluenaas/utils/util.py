@@ -8,10 +8,10 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 import random
-from matplotlib.table import Cell
 import numpy as np
 from loguru import logger as L
 from bluenaas.domains.morphology import LocationData
+from bluenaas.domains.simulation import SynapseSimulationConfig
 
 PADDING = 2.0
 
@@ -154,6 +154,7 @@ def convert_numpy_dict_to_standard_dict(numpy_dict):
 
 def get_sections(cell) -> tuple[list, dict[str, LocationData]]:
     from neuron import h
+
     """Get section segment cylinders and spines."""
     # pylint: disable=too-many-statements,too-many-locals
     all_sec_array = []
@@ -163,8 +164,12 @@ def get_sections(cell) -> tuple[list, dict[str, LocationData]]:
 
     for sec_idx, sec in enumerate(cell.sections.values()):
         sec_name = get_sec_name(cell.hocname, sec)
+        # sec_pre = cell.get_psection(section_id=sec_name).hsection
         sec_data = {"index": sec_idx}
+        sec_data["name"] = sec_name
 
+        # We need to save the `isec` of a section because BlueCelluLab does not accept a string as POST_SECTION_ID when `add_replay_synapse` is called
+        sec_data["neuron_section_id"] = cell.get_psection(sec.name()).isec
         all_sec_map[sec_name] = sec_data
         all_sec_array.append(sec)
 
@@ -189,7 +194,6 @@ def get_sections(cell) -> tuple[list, dict[str, LocationData]]:
             sec_data["xend"] = np.interp(seg_x_end, length, x[sec_idx])
             sec_data["xcenter"] = (sec_data["xstart"] + sec_data["xend"]) / 2.0
             sec_data["xdirection"] = sec_data["xend"] - sec_data["xstart"]
-
             sec_data["ystart"] = np.interp(seg_x_start, length, y[sec_idx])
             sec_data["yend"] = np.interp(seg_x_end, length, y[sec_idx])
             sec_data["ycenter"] = (sec_data["ystart"] + sec_data["yend"]) / 2.0
@@ -211,6 +215,11 @@ def get_sections(cell) -> tuple[list, dict[str, LocationData]]:
 
             sec_data["distance_from_soma"] = h.distance(cell.soma(0), sec(0))
             sec_data["sec_length"] = sec.L
+            segments_offset: list[float] = []
+            for seg in sec.allseg():
+                segments_offset.append(float(seg.x))
+            sec_data["neuron_segments_offset"] = segments_offset
+
             # if is_spine(sec_name):  # spine location correction
             #     assert sec_data["nseg"] == 1, "spine sections should have one segment"
             #     parent_seg = sec.parentseg()
@@ -426,3 +435,16 @@ def project_vector(v1: np.ndarray, v2: np.ndarray) -> np.ndarray:
 
 def random_target_segment(nSeg: int):
     return random.randint(0, nSeg)
+
+
+def generate_pre_spiketrain(syn_input_config: SynapseSimulationConfig) -> np.array:
+    frequency = syn_input_config.frequency
+    duration = syn_input_config.duration
+    delay = syn_input_config.delay
+
+    spike_interval = 1000 / frequency
+    spiketrain_size = int(round(float(duration) / 1000 * frequency))
+    spiketrain_raw = np.insert(
+        np.random.poisson(spike_interval, spiketrain_size)[:-1], 0, 0
+    )
+    return np.cumsum(spiketrain_raw) + delay

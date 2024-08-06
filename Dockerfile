@@ -18,6 +18,8 @@ RUN apt-get update \
 
 RUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --no-root --no-dev --no-interaction
 
+RUN mkdir -p /opt/blue-naas/models
+
 ENV VIRTUAL_ENV=/app/.venv \
     PATH="/app/.venv/bin:$PATH"
 

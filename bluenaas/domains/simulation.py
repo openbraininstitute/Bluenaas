@@ -1,6 +1,6 @@
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PositiveInt
 
 
 class SimulationStimulusConfig(BaseModel):
@@ -17,6 +17,18 @@ class SimulationConfigBody(BaseModel):
     recordFrom: List[str]
     injectTo: str
     stimulus: SimulationStimulusConfig
+
+
+class SynapseSimulationConfig(BaseModel):
+    delay: int
+    duration: int
+    frequency: PositiveInt
+    weightScalar: int
+
+
+class SimulationWithSynapseBody(BaseModel):
+    directCurrentConfig: SimulationConfigBody
+    synapseConfig: SynapseSimulationConfig
 
 
 class StimulationPlotConfig(BaseModel):

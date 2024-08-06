@@ -9,11 +9,13 @@ from bluenaas.core.simulation_factory_plot import StimulusFactoryPlot
 from bluenaas.domains.simulation import (
     SimulationConfigBody,
     SimulationItemResponse,
+    SimulationWithSynapseBody,
     StimulationItemResponse,
     StimulationPlotConfig,
 )
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.services.simulation import execute_simulation
+from bluenaas.services.synapse_simulation import execute_synapse_simulation
 
 router = APIRouter(prefix="/simulation")
 
@@ -62,3 +64,18 @@ def retrieve_stimulation_plot(
             message="retrieving stimulation plot data failed",
             details=ex.__str__(),
         ) from ex
+
+
+@router.post("/synapse/run")
+def run_synapse_simulatoin(
+    request: Request,
+    model_id: str,
+    params: SimulationWithSynapseBody,
+    token: str = Depends(verify_jwt),
+):
+    return execute_synapse_simulation(
+        model_id=model_id,
+        token=token,
+        params=params,
+        req_id=request.state.request_id,
+    )
