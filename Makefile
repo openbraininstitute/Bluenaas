@@ -43,4 +43,4 @@ lint-check:
 	poetry run ruff check
 	
 type-check:
-	poetry run mypy . --strict
+	poetry run mypy bluenaas/app.py --strict

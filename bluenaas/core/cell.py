@@ -5,13 +5,11 @@ import multiprocessing as mp
 import os
 import re
 from loguru import logger as L
-import numpy
 import pandas  # type: ignore
 
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
     SimulationConfigBody,
-    SimulationWithSynapseBody,
     SynapseSimulationConfig,
 )
 from bluenaas.utils.util import (
@@ -308,18 +306,21 @@ class BaseCell:
             self._cell.connections[synapse_id] = connection
 
     def add_synapses_to_cell(
-        self, synapses: list[SynapseSeries], params: SimulationWithSynapseBody
+        self,
+        synapses: list[SynapseSeries],
+        direct_current_config: SimulationConfigBody,
+        synapse_sim_config: SynapseSimulationConfig,
     ):
         for synapse in synapses:
             self._add_synapse_to_cell(
                 synapse_id=synapse["id"],
-                celsius=params.directCurrentConfig.celsius,
-                v_init=params.directCurrentConfig.vinit,
+                celsius=direct_current_config.celsius,
+                v_init=direct_current_config.vinit,
                 synapse_series=synapse["series"],
             )
             self._add_synapse_connections(
-                synapse_config=params.synapseConfig,
-                injectTo=params.directCurrentConfig.injectTo,
+                synapse_config=synapse_sim_config,
+                injectTo=direct_current_config.injectTo,
             )
 
     def stop_simulation(self):

@@ -12,6 +12,8 @@ class BlueNaasErrorCode(StrEnum):
     AUTHORIZATION_ERROR = "AUTHORIZATION_ERROR"
     INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR"
 
+    UNKNOWN_BLUENAAS_ERROR = "UNKNOWN_BLUENAAS_ERROR"
+
 
 class BlueNaasError(Exception):
     """Base class for blue naas service exceptions."""

@@ -20,6 +20,7 @@ def _init_simulation(
     req_id: str,
 ):
     from bluenaas.core.model import model_factory
+
     # TODO: this stop_process fail when running multiple sims, to debug;
     def stop_process():
         # TODO: kill the process when event is_set in the handler
@@ -35,9 +36,7 @@ def _init_simulation(
         )
         model.CELL.set_injection_location(config.injectTo)
         model.CELL.start_simulation(
-            config=config,
-            simulation_queue=simulation_queue,
-            req_id=req_id
+            config=config, simulation_queue=simulation_queue, req_id=req_id
         )
 
     except Exception as ex:
@@ -58,14 +57,7 @@ def execute_simulation(
 
         pro = mp.Process(
             target=_init_simulation,
-            args=(
-                model_id,
-                token,
-                config,
-                simulation_queue,
-                stop_event,
-                req_id
-            ),
+            args=(model_id, token, config, simulation_queue, stop_event, req_id),
             name=f"simulation_processor:{req_id}",
         )
         pro.start()
@@ -78,7 +70,7 @@ def execute_simulation(
                     break
 
                 (stimulus_name, recording) = record
-               
+
                 yield json.dumps(
                     {
                         "t": list(recording.time),

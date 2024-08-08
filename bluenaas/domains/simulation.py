@@ -20,6 +20,7 @@ class SimulationConfigBody(BaseModel):
 
 
 class SynapseSimulationConfig(BaseModel):
+    id: str
     delay: int
     duration: int
     frequency: PositiveInt
@@ -28,7 +29,7 @@ class SynapseSimulationConfig(BaseModel):
 
 class SimulationWithSynapseBody(BaseModel):
     directCurrentConfig: SimulationConfigBody
-    synapseConfig: SynapseSimulationConfig
+    synapseConfigs: list[SynapseSimulationConfig]
 
 
 class StimulationPlotConfig(BaseModel):

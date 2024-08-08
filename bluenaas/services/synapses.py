@@ -14,7 +14,7 @@ def _generate_synpases(
     token: str,
     params: SynapsePlacementBody,
     queue: mp.Queue,
-    stop_event: mp.Event
+    stop_event: mp.Event,
 ):
     def stop_process():
         stop_event.set()
@@ -27,7 +27,7 @@ def _generate_synpases(
             model_id=model_id,
             bearer_token=token,
         )
-        
+
         synapses = model.add_synapses(params)
         queue.put(synapses)
 
@@ -49,13 +49,7 @@ def generate_synapses_placement(
         stop_event = mp.Event()
         process = mp.Process(
             target=_generate_synpases,
-            args=(
-                model_id,
-                token,
-                params,
-                synapses_queue,
-                stop_event
-            ),
+            args=(model_id, token, params, synapses_queue, stop_event),
             name=f"synapses_processor:{req_id}",
         )
         process.daemon = True
@@ -71,7 +65,7 @@ def generate_synapses_placement(
                 break
 
         return synapses
-    
+
     except Exception as ex:
         logger.error(f"generating synapses placement failed {ex}")
         raise BlueNaasError(

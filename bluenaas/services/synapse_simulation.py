@@ -1,5 +1,6 @@
 import json
 import multiprocessing as mp
+
 from queue import Empty as QueueEmptyException
 from loguru import logger
 from http import HTTPStatus as status
@@ -32,32 +33,49 @@ def _init_simulation(
             bearer_token=token,
         )
 
-        # 3. Get "pandas.Series" for each synapse
-        synapses = model.get_synapse_series(
-            global_seed=synaptome_details.synaptome_placement_config.seed,
-            synapse_config=synaptome_details.synaptome_placement_config.config[
-                0
-            ],  # TODO: Enable running simulations with multiple synapse groups
-        )
+        print("PLACEMENT_CONFIGS", synaptome_details.synaptome_placement_config.config)
+        print("SIM CNFIGs", params.synapseConfigs)
+        for index, synapse_sim_config in enumerate(params.synapseConfigs):
+            # 3. Get "pandas.Series" for each synapse
+            synapse_placement_config = [
+                config
+                for config in synaptome_details.synaptome_placement_config.config
+                if synapse_sim_config.id == config.id
+            ][0]
 
-        print("_____Total Synapses_____", len(synapses))
+            synapses_for_config = model.get_synapse_series(
+                global_seed=synaptome_details.synaptome_placement_config.seed,
+                synapse_config=synapse_placement_config,
+                offset=index,
+            )
+            print(
+                f"_____Total Synapses in group {synapse_sim_config.id}_____",
+                len(synapses_for_config),
+            )
 
-        # 4. Add synapses to cell
+            # 4. Add synapses to cell
+            start = timer()
+            model.CELL.add_synapses_to_cell(
+                synapses_for_config, params.directCurrentConfig, synapse_sim_config
+            )
+            end = timer()
+            print(
+                f"Adding {len(synapses_for_config)} synapses took {end-start} seconds"
+            )
 
-        # TODO: Synapses Running simulation with all synapses takes very long
-        limited_synapses = synapses
-        start = timer()
-        model.CELL.add_synapses_to_cell(limited_synapses, params)
-        end = timer()
-        print(f"Adding {len(limited_synapses)} synapses took {end-start} seconds")
+        # cores_available = len(os.sched_getaffinity(0))
+        # synapse_chunks = np.array_split(limited_synapses, cores_available)
+        # with mp.Pool() as pool:
+        #     pool.starmap(model.CELL.add_synapses_to_cell, (synapse_chunks))
+
+        print("TOTAL_SYNAPSES", len(model.CELL._cell.synapses))
+        print("TOTAL_CONNECTIONS", len(model.CELL._cell.connections))
 
         # 5. Start simulation with synapses
         start = timer()
         model.CELL.start_synapse_simulation(queue=simulation_queue)
         end = timer()
-        print(
-            f"Running simulation with {len(limited_synapses)} took {end-start} seconds"
-        )
+        print(f"Running simulation took {end-start} seconds")
     except Exception as ex:
         logger.debug(f"Simulation executor error: {ex}")
         raise Exception(ex)

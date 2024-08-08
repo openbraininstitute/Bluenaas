@@ -159,7 +159,6 @@ def get_sections(cell) -> tuple[list, dict[str, LocationData]]:
     # pylint: disable=too-many-statements,too-many-locals
     all_sec_array = []
     all_sec_map = {}
-    spine_start = 0
     x, y, z, arc = get_morph_data(cell)
 
     for sec_idx, sec in enumerate(cell.sections.values()):

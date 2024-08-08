@@ -1,0 +1,39 @@
+include:
+  - project: cs/gitlabci-templates
+    file: /build-image-using-kaniko.yml
+
+default:
+  interruptible: true
+  image: python:3.12
+
+.install_dev_packages:
+  script: &install_dev_packages
+    pip install poetry && poetry install --sync
+
+.install_prod_packages:
+  script: &install_prod_packages
+    pip install poetry && poetry install --without dev --sync
+
+stages:
+  - check
+# - publish
+static_checks:
+  stage: check
+  script:
+    - *install_dev_packages
+    -  make format-check
+    -  make lint-check
+    -  make type-check
+
+# build_and_publish:
+#   stage: publish 
+#   extends:
+#     - .build-image-using-kaniko
+#   variables:
+#     CI_REGISTRY_IMAGE: bluebrain/bluenaas
+#     CI_REGISTRY: https://index.docker.io/v1/
+#     CI_REGISTRY_USER: bbpbuildbot
+#     CI_REGISTRY_PASSWORD: $CI_REGISTRY_PASSWORD_DOCKERHUB
+#     REGISTRY_IMAGE_TAG: latest
+#   only:
+#     - main
