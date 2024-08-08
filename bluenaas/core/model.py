@@ -185,7 +185,7 @@ class Model:
         )
 
     def _get_synapse_series_for_section(
-        self, section_info: LocationData, section_id: float, segment_count: int
+        self, section_info: LocationData, segment_count: int
     ):
         from bluecellulab.circuit.synapse_properties import SynapseProperty  # type: ignore
 
@@ -223,7 +223,7 @@ class Model:
         return syn_description
 
     def get_synapse_series(
-        self, global_seed: int, synapse_config: SynapseConfig
+        self, global_seed: int, synapse_config: SynapseConfig, offset: int
     ) -> list[SynapseSeries]:
         synapse_series: list[SynapseSeries] = []
         _, section_map = get_sections(self.CELL._cell)
@@ -250,16 +250,13 @@ class Model:
             )
 
             segment_count = section_info.nseg
-            # TODO: Very hacky. Replace with proper code :D
-            sec_id = int(section_key.split("[")[1].split("]")[0])
             for i in range(synapse_count):
-                synapse_id = len(synapse_series)
+                synapse_id = int(f"{len(synapse_series)}{offset}")
                 synapse_series.append(
                     {
                         "id": synapse_id,
                         "series": self._get_synapse_series_for_section(
                             section_info=section_info,
-                            section_id=sec_id,
                             segment_count=segment_count,
                         ),
                     }

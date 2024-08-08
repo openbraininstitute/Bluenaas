@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "blue-naas-rest"
+name = "bluenaas"
 version = "0.1.0"
 description = ""
 authors = ["Bilal Meddah <bilal.meddah@epfl.ch>"]

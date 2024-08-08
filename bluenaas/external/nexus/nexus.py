@@ -5,7 +5,6 @@ from pathlib import Path
 from urllib.parse import quote_plus, unquote
 from loguru import logger as L
 import requests
-import os
 
 HTTP_TIMEOUT = 10  # seconds
 

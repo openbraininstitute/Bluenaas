@@ -1,10 +1,8 @@
-from contextlib import asynccontextmanager
-from multiprocessing.pool import Pool
 import time
+from typing import Awaitable, Callable
 from uuid import uuid4
 import uuid
-
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from loguru import logger
 
@@ -19,7 +17,6 @@ from bluenaas.routes.simulation import router as simulation_router
 from starlette.middleware.cors import CORSMiddleware
 
 
-
 app = FastAPI(
     debug=True,
     title=settings.APP_NAME,
@@ -27,14 +24,18 @@ app = FastAPI(
     docs_url=f"{settings.BASE_PATH}/docs",
 )
 
+
 @app.middleware("http")
-async def add_request_id_middleware(request: Request, call_next):
+async def add_request_id_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
 
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     return response
+
 
 # TODO: reduce origins to only the allowed ones
 app.add_middleware(
@@ -64,14 +65,20 @@ async def bluenaas_exception_handler(
         status_code=int(exception.http_status_code),
         content=BlueNaasErrorResponse(
             message=exception.message,
-            error_code=BlueNaasErrorCode(exception.error_code),
+            error_code=BlueNaasErrorCode(
+                exception.error_code
+                if exception.error_code is not None
+                else "UNKNOWN_BLUENAAS_ERROR"
+            ),
             details=exception.details,
         ).model_dump(),
     )
 
 
 @app.middleware("http")
-async def add_process_time_header(request: Request, call_next):
+async def add_process_time_header(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     start_time = time.time()
     id = uuid4()
     response = await call_next(request)
@@ -86,7 +93,7 @@ base_router = APIRouter(prefix=settings.BASE_PATH)
 
 
 @base_router.get("/requests", description="for testing purposes")
-def res_requests():
+def res_requests() -> list[dict[str, object]]:
     return requests
 
 

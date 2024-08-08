@@ -7,8 +7,6 @@ import numpy as np
 import multiprocessing as mp
 from typing import Dict, NamedTuple, Sequence
 from enum import Enum, auto
-from loguru import logger
-from timeit import default_timer as timer
 
 from bluecellulab.cell.core import Cell
 from bluecellulab.cell.template import TemplateParams
@@ -17,7 +15,6 @@ from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
 from bluecellulab.stimulus.factory import Stimulus, StimulusFactory
 from bluecellulab.simulation.neuron_globals import NeuronGlobals
 
-from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
