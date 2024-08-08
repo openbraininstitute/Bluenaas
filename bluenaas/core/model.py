@@ -20,6 +20,7 @@ from bluenaas.domains.morphology import (
     SynapseSeries,
     SynapsesPlacementConfig,
 )
+from bluenaas.domains.simulation import SynapseSimulationConfig
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.utils.util import (
     get_sections,
@@ -185,7 +186,11 @@ class Model:
         )
 
     def _get_synapse_series_for_section(
-        self, section_info: LocationData, segment_count: int
+        self,
+        section_info: LocationData,
+        segment_count: int,
+        placement_config: SynapseConfig,
+        simulation_config: SynapseSimulationConfig,
     ):
         from bluecellulab.circuit.synapse_properties import SynapseProperty  # type: ignore
 
@@ -205,11 +210,11 @@ class Model:
                 SynapseProperty.PRE_GID: 1,
                 SynapseProperty.AXONAL_DELAY: 1.0,
                 SynapseProperty.G_SYNX: 0.566172,
+                SynapseProperty.TYPE: placement_config.type,
                 SynapseProperty.U_SYN: 0.505514,
                 SynapseProperty.D_SYN: 684.279663,
                 SynapseProperty.F_SYN: 1.937531,
                 SynapseProperty.DTC: 2.983491,
-                SynapseProperty.TYPE: 120,  # TODO: Synapse this should be based on excitory/inhibitory
                 # SynapseProperty.NRRP: 2,
                 # "source_population_name": "hippocampus_projections",
                 # "source_popid": 2126,
@@ -223,14 +228,17 @@ class Model:
         return syn_description
 
     def get_synapse_series(
-        self, global_seed: int, synapse_config: SynapseConfig, offset: int
+        self,
+        global_seed: int,
+        placement_config: SynapseConfig,
+        simulation_config: SynapseSimulationConfig,
+        offset: int,
     ) -> list[SynapseSeries]:
         synapse_series: list[SynapseSeries] = []
         _, section_map = get_sections(self.CELL._cell)
         sections = section_map
 
-        # TODO: Why are we setting seed like this
-        seed(synapse_config.seed, version=2)
+        seed(placement_config.seed, version=2)
         # seed(global_seed, version=2)
 
         for section_key, section_value in sections.items():
@@ -242,11 +250,13 @@ class Model:
             except Exception:
                 continue
 
-            if not self._should_place_synapse_on_section(section_key, synapse_config):
+            if not self._should_place_synapse_on_section(section_key, placement_config):
                 continue
 
             synapse_count = self._calc_synapse_count(
-                synapse_config, section_info.distance_from_soma, section_info.sec_length
+                placement_config,
+                section_info.distance_from_soma,
+                section_info.sec_length,
             )
 
             segment_count = section_info.nseg
@@ -258,6 +268,8 @@ class Model:
                         "series": self._get_synapse_series_for_section(
                             section_info=section_info,
                             segment_count=segment_count,
+                            placement_config=placement_config,
+                            simulation_config=simulation_config,
                         ),
                     }
                 )

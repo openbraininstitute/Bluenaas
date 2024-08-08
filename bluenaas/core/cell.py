@@ -261,6 +261,7 @@ class BaseCell:
         synapse_id: int,
         celsius: float,
         v_init: float,
+        weight: int,
         synapse_series: pandas.Series,
     ):
         from bluecellulab.circuit.config.sections import Conditions  # type: ignore
@@ -273,7 +274,7 @@ class BaseCell:
         # A tuple containing source and target popids used by the random number generation.
         # Should correspond to source_popid and target_popid
         popids = (2126, 378)
-        connection_modifiers = {"add_synapses": True}
+        connection_modifiers = {"add_synapses": True, "Weight": weight}
 
         self._cell.add_replay_synapse(
             synapse_id=synid,
@@ -316,6 +317,7 @@ class BaseCell:
                 synapse_id=synapse["id"],
                 celsius=direct_current_config.celsius,
                 v_init=direct_current_config.vinit,
+                weight=synapse_sim_config.weightScalar,
                 synapse_series=synapse["series"],
             )
             self._add_synapse_connections(

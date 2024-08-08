@@ -45,7 +45,8 @@ def _init_simulation(
 
             synapses_for_config = model.get_synapse_series(
                 global_seed=synaptome_details.synaptome_placement_config.seed,
-                synapse_config=synapse_placement_config,
+                placement_config=synapse_placement_config,
+                simulation_config=synapse_sim_config,
                 offset=index,
             )
             print(
