@@ -2,6 +2,7 @@ import signal
 import multiprocessing as mp
 from loguru import logger
 from http import HTTPStatus as status
+from queue import Empty as QueueEmptyException
 
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.core.model import model_factory
@@ -57,7 +58,16 @@ def generate_synapses_placement(
 
         synapses = None
         while True:
-            record = synapses_queue.get()
+            try:
+                record = synapses_queue.get(timeout=1)
+            except QueueEmptyException:
+                if process.is_alive():
+                    continue
+                if not synapses_queue.empty():
+                    continue
+                else:
+                    raise Exception("Child process died unexpectedly")
+
             if record == QUEUE_STOP_EVENT or stop_event.is_set():
                 break
             if record is not None:

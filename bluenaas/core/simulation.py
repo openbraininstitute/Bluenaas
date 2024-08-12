@@ -3,9 +3,8 @@
 from loguru import logger as L
 
 from bluenaas.core.cell import HocCell
-from bluenaas.core.model import Model
 from bluenaas.core.simulation_factory_plot import StimulusFactoryPlot
-from bluenaas.domains.simulation import SimulationConfigBody
+from bluenaas.domains.simulation import DirectCurrentConfig
 
 
 class Simulation:
@@ -27,7 +26,7 @@ class Simulation:
         self.CELL.stop_simulation()
         return True
 
-    def start_simulation(self, values: SimulationConfigBody):
+    def start_simulation(self, values: DirectCurrentConfig):
         """Start simulation."""
         L.info("Starting simulation...")
         result = self.CELL.start_simulation(values)
@@ -45,19 +44,3 @@ class Simulation:
         stimulus_factory_plot = StimulusFactoryPlot(values, self.THRESHOLD_CURRENT)
         result_data = stimulus_factory_plot.apply_stim()
         return result_data
-
-
-class Treat:
-    def __init__(self, *, model_id: str, config: any, token: str) -> None:
-        self.token: str = token
-        self.model_id: str = model_id
-        self.config: SimulationConfigBody = config
-        self.simulation_result: any = None
-
-    def run(self):
-        model = Model(model_id=self.model_id, token=self.token)
-        model.build_model()
-        simulation = Simulation(cell=model.CELL)
-        simulation.set_injection_location(self.config.injectTo)
-        result = simulation.start_simulation(self.config)
-        return result

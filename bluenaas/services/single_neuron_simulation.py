@@ -7,14 +7,14 @@ from http import HTTPStatus as status
 from fastapi.responses import StreamingResponse
 
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
-from bluenaas.domains.simulation import SimulationConfigBody
+from bluenaas.domains.simulation import DirectCurrentConfig
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
 def _init_simulation(
     model_id: str,
     token: str,
-    config: SimulationConfigBody,
+    config: DirectCurrentConfig,
     simulation_queue: mp.Queue,
     stop_event: Event,
     req_id: str,
@@ -45,10 +45,10 @@ def _init_simulation(
         logger.debug("Simulation executor ended")
 
 
-def execute_simulation(
+def execute_single_neuron_simulation(
     model_id: str,
     token: str,
-    config: SimulationConfigBody,
+    config: DirectCurrentConfig,
     req_id: str,
 ):
     try:
@@ -65,7 +65,6 @@ def execute_simulation(
         def queue_streamify():
             while True:
                 record = simulation_queue.get()
-                # TODO: probably using queue.empty() will be enough
                 if record == QUEUE_STOP_EVENT or stop_event.is_set():
                     break
 

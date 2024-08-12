@@ -5,23 +5,16 @@ import multiprocessing as mp
 import os
 import re
 from loguru import logger as L
-import pandas  # type: ignore
-
-from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
-    SimulationConfigBody,
-    SynapseSimulationConfig,
+    DirectCurrentConfig,
 )
 from bluenaas.utils.util import (
     compile_mechanisms,
-    generate_pre_spiketrain,
     get_sec_name,
     get_sections,
     locate_model,
     set_sec_dendrogram,
 )
-
-TIME = "time"
 
 
 class BaseCell:
@@ -144,7 +137,6 @@ class BaseCell:
         self._nrn.h.psection(
             sec=self._all_sec_array[self._all_sec_map[sec_name]["index"]]
         )
-        print("SEC___VALUE", self._all_sec_array[self._all_sec_map[sec_name]["index"]])
         # TODO: rework this
         return {"txt": ""}
 
@@ -197,34 +189,9 @@ class BaseCell:
 
         return protocol_mapping[protocol_name]
 
-    # def start_simulation(self, params: SimulationConfigBody):
-    #     """Initialize the simulation and recordings."""
-    #     from bluecellulab.analysis.inject_sequence import apply_multiple_stimuli
-
-    #     try:
-    #         L.debug(f"params {params}")
-
-    #         stimulus_name = self._get_stimulus_name(params.stimulus.stimulusProtocol)
-
-    #         responses = apply_multiple_stimuli(
-    #             self._cell,
-    #             stimulus_name,
-    #             params.stimulus.amplitudes,
-    #             section_name=params.injectTo,
-    #         )
-
-    #         recordings = self._get_simulation_results(responses)
-    #         return recordings
-
-    #     except Exception as e:  # pylint: disable=broad-except
-    #         L.error(
-    #             f"Start-Simulation error: {e}",
-    #         )
-    #         raise Exception(f"Start-Simulation error: {e}") from e
-
     def start_simulation(
         self,
-        config: SimulationConfigBody,
+        config: DirectCurrentConfig,
         simulation_queue: mp.Queue,
         req_id: str,
     ):
@@ -245,85 +212,19 @@ class BaseCell:
             )
             raise Exception(f"Apply Simulation error: {e}") from e
 
-    def start_synapse_simulation(self, queue: mp.Queue):
-        from bluenaas.core.stimulation import run_synpase_simulation
+    def start_synaptome_simulation(self, template_params, synapse_series):
+        from bluenaas.core.synaptome_simulation import run_synaptome_simulation
 
         try:
-            run_synpase_simulation(cell=self._cell, parent_queue=queue)
+            return run_synaptome_simulation(
+                template_params=template_params,
+                synapse_series=synapse_series,
+            )
         except Exception as e:
             L.error(
                 f"Apply Simulation error: {e}",
             )
             raise Exception(f"Apply Simulation error: {e}") from e
-
-    def _add_synapse_to_cell(
-        self,
-        synapse_id: int,
-        celsius: float,
-        v_init: float,
-        weight: int,
-        synapse_series: pandas.Series,
-    ):
-        from bluecellulab.circuit.config.sections import Conditions  # type: ignore
-        from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
-
-        condition_parameters = Conditions(
-            celsius=celsius, v_init=v_init, randomize_gaba_rise_time=True
-        )
-        synid = SynapseID(f"{synapse_id}", synapse_id)
-        # A tuple containing source and target popids used by the random number generation.
-        # Should correspond to source_popid and target_popid
-        popids = (2126, 378)
-        connection_modifiers = {"add_synapses": True, "Weight": weight}
-
-        self._cell.add_replay_synapse(
-            synapse_id=synid,
-            syn_description=synapse_series,
-            connection_modifiers=connection_modifiers,
-            condition_parameters=condition_parameters,
-            popids=popids,
-            extracellular_calcium=None,  # may not be value used in circuit
-        )
-
-    def _add_synapse_connections(
-        self,
-        synapse_config: SynapseSimulationConfig,
-        injectTo: str,
-    ):
-        from bluecellulab import Connection
-
-        spike_train = generate_pre_spiketrain(synapse_config)
-        spike_threshold = -900.0  # TODO: Synapse - How to get spike threshold
-        for synapse_id, synapse in self._cell.synapses.items():
-            connection = Connection(
-                synapse,
-                pre_spiketrain=spike_train,
-                pre_cell=None,
-                stim_dt=self._cell.record_dt,
-                spike_threshold=spike_threshold,
-                spike_location=injectTo,  # TODO: Synapse - How to get spike_location
-            )
-
-            self._cell.connections[synapse_id] = connection
-
-    def add_synapses_to_cell(
-        self,
-        synapses: list[SynapseSeries],
-        direct_current_config: SimulationConfigBody,
-        synapse_sim_config: SynapseSimulationConfig,
-    ):
-        for synapse in synapses:
-            self._add_synapse_to_cell(
-                synapse_id=synapse["id"],
-                celsius=direct_current_config.celsius,
-                v_init=direct_current_config.vinit,
-                weight=synapse_sim_config.weightScalar,
-                synapse_series=synapse["series"],
-            )
-            self._add_synapse_connections(
-                synapse_config=synapse_sim_config,
-                injectTo=direct_current_config.injectTo,
-            )
 
     def stop_simulation(self):
         """Stop simulation."""

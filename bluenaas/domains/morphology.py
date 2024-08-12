@@ -5,6 +5,8 @@ import sympy as sp  # type: ignore
 import pandas  # type: ignore
 from enum import Enum
 
+from bluenaas.domains.simulation import DirectCurrentConfig, SynapseSimulationConfig
+
 
 class LocationData(BaseModel):
     index: int
@@ -29,6 +31,7 @@ class LocationData(BaseModel):
     sec_length: float
     neuron_segments_offset: List[float]
     neuron_section_id: int
+    segment_distance_from_soma: list[float]
 
 
 class SectionTarget(Enum):
@@ -41,6 +44,11 @@ class SectionTarget(Enum):
         return list(map(lambda c: c.value, cls))
 
 
+class ExclusionRule(BaseModel):
+    distance_soma_gte: float | None = None
+    distance_soma_lte: float | None = None
+
+
 class SynapseConfig(BaseModel):
     id: str
     name: str
@@ -51,6 +59,7 @@ class SynapseConfig(BaseModel):
         None  # Check that this is a valid string if `distribution` is "formula"
     )
     seed: int
+    exclusion_rules: list[ExclusionRule] | None = None
 
     @field_validator("formula", mode="before")
     @classmethod
@@ -110,5 +119,7 @@ SynapseSeries = TypedDict(
     {
         "id": int,
         "series": pandas.Series,
+        "directCurrentConfig": DirectCurrentConfig,
+        "synapseSimulationConfig": SynapseSimulationConfig,
     },
 )

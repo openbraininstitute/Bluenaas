@@ -14,6 +14,8 @@ from bluenaas.core.exceptions import (
 )
 from bluenaas.routes.morphology import router as morphology_router
 from bluenaas.routes.simulation import router as simulation_router
+from bluenaas.routes.graph_data import router as graph_router
+from bluenaas.routes.synaptome import router as synaptome_router
 from starlette.middleware.cors import CORSMiddleware
 
 
@@ -84,7 +86,11 @@ async def add_process_time_header(
     response = await call_next(request)
     process_time = time.time() - start_time
     requests.append(
-        {"id": id, "process_time": f"{process_time}s", "path": request.url.path},
+        {
+            "id": id,
+            "process_time": f"{process_time}s",
+            "path": request.url.path,
+        },
     )
     return response
 
@@ -99,6 +105,8 @@ def res_requests() -> list[dict[str, object]]:
 
 base_router.include_router(morphology_router)
 base_router.include_router(simulation_router)
+base_router.include_router(synaptome_router)
+base_router.include_router(graph_router)
 
 
 app.include_router(base_router)
