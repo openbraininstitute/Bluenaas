@@ -7,10 +7,9 @@ import tarfile
 import zipfile
 from io import BytesIO
 from pathlib import Path
-import random
 import numpy as np
 from loguru import logger as L
-from bluenaas.domains.morphology import LocationData
+from bluenaas.domains.morphology import ExclusionRule, LocationData
 from bluenaas.domains.simulation import SynapseSimulationConfig
 
 PADDING = 2.0
@@ -218,6 +217,11 @@ def get_sections(cell) -> tuple[list, dict[str, LocationData]]:
             for seg in sec.allseg():
                 segments_offset.append(float(seg.x))
             sec_data["neuron_segments_offset"] = segments_offset
+
+            segment_distances = []
+            for seg_offset in seg_x:
+                segment_distances.append(h.distance(cell.soma(0), sec(seg_offset)))
+            sec_data["segment_distance_from_soma"] = segment_distances
 
             # if is_spine(sec_name):  # spine location correction
             #     assert sec_data["nseg"] == 1, "spine sections should have one segment"
@@ -432,10 +436,6 @@ def project_vector(v1: np.ndarray, v2: np.ndarray) -> np.ndarray:
     return projection_vector
 
 
-def random_target_segment(nSeg: int):
-    return random.randint(0, nSeg)
-
-
 def generate_pre_spiketrain(syn_input_config: SynapseSimulationConfig) -> np.array:
     frequency = syn_input_config.frequency
     duration = syn_input_config.duration
@@ -447,3 +447,52 @@ def generate_pre_spiketrain(syn_input_config: SynapseSimulationConfig) -> np.arr
         np.random.poisson(spike_interval, spiketrain_size)[:-1], 0, 0
     )
     return np.cumsum(spiketrain_raw) + delay
+
+
+def find_first_index_greater_than(arr: list[float], x: float) -> int | None:
+    try:
+        return next(i for i, val in enumerate(arr) if val >= x)
+    except StopIteration:
+        return None
+
+
+def find_first_index_less_than(arr: list[float], x: float) -> int | None:
+    try:
+        return next(i for i, val in enumerate(arr) if val <= x)
+    except StopIteration:
+        return None
+
+
+def get_segx_indices_satisfying_rule(
+    rule: ExclusionRule, segment_distances: list[float]
+) -> list[int]:
+    lte, gte = rule.distance_soma_lte, rule.distance_soma_gte
+    result = [
+        i
+        for i, d in enumerate(segment_distances)
+        if (lte is not None and d >= lte) or (gte is not None and d <= gte)
+    ]
+    return result
+
+
+def get_segments_satisfying_all_exclusion_rules(
+    rules: None | list[ExclusionRule],
+    segment_distances: list[float],
+    section_info: LocationData,
+) -> list[int] | None:
+    result = (
+        list(range(len(segment_distances)))
+        if rules is None or not len(rules)
+        else list(
+            set.intersection(
+                *map(
+                    set,
+                    [
+                        get_segx_indices_satisfying_rule(rule, segment_distances)
+                        for rule in rules
+                    ],
+                )
+            )
+        )
+    ) or None
+    return result

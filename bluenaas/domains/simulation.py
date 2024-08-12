@@ -10,7 +10,7 @@ class SimulationStimulusConfig(BaseModel):
     amplitudes: List[float]
 
 
-class SimulationConfigBody(BaseModel):
+class DirectCurrentConfig(BaseModel):
     celsius: float
     hypamp: float
     vinit: float
@@ -28,7 +28,7 @@ class SynapseSimulationConfig(BaseModel):
 
 
 class SimulationWithSynapseBody(BaseModel):
-    directCurrentConfig: SimulationConfigBody
+    directCurrentConfig: DirectCurrentConfig
     synapseConfigs: list[SynapseSimulationConfig]
 
 

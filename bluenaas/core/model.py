@@ -2,7 +2,7 @@
 
 from enum import Enum
 import os
-from typing import NamedTuple
+from typing import List, NamedTuple
 from loguru import logger as L
 import pandas  # type: ignore
 import requests
@@ -20,10 +20,11 @@ from bluenaas.domains.morphology import (
     SynapseSeries,
     SynapsesPlacementConfig,
 )
-from bluenaas.domains.simulation import SynapseSimulationConfig
+from bluenaas.domains.simulation import DirectCurrentConfig, SynapseSimulationConfig
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.utils.util import (
     get_sections,
+    get_segments_satisfying_all_exclusion_rules,
     locate_model,
     perpendicular_vector,
     point_between_vectors,
@@ -74,8 +75,13 @@ class Model:
         L.debug(f"holding_current {holding_current}")
         self.CELL = HocCell(model_uuid, threshold_current, holding_current)
 
-    def _generate_synapse(self, section_info: LocationData, segment_count):
-        target_segment = randint(0, segment_count - 1)
+    def _generate_synapse(
+        self, section_info: LocationData, seg_indices_to_include: list[int]
+    ):
+        random_index = randint(0, len(seg_indices_to_include) - 1)
+
+        target_segment = seg_indices_to_include[random_index]
+
         # 2. Find a random position on that segment (using random_point_between_vectors from chatgpt)
         position = random()
         vStart = np.array(
@@ -128,7 +134,7 @@ class Model:
         synapse_count = ceil(expression.subs({x_symbol: distance, X_symbol: distance}))
         return synapse_count
 
-    def _should_place_synapse_on_section(
+    def _should_place_synapse_on_section_based_on_target(
         self, section_name: str, config: SynapseConfig
     ) -> bool:
         if config.target is not None:
@@ -143,15 +149,7 @@ class Model:
         config = params.config
         synapses: list[SectionSynapses] = []
         sections = section_map
-        # select the target
-        # {
-        #     key: value
-        #     for key, value in section_map.items()
-        #     if key.startswith(params.config.target) and not key.startswith("soma")
-        # }
         seed(params.config.seed, version=2)
-
-        # seed(params.seed, version=2)
 
         for section_key, section_value in sections.items():
             try:
@@ -161,20 +159,30 @@ class Model:
             except Exception:
                 continue
 
-            if not self._should_place_synapse_on_section(section_key, params.config):
+            if not self._should_place_synapse_on_section_based_on_target(
+                section_key, params.config
+            ):
+                continue
+
+            segment_indices = get_segments_satisfying_all_exclusion_rules(
+                params.config.exclusion_rules,
+                section_info.segment_distance_from_soma,
+                section_info,
+            )
+
+            if segment_indices is None:
                 continue
 
             synapse_count = self._calc_synapse_count(
                 config, section_info.distance_from_soma, section_info.sec_length
             )
 
-            segment_count = section_info.nseg
-
             synapse = SectionSynapses(
                 section_id=section_key,
                 synapses=[
                     self._generate_synapse(
-                        section_info=section_info, segment_count=segment_count
+                        section_info=section_info,
+                        seg_indices_to_include=segment_indices,
                     )
                     for i in range(synapse_count)
                 ],
@@ -188,13 +196,15 @@ class Model:
     def _get_synapse_series_for_section(
         self,
         section_info: LocationData,
-        segment_count: int,
+        seg_indices_to_include: List[int],
         placement_config: SynapseConfig,
         simulation_config: SynapseSimulationConfig,
     ):
         from bluecellulab.circuit.synapse_properties import SynapseProperty  # type: ignore
 
-        target_segment = randint(0, segment_count - 1)
+        random_index = randint(0, len(seg_indices_to_include) - 1)
+        target_segment = seg_indices_to_include[random_index]
+
         position = random()
         # 1. get the seg_x for target segment
         start = section_info.neuron_segments_offset[target_segment]
@@ -229,17 +239,16 @@ class Model:
 
     def get_synapse_series(
         self,
-        global_seed: int,
-        placement_config: SynapseConfig,
-        simulation_config: SynapseSimulationConfig,
+        synapse_placement_config: SynapseConfig,
+        synapse_simulation_config: SynapseSimulationConfig,
+        direct_current_config: DirectCurrentConfig,
         offset: int,
     ) -> list[SynapseSeries]:
         synapse_series: list[SynapseSeries] = []
         _, section_map = get_sections(self.CELL._cell)
         sections = section_map
 
-        seed(placement_config.seed, version=2)
-        # seed(global_seed, version=2)
+        seed(synapse_placement_config.seed, version=2)
 
         for section_key, section_value in sections.items():
             try:
@@ -250,27 +259,39 @@ class Model:
             except Exception:
                 continue
 
-            if not self._should_place_synapse_on_section(section_key, placement_config):
+            if not self._should_place_synapse_on_section_based_on_target(
+                section_key, synapse_placement_config
+            ):
+                continue
+
+            segment_indices = get_segments_satisfying_all_exclusion_rules(
+                synapse_placement_config.exclusion_rules,
+                section_info.segment_distance_from_soma,
+                section_info,
+            )
+
+            if segment_indices is None:
                 continue
 
             synapse_count = self._calc_synapse_count(
-                placement_config,
+                synapse_placement_config,
                 section_info.distance_from_soma,
                 section_info.sec_length,
             )
 
-            segment_count = section_info.nseg
-            for i in range(synapse_count):
+            for _ in range(synapse_count):
                 synapse_id = int(f"{len(synapse_series)}{offset}")
                 synapse_series.append(
                     {
                         "id": synapse_id,
                         "series": self._get_synapse_series_for_section(
                             section_info=section_info,
-                            segment_count=segment_count,
-                            placement_config=placement_config,
-                            simulation_config=simulation_config,
+                            seg_indices_to_include=segment_indices,
+                            placement_config=synapse_placement_config,
+                            simulation_config=synapse_simulation_config,
                         ),
+                        "directCurrentConfig": direct_current_config,
+                        "synapseSimulationConfig": synapse_simulation_config,
                     }
                 )
 

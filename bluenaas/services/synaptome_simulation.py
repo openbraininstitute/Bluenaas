@@ -1,14 +1,15 @@
+import itertools
 import json
 import multiprocessing as mp
-
 from queue import Empty as QueueEmptyException
 from loguru import logger
 from http import HTTPStatus as status
 from fastapi.responses import StreamingResponse
 from timeit import default_timer as timer
-from threading import Event
+
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.core.model import fetch_synaptome_model_details
+from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import SimulationWithSynapseBody
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 
@@ -18,7 +19,6 @@ def _init_simulation(
     token: str,
     params: SimulationWithSynapseBody,
     simulation_queue: mp.Queue,
-    stop_event: Event,
 ):
     from bluenaas.core.model import model_factory
 
@@ -33,8 +33,8 @@ def _init_simulation(
             bearer_token=token,
         )
 
-        print("PLACEMENT_CONFIGS", synaptome_details.synaptome_placement_config.config)
-        print("SIM CNFIGs", params.synapseConfigs)
+        synapse_settings: list[list[SynapseSeries]] = []
+
         for index, synapse_sim_config in enumerate(params.synapseConfigs):
             # 3. Get "pandas.Series" for each synapse
             synapse_placement_config = [
@@ -43,38 +43,27 @@ def _init_simulation(
                 if synapse_sim_config.id == config.id
             ][0]
 
-            synapses_for_config = model.get_synapse_series(
-                global_seed=synaptome_details.synaptome_placement_config.seed,
-                placement_config=synapse_placement_config,
-                simulation_config=synapse_sim_config,
+            synapses_per_grp = model.get_synapse_series(
+                synapse_placement_config=synapse_placement_config,
+                synapse_simulation_config=synapse_sim_config,
+                direct_current_config=params.directCurrentConfig,
                 offset=index,
             )
-            print(
-                f"_____Total Synapses in group {synapse_sim_config.id}_____",
-                len(synapses_for_config),
-            )
 
-            # 4. Add synapses to cell
-            start = timer()
-            model.CELL.add_synapses_to_cell(
-                synapses_for_config, params.directCurrentConfig, synapse_sim_config
-            )
-            end = timer()
-            print(
-                f"Adding {len(synapses_for_config)} synapses took {end-start} seconds"
-            )
+            synapse_settings.append(synapses_per_grp)
 
-        # cores_available = len(os.sched_getaffinity(0))
-        # synapse_chunks = np.array_split(limited_synapses, cores_available)
-        # with mp.Pool() as pool:
-        #     pool.starmap(model.CELL.add_synapses_to_cell, (synapse_chunks))
-
-        print("TOTAL_SYNAPSES", len(model.CELL._cell.synapses))
-        print("TOTAL_CONNECTIONS", len(model.CELL._cell.connections))
-
+        synapse_settings_flattened = list(
+            itertools.chain.from_iterable(synapse_settings)
+        )
         # 5. Start simulation with synapses
         start = timer()
-        model.CELL.start_synapse_simulation(queue=simulation_queue)
+        result = model.CELL.start_synaptome_simulation(
+            template_params=model.CELL._cell.template_params,
+            synapse_series=synapse_settings_flattened,
+        )
+
+        simulation_queue.put(result)
+        simulation_queue.put(QUEUE_STOP_EVENT)
         end = timer()
         print(f"Running simulation took {end-start} seconds")
     except Exception as ex:
@@ -84,7 +73,7 @@ def _init_simulation(
         logger.debug("Simulation executor ended")
 
 
-def execute_synapse_simulation(
+def execute_synaptome_simulation(
     model_id: str,
     token: str,
     params: SimulationWithSynapseBody,
@@ -96,7 +85,12 @@ def execute_synapse_simulation(
 
         pro = mp.Process(
             target=_init_simulation,
-            args=(model_id, token, params, simulation_queue, stop_event),
+            args=(
+                model_id,
+                token,
+                params,
+                simulation_queue,
+            ),
             name=f"simulation_processor:{req_id}",
         )
         pro.start()
@@ -121,13 +115,11 @@ def execute_synapse_simulation(
                 if record == QUEUE_STOP_EVENT or stop_event.is_set():
                     break
 
-                (stimulus_name, recording) = record
-
                 yield json.dumps(
                     {
-                        "t": list(recording.time),
-                        "v": list(recording.voltage),
-                        "name": stimulus_name,
+                        "t": list(record.time),
+                        "v": list(record.voltage),
+                        "name": "stimulus_name",
                     }
                 )
 
