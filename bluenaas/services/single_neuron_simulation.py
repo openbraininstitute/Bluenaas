@@ -5,6 +5,7 @@ from loguru import logger
 from threading import Event
 from http import HTTPStatus as status
 from fastapi.responses import StreamingResponse
+from queue import Empty as QueueEmptyException
 
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.domains.simulation import DirectCurrentConfig
@@ -34,7 +35,6 @@ def _init_simulation(
             model_id=model_id,
             bearer_token=token,
         )
-        model.CELL.set_injection_location(config.injectTo)
         model.CELL.start_simulation(
             config=config, simulation_queue=simulation_queue, req_id=req_id
         )
@@ -64,7 +64,21 @@ def execute_single_neuron_simulation(
 
         def queue_streamify():
             while True:
-                record = simulation_queue.get()
+                try:
+                    # Simulation_Queue.get() is blocking. If child fails without writing to it, the process will hang forever. That's why timeout is added.
+                    record = simulation_queue.get(timeout=1)
+                except QueueEmptyException:
+                    if pro.is_alive():
+                        continue
+                    if not simulation_queue.empty():
+                        # Checking if queue is empty again to avoid the following race condition:
+                        # t0 - Empty exception is raised from queue.get()
+                        # t1 - Child process writes to queue
+                        # t2 - Child process finishes
+                        # t3 - Queue should be checked again for emptiness to capture the last message
+                        continue
+                    else:
+                        raise Exception("Child process died unexpectedly")
                 if record == QUEUE_STOP_EVENT or stop_event.is_set():
                     break
 

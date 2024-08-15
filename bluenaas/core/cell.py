@@ -8,6 +8,7 @@ from loguru import logger as L
 from bluenaas.domains.simulation import (
     DirectCurrentConfig,
 )
+from bluenaas.domains.simulation import RecordingLocation
 from bluenaas.utils.util import (
     compile_mechanisms,
     get_sec_name,
@@ -33,7 +34,6 @@ class BaseCell:
         self.delta_t = None
         self._recording_position = 0.5  # 0.5 middle of the section
         self._cell = None
-        self._injection_location = None
 
     def _topology_children(self, sec, topology):
         children = topology["children"]
@@ -93,7 +93,6 @@ class BaseCell:
             self._all_sec_array, self._all_sec_map = get_sections(self._cell)
             self._nrn = neuron
             self._template_name = self._cell.hocname
-            self._injection_location = self._cell.soma
             set_sec_dendrogram(self._template_name, self._cell.soma, self._dendrogram)
         else:
             raise Exception(
@@ -139,14 +138,6 @@ class BaseCell:
         )
         # TODO: rework this
         return {"txt": ""}
-
-    def get_injection_location(self):
-        """Get injection location, return the name of the section where injection is attached."""
-        return get_sec_name(self._template_name, self._injection_location)
-
-    def set_injection_location(self, sec_name):
-        """Move injection_location to the middle of the section."""
-        self._injection_location = self._get_section_from_name(sec_name)
 
     def _get_section_from_name(self, name):
         (section_name, section_id) = re.findall(r"(\w+)\[(\d)\]", name)[0]
@@ -202,7 +193,8 @@ class BaseCell:
                 cell=self._cell,
                 stimulus_name=config.stimulus.stimulusProtocol,
                 amplitudes=config.stimulus.amplitudes,
-                section_name=config.injectTo,
+                recording_location=config.recordFrom,
+                injection_section_name=config.injectTo,
                 simulation_queue=simulation_queue,
                 req_id=req_id,
             )
@@ -212,13 +204,19 @@ class BaseCell:
             )
             raise Exception(f"Apply Simulation error: {e}") from e
 
-    def start_synaptome_simulation(self, template_params, synapse_series):
+    def start_synaptome_simulation(
+        self,
+        template_params,
+        synapse_series,
+        recording_location: list[RecordingLocation],
+    ):
         from bluenaas.core.synaptome_simulation import run_synaptome_simulation
 
         try:
             return run_synaptome_simulation(
                 template_params=template_params,
                 synapse_series=synapse_series,
+                recording_location=recording_location,
             )
         except Exception as e:
             L.error(
