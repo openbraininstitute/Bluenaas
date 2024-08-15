@@ -144,8 +144,6 @@ class Nexus:
                     )
                 )[0]
 
-            L.debug(f"Distribution {distribution}")
-
             file = self.fetch_file_by_url(distribution["contentUrl"])
             mechanisms.append({"name": distribution["name"], "content": file.text})
 

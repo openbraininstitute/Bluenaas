@@ -1,5 +1,6 @@
 from bluenaas.core.stimulation import SynapseRecording
 from bluenaas.domains.morphology import SynapseSeries
+from bluenaas.domains.simulation import RecordingLocation
 from bluenaas.utils.util import generate_pre_spiketrain
 
 
@@ -48,14 +49,24 @@ def _add_single_synapse(
     cell.connections[synid] = connection
 
 
-def run_synaptome_simulation(template_params, synapse_series) -> SynapseRecording:
+def run_synaptome_simulation(
+    template_params, synapse_series, recording_location: list[RecordingLocation]
+) -> SynapseRecording:
     from bluecellulab.cell.core import Cell
     from bluecellulab.simulation import Simulation
 
     cell = Cell.from_template_parameters(template_params)
 
+    recording_section = cell.sections[recording_location[0].section]
+    recording_segment = recording_location[0].segment_offset
+
     for synapse in synapse_series:
         _add_single_synapse(cell, synapse)
+
+    cell.add_voltage_recording(
+        section=recording_section,
+        segx=recording_segment,
+    )
 
     sim = Simulation()
     sim.add_cell(cell)
@@ -63,10 +74,10 @@ def run_synaptome_simulation(template_params, synapse_series) -> SynapseRecordin
     # TODO: fix the maxtime (user input or direct current injection maxtime)
     sim.run(160.0, cvode=False, dt=0.1)  # TODO: Synapse How to get duration
     time = cell.get_time()
-    voltage = (
-        cell.get_soma_voltage()
-    )  # TODO: Get voltage from injectTo location chosen by user
-
+    voltage = cell.get_voltage_recording(
+        section=recording_section,
+        segx=recording_segment,
+    )
     print("Time", time)
     print("Voltage", voltage)
 

@@ -60,6 +60,7 @@ def _init_simulation(
         result = model.CELL.start_synaptome_simulation(
             template_params=model.CELL._cell.template_params,
             synapse_series=synapse_settings_flattened,
+            recording_location=params.directCurrentConfig.recordFrom,
         )
 
         simulation_queue.put(result)

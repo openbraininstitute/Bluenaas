@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 
 from pydantic import BaseModel, Field, PositiveInt
 
@@ -10,11 +10,16 @@ class SimulationStimulusConfig(BaseModel):
     amplitudes: List[float]
 
 
+class RecordingLocation(BaseModel):
+    section: str
+    segment_offset: Annotated[float, Field(ge=0, le=1, alias="segmentOffset")]
+
+
 class DirectCurrentConfig(BaseModel):
     celsius: float
     hypamp: float
     vinit: float
-    recordFrom: List[str]
+    recordFrom: list[RecordingLocation]
     injectTo: str
     stimulus: SimulationStimulusConfig
 

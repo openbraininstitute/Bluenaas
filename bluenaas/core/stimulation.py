@@ -15,7 +15,10 @@ from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
 from bluecellulab.stimulus.factory import Stimulus, StimulusFactory
 from bluecellulab.simulation.neuron_globals import NeuronGlobals
 
+from bluenaas.domains.simulation import RecordingLocation
 from bluenaas.utils.const import QUEUE_STOP_EVENT
+
+DEFAULT_INJECTION_LOCATION = "soma[0]"
 
 
 class Recording(NamedTuple):
@@ -87,8 +90,9 @@ def init_process_worker(neuron_global_params):
 def run_stimulus(
     template_params: TemplateParams,
     stimulus: Stimulus,
-    section: str,
-    segment: float,
+    injection_section_name: str,
+    injection_segment: float,
+    recording_location: list[RecordingLocation],
     simulation_queue: mp.Queue,
     stimulus_name: StimulusName,
     amplitude: float,
@@ -111,22 +115,36 @@ def run_stimulus(
         ValueError: If the time and voltage arrays are not the same length.
     """
     cell = Cell.from_template_parameters(template_params)
-    neuron_section = cell.sections[section]
+    injection_section = cell.sections[injection_section_name]
+    recording_section = cell.sections[recording_location[0].section]
+    recording_segment = recording_location[0].segment_offset
+
     if add_hypamp:
         hyp_stim = Hyperpolarizing(
             target="", delay=0.0, duration=stimulus.stimulus_time
         )
         cell.add_replay_hypamp(hyp_stim)
-    cell.add_voltage_recording(neuron_section, segment)
+    cell.add_voltage_recording(
+        section=recording_section,
+        segx=recording_segment,
+    )
+
     iclamp, _ = cell.inject_current_waveform(
-        stimulus.time, stimulus.current, section=neuron_section, segx=segment
+        stimulus.time,
+        stimulus.current,
+        section=injection_section,
+        segx=injection_segment,
     )
     current_vector = neuron.h.Vector()
     current_vector.record(iclamp._ref_i)
     simulation = Simulation(cell)
     simulation.run(stimulus.stimulus_time, cvode=cvode)
     current = np.array(current_vector.to_python())
-    voltage = cell.get_voltage_recording(neuron_section, segment)
+
+    voltage = cell.get_voltage_recording(
+        section=recording_section,
+        segx=recording_segment,
+    )
     time = cell.get_time()
 
     if len(time) != len(voltage) or len(time) != len(current):
@@ -150,15 +168,20 @@ def prepare_stimulation_parameters(
     stimulus_name: StimulusName,
     simulation_queue: mp.Queue,
     amplitudes: Sequence[float],
-    section_name: str | None = None,
+    recording_location: list[RecordingLocation],
+    injection_section_name: str | None = None,
     threshold_based: bool = True,
-    segment: float = 0.5,
+    injection_segment: float = 0.5,
     cvode: bool = True,
     add_hypamp: bool = True,
 ):
     stim_factory = StimulusFactory(dt=1.0)
     task_args = []
-    section_name = section_name if section_name is not None else "soma[0]"
+    injection_section_name = (
+        injection_section_name
+        if injection_section_name is not None
+        else DEFAULT_INJECTION_LOCATION
+    )
 
     # Prepare arguments for each stimulus
     for amplitude in amplitudes:
@@ -212,8 +235,9 @@ def prepare_stimulation_parameters(
             (
                 cell.template_params,
                 stimulus,
-                section_name,
-                segment,
+                injection_section_name,
+                injection_segment,
+                recording_location,
                 simulation_queue,
                 stimulus_name,
                 amplitude,
@@ -231,7 +255,8 @@ def apply_multiple_stimulus(
     simulation_queue: mp.Queue,
     amplitudes: Sequence[float],
     req_id: str,
-    section_name: str | None = None,
+    recording_location: list[RecordingLocation],
+    injection_section_name: str | None = None,
 ):
     stimulus_name_mapped = get_stimulus_name(stimulus_name)
 
@@ -244,7 +269,8 @@ def apply_multiple_stimulus(
             cell=cell,
             stimulus_name=stimulus_name_mapped,
             amplitudes=amplitudes,
-            section_name=section_name,
+            injection_section_name=injection_section_name,
+            recording_location=recording_location,
             simulation_queue=children_queue,
         )
         with ctx.Pool(
