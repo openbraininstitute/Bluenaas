@@ -23,7 +23,6 @@ def _add_single_synapse(
     popids = (2126, 378)
     connection_modifiers = {
         "add_synapses": True,
-        "Weight": synapse["synapseSimulationConfig"].weightScalar,
     }
 
     cell.add_replay_synapse(
