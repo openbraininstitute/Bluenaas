@@ -133,7 +133,7 @@ def run_stimulus(
         raise ValueError("Time, current and voltage arrays are not the same length")
 
     recording = Recording(current, voltage, time)
-    stimulus_name = f"{stimulus_name}_{amplitude}"
+    stimulus_name = f"{stimulus_name.name}_{amplitude}"
 
     simulation_queue.put(
         (
