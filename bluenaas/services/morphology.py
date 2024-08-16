@@ -101,9 +101,6 @@ def get_single_morphology(
         )
 
     except Exception as ex:
-        import traceback
-
-        traceback.print_exc()
         logger.error(f"retrieving morphology data failed {ex}")
         raise BlueNaasError(
             http_status_code=status.INTERNAL_SERVER_ERROR,
