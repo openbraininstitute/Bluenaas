@@ -1,14 +1,16 @@
 """Nexus module."""
 
+from typing import cast
 import zipfile
 from pathlib import Path
-from urllib.parse import quote_plus, unquote
+from urllib.parse import quote_plus, unquote, quote
 from loguru import logger as L
 import requests
 
 HTTP_TIMEOUT = 10  # seconds
 
 model_dir = Path("/opt/blue-naas/") / "models"
+defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
 
 
 class Nexus:
@@ -228,6 +230,7 @@ class Nexus:
         )
 
     def get_emodel_resource(self, resource):
+        L.info(f'@@--> {resource}')
         if "MEModel" in resource["@type"]:
             L.debug("Model is ME-Model")
             emodel_id = None
@@ -246,8 +249,8 @@ class Nexus:
 
     def download_model(self):
         L.debug("Getting model...")
-        # could be E-Model or ME-Model
         resource = self.fetch_resource_by_id(self.model_id)
+        # could be E-Model or ME-Model
         emodel_resource = self.get_emodel_resource(resource)
         L.debug("E-Model resource fetched")
         configuration = self.get_emodel_configuration(emodel_resource)
@@ -268,12 +271,15 @@ class Nexus:
 
     def get_currents(self):
         resource = self.fetch_resource_by_id(self.model_id)
+        
         if "MEModel" in resource["@type"]:
             L.debug("Getting currents from ME-Model")
             return [resource["holding_current"], resource["threshold_current"]]
+        
         L.debug("Getting currents from E-Model")
         emodel_resource = self.get_emodel_resource(resource)
         emodel_script = self.get_script_resource(emodel_resource)
+
         return [
             0
             if "holding_current" not in emodel_script

@@ -2,7 +2,7 @@
 
 from enum import Enum
 import os
-from typing import List, NamedTuple
+from typing import Dict, List, NamedTuple, cast
 from loguru import logger as L
 import pandas  # type: ignore
 import requests
@@ -20,7 +20,8 @@ from bluenaas.domains.morphology import (
     SynapseSeries,
     SynapsesPlacementConfig,
 )
-from bluenaas.domains.simulation import DirectCurrentConfig, SynapseSimulationConfig
+from bluenaas.domains.nexus import NexusBaseResource
+from bluenaas.domains.simulation import CurrentInjectionConfig, SynapseSimulationConfig
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.utils.util import (
     get_sections,
@@ -40,6 +41,9 @@ SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
 distribution_type_to_formula = {"linear": "x", "exponential": "exp(x)"}
 
 SynapseType = Enum("SynapseType", "GABAAB AMPANMDA GLUSYNAPSE")
+defaultIdBaseUrl= "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
+
+
 
 
 class Model:
@@ -48,6 +52,7 @@ class Model:
         self.token: str = token
         self.CELL: HocCell = None
         self.THRESHOLD_CURRENT: int = 1
+        self.resource: NexusBaseResource = None
 
     def build_model(self):
         """Prepare model."""
@@ -71,9 +76,10 @@ class Model:
         L.debug(
             f"loading model {model_uuid}",
         )
-        L.debug(f"threshold_current {threshold_current}")
-        L.debug(f"holding_current {holding_current}")
+        
         self.CELL = HocCell(model_uuid, threshold_current, holding_current)
+
+        self.resource = nexus_helper.model
 
     def _generate_synapse(
         self, section_info: LocationData, seg_indices_to_include: list[int]
@@ -241,7 +247,6 @@ class Model:
         self,
         synapse_placement_config: SynapseConfig,
         synapse_simulation_config: SynapseSimulationConfig,
-        direct_current_config: DirectCurrentConfig,
         offset: int,
     ) -> list[SynapseSeries]:
         synapse_series: list[SynapseSeries] = []
@@ -290,7 +295,6 @@ class Model:
                             placement_config=synapse_placement_config,
                             simulation_config=synapse_simulation_config,
                         ),
-                        "directCurrentConfig": direct_current_config,
                         "synapseSimulationConfig": synapse_simulation_config,
                     }
                 )
@@ -312,7 +316,7 @@ def model_factory(
     return model
 
 
-class Synaptome_Details(NamedTuple):
+class SynaptomeDetails(NamedTuple):
     base_model_self: str
     synaptome_placement_config: SynapsesPlacementConfig
 
@@ -355,7 +359,7 @@ def fetch_synaptome_model_details(synaptome_self: str, bearer_token: str):
             for synapse in synapses_file["synapses"]
         ]
 
-        return Synaptome_Details(
+        return SynaptomeDetails(
             base_model_self=synapses_file["meModelSelf"],
             synaptome_placement_config=SynapsesPlacementConfig(
                 seed=synaptome_model_resource["seed"], config=synapse_placement_config

@@ -5,7 +5,7 @@ import sympy as sp  # type: ignore
 import pandas  # type: ignore
 from enum import Enum
 
-from bluenaas.domains.simulation import DirectCurrentConfig, SynapseSimulationConfig
+from bluenaas.domains.simulation import CurrentInjectionConfig, SynapseSimulationConfig
 
 
 class LocationData(BaseModel):
@@ -119,7 +119,7 @@ SynapseSeries = TypedDict(
     {
         "id": int,
         "series": pandas.Series,
-        "directCurrentConfig": DirectCurrentConfig,
+        "directCurrentConfig": CurrentInjectionConfig,
         "synapseSimulationConfig": SynapseSimulationConfig,
     },
 )

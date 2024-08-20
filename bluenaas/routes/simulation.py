@@ -8,9 +8,10 @@ from typing import List
 from fastapi import APIRouter, Depends, Request
 
 from bluenaas.domains.simulation import (
-    DirectCurrentConfig,
+    CurrentInjectionConfig,
     SimulationItemResponse,
     SimulationWithSynapseBody,
+    SingleNeuronSimulationConfig,
 )
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.services.single_neuron_simulation import execute_single_neuron_simulation
@@ -26,7 +27,7 @@ router = APIRouter(prefix="/simulation")
 def run_single_neuron_simulation(
     request: Request,
     model_id: str,
-    config: DirectCurrentConfig,
+    config: CurrentInjectionConfig,
     token: str = Depends(verify_jwt),
 ):
     return execute_single_neuron_simulation(
@@ -48,5 +49,23 @@ def run_synaptome_simulatoin(
         model_id=model_id,
         token=token,
         params=params,
+        req_id=request.state.request_id,
+    )
+
+
+@router.post(
+    "/single-neuron/execute",
+    response_model=List[SimulationItemResponse],
+)
+def run_simulation(
+    request: Request,
+    model_id: str,
+    config: SingleNeuronSimulationConfig,
+    token: str = Depends(verify_jwt),
+):
+    return execute_single_neuron_simulation(
+        model_id=model_id,
+        token=token,
+        config=config,
         req_id=request.state.request_id,
     )
