@@ -5,8 +5,10 @@ import multiprocessing as mp
 import os
 import re
 from loguru import logger as L
+from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
-    DirectCurrentConfig,
+    CurrentInjectionConfig,
+    SingleNeuronSimulationConfig,
 )
 from bluenaas.domains.simulation import RecordingLocation
 from bluenaas.utils.util import (
@@ -182,7 +184,8 @@ class BaseCell:
 
     def start_simulation(
         self,
-        config: DirectCurrentConfig,
+        config: SingleNeuronSimulationConfig,
+        synapse_generation_config: list[SynapseSeries] | None,
         simulation_queue: mp.Queue,
         req_id: str,
     ):
@@ -191,18 +194,20 @@ class BaseCell:
         try:
             apply_multiple_stimulus(
                 cell=self._cell,
-                stimulus_name=config.stimulus.stimulusProtocol,
-                amplitudes=config.stimulus.amplitudes,
-                recording_location=config.recordFrom,
-                injection_section_name=config.injectTo,
+                current_injection=config.currentInjection,
+                recording_locations=config.recordFrom,
+                conditions=config.conditions,
+                synapse_generation_config=synapse_generation_config,
                 simulation_queue=simulation_queue,
                 req_id=req_id,
             )
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             L.error(
-                f"Apply Simulation error: {e}",
+                f"Apply Generic Single Neuron Simulation error: {e}",
             )
-            raise Exception(f"Apply Simulation error: {e}") from e
+            raise Exception(f"Apply Generic Single Neuron Simulation error: {e}") from e
 
     def start_synaptome_simulation(
         self,

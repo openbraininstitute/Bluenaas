@@ -1,12 +1,11 @@
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, PositiveInt
+from pydantic import BaseModel, Field, PositiveInt, field_validator
 
 
 class SimulationStimulusConfig(BaseModel):
     stimulusType: Literal["current_clamp", "voltage_clamp", "conductance"]
     stimulusProtocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
-    paramValues: dict[str, Optional[float]]
     amplitudes: List[float]
 
 
@@ -15,13 +14,16 @@ class RecordingLocation(BaseModel):
     segment_offset: Annotated[float, Field(ge=0, le=1, alias="segmentOffset")]
 
 
-class DirectCurrentConfig(BaseModel):
-    celsius: float
-    hypamp: float
-    vinit: float
-    recordFrom: list[RecordingLocation]
+class CurrentInjectionConfig(BaseModel):
     injectTo: str
     stimulus: SimulationStimulusConfig
+
+
+class SimulationConditionsConfig(BaseModel):
+    celsius: float
+    vinit: float
+    hypamp: float
+    max_time: float | None
 
 
 class SynapseSimulationConfig(BaseModel):
@@ -33,8 +35,30 @@ class SynapseSimulationConfig(BaseModel):
 
 
 class SimulationWithSynapseBody(BaseModel):
-    directCurrentConfig: DirectCurrentConfig
+    directCurrentConfig: CurrentInjectionConfig
     synapseConfigs: list[SynapseSimulationConfig]
+
+
+SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
+class SingleNeuronSimulationConfig(BaseModel):
+    currentInjection: CurrentInjectionConfig | None = None
+    recordFrom: list[RecordingLocation]
+    conditions: SimulationConditionsConfig
+    synapses: list[SynapseSimulationConfig] | None = None
+    type: SimulationType
+
+    # @field_validator("synapses", mode="before")
+    # @classmethod
+    # def validate_current_injection_synapses(cls, value, info):
+    #     if ("synapses" not in info.data or info.data.get("synapses") is None) and (
+    #         "currentInjection" not in info.data
+    #         or info.data.get("currentInjection") is None
+    #     ):
+    #         raise ValueError(
+    #             "Neither synapses nor current injection configuration are provided"
+    #         )
+
+    #     return value
 
 
 class StimulationPlotConfig(BaseModel):

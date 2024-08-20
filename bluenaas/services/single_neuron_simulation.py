@@ -1,6 +1,7 @@
 import json
 import signal
 import multiprocessing as mp
+from itertools import chain
 from loguru import logger
 from threading import Event
 from http import HTTPStatus as status
@@ -8,47 +9,84 @@ from fastapi.responses import StreamingResponse
 from queue import Empty as QueueEmptyException
 
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
-from bluenaas.domains.simulation import DirectCurrentConfig
+from bluenaas.core.model import fetch_synaptome_model_details
+from bluenaas.domains.morphology import SynapseSeries
+from bluenaas.domains.simulation import (
+    SingleNeuronSimulationConfig,
+)
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
 def _init_simulation(
     model_id: str,
     token: str,
-    config: DirectCurrentConfig,
+    config: SingleNeuronSimulationConfig,
     simulation_queue: mp.Queue,
     stop_event: Event,
     req_id: str,
 ):
     from bluenaas.core.model import model_factory
 
-    # TODO: this stop_process fail when running multiple sims, to debug;
-    def stop_process():
-        # TODO: kill the process when event is_set in the handler
-        stop_event.set()
-
-    signal.signal(signal.SIGTERM, stop_process)
-    signal.signal(signal.SIGINT, stop_process)
-
     try:
+        me_model_id = model_id
+        synapse_generation_config: list[SynapseSeries] = None
+        
+        if config.type == "synaptome-simulation" and config.synapses is not None:
+        # and model.resource.type:
+            synaptome_details = fetch_synaptome_model_details(
+                synaptome_self=model_id, bearer_token=token
+            )
+            me_model_id = synaptome_details.base_model_self,
+        logger.info(f'@@modeml { me_model_id}',)
+        
         model = model_factory(
-            model_id=model_id,
+            model_id=me_model_id,
             bearer_token=token,
         )
+        
+
+        if config.type == "synaptome-simulation" and config.synapses is not None:
+            # only current injection simulation
+            synapse_settings: list[list[SynapseSeries]] = []
+
+            for index, synapse_sim_config in enumerate(config.synapses):
+                # 3. Get "pandas.Series" for each synapse
+                synapse_placement_config = [
+                    config
+                    for config in synaptome_details.synaptome_placement_config.config
+                    if synapse_sim_config.id == config.id
+                ][0]
+
+                synapses_per_grp = model.get_synapse_series(
+                    synapse_placement_config=synapse_placement_config,
+                    synapse_simulation_config=synapse_sim_config,
+                    direct_current_config=config.currentInjection,
+                    offset=index,
+                )
+
+                synapse_settings.append(synapses_per_grp)
+
+            synapse_generation_config = list(chain.from_iterable(synapse_settings))
+
         model.CELL.start_simulation(
-            config=config, simulation_queue=simulation_queue, req_id=req_id
+            config=config,
+            synapse_generation_config=synapse_generation_config,
+            simulation_queue=simulation_queue,
+            req_id=req_id,
         )
 
     except Exception as ex:
-        logger.debug(f"Simulation executor error: {ex}")
+        import traceback
+        traceback.print_exc()
+        logger.error(f"Simulation executor error: {ex}")
     finally:
-        logger.debug("Simulation executor ended")
+        logger.info("Simulation executor ended")
 
 
 def execute_single_neuron_simulation(
     model_id: str,
     token: str,
-    config: DirectCurrentConfig,
+    config: SingleNeuronSimulationConfig,
     req_id: str,
 ):
     try:
@@ -57,7 +95,14 @@ def execute_single_neuron_simulation(
 
         pro = mp.Process(
             target=_init_simulation,
-            args=(model_id, token, config, simulation_queue, stop_event, req_id),
+            args=(
+                model_id,
+                token,
+                config,
+                simulation_queue,
+                stop_event,
+                req_id,
+            ),
             name=f"simulation_processor:{req_id}",
         )
         pro.start()
@@ -78,17 +123,20 @@ def execute_single_neuron_simulation(
                         # t3 - Queue should be checked again for emptiness to capture the last message
                         continue
                     else:
+                        import traceback
+                        traceback.print_exc()
                         raise Exception("Child process died unexpectedly")
                 if record == QUEUE_STOP_EVENT or stop_event.is_set():
                     break
 
-                (stimulus_name, recording) = record
+                (stimulus_name, recording_name, recording) = record
 
                 yield json.dumps(
                     {
                         "t": list(recording.time),
                         "v": list(recording.voltage),
                         "name": stimulus_name,
+                        "recording_name": recording_name,
                     }
                 )
 
