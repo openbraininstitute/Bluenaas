@@ -1,9 +1,8 @@
 """Nexus module."""
 
-from typing import cast
 import zipfile
 from pathlib import Path
-from urllib.parse import quote_plus, unquote, quote
+from urllib.parse import quote_plus, unquote
 from loguru import logger as L
 import requests
 
@@ -20,7 +19,6 @@ class Nexus:
     def __init__(self, params):
         self.headers = {}
         self.model_self_url = params["model_self_url"]
-
         base_and_id = self.model_self_url.split("/")
         self.model_id = unquote(base_and_id[-1])
         self.model_uuid = self.model_id.split("/")[-1]

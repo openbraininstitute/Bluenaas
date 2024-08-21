@@ -58,7 +58,7 @@ def run_synaptome_simulation(
     cell = Cell.from_template_parameters(template_params)
 
     recording_section = cell.sections[recording_location[0].section]
-    recording_segment = recording_location[0].segment_offset
+    recording_segment = recording_location[0].offset
 
     for synapse in synapse_series:
         _add_single_synapse(cell, synapse)

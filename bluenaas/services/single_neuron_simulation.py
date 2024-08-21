@@ -1,5 +1,4 @@
 import json
-import signal
 import multiprocessing as mp
 from itertools import chain
 from loguru import logger
@@ -30,25 +29,22 @@ def _init_simulation(
     try:
         me_model_id = model_id
         synapse_generation_config: list[SynapseSeries] = None
-        
+
         if config.type == "synaptome-simulation" and config.synapses is not None:
-        # and model.resource.type:
+            # and model.resource.type:
             synaptome_details = fetch_synaptome_model_details(
                 synaptome_self=model_id, bearer_token=token
             )
-            me_model_id = synaptome_details.base_model_self,
-        logger.info(f'@@modeml { me_model_id}',)
-        
+            me_model_id = synaptome_details.base_model_self
+
         model = model_factory(
             model_id=me_model_id,
             bearer_token=token,
         )
-        
 
         if config.type == "synaptome-simulation" and config.synapses is not None:
             # only current injection simulation
             synapse_settings: list[list[SynapseSeries]] = []
-
             for index, synapse_sim_config in enumerate(config.synapses):
                 # 3. Get "pandas.Series" for each synapse
                 synapse_placement_config = [
@@ -60,7 +56,6 @@ def _init_simulation(
                 synapses_per_grp = model.get_synapse_series(
                     synapse_placement_config=synapse_placement_config,
                     synapse_simulation_config=synapse_sim_config,
-                    direct_current_config=config.currentInjection,
                     offset=index,
                 )
 
@@ -76,8 +71,6 @@ def _init_simulation(
         )
 
     except Exception as ex:
-        import traceback
-        traceback.print_exc()
         logger.error(f"Simulation executor error: {ex}")
     finally:
         logger.info("Simulation executor ended")
@@ -108,37 +101,34 @@ def execute_single_neuron_simulation(
         pro.start()
 
         def queue_streamify():
+            # yield "["
             while True:
                 try:
                     # Simulation_Queue.get() is blocking. If child fails without writing to it, the process will hang forever. That's why timeout is added.
                     record = simulation_queue.get(timeout=1)
                 except QueueEmptyException:
-                    if pro.is_alive():
-                        continue
-                    if not simulation_queue.empty():
-                        # Checking if queue is empty again to avoid the following race condition:
-                        # t0 - Empty exception is raised from queue.get()
-                        # t1 - Child process writes to queue
-                        # t2 - Child process finishes
-                        # t3 - Queue should be checked again for emptiness to capture the last message
+                    if pro.is_alive() or not simulation_queue.empty():
                         continue
                     else:
-                        import traceback
-                        traceback.print_exc()
                         raise Exception("Child process died unexpectedly")
                 if record == QUEUE_STOP_EVENT or stop_event.is_set():
                     break
 
                 (stimulus_name, recording_name, recording) = record
-
+                logger.info(
+                    f"[R --> {recording_name}/{stimulus_name}]",
+                )
                 yield json.dumps(
                     {
+                        "stimulus_name": stimulus_name,
+                        "recording_name": recording_name,
                         "t": list(recording.time),
                         "v": list(recording.voltage),
-                        "name": stimulus_name,
-                        "recording_name": recording_name,
                     }
                 )
+                yield "\n"
+
+            # yield "]"
 
         return StreamingResponse(
             queue_streamify(),
