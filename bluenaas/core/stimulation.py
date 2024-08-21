@@ -275,11 +275,11 @@ def _run_stimulus(
     Raises:
         ValueError: If the time and voltage arrays are not the same length.
     """
+
     cell = Cell.from_template_parameters(template_params)
     injection_section = cell.sections[injection_section_name]
 
     if synapse_generation_config is not None:
-        logger.info("---> synapse is here")
         for synapse in synapse_generation_config:
             _add_single_synapse(
                 cell=cell,
@@ -288,9 +288,8 @@ def _run_stimulus(
             )
 
     for location in recording_locations:
-        logger.info("---> add locations")
         recording_section = cell.sections[location.section]
-        recording_segment = location.segment_offset
+        recording_segment = location.offset
 
         cell.add_voltage_recording(
             section=recording_section,
@@ -298,7 +297,6 @@ def _run_stimulus(
         )
 
     if stimulus is not None:
-        logger.info("---> add iclamp, and hyp_Stim")
         iclamp, _ = cell.inject_current_waveform(
             stimulus.time,
             stimulus.current,
@@ -323,33 +321,31 @@ def _run_stimulus(
 
     simulation.run(
         maxtime=stimulus.stimulus_time if stimulus is not None else conditions.max_time,
-        cvode=cvode,
+        cvode=False,
+        dt=0.1,
     )
 
     current = np.array(current_vector.to_python())
 
     for location in recording_locations:
         recording_section = cell.sections[location.section]
-        recording_segment = location.segment_offset
-
+        recording_segment = location.offset
         voltage = cell.get_voltage_recording(
             section=recording_section,
             segx=recording_segment,
         )
         time = cell.get_time()
 
-        recording = Recording(current, voltage, time)
+        _recording = Recording(current, voltage, time)
 
         _stimulus_name = f"{stimulus_name.name}_{amplitude}"
         _recording_name = f"{location.section}_{recording_segment}"
-        logger.info(
-            f"---> end of chunk, stimulus_name: {_stimulus_name}, recording_name: {_recording_name}"
-        )
+        
         simulation_queue.put(
             (
                 _stimulus_name,
                 _recording_name,
-                recording,
+                _recording,
             )
         )
 
@@ -366,7 +362,7 @@ def apply_multiple_stimulus(
     ctx = mp.get_context("fork")
     neuron_global_params = NeuronGlobals.get_instance().export_params()
     logger.debug(
-        f'Running {req_id} \n {"Current Injection" if current_injection is not None else ""}, {"Synaptome " if synapse_generation_config is not None else ""}'
+        f'Running {req_id} \n {"Current Injection" if current_injection is not None else ""}, {"Synaptome " if synapse_generation_config is not None else ""} simulation(s)'
     )
 
     with mp.Manager() as manager:

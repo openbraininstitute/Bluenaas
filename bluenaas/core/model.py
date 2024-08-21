@@ -58,7 +58,7 @@ class Model:
         """Prepare model."""
         if self.model_id is None:
             raise Exception("Missing model _self url")
-
+        
         nexus_helper = Nexus({"token": self.token, "model_self_url": self.model_id})
         [holding_current, threshold_current] = nexus_helper.get_currents()
         self.THRESHOLD_CURRENT = threshold_current

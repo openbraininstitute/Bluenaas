@@ -11,7 +11,7 @@ class SimulationStimulusConfig(BaseModel):
 
 class RecordingLocation(BaseModel):
     section: str
-    segment_offset: Annotated[float, Field(ge=0, le=1, alias="segmentOffset")]
+    offset: Annotated[float, Field(ge=0, le=1)]
 
 
 class CurrentInjectionConfig(BaseModel):
