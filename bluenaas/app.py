@@ -103,6 +103,18 @@ def res_requests() -> list[dict[str, object]]:
     return requests
 
 
+@base_router.get("/")
+def root() -> str:
+    return "Server is running."
+
+
+# TODO: add a proper health check logic, see https://pypi.org/project/fastapi-health/.
+@base_router.get("/health")
+def health() -> str:
+    logger.info(f"total requests {len(requests)}")
+    return "OK"
+
+
 base_router.include_router(morphology_router)
 base_router.include_router(simulation_router)
 base_router.include_router(synaptome_router)
