@@ -5,9 +5,7 @@ from bluenaas.utils.util import generate_pre_spiketrain
 
 
 def _add_single_synapse(
-    cell,
-    synapse: SynapseSeries,
-    conditions: SimulationConditionsConfig
+    cell, synapse: SynapseSeries, conditions: SimulationConditionsConfig
 ):
     from bluecellulab.circuit.config.sections import Conditions  # type: ignore
     from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
@@ -44,7 +42,7 @@ def _add_single_synapse(
         pre_cell=None,
         stim_dt=cell.record_dt,
         spike_threshold=spike_threshold,
-        spike_location="soma[0]"
+        spike_location="soma[0]",
     )
     cell.connections[synid] = connection
 

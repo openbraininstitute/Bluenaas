@@ -17,6 +17,7 @@ from bluenaas.services.single_neuron_simulation import execute_single_neuron_sim
 
 router = APIRouter(prefix="/simulation")
 
+
 @router.post(
     "/single-neuron/run",
     response_model=List[SimulationItemResponse],

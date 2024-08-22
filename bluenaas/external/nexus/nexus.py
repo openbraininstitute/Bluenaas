@@ -3,7 +3,7 @@
 import zipfile
 from pathlib import Path
 from urllib.parse import quote_plus, unquote
-from loguru import logger as L
+from loguru import logger
 import requests
 
 HTTP_TIMEOUT = 10  # seconds
@@ -228,9 +228,8 @@ class Nexus:
         )
 
     def get_emodel_resource(self, resource):
-        L.info(f'@@--> {resource}')
         if "MEModel" in resource["@type"]:
-            L.debug("Model is ME-Model")
+            logger.debug("Model is ME-Model")
             emodel_id = None
             if "hasPart" not in resource:
                 raise AttributeError("ME-Model resource has no 'hasPart' metadata")
@@ -241,40 +240,40 @@ class Nexus:
                 raise Exception("No E-Model found in ME-Model")
             emodel_resource = self.fetch_resource_by_id(emodel_id)
         else:
-            L.debug("Model is E-Model")
+            logger.debug("Model is E-Model")
             emodel_resource = resource
         return emodel_resource
 
     def download_model(self):
-        L.debug("Getting model...")
+        logger.debug("Getting model...")
         resource = self.fetch_resource_by_id(self.model_id)
         # could be E-Model or ME-Model
         emodel_resource = self.get_emodel_resource(resource)
-        L.debug("E-Model resource fetched")
+        logger.debug("E-Model resource fetched")
         configuration = self.get_emodel_configuration(emodel_resource)
-        L.debug("E-Model configuration fetched")
+        logger.debug("E-Model configuration fetched")
         mechanisms = self.get_mechanisms(configuration)
-        L.debug("E-Model mechanisms fetched")
+        logger.debug("E-Model mechanisms fetched")
         hoc_file = self.get_hoc_file(emodel_resource)
-        L.debug("E-Model hoc file fetched")
+        logger.debug("E-Model hoc file fetched")
         if "MEModel" in resource["@type"]:
-            L.debug("Fetching Morphology from ME-Model")
+            logger.debug("Fetching Morphology from ME-Model")
             morphology_obj = self.get_memodel_morphology(resource)
         else:
-            L.debug("Fetching Morphology from E-Model")
+            logger.debug("Fetching Morphology from E-Model")
             morphology_obj = self.get_emodel_morphology(configuration)
-        L.debug("Morphology fetched")
+        logger.debug("Morphology fetched")
         self.create_model_folder(hoc_file, morphology_obj, mechanisms)
-        L.debug("E-Model folder created")
+        logger.debug("E-Model folder created")
 
     def get_currents(self):
         resource = self.fetch_resource_by_id(self.model_id)
-        
+
         if "MEModel" in resource["@type"]:
-            L.debug("Getting currents from ME-Model")
+            logger.debug("Getting currents from ME-Model")
             return [resource["holding_current"], resource["threshold_current"]]
-        
-        L.debug("Getting currents from E-Model")
+
+        logger.debug("Getting currents from E-Model")
         emodel_resource = self.get_emodel_resource(resource)
         emodel_script = self.get_script_resource(emodel_resource)
 

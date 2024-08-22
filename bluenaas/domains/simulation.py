@@ -1,6 +1,6 @@
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, PositiveInt, field_validator
+from pydantic import BaseModel, Field, PositiveInt
 
 
 class SimulationStimulusConfig(BaseModel):
@@ -40,6 +40,8 @@ class SimulationWithSynapseBody(BaseModel):
 
 
 SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
+
+
 class SingleNeuronSimulationConfig(BaseModel):
     currentInjection: CurrentInjectionConfig | None = None
     recordFrom: list[RecordingLocation]

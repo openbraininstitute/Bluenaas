@@ -101,7 +101,6 @@ def execute_single_neuron_simulation(
         pro.start()
 
         def queue_streamify():
-            # yield "["
             while True:
                 try:
                     # Simulation_Queue.get() is blocking. If child fails without writing to it, the process will hang forever. That's why timeout is added.
@@ -127,8 +126,6 @@ def execute_single_neuron_simulation(
                     }
                 )
                 yield "\n"
-
-            # yield "]"
 
         return StreamingResponse(
             queue_streamify(),
