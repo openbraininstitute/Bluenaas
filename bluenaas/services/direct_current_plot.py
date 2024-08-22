@@ -50,7 +50,6 @@ def get_direct_current_plot_data(
     token: str,
     req_id: str,
 ):
-    print('@@get_direct_current_plot_data/config', config)
     try:
         plot_queue = mp.Queue()
         stop_event = mp.Event()

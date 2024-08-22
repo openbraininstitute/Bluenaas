@@ -2,7 +2,7 @@
 
 from enum import Enum
 import os
-from typing import Dict, List, NamedTuple, cast
+from typing import List, NamedTuple
 from loguru import logger as L
 import pandas  # type: ignore
 import requests
@@ -21,7 +21,7 @@ from bluenaas.domains.morphology import (
     SynapsesPlacementConfig,
 )
 from bluenaas.domains.nexus import NexusBaseResource
-from bluenaas.domains.simulation import CurrentInjectionConfig, SynapseSimulationConfig
+from bluenaas.domains.simulation import SynapseSimulationConfig
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.utils.util import (
     get_sections,
@@ -41,9 +41,7 @@ SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
 distribution_type_to_formula = {"linear": "x", "exponential": "exp(x)"}
 
 SynapseType = Enum("SynapseType", "GABAAB AMPANMDA GLUSYNAPSE")
-defaultIdBaseUrl= "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
-
-
+defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
 
 
 class Model:
@@ -58,7 +56,7 @@ class Model:
         """Prepare model."""
         if self.model_id is None:
             raise Exception("Missing model _self url")
-        
+
         nexus_helper = Nexus({"token": self.token, "model_self_url": self.model_id})
         [holding_current, threshold_current] = nexus_helper.get_currents()
         self.THRESHOLD_CURRENT = threshold_current
@@ -76,7 +74,7 @@ class Model:
         L.debug(
             f"loading model {model_uuid}",
         )
-        
+
         self.CELL = HocCell(model_uuid, threshold_current, holding_current)
 
         self.resource = nexus_helper.model

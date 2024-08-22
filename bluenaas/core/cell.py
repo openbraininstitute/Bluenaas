@@ -7,7 +7,6 @@ import re
 from loguru import logger as L
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
-    CurrentInjectionConfig,
     SingleNeuronSimulationConfig,
 )
 from bluenaas.domains.simulation import RecordingLocation
@@ -203,6 +202,7 @@ class BaseCell:
             )
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             L.error(
                 f"Apply Generic Single Neuron Simulation error: {e}",

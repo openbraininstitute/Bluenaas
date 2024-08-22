@@ -340,7 +340,7 @@ def _run_stimulus(
 
         _stimulus_name = f"{stimulus_name.name}_{amplitude}"
         _recording_name = f"{location.section}_{recording_segment}"
-        
+
         simulation_queue.put(
             (
                 _stimulus_name,
