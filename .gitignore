@@ -7,7 +7,6 @@
 .DS_Store
 # Remove if some Intellij project config files need to be tracked.
 .idea/
-
 # User-specific stuff
 .idea/**/workspace.xml
 .idea/**/tasks.xml
@@ -309,9 +308,3 @@ code-workspace.json
 # Ignore all local history of files
 .history
 .ionide
-
-# Mock email data
-env-prep/email-data/ 
-
-# End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,intellij,python
-

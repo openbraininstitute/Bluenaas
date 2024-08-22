@@ -27,4 +27,4 @@ COPY ./bluenaas /app/bluenaas
 
 EXPOSE 8000
 
-CMD ["uvicorn", "bluenaas.app:app", "--port", "8000", "--host", "0.0.0.0"]
+CMD ["uvicorn", "bluenaas.app:app", "--port", "8000", "--reload", "--host", "0.0.0.0"]
