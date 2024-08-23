@@ -77,7 +77,6 @@ class Model:
 
         self.CELL = HocCell(model_uuid, threshold_current, holding_current)
 
-
     def _generate_synapse(
         self, section_info: LocationData, seg_indices_to_include: list[int]
     ):

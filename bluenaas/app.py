@@ -1,6 +1,4 @@
-import time
 from typing import Awaitable, Callable
-from uuid import uuid4
 import uuid
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
@@ -49,9 +47,6 @@ app.add_middleware(
 )
 
 
-requests = []
-
-
 @app.exception_handler(BlueNaasError)
 async def bluenaas_exception_handler(
     request: Request, exception: BlueNaasError
@@ -77,30 +72,7 @@ async def bluenaas_exception_handler(
     )
 
 
-@app.middleware("http")
-async def add_process_time_header(
-    request: Request, call_next: Callable[[Request], Awaitable[Response]]
-) -> Response:
-    start_time = time.time()
-    id = uuid4()
-    response = await call_next(request)
-    process_time = time.time() - start_time
-    requests.append(
-        {
-            "id": id,
-            "process_time": f"{process_time}s",
-            "path": request.url.path,
-        },
-    )
-    return response
-
-
 base_router = APIRouter(prefix=settings.BASE_PATH)
-
-
-@base_router.get("/requests", description="for testing purposes")
-def res_requests() -> list[dict[str, object]]:
-    return requests
 
 
 @base_router.get("/")
@@ -111,7 +83,6 @@ def root() -> str:
 # TODO: add a proper health check logic, see https://pypi.org/project/fastapi-health/.
 @base_router.get("/health")
 def health() -> str:
-    logger.info(f"total requests {len(requests)}")
     return "OK"
 
 
