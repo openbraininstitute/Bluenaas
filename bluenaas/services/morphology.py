@@ -55,7 +55,8 @@ def get_single_morphology(
         morpho_queue = mp.Queue()
         stop_event = mp.Event()
 
-        process = mp.Process(
+        ctx = mp.get_context("spawn")
+        process = ctx.Process(
             target=_build_morphology,
             args=(
                 model_id,
