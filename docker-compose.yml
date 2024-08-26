@@ -3,6 +3,9 @@ services:
     image: blue-naas-single-cell
     container_name: blue-naas-single-cell-http-svc
     env_file: "./.env.local"
+    build: 
+      context: bluenaas
+      dockerfile: ./Dockerfile.dev
     command:
       [
         "uvicorn",
