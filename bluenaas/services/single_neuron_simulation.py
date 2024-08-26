@@ -86,7 +86,8 @@ def execute_single_neuron_simulation(
         simulation_queue = mp.Queue()
         stop_event = mp.Event()
 
-        pro = mp.Process(
+        ctx = mp.get_context("spawn")
+        pro = ctx.Process(
             target=_init_simulation,
             args=(
                 model_id,
@@ -126,6 +127,9 @@ def execute_single_neuron_simulation(
                     }
                 )
                 yield "\n"
+            logger.info("start")
+            pro.join()
+            logger.info("end")
 
         return StreamingResponse(
             queue_streamify(),

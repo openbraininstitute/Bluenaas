@@ -54,7 +54,8 @@ def get_direct_current_plot_data(
         plot_queue = mp.Queue()
         stop_event = mp.Event()
 
-        process = mp.Process(
+        ctx = mp.get_context("spawn")
+        process = ctx.Process(
             target=_build_direct_current_plot_data,
             args=(
                 model_id,
