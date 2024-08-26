@@ -275,7 +275,6 @@ def _run_stimulus(
     Raises:
         ValueError: If the time and voltage arrays are not the same length.
     """
-
     cell = Cell.from_template_parameters(template_params)
     injection_section = cell.sections[injection_section_name]
 
@@ -321,7 +320,7 @@ def _run_stimulus(
 
     simulation.run(
         maxtime=stimulus.stimulus_time if stimulus is not None else conditions.max_time,
-        cvode=False,
+        cvode=False,  # TODO: check current injection -> true else False
         dt=0.1,
     )
 
