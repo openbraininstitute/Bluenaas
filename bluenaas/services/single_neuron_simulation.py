@@ -86,8 +86,7 @@ def execute_single_neuron_simulation(
         simulation_queue = mp.Queue()
         stop_event = mp.Event()
 
-        ctx = mp.get_context("spawn")
-        pro = ctx.Process(
+        pro = mp.Process(
             target=_init_simulation,
             args=(
                 model_id,
