@@ -9,13 +9,6 @@ import multiprocessing as mp
 from typing import Dict, NamedTuple
 from enum import Enum, auto
 
-from bluecellulab.cell.core import Cell
-from bluecellulab.cell.template import TemplateParams
-from bluecellulab.simulation.simulation import Simulation
-from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
-from bluecellulab.stimulus.factory import Stimulus, StimulusFactory
-from bluecellulab.simulation.neuron_globals import NeuronGlobals
-
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
     CurrentInjectionConfig,
@@ -91,6 +84,8 @@ def get_stimulus_name(protocol_name):
 def init_process_worker(neuron_global_params):
     """Load global parameters for the NEURON environment in each worker
     process."""
+    from bluecellulab.simulation.neuron_globals import NeuronGlobals
+
     NeuronGlobals.get_instance().load_params(neuron_global_params)
 
 
@@ -138,7 +133,7 @@ def _add_single_synapse(
 
 
 def _prepare_stimulation_parameters(
-    cell: Cell,
+    cell,
     current_injection: CurrentInjectionConfig | None,
     recording_locations: list[RecordingLocation],
     synapse_generation_config: list[SynapseSeries] | None,
@@ -149,6 +144,8 @@ def _prepare_stimulation_parameters(
     cvode: bool = True,
     add_hypamp: bool = True,
 ):
+    from bluecellulab.stimulus.factory import StimulusFactory
+
     stim_factory = StimulusFactory(dt=1.0)
     task_args = []
 
@@ -247,8 +244,8 @@ def _prepare_stimulation_parameters(
 
 
 def _run_stimulus(
-    template_params: TemplateParams,
-    stimulus: Stimulus,
+    template_params,
+    stimulus,
     injection_section_name: str,
     injection_segment: float,
     recording_locations: list[RecordingLocation],
@@ -275,6 +272,11 @@ def _run_stimulus(
     Raises:
         ValueError: If the time and voltage arrays are not the same length.
     """
+
+    from bluecellulab.cell.core import Cell
+    from bluecellulab.simulation.simulation import Simulation
+    from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
+
     cell = Cell.from_template_parameters(template_params)
     injection_section = cell.sections[injection_section_name]
 
@@ -350,7 +352,7 @@ def _run_stimulus(
 
 
 def apply_multiple_stimulus(
-    cell: Cell,
+    cell,
     current_injection: CurrentInjectionConfig,
     recording_locations: list[RecordingLocation],
     conditions: SimulationConditionsConfig,
@@ -358,6 +360,8 @@ def apply_multiple_stimulus(
     simulation_queue: mp.Queue,
     req_id: str,
 ):
+    from bluecellulab.simulation.neuron_globals import NeuronGlobals
+
     ctx = mp.get_context("fork")
     neuron_global_params = NeuronGlobals.get_instance().export_params()
     logger.debug(
