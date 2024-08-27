@@ -83,10 +83,12 @@ def execute_single_neuron_simulation(
     req_id: str,
 ):
     try:
-        simulation_queue = mp.Queue()
-        stop_event = mp.Event()
+        ctx = mp.get_context('spawn')
 
-        pro = mp.Process(
+        simulation_queue = ctx.Queue()
+        stop_event = ctx.Event()
+
+        pro = ctx.Process(
             target=_init_simulation,
             args=(
                 model_id,
