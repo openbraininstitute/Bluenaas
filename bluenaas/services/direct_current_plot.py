@@ -51,10 +51,12 @@ def get_direct_current_plot_data(
     req_id: str,
 ):
     try:
-        plot_queue = mp.Queue()
-        stop_event = mp.Event()
+        ctx = mp.get_context('spawn')
 
-        process = mp.Process(
+        plot_queue = ctx.Queue()
+        stop_event = ctx.Event()
+
+        process = ctx.Process(
             target=_build_direct_current_plot_data,
             args=(
                 model_id,

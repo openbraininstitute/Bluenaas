@@ -46,9 +46,11 @@ def generate_synapses_placement(
     params: SynapsePlacementBody,
 ) -> SynapsePlacementResponse:
     try:
-        synapses_queue = mp.Queue()
-        stop_event = mp.Event()
-        process = mp.Process(
+        ctx = mp.get_context('spawn')
+
+        synapses_queue = ctx.Queue()
+        stop_event = ctx.Event()
+        process = ctx.Process(
             target=_generate_synpases,
             args=(model_id, token, params, synapses_queue, stop_event),
             name=f"synapses_processor:{req_id}",
