@@ -34,5 +34,8 @@ class Settings(BaseSettings):
     KC_CLIENT_SECRET: str = "obp-secret"
     KC_REALM_NAME: str = "obp-realm"
 
+    SENTRY_DSN: str | None = None
+    SENTRY_TRACES_SAMPLE_RATE: float = 1.0
+    SENTRY_PROFILES_SAMPLE_RATE: float = 1.0
 
 settings = Settings()
