@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from loguru import logger
+import sentry_sdk
 
 from bluenaas.config.settings import settings
 from bluenaas.core.exceptions import (
@@ -15,6 +16,14 @@ from bluenaas.routes.simulation import router as simulation_router
 from bluenaas.routes.graph_data import router as graph_router
 from bluenaas.routes.synaptome import router as synaptome_router
 from starlette.middleware.cors import CORSMiddleware
+
+
+sentry_sdk.init(
+    dsn=settings.SENTRY_DSN,
+    traces_sample_rate=1.0,
+    profiles_sample_rate=1.0,
+    environment=settings.DEPLOYMENT_ENV,
+)
 
 
 app = FastAPI(
