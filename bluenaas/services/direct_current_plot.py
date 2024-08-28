@@ -23,7 +23,7 @@ def _build_direct_current_plot_data(
 
     signal.signal(signal.SIGTERM, stop_process)
     signal.signal(signal.SIGINT, stop_process)
-
+    
     try:
         model = model_factory(
             model_id=model_id,
