@@ -65,7 +65,7 @@ class SingleNeuronSimulationConfig(BaseModel):
 
 class StimulationPlotConfig(BaseModel):
     stimulusProtocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
-    amplitudes: List[int]
+    amplitudes: List[float]
 
 
 class SimulationItemResponse(BaseModel):
