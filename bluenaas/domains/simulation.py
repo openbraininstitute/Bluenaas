@@ -1,12 +1,12 @@
 from typing import Annotated, List, Literal, Optional
-
+from annotated_types import Len
 from pydantic import BaseModel, Field, PositiveInt
 
 
 class SimulationStimulusConfig(BaseModel):
     stimulusType: Literal["current_clamp", "voltage_clamp", "conductance"]
     stimulusProtocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
-    amplitudes: List[float]
+    amplitudes: Annotated[list[float], Len(min_length=1, max_length=15)]
 
 
 class RecordingLocation(BaseModel):
