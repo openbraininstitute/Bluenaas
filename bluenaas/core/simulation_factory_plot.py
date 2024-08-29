@@ -79,7 +79,7 @@ class StimulusFactoryPlot:
                 self.threshold_current, threshold_percentage=amplitude
             )
             plot_data = self._get_plot_data(response)
-            plot_data.update({"name": label})
+            plot_data.update({"name": label, "amplitude": amplitude})
             final_data.append(plot_data)
 
         return final_data
