@@ -23,7 +23,9 @@ class SimulationConditionsConfig(BaseModel):
     celsius: float
     vinit: float
     hypamp: float
-    max_time: float | None
+    max_time: float
+    time_step: float
+    seed: int
 
 
 class SynapseSimulationConfig(BaseModel):

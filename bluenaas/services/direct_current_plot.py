@@ -51,7 +51,7 @@ def get_direct_current_plot_data(
     req_id: str,
 ):
     try:
-        ctx = mp.get_context('spawn')
+        ctx = mp.get_context("spawn")
 
         plot_queue = ctx.Queue()
         stop_event = ctx.Event()
