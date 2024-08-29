@@ -90,15 +90,17 @@ def init_process_worker(neuron_global_params):
 
 
 def _add_single_synapse(
-    cell, synapse: SynapseSeries, conditions: SimulationConditionsConfig
+    cell,
+    synapse: SynapseSeries,
+    experimental_setup: SimulationConditionsConfig,
 ):
     from bluecellulab.circuit.config.sections import Conditions  # type: ignore
     from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
     from bluecellulab import Connection
 
     condition_parameters = Conditions(
-        celsius=conditions.celsius,
-        v_init=conditions.vinit,
+        celsius=experimental_setup.celsius,
+        v_init=experimental_setup.vinit,
         randomize_gaba_rise_time=True,
     )
     synid = SynapseID(f"{synapse["id"]}", synapse["id"])
@@ -250,7 +252,7 @@ def _run_stimulus(
     injection_segment: float,
     recording_locations: list[RecordingLocation],
     synapse_generation_config: list[SynapseSeries] | None,
-    conditions: SimulationConditionsConfig,
+    experimental_setup: SimulationConditionsConfig,
     simulation_queue: mp.Queue,
     stimulus_name: StimulusName,
     amplitude: float,
@@ -276,6 +278,17 @@ def _run_stimulus(
     from bluecellulab.cell.core import Cell
     from bluecellulab.simulation.simulation import Simulation
     from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
+    from bluecellulab.rngsettings import RNGSettings
+
+    rng = RNGSettings(
+        base_seed=experimental_setup.seed,
+        synapse_seed=experimental_setup.seed,
+        stimulus_seed=experimental_setup.seed,
+    )
+
+    rng.set_seeds(
+        base_seed=experimental_setup.seed,
+    )
 
     cell = Cell.from_template_parameters(template_params)
     injection_section = cell.sections[injection_section_name]
@@ -285,7 +298,7 @@ def _run_stimulus(
             _add_single_synapse(
                 cell=cell,
                 synapse=synapse,
-                conditions=conditions,
+                experimental_setup=experimental_setup,
             )
 
     for location in recording_locations:
@@ -317,11 +330,13 @@ def _run_stimulus(
     current_vector.record(iclamp._ref_i)
     simulation = Simulation(cell)
     logger.info(
-        f"---> time of sim {stimulus.stimulus_time if stimulus is not None else conditions.max_time}"
+        f"---> time of sim {stimulus.stimulus_time if stimulus is not None else experimental_setup.max_time}"
     )
 
     simulation.run(
-        maxtime=stimulus.stimulus_time if stimulus is not None else conditions.max_time,
+        maxtime=stimulus.stimulus_time
+        if stimulus is not None
+        else experimental_setup.max_time,
         cvode=False,  # TODO: check current injection -> true else False
         dt=0.1,
     )

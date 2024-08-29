@@ -221,7 +221,7 @@ class Model:
             {
                 SynapseProperty.PRE_GID: 1,
                 SynapseProperty.AXONAL_DELAY: 1.0,
-                SynapseProperty.G_SYNX: 0.566172,
+                SynapseProperty.G_SYNX: simulation_config.weightScalar,
                 SynapseProperty.TYPE: placement_config.type,
                 SynapseProperty.U_SYN: 0.505514,
                 SynapseProperty.D_SYN: 684.279663,
