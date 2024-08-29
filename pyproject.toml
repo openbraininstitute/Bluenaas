@@ -21,6 +21,7 @@ python-keycloak = "^4.2.2"
 sympy = "^1.13.1"
 pandas = "^2.2.2"
 annotated-types = "^0.7.0"
+sentry-sdk = {version = "^2.13.0", extras = ["fastapi"]}
 
 [tool.poetry.group.types.dependencies]
 types-requests = "^2.32.0.20240712"
