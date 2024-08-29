@@ -78,3 +78,4 @@ class StimulationItemResponse(BaseModel):
     x: List[int]
     y: List[float]
     name: str
+    amplitude: float
