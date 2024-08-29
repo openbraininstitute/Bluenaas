@@ -52,7 +52,7 @@ def get_single_morphology(
     req_id: str,
 ):
     try:
-        ctx = mp.get_context('spawn')
+        ctx = mp.get_context("spawn")
 
         morpho_queue = ctx.Queue()
         stop_event = ctx.Event()
