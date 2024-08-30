@@ -140,6 +140,7 @@ def _prepare_stimulation_parameters(
     recording_locations: list[RecordingLocation],
     synapse_generation_config: list[SynapseSeries] | None,
     conditions: SimulationConditionsConfig,
+    simulation_duration: int,
     simulation_queue: mp.Queue,
     threshold_based: bool = True,
     injection_segment: float = 0.5,
@@ -167,6 +168,7 @@ def _prepare_stimulation_parameters(
                 recording_locations,
                 synapse_generation_config,
                 conditions,
+                simulation_duration,
                 simulation_queue,
                 None,
                 None,
@@ -234,6 +236,7 @@ def _prepare_stimulation_parameters(
                 recording_locations,
                 synapse_generation_config,
                 conditions,
+                simulation_duration,
                 simulation_queue,
                 stimulus_name,
                 amplitude,
@@ -253,6 +256,7 @@ def _run_stimulus(
     recording_locations: list[RecordingLocation],
     synapse_generation_config: list[SynapseSeries] | None,
     experimental_setup: SimulationConditionsConfig,
+    simulation_duration: int,
     simulation_queue: mp.Queue,
     stimulus_name: StimulusName,
     amplitude: float,
@@ -334,9 +338,7 @@ def _run_stimulus(
     )
 
     simulation.run(
-        maxtime=stimulus.stimulus_time
-        if stimulus is not None
-        else experimental_setup.max_time,
+        maxtime=simulation_duration,
         cvode=False,  # TODO: check current injection -> true else False
         dt=0.1,
     )
@@ -361,6 +363,7 @@ def _run_stimulus(
             (
                 _stimulus_name,
                 _recording_name,
+                amplitude,
                 _recording,
             )
         )
@@ -371,6 +374,7 @@ def apply_multiple_stimulus(
     current_injection: CurrentInjectionConfig,
     recording_locations: list[RecordingLocation],
     conditions: SimulationConditionsConfig,
+    simulation_duration: int,
     synapse_generation_config: list[SynapseSeries] | None,
     simulation_queue: mp.Queue,
     req_id: str,
@@ -392,6 +396,7 @@ def apply_multiple_stimulus(
             recording_locations=recording_locations,
             synapse_generation_config=synapse_generation_config,
             conditions=conditions,
+            simulation_duration=simulation_duration,
             simulation_queue=children_queue,
         )
         with ctx.Pool(

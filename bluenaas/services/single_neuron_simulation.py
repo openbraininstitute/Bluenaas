@@ -115,12 +115,13 @@ def execute_single_neuron_simulation(
                 if record == QUEUE_STOP_EVENT or stop_event.is_set():
                     break
 
-                (stimulus_name, recording_name, recording) = record
+                (stimulus_name, recording_name, amplitude, recording) = record
                 logger.info(
                     f"[R --> {recording_name}/{stimulus_name}]",
                 )
                 yield json.dumps(
                     {
+                        "amplitude": amplitude,
                         "stimulus_name": stimulus_name,
                         "recording_name": recording_name,
                         "t": list(recording.time),

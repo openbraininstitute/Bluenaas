@@ -196,6 +196,7 @@ class BaseCell:
                 current_injection=config.currentInjection,
                 recording_locations=config.recordFrom,
                 conditions=config.conditions,
+                simulation_duration=config.simulationDuration,
                 synapse_generation_config=synapse_generation_config,
                 simulation_queue=simulation_queue,
                 req_id=req_id,
