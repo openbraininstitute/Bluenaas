@@ -50,6 +50,7 @@ class SingleNeuronSimulationConfig(BaseModel):
     conditions: SimulationConditionsConfig
     synapses: list[SynapseSimulationConfig] | None = None
     type: SimulationType
+    simulationDuration: int
 
     # @field_validator("synapses", mode="before")
     # @classmethod
