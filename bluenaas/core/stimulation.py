@@ -333,14 +333,13 @@ def _run_stimulus(
     current_vector = neuron.h.Vector()
     current_vector.record(iclamp._ref_i)
     simulation = Simulation(cell)
-    logger.info(
-        f"---> time of sim {stimulus.stimulus_time if stimulus is not None else experimental_setup.max_time}"
-    )
+    neuron.h.celsius = experimental_setup.celsius
+    logger.info(f"---> simulation duration: {simulation_duration}")
 
     simulation.run(
         maxtime=simulation_duration,
         cvode=False,  # TODO: check current injection -> true else False
-        dt=0.1,
+        dt=experimental_setup.time_step,
     )
 
     current = np.array(current_vector.to_python())
