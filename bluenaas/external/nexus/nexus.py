@@ -12,6 +12,9 @@ model_dir = Path("/opt/blue-naas/") / "models"
 defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
 
 
+HOC_FORMAT = ["application/x-neuron-hoc", "application/hoc"]
+
+
 class Nexus:
     """Nexus class to help downloading the emodel files needed for simulation."""
 
@@ -170,7 +173,7 @@ class Nexus:
 
         if isinstance(distribution, list):
             for dist in distribution:
-                if dist["encodingFormat"] == "application/hoc":
+                if dist["encodingFormat"] in HOC_FORMAT:
                     distribution = dist
                     break
 
