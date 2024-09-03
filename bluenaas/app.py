@@ -18,6 +18,7 @@ from bluenaas.routes.graph_data import router as graph_router
 from bluenaas.routes.synaptome import router as synaptome_router
 from bluenaas.routes.validation import router as validation_router
 from starlette.middleware.cors import CORSMiddleware
+from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 
 
 sentry_sdk.init(
@@ -35,6 +36,8 @@ app = FastAPI(
     docs_url=f"{settings.BASE_PATH}/docs",
 )
 
+app.add_middleware(SentryAsgiMiddleware)
+
 
 @app.middleware("http")
 async def add_request_id_middleware(
@@ -44,7 +47,7 @@ async def add_request_id_middleware(
     request.state.request_id = request_id
 
     response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
+    response.headers["x-request-id"] = request_id
     return response
 
 

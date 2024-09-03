@@ -19,7 +19,7 @@ class CurrentInjectionConfig(BaseModel):
     stimulus: SimulationStimulusConfig
 
 
-class SimulationConditionsConfig(BaseModel):
+class ExperimentSetupConfig(BaseModel):
     celsius: float
     vinit: float
     hypamp: float
@@ -45,25 +45,12 @@ SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
 
 
 class SingleNeuronSimulationConfig(BaseModel):
-    currentInjection: CurrentInjectionConfig | None = None
+    currentInjection: CurrentInjectionConfig
     recordFrom: list[RecordingLocation]
-    conditions: SimulationConditionsConfig
+    conditions: ExperimentSetupConfig
     synapses: list[SynapseSimulationConfig] | None = None
     type: SimulationType
     simulationDuration: int
-
-    # @field_validator("synapses", mode="before")
-    # @classmethod
-    # def validate_current_injection_synapses(cls, value, info):
-    #     if ("synapses" not in info.data or info.data.get("synapses") is None) and (
-    #         "currentInjection" not in info.data
-    #         or info.data.get("currentInjection") is None
-    #     ):
-    #         raise ValueError(
-    #             "Neither synapses nor current injection configuration are provided"
-    #         )
-
-    #     return value
 
 
 class StimulationPlotConfig(BaseModel):

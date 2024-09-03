@@ -8,14 +8,13 @@ import numpy as np
 import multiprocessing as mp
 from typing import Dict, NamedTuple
 from enum import Enum, auto
-
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
     CurrentInjectionConfig,
     RecordingLocation,
-    SimulationConditionsConfig,
+    ExperimentSetupConfig,
 )
-from bluenaas.utils.const import QUEUE_STOP_EVENT
+from bluenaas.utils.const import QUEUE_STOP_EVENT, SUB_PROCESS_STOP_EVENT
 from bluenaas.utils.util import generate_pre_spiketrain
 
 DEFAULT_INJECTION_LOCATION = "soma[0]"
@@ -92,7 +91,7 @@ def init_process_worker(neuron_global_params):
 def _add_single_synapse(
     cell,
     synapse: SynapseSeries,
-    experimental_setup: SimulationConditionsConfig,
+    experimental_setup: ExperimentSetupConfig,
 ):
     from bluecellulab.circuit.config.sections import Conditions  # type: ignore
     from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
@@ -139,7 +138,7 @@ def _prepare_stimulation_parameters(
     current_injection: CurrentInjectionConfig | None,
     recording_locations: list[RecordingLocation],
     synapse_generation_config: list[SynapseSeries] | None,
-    conditions: SimulationConditionsConfig,
+    conditions: ExperimentSetupConfig,
     simulation_duration: int,
     simulation_queue: mp.Queue,
     threshold_based: bool = True,
@@ -154,7 +153,7 @@ def _prepare_stimulation_parameters(
 
     injection_section_name = (
         current_injection.injectTo
-        if current_injection.injectTo is not None
+        if current_injection is not None and current_injection.injectTo is not None
         else DEFAULT_INJECTION_LOCATION
     )
 
@@ -255,7 +254,7 @@ def _run_stimulus(
     injection_segment: float,
     recording_locations: list[RecordingLocation],
     synapse_generation_config: list[SynapseSeries] | None,
-    experimental_setup: SimulationConditionsConfig,
+    experimental_setup: ExperimentSetupConfig,
     simulation_duration: int,
     simulation_queue: mp.Queue,
     stimulus_name: StimulusName,
@@ -297,6 +296,13 @@ def _run_stimulus(
     cell = Cell.from_template_parameters(template_params)
     injection_section = cell.sections[injection_section_name]
 
+    logger.info(f"""
+        [simulation stimulus/start]: {stimulus}
+        [simulation injection_section_name (provided)]: {injection_section_name}
+        [simulation injection_section (resolved)]: {injection_section}
+        [simulation recording_locations]: {recording_locations}
+    """)
+
     if synapse_generation_config is not None:
         for synapse in synapse_generation_config:
             _add_single_synapse(
@@ -305,74 +311,68 @@ def _run_stimulus(
                 experimental_setup=experimental_setup,
             )
 
-    for location in recording_locations:
-        recording_section = cell.sections[location.section]
-        recording_segment = location.offset
+    for loc in recording_locations:
+        sec, seg = cell.sections[loc.section], loc.offset
 
         cell.add_voltage_recording(
-            section=recording_section,
-            segx=recording_segment,
+            section=sec,
+            segx=seg,
         )
 
-    if stimulus is not None:
-        iclamp, _ = cell.inject_current_waveform(
-            stimulus.time,
-            stimulus.current,
-            section=injection_section,
-            segx=injection_segment,
-        )
-
-        if add_hypamp:
-            hyp_stim = Hyperpolarizing(
-                target="",
-                delay=0.0,
-                duration=stimulus.stimulus_time,
-            )
-            cell.add_replay_hypamp(hyp_stim)
-
+    iclamp, _ = cell.inject_current_waveform(
+        stimulus.time,
+        stimulus.current,
+        section=injection_section,
+        segx=injection_segment,
+    )
     current_vector = neuron.h.Vector()
     current_vector.record(iclamp._ref_i)
-    simulation = Simulation(cell)
+    current = np.array(current_vector.to_python())
+    neuron.h.v_init = experimental_setup.vinit
     neuron.h.celsius = experimental_setup.celsius
-    logger.info(f"---> simulation duration: {simulation_duration}")
+
+    if add_hypamp:
+        hyp_stim = Hyperpolarizing(
+            target="",
+            delay=0.0,
+            duration=stimulus.stimulus_time,
+        )
+        cell.add_replay_hypamp(hyp_stim)
+
+    def enqueue_simulation_recordings():
+        for loc in recording_locations:
+            sec, seg = cell.sections[loc.section], loc.offset
+            simulation_queue.put(
+                (
+                    f"{stimulus_name.name}_{amplitude}",
+                    f"{loc.section}_{seg}",
+                    amplitude,
+                    Recording(
+                        current, cell.get_voltage_recording(sec, seg), cell.get_time()
+                    ),
+                )
+            )
+
+    simulation = Simulation(
+        cell,
+        custom_progress_function=enqueue_simulation_recordings,
+    )
 
     simulation.run(
         maxtime=simulation_duration,
-        cvode=False,  # TODO: check current injection -> true else False
+        cvode=False if synapse_generation_config is not None else True,
         dt=experimental_setup.time_step,
+        show_progress=True,
     )
 
-    current = np.array(current_vector.to_python())
-
-    for location in recording_locations:
-        recording_section = cell.sections[location.section]
-        recording_segment = location.offset
-        voltage = cell.get_voltage_recording(
-            section=recording_section,
-            segx=recording_segment,
-        )
-        time = cell.get_time()
-
-        _recording = Recording(current, voltage, time)
-
-        _stimulus_name = f"{stimulus_name.name}_{amplitude}"
-        _recording_name = f"{location.section}_{recording_segment}"
-
-        simulation_queue.put(
-            (
-                _stimulus_name,
-                _recording_name,
-                amplitude,
-                _recording,
-            )
-        )
+    simulation_queue.put(SUB_PROCESS_STOP_EVENT)
 
 
 def apply_multiple_stimulus(
     cell,
     current_injection: CurrentInjectionConfig,
     recording_locations: list[RecordingLocation],
-    conditions: SimulationConditionsConfig,
+    experiment_setup: ExperimentSetupConfig,
     simulation_duration: int,
     synapse_generation_config: list[SynapseSeries] | None,
     simulation_queue: mp.Queue,
@@ -382,21 +382,25 @@ def apply_multiple_stimulus(
 
     ctx = mp.get_context("fork")
     neuron_global_params = NeuronGlobals.get_instance().export_params()
-    logger.debug(
-        f'Running {req_id} \n {"Current Injection" if current_injection is not None else ""}, {"Synaptome " if synapse_generation_config is not None else ""} simulation(s)'
-    )
+
+    logger.info(f"""
+        Running Simulation of {req_id}
+        {"CurrentInjection" if current_injection is not None else ""}
+        {"Synaptome " if synapse_generation_config is not None else ""}
+    """)
+    logger.info(f"[simulation duration]: {simulation_duration}")
 
     with mp.Manager() as manager:
-        children_queue = manager.Queue()
+        sub_simulation_queue = manager.Queue()
 
         args = _prepare_stimulation_parameters(
             cell=cell,
             current_injection=current_injection,
             recording_locations=recording_locations,
             synapse_generation_config=synapse_generation_config,
-            conditions=conditions,
+            conditions=experiment_setup,
             simulation_duration=simulation_duration,
-            simulation_queue=children_queue,
+            simulation_queue=sub_simulation_queue,
         )
         with ctx.Pool(
             processes=None,
@@ -404,18 +408,18 @@ def apply_multiple_stimulus(
             initargs=(neuron_global_params,),
             maxtasksperchild=1,
         ) as pool:
-            pool.starmap(_run_stimulus, args)
-            children_queue.put(QUEUE_STOP_EVENT)
+            pool.starmap_async(_run_stimulus, args)
 
-        while True:
-            try:
-                record = children_queue.get()
-            except queue.Empty:
-                break
-
-            if record == QUEUE_STOP_EVENT:
-                break
-
-            simulation_queue.put(record)
-
-        simulation_queue.put(QUEUE_STOP_EVENT)
+            process_finished = 0
+            while True:
+                try:
+                    record = sub_simulation_queue.get()
+                    if record != SUB_PROCESS_STOP_EVENT:
+                        simulation_queue.put(record)
+                    else:
+                        process_finished += 1
+                        if process_finished == len(args):
+                            simulation_queue.put(QUEUE_STOP_EVENT)
+                except queue.Empty:
+                    simulation_queue.put(QUEUE_STOP_EVENT)
+                    break

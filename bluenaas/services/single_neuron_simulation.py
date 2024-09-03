@@ -9,9 +9,7 @@ from queue import Empty as QueueEmptyException
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode, SimulationError
 from bluenaas.core.model import fetch_synaptome_model_details
 from bluenaas.domains.morphology import SynapseSeries
-from bluenaas.domains.simulation import (
-    SingleNeuronSimulationConfig,
-)
+from bluenaas.domains.simulation import SingleNeuronSimulationConfig
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
@@ -84,10 +82,9 @@ def execute_single_neuron_simulation(
 ):
     try:
         ctx = mp.get_context("spawn")
-
         simulation_queue = ctx.Queue()
 
-        pro = ctx.Process(
+        _process = ctx.Process(
             target=_init_simulation,
             args=(
                 model_id,
@@ -98,7 +95,7 @@ def execute_single_neuron_simulation(
             ),
             name=f"simulation_processor:{req_id}",
         )
-        pro.start()
+        _process.start()
 
         def queue_streamify():
             while True:
@@ -106,8 +103,8 @@ def execute_single_neuron_simulation(
                     # Simulation_Queue.get() is blocking. If child fails without writing to it,
                     # the process will hang forever. That's why timeout is added.
                     record = simulation_queue.get(timeout=1)
-                except QueueEmptyException:
-                    if pro.is_alive() or not simulation_queue.empty():
+                except QueueEmptyException as ex:
+                    if _process.is_alive():
                         continue
                     else:
                         logger.warning(
@@ -119,9 +116,9 @@ def execute_single_neuron_simulation(
 
                 (stimulus_name, recording_name, amplitude, recording) = record
                 logger.info(
-                    f"[R --> {recording_name}/{stimulus_name}]",
+                    f"[R/S --> {recording_name}/{stimulus_name}]",
                 )
-                yield json.dumps(
+                yield f"{json.dumps(
                     {
                         "amplitude": amplitude,
                         "stimulus_name": stimulus_name,
@@ -129,10 +126,7 @@ def execute_single_neuron_simulation(
                         "t": list(recording.time),
                         "v": list(recording.voltage),
                     }
-                )
-                yield "\n"
-
-            pro.join()
+                )}\n"
 
         return StreamingResponse(
             queue_streamify(),

@@ -1,11 +1,11 @@
 from bluenaas.core.stimulation import SynapseRecording
 from bluenaas.domains.morphology import SynapseSeries
-from bluenaas.domains.simulation import RecordingLocation, SimulationConditionsConfig
+from bluenaas.domains.simulation import RecordingLocation, ExperimentSetupConfig
 from bluenaas.utils.util import generate_pre_spiketrain
 
 
 def _add_single_synapse(
-    cell, synapse: SynapseSeries, conditions: SimulationConditionsConfig
+    cell, synapse: SynapseSeries, conditions: ExperimentSetupConfig
 ):
     from bluecellulab.circuit.config.sections import Conditions  # type: ignore
     from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
