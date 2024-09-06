@@ -58,17 +58,56 @@ class StimulusFactoryPlot:
         up_indices = np.where(response.current == up_value)[0]
 
         get_time_for = self._get_time_by_index(response.time)
-        return {
-            "x": [
-                get_time_for(down_indices[0]),
-                get_time_for(up_indices[0] - 1),
-                get_time_for(up_indices[0]),
-                get_time_for(up_indices[-1]),
-                get_time_for(up_indices[-1] + 1),
-                get_time_for(down_indices[-1]),
-            ],
-            "y": [down_value, down_value, up_value, up_value, down_value, down_value],
-        }
+
+        first_up, last_up = up_indices[0], up_indices[-1]
+        first_down, last_down = down_indices[0], down_indices[-1]
+
+        is_up_clamp = first_up > first_down
+
+        if is_up_clamp:
+            # Top clamp shape => this shape
+            #     ___________
+            #     |         |
+            #     |         |
+            #     |         |
+            # ----          ----
+
+            return {
+                "x": [
+                    get_time_for(first_down),
+                    get_time_for(first_up - 1),
+                    get_time_for(first_up),
+                    get_time_for(last_up),
+                    get_time_for(last_up + 1),
+                    get_time_for(last_down),
+                ],
+                "y": [
+                    down_value,
+                    down_value,
+                    up_value,
+                    up_value,
+                    down_value,
+                    down_value,
+                ],
+            }
+        else:
+            # Reverse clamp shape => this shape
+            # ----           ----
+            #     |         |
+            #     |         |
+            #     |         |
+            #     ___________
+            return {
+                "x": [
+                    get_time_for(first_up),
+                    get_time_for(first_down - 1),
+                    get_time_for(first_down),
+                    get_time_for(last_down),
+                    get_time_for(last_down + 1),
+                    get_time_for(last_up),
+                ],
+                "y": [up_value, up_value, down_value, down_value, up_value, up_value],
+            }
 
     def apply_stim(self):
         """Generate plot data based on  stimuli parameters."""
