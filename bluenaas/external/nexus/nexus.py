@@ -271,11 +271,6 @@ class Nexus:
 
     def get_currents(self):
         resource = self.fetch_resource_by_id(self.model_id)
-
-        if "MEModel" in resource["@type"]:
-            logger.debug("Getting currents from ME-Model")
-            return [resource["holding_current"], resource["threshold_current"]]
-
         logger.debug("Getting currents from E-Model")
         emodel_resource = self.get_emodel_resource(resource)
         emodel_script = self.get_script_resource(emodel_resource)
