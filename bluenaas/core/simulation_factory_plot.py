@@ -49,6 +49,15 @@ class StimulusFactoryPlot:
         # we need to add 2 more points just before up and right after down breaking points
 
         unique_elements = np.unique(response.current)
+        get_time_for = self._get_time_by_index(response.time)
+
+        if unique_elements.size == 1:
+            # Case 1: Since all current values are same, send only the first and the last to create a straight line
+            return {
+                "x": [response.time[0], response.time[-1]],
+                "y": [response.current[0], response.current[-1]],
+            }
+
         if unique_elements.size != 2:
             raise Exception("current has not _∏_ shape")
 
@@ -56,16 +65,13 @@ class StimulusFactoryPlot:
         up_value = unique_elements[1]
         down_indices = np.where(response.current == down_value)[0]
         up_indices = np.where(response.current == up_value)[0]
-
-        get_time_for = self._get_time_by_index(response.time)
-
         first_up, last_up = up_indices[0], up_indices[-1]
         first_down, last_down = down_indices[0], down_indices[-1]
 
         is_up_clamp = first_up > first_down
 
         if is_up_clamp:
-            # Top clamp shape => this shape
+            # Case 2: Top clamp shape
             #     ___________
             #     |         |
             #     |         |
@@ -91,7 +97,7 @@ class StimulusFactoryPlot:
                 ],
             }
         else:
-            # Reverse clamp shape => this shape
+            # Case 3: Reverse clamp shape
             # ----           ----
             #     |         |
             #     |         |
@@ -115,7 +121,9 @@ class StimulusFactoryPlot:
         for amplitude in self.amplitudes:
             label = self._get_stim_name(amplitude)
             response = self.stim_fn(
-                self.threshold_current, threshold_percentage=amplitude
+                self.threshold_current,
+                threshold_percentage=(amplitude / self.threshold_current)
+                * 100,  # Threshold current cannot be zero
             )
             plot_data = self._get_plot_data(response)
             plot_data.update({"name": label, "amplitude": amplitude})
