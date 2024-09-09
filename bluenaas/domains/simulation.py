@@ -78,7 +78,7 @@ class SimulationItemResponse(BaseModel):
 
 
 class StimulationItemResponse(BaseModel):
-    x: List[int]
+    x: List[float]
     y: List[float]
     name: str
     amplitude: float
