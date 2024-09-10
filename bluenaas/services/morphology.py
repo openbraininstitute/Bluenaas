@@ -41,7 +41,7 @@ def _build_morphology(
 
     except Exception as ex:
         queue.put(QUEUE_STOP_EVENT)
-        logger.debug(f"Morphology builder error: {ex}")
+        logger.exception(f"[_build_morphology]: {ex}")
     finally:
         logger.debug("Morphology builder ended")
 
