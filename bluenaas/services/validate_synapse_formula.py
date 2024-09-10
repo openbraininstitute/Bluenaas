@@ -16,9 +16,11 @@ def validate_synapse_generation_formula(formula: str):
             return False
 
     except (sp.SympifyError, SyntaxError) as ex:
-        logger.error(f'validating synapse generation formula failed [SympifyError, SyntaxError] {ex}')
+        logger.error(
+            f"validating synapse generation formula failed [SympifyError, SyntaxError] {ex}"
+        )
         return False
-    
+
     except Exception as ex:
         logger.error(f"validating synapse generation formula failed {ex}")
         raise BlueNaasError(
