@@ -6,13 +6,35 @@ from urllib.parse import quote_plus, unquote
 from loguru import logger
 import requests
 
+from bluenaas.config.settings import settings
+
 HTTP_TIMEOUT = 10  # seconds
 
 model_dir = Path("/opt/blue-naas/") / "models"
 defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
 
-
 HOC_FORMAT = ["application/x-neuron-hoc", "application/hoc"]
+
+
+def extract_org_project_from_id(url) -> dict[str, str | None]:
+    """Extracts the org and project of a resource id"""
+    parts = url.split("/")
+    if len(parts) >= 3:
+        org_project = parts[-4:-2]
+        return {"org": org_project[0], "project": org_project[1]}
+    else:
+        return {"org": None, "project": None}  # Handle URLs with fewer than 3 parts
+
+
+def ensure_list(value):
+    # If it's a dictionary, convert it to a list containing the dictionary
+    if isinstance(value, dict):
+        return [value]
+    # If it's already a list, return it as is
+    elif isinstance(value, list):
+        return value
+    else:
+        raise TypeError("Value must be either a dictionary or a list.")
 
 
 class Nexus:
@@ -30,7 +52,11 @@ class Nexus:
         self.headers.update({"Authorization": params["token"]})
 
     def fetch_resource_by_id(self, resource_id):
-        endpoint = self.compose_url(resource_id)
+        org, project = extract_org_project_from_id(self.nexus_base).values()
+        if org is None or project is None:
+            raise Exception("org or project are missing")
+
+        endpoint = f"{settings.NEXUS_ROOT_URI}/resolvers/{org}/{project}/_/{quote_plus(resource_id, safe=":")}"
         r = requests.get(endpoint, headers=self.headers, timeout=HTTP_TIMEOUT)
         if not r.ok:
             raise Exception("Error fetching resource", r.json())
@@ -59,7 +85,8 @@ class Nexus:
         workflow_resource = self.fetch_resource_by_id(workflow_id)
 
         configuration = None
-        for part in workflow_resource["hasPart"]:
+        workflow_resource_list = ensure_list(workflow_resource["hasPart"])
+        for part in workflow_resource_list:
             if part["@type"] == "EModelConfiguration":
                 configuration = part
                 break
@@ -76,11 +103,8 @@ class Nexus:
     def get_morphology(self, morph_id):
         morphology_resource = self.fetch_resource_by_id(morph_id)
 
-        distributions = morphology_resource["distribution"]
-        if not isinstance(distributions, list):
-            raise Exception("NeuronMorphology distribution is not an array")
-
         swc = None
+        distributions = ensure_list(morphology_resource["distribution"])
         for distribution in distributions:
             if distribution["encodingFormat"] == "application/swc":
                 swc = distribution
@@ -106,7 +130,7 @@ class Nexus:
 
     def get_memodel_morphology(self, memodel_resource):
         morphology_id = None
-        for haspart in memodel_resource["hasPart"]:
+        for haspart in ensure_list(memodel_resource["hasPart"]):
             if haspart["@type"] == "NeuronMorphology":
                 morphology_id = haspart["@id"]
         if morphology_id is None:
@@ -117,7 +141,7 @@ class Nexus:
     def get_mechanisms(self, configuration):
         # fetch only SubCellularModelScripts. Morphologies will be fetched later
         scripts = []
-        for config in configuration["uses"]:
+        for config in ensure_list(configuration["uses"]):
             if config["@type"] != "NeuronMorphology":
                 scripts.append(config)
 
@@ -137,15 +161,14 @@ class Nexus:
 
         mechanisms = []
         for model_resource in model_resources:
-            distribution = model_resource["distribution"]
-            if isinstance(distribution, list):
-                distribution = list(
-                    filter(
-                        lambda x: x["encodingFormat"] == "application/mod"
-                        or x["encodingFormat"] == "application/neuron-mod",
-                        distribution,
-                    )
-                )[0]
+            distributions = ensure_list(model_resource["distribution"])
+            distribution = list(
+                filter(
+                    lambda x: x["encodingFormat"] == "application/mod"
+                    or x["encodingFormat"] == "application/neuron-mod",
+                    distributions,
+                )
+            )[0]
 
             file = self.fetch_file_by_url(distribution["contentUrl"])
             mechanisms.append({"name": distribution["name"], "content": file.text})
@@ -157,7 +180,7 @@ class Nexus:
         workflow_resource = self.fetch_resource_by_id(workflow_id)
 
         script = None
-        for generated in workflow_resource["generates"]:
+        for generated in ensure_list(workflow_resource["generates"]):
             if generated["@type"] == "EModelScript":
                 script = generated
                 break
@@ -171,11 +194,10 @@ class Nexus:
         emodel_script = self.get_script_resource(emodel_resource)
         distribution = emodel_script["distribution"]
 
-        if isinstance(distribution, list):
-            for dist in distribution:
-                if dist["encodingFormat"] in HOC_FORMAT:
-                    distribution = dist
-                    break
+        for dist in emodel_script["distribution"]:
+            if dist["encodingFormat"] in HOC_FORMAT:
+                distribution = dist
+                break
 
         emodel_script_url = distribution["contentUrl"]
 
@@ -271,9 +293,26 @@ class Nexus:
 
     def get_currents(self):
         resource = self.fetch_resource_by_id(self.model_id)
+        logger.info(f"@@ resource: {resource}")
+        # TODO: this should be the right way to do it when analysis is ready
+        # With the changes to ME-model shape
+        # if (
+        #     "MEModel" in resource["@type"]
+        #     and resource["validated"] is True
+        #     and "parameter" in resource
+        # ):
+        #     logger.debug("Getting currents from ME-Model")
+        #     param_dict = {
+        #         param["name"]: param["value"] for param in resource["parameter"]
+        #     }
+        #     holding_current = param_dict.get("holding_current")
+        #     threshold_current = param_dict.get("threshold_current")
+        #     logger.debug(
+        #         f"currents are: holding: {holding_current}, threshold: {threshold_current}"
+        #     )
+        #     return [holding_current, threshold_current]
 
-        if "MEModel" in resource["@type"]:
-            logger.debug("Getting currents from ME-Model")
+        if "MEModel" in resource["@type"] and resource["validated"]:
             return [resource["holding_current"], resource["threshold_current"]]
 
         logger.debug("Getting currents from E-Model")

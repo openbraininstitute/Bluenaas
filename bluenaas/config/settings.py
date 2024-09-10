@@ -2,6 +2,7 @@ from os import getenv
 from typing import Literal, TypeGuard, get_args
 
 from dotenv import load_dotenv
+from pydantic_core import Url
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 load_dotenv("")
@@ -28,6 +29,7 @@ class Settings(BaseSettings):
     DEPLOYMENT_ENV: _ENVS = _DEPLOYMENT_ENV
     BASE_PATH: str = ""
     CORS_ORIGINS: list[str] = []
+    NEXUS_ROOT_URI: Url = Url("https://openbluebrain.com/api/nexus/v1")
 
     KC_SERVER_URI: str = "http://localhost:9090/"
     KC_CLIENT_ID: str = "obpapp"

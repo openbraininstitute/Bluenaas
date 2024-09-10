@@ -25,6 +25,4 @@ def place_synapses(
     formula: str = Body(embed=True),
     token: str = Depends(verify_jwt),
 ) -> SynapsePlacementResponse:
-    return validate_synapse_generation_formula(
-        formula=formula
-    )
+    return validate_synapse_generation_formula(formula=formula)
