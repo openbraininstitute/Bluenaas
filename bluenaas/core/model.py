@@ -126,6 +126,10 @@ class Model:
     def _calc_synapse_count(
         self, config: SynapseConfig, distance: float, sec_length: float
     ):
+        L.debug(f"TARGET {config.target}")
+        if config.target == SectionTarget.soma:
+            L.debug(f"SYNAPSE COUNT {config.soma_synapse_count}")
+            return config.soma_synapse_count
         x_symbol, X_symbol = symbols("x X")
         formula = (
             distribution_type_to_formula.get(config.distribution)
@@ -178,7 +182,7 @@ class Model:
             synapse_count = self._calc_synapse_count(
                 config, section_info.distance_from_soma, section_info.sec_length
             )
-
+            L.debug(f"COUNT {synapse_count}")
             synapse = SectionSynapses(
                 section_id=section_key,
                 synapses=[

@@ -38,6 +38,7 @@ class SectionTarget(Enum):
     apical = "apic"
     basal = "basal"
     dendrite = "dend"
+    soma = "soma"
     axom = "axon"
 
     @classmethod
@@ -59,8 +60,28 @@ class SynapseConfig(BaseModel):
     formula: Optional[str | None] = (
         None  # Check that this is a valid string if `distribution` is "formula"
     )
+    soma_synapse_count: int | None = None
     seed: int
     exclusion_rules: list[ExclusionRule] | None = None
+
+    # TODO Check if mode before is needed
+    @field_validator("soma_synapse_count", mode="before")
+    @classmethod
+    def validate_soma_synapse_count(cls, value, info):
+        if (
+            "target" in info.data
+            and info.data.get("target") == SectionTarget.soma.value
+        ):
+            if not value:
+                raise ValueError(
+                    "soma_section_count should be provided if target is soma"
+                )
+
+            if value >= 1000 or value < 0:
+                raise ValueError(
+                    "soma_section_count should be greater than 0 and less than or equal to 1000"
+                )
+        return value
 
     @field_validator("formula", mode="before")
     @classmethod
