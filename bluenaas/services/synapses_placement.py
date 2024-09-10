@@ -34,6 +34,9 @@ def _generate_synpases(
 
         queue.put(QUEUE_STOP_EVENT)
     except Exception as ex:
+        import traceback
+
+        traceback.print_exc()
         logger.debug(f"Synapses generator error: {ex}")
     finally:
         logger.debug("Synapses generator ended")
