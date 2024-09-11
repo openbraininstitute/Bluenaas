@@ -39,6 +39,7 @@ def _init_simulation(
 
         model = model_factory(
             model_id=me_model_id,
+            hyamp=config.conditions.hypamp,
             bearer_token=token,
         )
 

@@ -45,11 +45,12 @@ defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-mode
 
 
 class Model:
-    def __init__(self, *, model_id: str, token: str):
+    def __init__(self, *, model_id: str, hyamp: float, token: str):
         self.model_id: str = model_id
         self.token: str = token
         self.CELL: HocCell = None
-        self.THRESHOLD_CURRENT: int = 1
+        self.threshold_current: int = 1
+        self.holding_current: float = hyamp
         self.resource: NexusBaseResource = None
 
     def build_model(self):
@@ -59,7 +60,7 @@ class Model:
 
         nexus_helper = Nexus({"token": self.token, "model_self_url": self.model_id})
         [holding_current, threshold_current] = nexus_helper.get_currents()
-        self.THRESHOLD_CURRENT = threshold_current
+        self.threshold_current = threshold_current
 
         model_uuid = nexus_helper.get_model_uuid()
 
@@ -67,7 +68,7 @@ class Model:
         model_path = locate_model(model_uuid)
 
         if path_exists is True and model_path is not None:
-            self.CELL = HocCell(model_uuid, threshold_current, holding_current)
+            self.CELL = HocCell(model_uuid, threshold_current, self.holding_current)
             return True
 
         nexus_helper.download_model()
@@ -75,7 +76,7 @@ class Model:
             f"loading model {model_uuid}",
         )
 
-        self.CELL = HocCell(model_uuid, threshold_current, holding_current)
+        self.CELL = HocCell(model_uuid, threshold_current, self.holding_current)
 
     def _generate_synapse(
         self, section_info: LocationData, seg_indices_to_include: list[int]
@@ -301,10 +302,12 @@ class Model:
 
 def model_factory(
     model_id: str,
+    holding_current: float,
     bearer_token: str,
 ):
     model = Model(
         model_id=model_id,
+        holding_current=holding_current,
         token=bearer_token,
     )
 
