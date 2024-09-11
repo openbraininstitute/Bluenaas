@@ -1,6 +1,7 @@
 """Util."""
 
 import json
+from random import randint
 import re
 import subprocess
 import tarfile
@@ -377,19 +378,24 @@ def perpendicular_vector(v: np.ndarray) -> np.ndarray:
     Returns:
     numpy array, a vector perpendicular to v.
     """
-    # Choose an arbitrary vector that is not parallel to v
-    if np.all(v == 0):
-        raise ValueError("Cannot find a perpendicular vector for the zero vector")
+    # Choose an arbitrary vector that is not parallel to v.
+    coordinates = [0, 1, 2]  # corresponds to [x, y, z]
+    vArbitrary = [v[0], v[1], v[2]]
 
-    # Choose a vector that is not parallel
-    if v[0] == 0 and v[1] == 0:
-        # If the vector is along the z-axis, choose a vector in the xy-plane
-        arbitrary_vector = np.array([1, 0, 0])
-    else:
-        arbitrary_vector = np.array([0, 0, 1])
+    # Randomly choose 1 coordinate to be the same as v
+    same_coordinate = randint(0, 2)
+
+    # Assign a random integer to the remaining 2 coordinates
+    different_coordinates = [c for c in coordinates if c != same_coordinate]
+    for c in different_coordinates:
+        vArbitrary[c] = randint(-100, 100)
+
+    # If the vPerpendicular has same coordinates as v (very, very low chance of this happening), then simply change the x coordinate of vArbitrary.
+    if vArbitrary[0] == v[0] and vArbitrary[1] == v[1] and vArbitrary[2] == v[2]:
+        vArbitrary[0] = vArbitrary[0] + 1
 
     # Compute the cross product to get a perpendicular vector
-    perp_vector = np.cross(v, arbitrary_vector)
+    perp_vector = np.cross(v, np.array(vArbitrary))
 
     return perp_vector
 
