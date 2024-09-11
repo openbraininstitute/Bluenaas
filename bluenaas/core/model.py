@@ -45,7 +45,7 @@ defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-mode
 
 
 class Model:
-    def __init__(self, *, model_id: str, hyamp: float, token: str):
+    def __init__(self, *, model_id: str, hyamp: float | None, token: str):
         self.model_id: str = model_id
         self.token: str = token
         self.CELL: HocCell = None
@@ -68,7 +68,13 @@ class Model:
         model_path = locate_model(model_uuid)
 
         if path_exists is True and model_path is not None:
-            self.CELL = HocCell(model_uuid, threshold_current, self.holding_current)
+            self.CELL = HocCell(
+                model_uuid,
+                threshold_current,
+                self.holding_current
+                if self.holding_current is not None
+                else holding_current,
+            )
             return True
 
         nexus_helper.download_model()
@@ -302,12 +308,22 @@ class Model:
 
 def model_factory(
     model_id: str,
+<<<<<<< HEAD
     holding_current: float,
+||||||| parent of 9e58ef5 (update: use holding current hyamp provided by the user)
+=======
+    holding_current: float | None,
+>>>>>>> 9e58ef5 (update: use holding current hyamp provided by the user)
     bearer_token: str,
 ):
     model = Model(
         model_id=model_id,
+<<<<<<< HEAD
         holding_current=holding_current,
+||||||| parent of 9e58ef5 (update: use holding current hyamp provided by the user)
+=======
+        hyamp=holding_current,
+>>>>>>> 9e58ef5 (update: use holding current hyamp provided by the user)
         token=bearer_token,
     )
 

@@ -27,6 +27,7 @@ def _build_direct_current_plot_data(
     try:
         model = model_factory(
             model_id=model_id,
+            holding_current=None,
             bearer_token=token,
         )
         stimulus_factory_plot = StimulusFactoryPlot(

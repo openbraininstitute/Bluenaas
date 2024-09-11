@@ -27,6 +27,7 @@ def _build_morphology(
     try:
         model = model_factory(
             model_id=model_id,
+            holding_current=None,
             bearer_token=token,
         )
         morphology = model.CELL.get_cell_morph()
@@ -41,7 +42,7 @@ def _build_morphology(
 
     except Exception as ex:
         queue.put(QUEUE_STOP_EVENT)
-        logger.exception(f"[_build_morphology]: {ex}")
+        logger.exception(f"Morphology builder error: {ex}")
     finally:
         logger.debug("Morphology builder ended")
 
