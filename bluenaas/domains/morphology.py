@@ -57,27 +57,21 @@ class SynapseConfig(BaseModel):
     target: SectionTarget | None = None
     type: int
     distribution: Literal["exponential", "linear", "formula"]
-    formula: Optional[str | None] = (
-        None  # Check that this is a valid string if `distribution` is "formula"
-    )
+    formula: Optional[str | None] = None
     soma_synapse_count: int | None = None
     seed: int
     exclusion_rules: list[ExclusionRule] | None = None
 
-    # TODO Check if mode before is needed
-    @field_validator("soma_synapse_count", mode="before")
+    @field_validator("soma_synapse_count")
     @classmethod
     def validate_soma_synapse_count(cls, value, info):
-        if (
-            "target" in info.data
-            and info.data.get("target") == SectionTarget.soma.value
-        ):
+        if "target" in info.data and info.data.get("target") == SectionTarget.soma:
             if not value:
                 raise ValueError(
                     "soma_section_count should be provided if target is soma"
                 )
 
-            if value >= 1000 or value < 0:
+            if value < 0 or value > 1000:
                 raise ValueError(
                     "soma_section_count should be greater than 0 and less than or equal to 1000"
                 )
