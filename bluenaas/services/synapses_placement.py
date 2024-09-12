@@ -4,7 +4,11 @@ from loguru import logger
 from http import HTTPStatus as status
 from queue import Empty as QueueEmptyException
 
-from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
+from bluenaas.core.exceptions import (
+    BlueNaasError,
+    BlueNaasErrorCode,
+    SynapseGenerationError,
+)
 from bluenaas.core.model import model_factory
 from bluenaas.domains.morphology import SynapsePlacementBody, SynapsePlacementResponse
 from bluenaas.utils.const import QUEUE_STOP_EVENT
@@ -35,6 +39,7 @@ def _generate_synpases(
         queue.put(QUEUE_STOP_EVENT)
     except Exception as ex:
         logger.exception(f"Synapses generator error: {ex}")
+        raise SynapseGenerationError from ex
     finally:
         logger.debug("Synapses generator ended")
 

@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from loguru import logger
+from starlette.middleware.gzip import GZipMiddleware
 import sentry_sdk
 
 from bluenaas.config.settings import settings
@@ -56,6 +57,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(GZipMiddleware)
+
 
 @app.exception_handler(BlueNaasError)
 async def bluenaas_exception_handler(
@@ -67,7 +70,6 @@ async def bluenaas_exception_handler(
     and format it.
     """
     logger.error(f"{request.method} {request.url} failed: {repr(exception)}")
-
     return JSONResponse(
         status_code=int(exception.http_status_code),
         content=BlueNaasErrorResponse(

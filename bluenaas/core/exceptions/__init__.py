@@ -48,3 +48,39 @@ class BlueNaasErrorResponse(BaseModel):
     error_code: BlueNaasErrorCode | None
     message: str | None = None
     details: str | None = None
+
+
+class SimulationError(Exception):
+    def __init__(self, message: str = "Simulation failed") -> None:
+        self.message = message
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        return self.message
+
+
+class SynapseGenerationError(Exception):
+    def __init__(self, message: str = "Synapse generation failed") -> None:
+        self.message = message
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        return self.message
+
+
+class MorphologyGenerationError(Exception):
+    def __init__(self, message: str = "Morphology generation failed") -> None:
+        self.message = message
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        return self.message
+
+
+class StimulationPlotGenerationError(Exception):
+    def __init__(self, message: str = "Stimulation plot generation failed") -> None:
+        self.message = message
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        return self.message
