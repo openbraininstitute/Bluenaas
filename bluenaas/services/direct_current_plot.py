@@ -4,7 +4,11 @@ from loguru import logger
 from http import HTTPStatus as status
 from threading import Event
 from queue import Empty as QueueEmptyException
-from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
+from bluenaas.core.exceptions import (
+    BlueNaasError,
+    BlueNaasErrorCode,
+    StimulationPlotGenerationError,
+)
 from bluenaas.core.model import model_factory
 from bluenaas.core.simulation_factory_plot import StimulusFactoryPlot
 from bluenaas.domains.simulation import StimulationPlotConfig
@@ -27,19 +31,22 @@ def _build_direct_current_plot_data(
     try:
         model = model_factory(
             model_id=model_id,
+            hyamp=None,
             bearer_token=token,
         )
         stimulus_factory_plot = StimulusFactoryPlot(
             config,
-            model.THRESHOLD_CURRENT,
+            model.threshold_current,
         )
         result_data = stimulus_factory_plot.apply_stim()
+        logger.info(f"result_data: {result_data}")
         queue.put(result_data)
         queue.put(QUEUE_STOP_EVENT)
 
     except Exception as ex:
         queue.put(QUEUE_STOP_EVENT)
         logger.debug(f"Stimulation direct current plot builder error: {ex}")
+        raise StimulationPlotGenerationError from ex
     finally:
         logger.debug("Stimulation direct current plot ended")
 

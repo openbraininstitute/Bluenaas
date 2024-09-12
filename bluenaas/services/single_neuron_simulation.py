@@ -2,12 +2,11 @@ import json
 import multiprocessing as mp
 from itertools import chain
 from loguru import logger
-from threading import Event
 from http import HTTPStatus as status
 from fastapi.responses import StreamingResponse
 from queue import Empty as QueueEmptyException
 
-from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
+from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode, SimulationError
 from bluenaas.core.model import fetch_synaptome_model_details
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
@@ -21,7 +20,6 @@ def _init_simulation(
     token: str,
     config: SingleNeuronSimulationConfig,
     simulation_queue: mp.Queue,
-    stop_event: Event,
     req_id: str,
 ):
     from bluenaas.core.model import model_factory
@@ -39,6 +37,7 @@ def _init_simulation(
 
         model = model_factory(
             model_id=me_model_id,
+            hyamp=config.conditions.hypamp,
             bearer_token=token,
         )
 
@@ -71,7 +70,8 @@ def _init_simulation(
         )
 
     except Exception as ex:
-        logger.error(f"Simulation executor error: {ex}")
+        logger.exception(f"Simulation executor error: {ex}")
+        raise SimulationError from ex
     finally:
         logger.info("Simulation executor ended")
 
@@ -86,7 +86,6 @@ def execute_single_neuron_simulation(
         ctx = mp.get_context("spawn")
 
         simulation_queue = ctx.Queue()
-        stop_event = ctx.Event()
 
         pro = ctx.Process(
             target=_init_simulation,
@@ -95,7 +94,6 @@ def execute_single_neuron_simulation(
                 token,
                 config,
                 simulation_queue,
-                stop_event,
                 req_id,
             ),
             name=f"simulation_processor:{req_id}",
@@ -105,14 +103,18 @@ def execute_single_neuron_simulation(
         def queue_streamify():
             while True:
                 try:
-                    # Simulation_Queue.get() is blocking. If child fails without writing to it, the process will hang forever. That's why timeout is added.
+                    # Simulation_Queue.get() is blocking. If child fails without writing to it,
+                    # the process will hang forever. That's why timeout is added.
                     record = simulation_queue.get(timeout=1)
                 except QueueEmptyException:
                     if pro.is_alive() or not simulation_queue.empty():
                         continue
                     else:
+                        logger.warning(
+                            "Process is not alive and simulation queue is empty"
+                        )
                         raise Exception("Child process died unexpectedly")
-                if record == QUEUE_STOP_EVENT or stop_event.is_set():
+                if record == QUEUE_STOP_EVENT:
                     break
 
                 (stimulus_name, recording_name, amplitude, recording) = record
@@ -129,17 +131,16 @@ def execute_single_neuron_simulation(
                     }
                 )
                 yield "\n"
-            logger.info("start")
+
             pro.join()
-            logger.info("end")
 
         return StreamingResponse(
             queue_streamify(),
-            media_type="application/x-ndjson",
+            media_type="application/octet-stream",
         )
 
     except Exception as ex:
-        logger.error(f"running simulation failed {ex}")
+        logger.exception(f"running simulation failed {ex}")
         raise BlueNaasError(
             http_status_code=status.INTERNAL_SERVER_ERROR,
             error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,
