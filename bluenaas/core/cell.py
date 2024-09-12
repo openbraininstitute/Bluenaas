@@ -4,7 +4,7 @@
 import multiprocessing as mp
 import os
 import re
-from loguru import logger as L
+from loguru import logger
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
@@ -72,15 +72,17 @@ class BaseCell:
         morph_path = model_path / "morphology"
         morph_file_name = os.listdir(morph_path)[0]
         morph_file = morph_path / morph_file_name
-        L.debug(f"morph_file: {morph_file}")
+        logger.debug(f"morph_file: {morph_file}")
 
         if sbo_template.exists():
-            L.debug(f"template exists {sbo_template}")
+            logger.debug(f"template exists {sbo_template}")
             try:
                 emodel_properties = EmodelProperties(
-                    threshold_current, holding_current, AIS_scaler=1
+                    threshold_current,
+                    holding_current,
+                    AIS_scaler=1,
                 )
-                L.debug(f"emodel_properties {emodel_properties}")
+                logger.debug(f"emodel_properties {emodel_properties}")
                 self._cell = Cell(
                     sbo_template,
                     morph_file,
@@ -88,7 +90,7 @@ class BaseCell:
                     emodel_properties=emodel_properties,
                 )
             except Exception as ex:
-                L.error(f"Error creating Cell object: {ex}")
+                logger.error(f"Error creating Cell object: {ex}")
                 raise Exception(ex) from ex
 
             self._all_sec_array, self._all_sec_map = get_sections(self._cell)
@@ -133,7 +135,7 @@ class BaseCell:
 
     def get_sec_info(self, sec_name):
         """Get section info from NEURON."""
-        L.debug(sec_name)
+        logger.debug(sec_name)
         self._nrn.h.psection(
             sec=self._all_sec_array[self._all_sec_map[sec_name]["index"]]
         )
@@ -205,7 +207,7 @@ class BaseCell:
             import traceback
 
             traceback.print_exc()
-            L.error(
+            logger.error(
                 f"Apply Generic Single Neuron Simulation error: {e}",
             )
             raise Exception(f"Apply Generic Single Neuron Simulation error: {e}") from e
@@ -225,14 +227,14 @@ class BaseCell:
                 recording_location=recording_location,
             )
         except Exception as e:
-            L.error(
+            logger.error(
                 f"Apply Simulation error: {e}",
             )
             raise Exception(f"Apply Simulation error: {e}") from e
 
     def stop_simulation(self):
         """Stop simulation."""
-        L.debug("stop simulation")
+        logger.debug("stop simulation")
         self._nrn.h.stoprun = 1
 
 
@@ -242,4 +244,5 @@ class HocCell(BaseCell):
     def __init__(self, model_uuid, threshold_current=0, holding_current=0):
         super().__init__(model_uuid)
 
+        logger.info(f"hoccell init: {model_uuid, threshold_current, holding_current}")
         self._load_by_model_uuid(model_uuid, threshold_current, holding_current)

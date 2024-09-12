@@ -7,7 +7,11 @@ from loguru import logger
 from http import HTTPStatus as status
 from threading import Event
 from queue import Empty as QueueEmptyException
-from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
+from bluenaas.core.exceptions import (
+    BlueNaasError,
+    BlueNaasErrorCode,
+    MorphologyGenerationError,
+)
 from bluenaas.core.model import model_factory
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 
@@ -27,7 +31,7 @@ def _build_morphology(
     try:
         model = model_factory(
             model_id=model_id,
-            holding_current=None,
+            hyamp=None,
             bearer_token=token,
         )
         morphology = model.CELL.get_cell_morph()
@@ -43,6 +47,7 @@ def _build_morphology(
     except Exception as ex:
         queue.put(QUEUE_STOP_EVENT)
         logger.exception(f"Morphology builder error: {ex}")
+        raise MorphologyGenerationError from ex
     finally:
         logger.debug("Morphology builder ended")
 

@@ -3,7 +3,7 @@
 from enum import Enum
 import os
 from typing import List, NamedTuple
-from loguru import logger as L
+from loguru import logger
 import pandas  # type: ignore
 import requests
 from sympy import symbols, parse_expr  # type: ignore
@@ -37,9 +37,6 @@ import numpy as np
 
 SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
 
-# TODO: The keys of dict should be same as SynapseConfig.distribution
-distribution_type_to_formula = {"linear": "x", "exponential": "exp(x)"}
-
 SynapseType = Enum("SynapseType", "GABAAB AMPANMDA GLUSYNAPSE")
 defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
 
@@ -50,7 +47,7 @@ class Model:
         self.token: str = token
         self.CELL: HocCell = None
         self.threshold_current: int = 1
-        self.holding_current: float = hyamp
+        self.holding_current: float | None = hyamp
         self.resource: NexusBaseResource = None
 
     def build_model(self):
@@ -78,11 +75,17 @@ class Model:
             return True
 
         nexus_helper.download_model()
-        L.debug(
+        logger.debug(
             f"loading model {model_uuid}",
         )
 
-        self.CELL = HocCell(model_uuid, threshold_current, self.holding_current)
+        self.CELL = HocCell(
+            model_uuid=model_uuid,
+            threshold_current=threshold_current,
+            holding_current=self.holding_current
+            if self.holding_current is not None
+            else holding_current,
+        )
 
     def _generate_synapse(
         self, section_info: LocationData, seg_indices_to_include: list[int]
@@ -136,12 +139,7 @@ class Model:
         if config.target == SectionTarget.soma:
             return config.soma_synapse_count
         x_symbol, X_symbol = symbols("x X")
-        formula = (
-            distribution_type_to_formula.get(config.distribution)
-            if config.distribution in distribution_type_to_formula is not None
-            else config.formula
-        )
-        expression = parse_expr(f"{formula} * {sec_length}")
+        expression = parse_expr(f"{config.formula} * {sec_length}")
         synapse_count = ceil(expression.subs({x_symbol: distance, X_symbol: distance}))
         return synapse_count
 
@@ -308,22 +306,12 @@ class Model:
 
 def model_factory(
     model_id: str,
-<<<<<<< HEAD
-    holding_current: float,
-||||||| parent of 9e58ef5 (update: use holding current hyamp provided by the user)
-=======
-    holding_current: float | None,
->>>>>>> 9e58ef5 (update: use holding current hyamp provided by the user)
+    hyamp: float | None,
     bearer_token: str,
 ):
     model = Model(
         model_id=model_id,
-<<<<<<< HEAD
-        holding_current=holding_current,
-||||||| parent of 9e58ef5 (update: use holding current hyamp provided by the user)
-=======
-        hyamp=holding_current,
->>>>>>> 9e58ef5 (update: use holding current hyamp provided by the user)
+        hyamp=hyamp,
         token=bearer_token,
     )
 
@@ -385,6 +373,6 @@ def fetch_synaptome_model_details(synaptome_self: str, bearer_token: str):
         import traceback
 
         traceback.print_exc()
-        L.error(f"There was an error while loading synaptome model {e}")
+        logger.error(f"There was an error while loading synaptome model {e}")
 
         raise Exception(e)
