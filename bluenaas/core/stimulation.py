@@ -8,6 +8,7 @@ import numpy as np
 import multiprocessing as mp
 from typing import Dict, NamedTuple
 from enum import Enum, auto
+from bluenaas.core.exceptions import ChildSimulationError
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
     CurrentInjectionConfig,
@@ -15,7 +16,7 @@ from bluenaas.domains.simulation import (
     ExperimentSetupConfig,
 )
 from bluenaas.utils.const import QUEUE_STOP_EVENT, SUB_PROCESS_STOP_EVENT
-from bluenaas.utils.util import generate_pre_spiketrain
+from bluenaas.utils.util import diff_list, generate_pre_spiketrain
 
 DEFAULT_INJECTION_LOCATION = "soma[0]"
 
@@ -339,33 +340,59 @@ def _run_stimulus(
         )
         cell.add_replay_hypamp(hyp_stim)
 
+    prev_voltage = {}
+    prev_time = {}
+
     def enqueue_simulation_recordings():
         for loc in recording_locations:
             sec, seg = cell.sections[loc.section], loc.offset
+            cell_section = f"{loc.section}_{seg}"
+            stim_label = f"{stimulus_name.name}_{amplitude}"
+
+            voltage = cell.get_voltage_recording(sec, seg)
+            time = cell.get_time()
+
+            if cell_section not in prev_voltage:
+                prev_voltage[cell_section] = np.array([])
+            if cell_section not in prev_time:
+                prev_time[cell_section] = np.array([])
+
+            voltage_diff = diff_list(prev_voltage[cell_section], voltage)
+            time_diff = diff_list(prev_time[cell_section], time)
+
+            prev_voltage[cell_section] = voltage
+            prev_time[cell_section] = time
+
             simulation_queue.put(
                 (
-                    f"{stimulus_name.name}_{amplitude}",
-                    f"{loc.section}_{seg}",
+                    stim_label,
+                    cell_section,
                     amplitude,
                     Recording(
-                        current, cell.get_voltage_recording(sec, seg), cell.get_time()
+                        current,
+                        voltage_diff,
+                        time_diff,
                     ),
                 )
             )
 
-    simulation = Simulation(
-        cell,
-        custom_progress_function=enqueue_simulation_recordings,
-    )
+    try:
+        simulation = Simulation(
+            cell,
+            custom_progress_function=enqueue_simulation_recordings,
+        )
 
-    simulation.run(
-        maxtime=simulation_duration,
-        cvode=False,
-        dt=experimental_setup.time_step,
-        show_progress=True,
-    )
-
-    simulation_queue.put(SUB_PROCESS_STOP_EVENT)
+        simulation.run(
+            maxtime=simulation_duration,
+            cvode=False,
+            dt=experimental_setup.time_step,
+            show_progress=True,
+        )
+    except Exception as ex:
+        logger.exception(f"child simulation failed {ex}")
+        raise ChildSimulationError from ex
+    finally:
+        simulation_queue.put(SUB_PROCESS_STOP_EVENT)
 
 
 def apply_multiple_stimulus(
@@ -402,6 +429,7 @@ def apply_multiple_stimulus(
             simulation_duration=simulation_duration,
             simulation_queue=sub_simulation_queue,
         )
+
         with ctx.Pool(
             processes=None,
             initializer=init_process_worker,
@@ -411,6 +439,7 @@ def apply_multiple_stimulus(
             pool.starmap_async(_run_stimulus, args)
 
             process_finished = 0
+
             while True:
                 try:
                     record = sub_simulation_queue.get()

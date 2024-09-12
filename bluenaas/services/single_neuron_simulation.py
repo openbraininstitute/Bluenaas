@@ -115,6 +115,7 @@ def execute_single_neuron_simulation(
                     break
 
                 (stimulus_name, recording_name, amplitude, recording) = record
+
                 logger.info(
                     f"[R/S --> {recording_name}/{stimulus_name}]",
                 )
@@ -127,6 +128,8 @@ def execute_single_neuron_simulation(
                         "v": list(recording.voltage),
                     }
                 )}\n"
+
+            logger.info(f"Simulation {req_id} completed")
 
         return StreamingResponse(
             queue_streamify(),
