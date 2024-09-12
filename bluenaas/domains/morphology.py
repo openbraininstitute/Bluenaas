@@ -38,6 +38,7 @@ class SectionTarget(Enum):
     apical = "apic"
     basal = "basal"
     dendrite = "dend"
+    axom = "axon"
 
     @classmethod
     def list(cls):
