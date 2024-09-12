@@ -360,7 +360,7 @@ def _run_stimulus(
 
     simulation.run(
         maxtime=simulation_duration,
-        cvode=False if synapse_generation_config is not None else True,
+        cvode=False,
         dt=experimental_setup.time_step,
         show_progress=True,
     )

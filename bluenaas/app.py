@@ -37,6 +37,15 @@ app = FastAPI(
 )
 
 app.add_middleware(SentryAsgiMiddleware)
+app.add_middleware(GZipMiddleware)
+# TODO: reduce origins to only the allowed ones
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.middleware("http")
@@ -49,18 +58,6 @@ async def add_request_id_middleware(
     response = await call_next(request)
     response.headers["x-request-id"] = request_id
     return response
-
-
-# TODO: reduce origins to only the allowed ones
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.add_middleware(GZipMiddleware)
 
 
 @app.exception_handler(BlueNaasError)

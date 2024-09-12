@@ -103,7 +103,7 @@ def execute_single_neuron_simulation(
                     # Simulation_Queue.get() is blocking. If child fails without writing to it,
                     # the process will hang forever. That's why timeout is added.
                     record = simulation_queue.get(timeout=1)
-                except QueueEmptyException as ex:
+                except QueueEmptyException:
                     if _process.is_alive():
                         continue
                     else:
