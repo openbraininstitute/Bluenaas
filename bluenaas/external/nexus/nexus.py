@@ -1,11 +1,11 @@
 """Nexus module."""
 
+from time import sleep
 import zipfile
 from pathlib import Path
 from urllib.parse import quote_plus, unquote
 from loguru import logger
 import requests
-
 from bluenaas.config.settings import settings
 
 HTTP_TIMEOUT = 10  # seconds
@@ -224,6 +224,7 @@ class Nexus:
                 )
 
     def create_file(self, path, content):
+        logger.debug(f"______________________________Creating file {path}")
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -234,6 +235,7 @@ class Nexus:
 
     def create_model_folder(self, hoc_file, morphology_obj, mechanisms):
         output_dir = model_dir / self.model_uuid
+        sleep(2000)
         self.create_file(output_dir / "cell.hoc", hoc_file)
 
         morph_name = morphology_obj["name"]

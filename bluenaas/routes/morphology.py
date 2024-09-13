@@ -1,7 +1,7 @@
 from bluenaas.services.morphology import get_single_morphology
 from bluenaas.services.morphology_dendrogram import get_single_morphology_dendrogram
 from fastapi import APIRouter, Depends, Query, Request
-
+from loguru import logger
 from bluenaas.infrastructure.kc.auth import verify_jwt
 
 router = APIRouter(prefix="/morphology")
@@ -13,6 +13,7 @@ def retrieve_morphology(
     model_id: str = Query(""),
     token: str = Depends(verify_jwt),
 ):
+    logger.debug("GOT REQUEST")
     return get_single_morphology(
         model_id=model_id,
         token=token,
