@@ -35,8 +35,8 @@ def _generate_synpases(
 
         synapses = model.add_synapses(params)
         queue.put(synapses)
-
         queue.put(QUEUE_STOP_EVENT)
+
     except Exception as ex:
         logger.exception(f"Synapses generator error: {ex}")
         raise SynapseGenerationError from ex
@@ -84,7 +84,7 @@ def generate_synapses_placement(
         return synapses
 
     except Exception as ex:
-        logger.error(f"generating synapses placement failed {ex}")
+        logger.exception(f"generating synapses placement failed {ex}")
         raise BlueNaasError(
             http_status_code=status.INTERNAL_SERVER_ERROR,
             error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,

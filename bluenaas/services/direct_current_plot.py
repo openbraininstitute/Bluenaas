@@ -45,7 +45,7 @@ def _build_direct_current_plot_data(
 
     except Exception as ex:
         queue.put(QUEUE_STOP_EVENT)
-        logger.debug(f"Stimulation direct current plot builder error: {ex}")
+        logger.exception(f"Stimulation direct current plot builder error: {ex}")
         raise StimulationPlotGenerationError from ex
     finally:
         logger.debug("Stimulation direct current plot ended")
@@ -96,7 +96,7 @@ def get_direct_current_plot_data(
 
         return result
     except Exception as ex:
-        logger.error(f"retrieving stimulus direct current data failed {ex}")
+        logger.exception(f"retrieving stimulus direct current data failed {ex}")
         raise BlueNaasError(
             http_status_code=status.INTERNAL_SERVER_ERROR,
             error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,

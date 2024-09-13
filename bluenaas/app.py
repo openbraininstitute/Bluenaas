@@ -18,6 +18,7 @@ from bluenaas.routes.graph_data import router as graph_router
 from bluenaas.routes.synaptome import router as synaptome_router
 from bluenaas.routes.validation import router as validation_router
 from starlette.middleware.cors import CORSMiddleware
+from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 
 
 sentry_sdk.init(
@@ -35,19 +36,8 @@ app = FastAPI(
     docs_url=f"{settings.BASE_PATH}/docs",
 )
 
-
-@app.middleware("http")
-async def add_request_id_middleware(
-    request: Request, call_next: Callable[[Request], Awaitable[Response]]
-) -> Response:
-    request_id = str(uuid.uuid4())
-    request.state.request_id = request_id
-
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    return response
-
-
+app.add_middleware(SentryAsgiMiddleware)
+app.add_middleware(GZipMiddleware)
 # TODO: reduce origins to only the allowed ones
 app.add_middleware(
     CORSMiddleware,
@@ -57,7 +47,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(GZipMiddleware)
+
+@app.middleware("http")
+async def add_request_id_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+
+    response = await call_next(request)
+    response.headers["x-request-id"] = request_id
+    return response
 
 
 @app.exception_handler(BlueNaasError)

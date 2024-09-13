@@ -1,6 +1,6 @@
 """
 Simulation Routes
-will contains all simulation endpoints (single neuron, single neuron with synaptome)
+contains the single neuron simulation endpoint (single neuron, single neuron with synaptome)
 """
 
 from typing import List
