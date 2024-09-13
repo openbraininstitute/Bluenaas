@@ -2,8 +2,10 @@
 
 from enum import Enum
 import os
+from pathlib import Path
 from typing import List, NamedTuple
 from bluenaas.core.exceptions import SimulationError, SynapseGenerationError
+from filelock import FileLock
 from loguru import logger
 import pandas  # type: ignore
 import requests
@@ -63,23 +65,16 @@ class Model:
 
         model_uuid = nexus_helper.get_model_uuid()
 
-        path_exists = os.path.exists("/opt/blue-naas")
-        model_path = locate_model(model_uuid)
-
-        if path_exists is True and model_path is not None:
-            self.CELL = HocCell(
-                model_uuid,
-                threshold_current,
-                self.holding_current
-                if self.holding_current is not None
-                else holding_current,
-            )
-            return True
-
-        nexus_helper.download_model()
-        logger.debug(
-            f"loading model {model_uuid}",
+        model_path = (
+            locate_model(model_uuid) or Path("/opt/blue-naas/models") / model_uuid
         )
+        lock = FileLock(f"{model_path/'dir.lock'}")
+
+        with lock.acquire(timeout=2 * 60):
+            done_file = model_path / "done"
+            if not done_file.exists():
+                nexus_helper.download_model()
+                done_file.touch()
 
         self.CELL = HocCell(
             model_uuid=model_uuid,
