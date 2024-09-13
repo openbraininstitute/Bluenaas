@@ -30,6 +30,7 @@ def _generate_synpases(
     try:
         model = model_factory(
             model_id=model_id,
+            hyamp=None,
             bearer_token=token,
         )
 
