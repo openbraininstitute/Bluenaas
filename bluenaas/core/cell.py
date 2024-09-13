@@ -9,7 +9,6 @@ from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
 )
-from bluenaas.domains.simulation import RecordingLocation
 from bluenaas.utils.util import (
     compile_mechanisms,
     get_sec_name,
@@ -197,45 +196,17 @@ class BaseCell:
                 cell=self._cell,
                 current_injection=config.currentInjection,
                 recording_locations=config.recordFrom,
-                conditions=config.conditions,
+                experiment_setup=config.conditions,
                 simulation_duration=config.simulationDuration,
                 synapse_generation_config=synapse_generation_config,
                 simulation_queue=simulation_queue,
                 req_id=req_id,
             )
         except Exception as e:
-            import traceback
-
-            traceback.print_exc()
-            logger.error(
+            logger.exception(
                 f"Apply Generic Single Neuron Simulation error: {e}",
             )
             raise Exception(f"Apply Generic Single Neuron Simulation error: {e}") from e
-
-    def start_synaptome_simulation(
-        self,
-        template_params,
-        synapse_series,
-        recording_location: list[RecordingLocation],
-    ):
-        from bluenaas.core.synaptome_simulation import run_synaptome_simulation
-
-        try:
-            return run_synaptome_simulation(
-                template_params=template_params,
-                synapse_series=synapse_series,
-                recording_location=recording_location,
-            )
-        except Exception as e:
-            logger.error(
-                f"Apply Simulation error: {e}",
-            )
-            raise Exception(f"Apply Simulation error: {e}") from e
-
-    def stop_simulation(self):
-        """Stop simulation."""
-        logger.debug("stop simulation")
-        self._nrn.h.stoprun = 1
 
 
 class HocCell(BaseCell):

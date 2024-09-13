@@ -109,7 +109,7 @@ def get_single_morphology(
         )
 
     except Exception as ex:
-        logger.error(f"retrieving morphology data failed {ex}")
+        logger.exception(f"retrieving morphology data failed {ex}")
         raise BlueNaasError(
             http_status_code=status.INTERNAL_SERVER_ERROR,
             error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,

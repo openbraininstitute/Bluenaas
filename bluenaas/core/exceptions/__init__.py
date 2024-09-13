@@ -59,6 +59,15 @@ class SimulationError(Exception):
         return self.message
 
 
+class ChildSimulationError(Exception):
+    def __init__(self, message: str = "Child simulation failed") -> None:
+        self.message = message
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        return self.message
+
+
 class SynapseGenerationError(Exception):
     def __init__(self, message: str = "Synapse generation failed") -> None:
         self.message = message
