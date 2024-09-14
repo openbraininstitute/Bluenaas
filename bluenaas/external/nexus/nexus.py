@@ -270,7 +270,6 @@ class Nexus:
         return emodel_resource
 
     def download_model(self):
-        logger.debug("Getting model...")
         resource = self.fetch_resource_by_id(self.model_id)
         # could be E-Model or ME-Model
         emodel_resource = self.get_emodel_resource(resource)

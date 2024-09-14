@@ -75,14 +75,21 @@ class Model:
             if not done_file.exists():
                 nexus_helper.download_model()
                 done_file.touch()
-
-        self.CELL = HocCell(
-            model_uuid=model_uuid,
-            threshold_current=threshold_current,
-            holding_current=self.holding_current
-            if self.holding_current is not None
-            else holding_current,
-        )
+                self.CELL = HocCell(
+                    model_uuid=model_uuid,
+                    threshold_current=threshold_current,
+                    holding_current=self.holding_current
+                    if self.holding_current is not None
+                    else holding_current,
+                )
+            else:
+                self.CELL = HocCell(
+                    model_uuid=model_uuid,
+                    threshold_current=threshold_current,
+                    holding_current=self.holding_current
+                    if self.holding_current is not None
+                    else holding_current,
+                )
 
     def _generate_synapse(
         self, section_info: LocationData, seg_indices_to_include: list[int]
