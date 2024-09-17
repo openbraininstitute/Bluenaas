@@ -3,7 +3,7 @@
 from enum import Enum
 import os
 from typing import List, NamedTuple
-from bluenaas.core.exceptions import SynapseGenerationError
+from bluenaas.core.exceptions import SimulationError, SynapseGenerationError
 from loguru import logger
 import pandas  # type: ignore
 import requests
@@ -40,7 +40,7 @@ SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
 
 SynapseType = Enum("SynapseType", "GABAAB AMPANMDA GLUSYNAPSE")
 defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
-MAXIMUM_ALLOWED_SYNAPSES = 20_000
+MAXIMUM_ALLOWED_SYNAPSES = 20
 
 
 class Model:
@@ -292,6 +292,12 @@ class Model:
                 section_info.distance_from_soma,
                 section_info.sec_length,
             )
+
+            total_synapses = len(synapse_series) + (synapse_count or 0)
+            if total_synapses > MAXIMUM_ALLOWED_SYNAPSES:
+                raise SimulationError(
+                    f"Simulation cannot have more than {MAXIMUM_ALLOWED_SYNAPSES} synapses per synapse set."
+                )
 
             for _ in range(synapse_count):
                 synapse_id = int(f"{len(synapse_series)}{offset}")
