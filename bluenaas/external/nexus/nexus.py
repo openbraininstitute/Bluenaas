@@ -293,7 +293,6 @@ class Nexus:
 
     def get_currents(self):
         resource = self.fetch_resource_by_id(self.model_id)
-        logger.info(f"@@ resource: {resource}")
         # TODO: this should be the right way to do it when analysis is ready
         # With the changes to ME-model shape
         # if (
