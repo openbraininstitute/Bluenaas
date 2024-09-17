@@ -6,7 +6,12 @@ from http import HTTPStatus as status
 from fastapi.responses import StreamingResponse
 from queue import Empty as QueueEmptyException
 
-from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode, SimulationError
+from bluenaas.core.exceptions import (
+    BlueNaasError,
+    BlueNaasErrorCode,
+    BlueNaasErrorResponse,
+    SimulationError,
+)
 from bluenaas.core.model import fetch_synaptome_model_details
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import SingleNeuronSimulationConfig
@@ -66,7 +71,10 @@ def _init_simulation(
             simulation_queue=simulation_queue,
             req_id=req_id,
         )
-
+    except SimulationError as ex:
+        simulation_queue.put(ex)
+        simulation_queue.put(QUEUE_STOP_EVENT)
+        raise ex
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
         raise SimulationError from ex
@@ -96,6 +104,7 @@ def execute_single_neuron_simulation(
             name=f"simulation_processor:{req_id}",
         )
         _process.start()
+        simulation_status = status.OK
 
         def queue_streamify():
             while True:
@@ -111,6 +120,17 @@ def execute_single_neuron_simulation(
                             "Process is not alive and simulation queue is empty"
                         )
                         raise Exception("Child process died unexpectedly")
+                if isinstance(record, SimulationError):
+                    nonlocal simulation_status
+                    simulation_status = status.BAD_REQUEST
+                    yield f"{json.dumps(
+                        {
+                            "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
+                            "message": "Simulation failed",
+                            "details": record.__str__(),
+                        }
+                    )}\n"
+                    break
                 if record == QUEUE_STOP_EVENT:
                     break
 
@@ -133,9 +153,9 @@ def execute_single_neuron_simulation(
 
         return StreamingResponse(
             queue_streamify(),
+            status_code=simulation_status,
             media_type="application/octet-stream",
         )
-
     except Exception as ex:
         logger.exception(f"running simulation failed {ex}")
         raise BlueNaasError(
