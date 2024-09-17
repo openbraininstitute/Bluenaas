@@ -39,7 +39,6 @@ def _generate_synpases(
         queue.put(QUEUE_STOP_EVENT)
     except SynapseGenerationError as ex:
         queue.put(ex)
-        queue.put(QUEUE_STOP_EVENT)
     except Exception as ex:
         logger.exception(f"Synapses generator error: {ex}")
         raise SynapseGenerationError from ex
@@ -89,7 +88,7 @@ def generate_synapses_placement(
     except SynapseGenerationError as ex:
         raise BlueNaasError(
             http_status_code=status.BAD_REQUEST,
-            error_code=BlueNaasErrorCode.SYNAPSE_GENERATION_ERROR,
+            error_code=BlueNaasErrorCode.SYNAPSE_PLACEMENT_ERROR,
             message="generating synapses placement failed",
             details=ex.__str__(),
         ) from ex
