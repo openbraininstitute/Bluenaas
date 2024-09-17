@@ -23,7 +23,7 @@ class ExperimentSetupConfig(BaseModel):
     celsius: float
     vinit: float
     hypamp: float
-    max_time: float
+    max_time: Annotated[float, Field(le=3000)]
     time_step: float
     seed: int
 
@@ -31,7 +31,7 @@ class ExperimentSetupConfig(BaseModel):
 class SynapseSimulationConfig(BaseModel):
     id: str
     delay: int
-    duration: int
+    duration: Annotated[int, Field(le=3000)]
     frequency: PositiveInt
     weightScalar: int
 
