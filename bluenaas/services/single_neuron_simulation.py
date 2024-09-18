@@ -104,7 +104,6 @@ def execute_single_neuron_simulation(
             name=f"simulation_processor:{req_id}",
         )
         _process.start()
-        simulation_status = status.OK
 
         def queue_streamify():
             while True:
@@ -121,8 +120,6 @@ def execute_single_neuron_simulation(
                         )
                         raise Exception("Child process died unexpectedly")
                 if isinstance(record, SimulationError):
-                    nonlocal simulation_status
-                    simulation_status = status.BAD_REQUEST
                     yield f"{json.dumps(
                         {
                             "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
@@ -153,7 +150,6 @@ def execute_single_neuron_simulation(
 
         return StreamingResponse(
             queue_streamify(),
-            status_code=simulation_status,
             media_type="application/octet-stream",
         )
     except Exception as ex:

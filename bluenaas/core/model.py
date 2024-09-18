@@ -40,7 +40,7 @@ SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
 
 SynapseType = Enum("SynapseType", "GABAAB AMPANMDA GLUSYNAPSE")
 defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
-MAXIMUM_ALLOWED_SYNAPSES = 20
+MAXIMUM_ALLOWED_SYNAPSES = 20_000
 
 
 class Model:
