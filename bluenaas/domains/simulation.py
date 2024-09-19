@@ -1,12 +1,23 @@
 from typing import Annotated, List, Literal, Optional
 from annotated_types import Len
-from pydantic import BaseModel, Field, PositiveInt
+from pydantic import BaseModel, Field, PositiveInt, field_validator
 
 
 class SimulationStimulusConfig(BaseModel):
     stimulusType: Literal["current_clamp", "voltage_clamp", "conductance"]
     stimulusProtocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
-    amplitudes: Annotated[list[float], Len(min_length=1, max_length=15)]
+    amplitudes: list[float] | float
+
+    @field_validator("amplitudes")
+    @classmethod
+    def validate_amplitudes(cls, value):
+        if isinstance(value, list):
+            if len(value) < 1 or len(value) > 15:
+                raise ValueError(
+                    "Amplitude length should be between 1 and 15 (inclusive)"
+                )
+
+        return value
 
 
 class RecordingLocation(BaseModel):
@@ -32,7 +43,7 @@ class SynapseSimulationConfig(BaseModel):
     id: str
     delay: int
     duration: Annotated[int, Field(le=3000)]
-    frequency: PositiveInt
+    frequency: PositiveInt | list[PositiveInt]
     weightScalar: int
 
 
@@ -45,12 +56,37 @@ SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
 
 
 class SingleNeuronSimulationConfig(BaseModel):
+    synapses: list[SynapseSimulationConfig] | None = None
     currentInjection: CurrentInjectionConfig
     recordFrom: list[RecordingLocation]
     conditions: ExperimentSetupConfig
-    synapses: list[SynapseSimulationConfig] | None = None
     type: SimulationType
     simulationDuration: int
+
+    @field_validator("currentInjection")
+    @classmethod
+    def validate_amplitudes(cls, value, simulation):
+        stuff = simulation.data
+        print(f"simulation_config {simulation}")
+
+        if isinstance(value.stimulus.amplitudes, list):
+            synapses = stuff.get("synapses") or []
+            for synapse in synapses:
+                if isinstance(synapse.frequency, list):
+                    raise ValueError(
+                        "Amplitude should be a constant float if frequency is a list"
+                    )
+        elif isinstance(value.stimulus.amplitudes, float):
+            synapses = stuff.get("synapses") or []
+            synapses_with_variable_frequencies = [
+                synapse for synapse in synapses if isinstance(synapse.frequency, list)
+            ]
+            if len(synapses_with_variable_frequencies) != 1:
+                raise ValueError(
+                    f"There should be exactly one synapse with variable frequencies when amplitude is constant. Current synapses with variable frequencies: {len(synapses_with_variable_frequencies)}"
+                )
+
+        return value
 
 
 class StimulationPlotConfig(BaseModel):

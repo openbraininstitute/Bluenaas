@@ -182,7 +182,7 @@ class BaseCell:
 
         return protocol_mapping[protocol_name]
 
-    def start_simulation(
+    def start_current_varying_simulation(
         self,
         config: SingleNeuronSimulationConfig,
         synapse_generation_config: list[SynapseSeries] | None,
@@ -199,6 +199,32 @@ class BaseCell:
                 experiment_setup=config.conditions,
                 simulation_duration=config.simulationDuration,
                 synapse_generation_config=synapse_generation_config,
+                simulation_queue=simulation_queue,
+                req_id=req_id,
+            )
+        except Exception as e:
+            logger.exception(
+                f"Apply Generic Single Neuron Simulation error: {e}",
+            )
+            raise Exception(f"Apply Generic Single Neuron Simulation error: {e}") from e
+
+    def start_frequency_varying_simulation(
+        self,
+        config: SingleNeuronSimulationConfig,
+        frequency_to_synapse_series: dict[int, list[SynapseSeries]],
+        simulation_queue: mp.Queue,
+        req_id: str,
+    ):
+        from bluenaas.core.stimulation import apply_multiple_frequency
+
+        try:
+            apply_multiple_frequency(
+                cell=self._cell,
+                current_injection=config.currentInjection,
+                recording_locations=config.recordFrom,
+                experiment_setup=config.conditions,
+                simulation_duration=config.simulationDuration,
+                frequency_to_synapse_series=frequency_to_synapse_series,
                 simulation_queue=simulation_queue,
                 req_id=req_id,
             )
