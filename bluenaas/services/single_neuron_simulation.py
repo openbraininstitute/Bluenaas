@@ -9,7 +9,6 @@ from queue import Empty as QueueEmptyException
 from bluenaas.core.exceptions import (
     BlueNaasError,
     BlueNaasErrorCode,
-    BlueNaasErrorResponse,
     SimulationError,
 )
 from bluenaas.core.model import fetch_synaptome_model_details
@@ -18,7 +17,7 @@ from bluenaas.domains.simulation import SingleNeuronSimulationConfig
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
-def _init_simulation(
+def _init_current_varying_simulation(
     model_id: str,
     token: str,
     config: SingleNeuronSimulationConfig,
@@ -65,7 +64,7 @@ def _init_simulation(
 
             synapse_generation_config = list(chain.from_iterable(synapse_settings))
 
-        model.CELL.start_simulation(
+        model.CELL.start_current_varying_simulation(
             config=config,
             synapse_generation_config=synapse_generation_config,
             simulation_queue=simulation_queue,
@@ -82,6 +81,99 @@ def _init_simulation(
         logger.info("Simulation executor ended")
 
 
+def _init_frequency_varying_simulation(
+    model_id: str,
+    token: str,
+    config: SingleNeuronSimulationConfig,
+    simulation_queue: mp.Queue,
+    req_id: str,
+):
+    from bluenaas.core.model import model_factory
+
+    try:
+        me_model_id = model_id
+        frequency_to_synapse_series: dict[int, list[SynapseSeries]] = {}
+
+        synaptome_details = fetch_synaptome_model_details(
+            synaptome_self=model_id, bearer_token=token
+        )
+        me_model_id = synaptome_details.base_model_self
+
+        model = model_factory(
+            model_id=me_model_id,
+            hyamp=config.conditions.hypamp,
+            bearer_token=token,
+        )
+
+        for index, synapse_sim_config in enumerate(config.synapses):  # type: ignore
+            synapse_placement_config = [
+                config
+                for config in synaptome_details.synaptome_placement_config.config
+                if synapse_sim_config.id == config.id
+            ][0]
+
+            frequencies = (
+                synapse_sim_config.frequency
+                if isinstance(synapse_sim_config.frequency, list)
+                else [synapse_sim_config.frequency]
+            )
+
+            for frequency in frequencies:
+                current_series_for_frequence = (
+                    frequency_to_synapse_series[frequency]
+                    if frequency in frequency_to_synapse_series
+                    else []
+                )
+
+                # 3. Get "pandas.Series" for each synapse
+                synapses_per_grp = model.get_synapse_series(
+                    synapse_placement_config=synapse_placement_config,
+                    synapse_simulation_config=synapse_sim_config,
+                    offset=index,
+                )
+
+                current_series_for_frequence.extend(synapses_per_grp)
+                frequency_to_synapse_series[frequency] = current_series_for_frequence
+
+        for frequency in frequency_to_synapse_series:
+            logger.debug(
+                f"Constructed {len(frequency_to_synapse_series[frequency])} synapse series for frequency {frequency}"
+            )
+
+        model.CELL.start_frequency_varying_simulation(
+            config=config,
+            frequency_to_synapse_series=frequency_to_synapse_series,
+            simulation_queue=simulation_queue,
+            req_id=req_id,
+        )
+    except SimulationError as ex:
+        simulation_queue.put(ex)
+        simulation_queue.put(QUEUE_STOP_EVENT)
+        raise ex
+    except Exception as ex:
+        logger.exception(f"Simulation executor error: {ex}")
+        raise SimulationError from ex
+    finally:
+        logger.info("Simulation executor ended")
+
+
+def is_current_varying_simulation(config: SingleNeuronSimulationConfig) -> bool:
+    if config.type == "single-neuron-simulation" or config.synapses is None:
+        return True
+
+    synapse_set_with_multiple_frequency = [
+        synapse_set
+        for synapse_set in config.synapses
+        if isinstance(synapse_set.frequency, list)
+    ]
+    if len(synapse_set_with_multiple_frequency) > 0:
+        # TODO: This assertion should be at pydantic model level
+        assert not isinstance(config.currentInjection.stimulus.amplitudes, list)
+        return False
+
+    return True
+
+
 def execute_single_neuron_simulation(
     model_id: str,
     token: str,
@@ -92,8 +184,11 @@ def execute_single_neuron_simulation(
         ctx = mp.get_context("spawn")
         simulation_queue = ctx.Queue()
 
+        is_current_varying = is_current_varying_simulation(config)
         _process = ctx.Process(
-            target=_init_simulation,
+            target=_init_current_varying_simulation
+            if is_current_varying
+            else _init_frequency_varying_simulation,
             args=(
                 model_id,
                 token,
@@ -131,20 +226,38 @@ def execute_single_neuron_simulation(
                 if record == QUEUE_STOP_EVENT:
                     break
 
-                (stimulus_name, recording_name, amplitude, recording) = record
+                if is_current_varying:
+                    (stimulus_name, recording_name, amplitude, recording) = record
 
-                logger.info(
-                    f"[R/S --> {recording_name}/{stimulus_name}]",
-                )
-                yield f"{json.dumps(
-                    {
-                        "amplitude": amplitude,
-                        "stimulus_name": stimulus_name,
-                        "recording_name": recording_name,
-                        "t": list(recording.time),
-                        "v": list(recording.voltage),
-                    }
-                )}\n"
+                    logger.info(
+                        f"[R/S --> {recording_name}/{stimulus_name}]",
+                    )
+                    yield f"{json.dumps(
+                        {
+                            "amplitude": amplitude,
+                            "stimulus_name": stimulus_name,
+                            "recording_name": recording_name,
+                            "t": list(recording.time),
+                            "v": list(recording.voltage),
+                        }
+                    )}\n"
+                else:
+                    (stimulus_name, recording_name, amplitude, frequency, recording) = (
+                        record
+                    )
+                    logger.info(
+                        f"[R/S --> {recording_name}]",
+                    )
+                    yield f"{json.dumps(
+                        {
+                            "amplitude": amplitude,
+                            "frequency": frequency,
+                            "stimulus_name": stimulus_name,
+                            "recording_name": recording_name,
+                            "t": list(recording.time),
+                            "v": list(recording.voltage),
+                        }
+                    )}\n"
 
             logger.info(f"Simulation {req_id} completed")
 

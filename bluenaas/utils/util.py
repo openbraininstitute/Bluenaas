@@ -442,8 +442,9 @@ def project_vector(v1: np.ndarray, v2: np.ndarray) -> np.ndarray:
     return projection_vector
 
 
-def generate_pre_spiketrain(syn_input_config: SynapseSimulationConfig) -> np.array:
-    frequency = syn_input_config.frequency
+def generate_pre_spiketrain(
+    syn_input_config: SynapseSimulationConfig, frequency: int
+) -> np.array:
     duration = syn_input_config.duration
     delay = syn_input_config.delay
 
