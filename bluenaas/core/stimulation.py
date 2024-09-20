@@ -93,7 +93,7 @@ def _add_single_synapse(
     cell,
     synapse: SynapseSeries,
     experimental_setup: ExperimentSetupConfig,
-    frequency: int,
+    frequency: float,
 ):
     from bluecellulab.circuit.config.sections import Conditions  # type: ignore
     from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
@@ -294,7 +294,7 @@ def _prepare_stimulation_parameters_by_frequency(
     cell,
     current_injection: CurrentInjectionConfig | None,
     recording_locations: list[RecordingLocation],
-    frequency_to_synapse_series: dict[int, list[SynapseSeries]],
+    frequency_to_synapse_series: dict[float, list[SynapseSeries]],
     conditions: ExperimentSetupConfig,
     simulation_duration: int,
     simulation_queue: mp.Queue,
@@ -414,7 +414,7 @@ def _run_current_varying_stimulus(
     if synapse_generation_config is not None:
         for synapse in synapse_generation_config:
             # Frequency should be constant in current varying simulation
-            assert isinstance(synapse["synapseSimulationConfig"].frequency, int)
+            assert isinstance(synapse["synapseSimulationConfig"].frequency, float)
             _add_single_synapse(
                 cell=cell,
                 synapse=synapse,
@@ -517,7 +517,7 @@ def _run_frequency_varying_stimulus(
     simulation_queue: mp.Queue,
     stimulus_name: StimulusName,
     amplitude: float,
-    frequency: int,
+    frequency: float,
     cvode: bool = True,
     add_hypamp: bool = True,
 ):
@@ -608,7 +608,7 @@ def _run_frequency_varying_stimulus(
         for loc in recording_locations:
             sec, seg = cell.sections[loc.section], loc.offset
             cell_section = f"{loc.section}_{seg}"
-            stim_label = f"{stimulus_name.name}_{amplitude}"
+            stim_label = f"Frequency_{frequency}"
 
             voltage = cell.get_voltage_recording(sec, seg)
             time = cell.get_time()
@@ -722,7 +722,7 @@ def apply_multiple_frequency(
     recording_locations: list[RecordingLocation],
     experiment_setup: ExperimentSetupConfig,
     simulation_duration: int,
-    frequency_to_synapse_series: dict[int, list[SynapseSeries]],
+    frequency_to_synapse_series: dict[float, list[SynapseSeries]],
     simulation_queue: mp.Queue,
     req_id: str,
 ):

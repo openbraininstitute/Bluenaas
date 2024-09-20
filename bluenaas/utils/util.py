@@ -443,7 +443,7 @@ def project_vector(v1: np.ndarray, v2: np.ndarray) -> np.ndarray:
 
 
 def generate_pre_spiketrain(
-    syn_input_config: SynapseSimulationConfig, frequency: int
+    syn_input_config: SynapseSimulationConfig, frequency: float
 ) -> np.array:
     duration = syn_input_config.duration
     delay = syn_input_config.delay
