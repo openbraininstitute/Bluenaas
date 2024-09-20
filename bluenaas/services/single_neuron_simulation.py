@@ -92,7 +92,7 @@ def _init_frequency_varying_simulation(
 
     try:
         me_model_id = model_id
-        frequency_to_synapse_series: dict[int, list[SynapseSeries]] = {}
+        frequency_to_synapse_series: dict[float, list[SynapseSeries]] = {}
 
         synaptome_details = fetch_synaptome_model_details(
             synaptome_self=model_id, bearer_token=token
@@ -246,7 +246,7 @@ def execute_single_neuron_simulation(
                         record
                     )
                     logger.info(
-                        f"[R/S --> {recording_name}]",
+                        f"[R/S --> {recording_name}/{stimulus_name}]",
                     )
                     yield f"{json.dumps(
                         {
