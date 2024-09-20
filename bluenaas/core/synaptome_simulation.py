@@ -76,8 +76,6 @@ def run_synaptome_simulation(
         section=recording_section,
         segx=recording_segment,
     )
-    print("Time", time)
-    print("Voltage", voltage)
 
     if len(time) != len(voltage):
         raise ValueError("Time and voltage arrays are not the same length")

@@ -211,7 +211,7 @@ class BaseCell:
     def start_frequency_varying_simulation(
         self,
         config: SingleNeuronSimulationConfig,
-        frequency_to_synapse_series: dict[int, list[SynapseSeries]],
+        frequency_to_synapse_series: dict[float, list[SynapseSeries]],
         simulation_queue: mp.Queue,
         req_id: str,
     ):

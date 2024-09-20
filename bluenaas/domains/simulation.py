@@ -1,6 +1,6 @@
 from typing import Annotated, List, Literal, Optional
 from annotated_types import Len
-from pydantic import BaseModel, Field, PositiveInt, field_validator
+from pydantic import BaseModel, Field, PositiveFloat, field_validator
 
 
 class SimulationStimulusConfig(BaseModel):
@@ -43,7 +43,7 @@ class SynapseSimulationConfig(BaseModel):
     id: str
     delay: int
     duration: Annotated[int, Field(le=3000)]
-    frequency: PositiveInt | list[PositiveInt]
+    frequency: PositiveFloat | list[PositiveFloat]
     weightScalar: int
 
 
