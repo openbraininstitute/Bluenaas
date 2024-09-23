@@ -44,7 +44,7 @@ class SynapseSimulationConfig(BaseModel):
     delay: int
     duration: Annotated[int, Field(le=3000)]
     frequency: PositiveFloat | list[PositiveFloat]
-    weightScalar: int
+    weightScalar: PositiveFloat
 
 
 class SimulationWithSynapseBody(BaseModel):
