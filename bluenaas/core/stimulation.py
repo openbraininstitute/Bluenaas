@@ -144,7 +144,7 @@ def _prepare_stimulation_parameters_by_current(
     conditions: ExperimentSetupConfig,
     simulation_duration: int,
     simulation_queue: mp.Queue,
-    threshold_based: bool = True,
+    threshold_based: bool = False,
     injection_segment: float = 0.5,
     cvode: bool = True,
     add_hypamp: bool = True,
