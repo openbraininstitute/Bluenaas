@@ -47,7 +47,9 @@ def _build_morphology(
 
     except Exception as ex:
         logger.exception(f"Morphology builder error: {ex}")
-        raise MorphologyGenerationError from ex
+        exception = MorphologyGenerationError(ex.__str__())
+        queue.put(exception)
+        queue.put(QUEUE_STOP_EVENT)
     finally:
         logger.debug("Morphology builder ended")
 
@@ -95,6 +97,15 @@ def get_single_morphology(
                         continue
                     else:
                         raise Exception("Child process died unexpectedly")
+                if isinstance(q_result, MorphologyGenerationError):
+                    yield f"{json.dumps(
+                        {
+                            "error_code": BlueNaasErrorCode.MORPHOLOGY_GENERATION_ERROR,
+                            "message": "Morphology generation failed",
+                            "details": q_result.__str__(),
+                        }
+                    )}\n"
+                    break
                 if q_result == QUEUE_STOP_EVENT or stop_event.is_set():
                     break
 
