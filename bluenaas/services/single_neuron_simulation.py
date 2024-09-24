@@ -244,6 +244,7 @@ def _init_frequency_varying_simulation(
             req_id=req_id,
         )
     except SimulationError as ex:
+        logger.exception(f"Simulation executor error: {ex}")
         simulation_queue.put(ex)
         simulation_queue.put(QUEUE_STOP_EVENT)
         raise ex
