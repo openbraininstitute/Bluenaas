@@ -1,6 +1,7 @@
 """Nexus module."""
 
 import zipfile
+import os
 from pathlib import Path
 from urllib.parse import quote_plus, unquote
 from loguru import logger
@@ -15,6 +16,9 @@ model_dir = Path("/opt/blue-naas/") / "models"
 defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
 
 HOC_FORMAT = ["application/x-neuron-hoc", "application/hoc"]
+
+def opener(path, flags):
+    return os.open(path, flags, 0o777)
 
 
 def extract_org_project_from_id(url) -> dict[str, str | None]:
@@ -225,12 +229,12 @@ class Nexus:
                 )
 
     def create_file(self, path, content):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o777)
+        with open(path, "w", encoding="utf-8", opener=opener) as f:
             f.write(content)
 
     def copy_file_content(self, source_file: Path, target_file: Path):
-        with open(source_file, "r") as src, open(target_file, "w") as dst:
+        with open(source_file, "r") as src, open(target_file, "w", opener=opener) as dst:
             dst.write(src.read())
 
     def create_model_folder(self, hoc_file, morphology_obj, mechanisms):
