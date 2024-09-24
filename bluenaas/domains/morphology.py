@@ -137,5 +137,6 @@ SynapseSeries = TypedDict(
         "series": pandas.Series,
         "directCurrentConfig": CurrentInjectionConfig,
         "synapseSimulationConfig": SynapseSimulationConfig,
+        "frequencies_to_apply": list[float],
     },
 )

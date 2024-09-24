@@ -13,8 +13,15 @@ from bluenaas.core.exceptions import (
     SimulationError,
 )
 from bluenaas.core.model import fetch_synaptome_model_details
-from bluenaas.domains.morphology import SynapseSeries
-from bluenaas.domains.simulation import SingleNeuronSimulationConfig
+from bluenaas.domains.morphology import (
+    SynapseConfig,
+    SynapseSeries,
+    SynapsesPlacementConfig,
+)
+from bluenaas.domains.simulation import (
+    SingleNeuronSimulationConfig,
+    SynapseSimulationConfig,
+)
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
@@ -55,10 +62,12 @@ def _init_current_varying_simulation(
                     if synapse_sim_config.id == config.id
                 ][0]
 
+                assert not isinstance(synapse_sim_config.frequency, list)
                 synapses_per_grp = model.get_synapse_series(
                     synapse_placement_config=synapse_placement_config,
                     synapse_simulation_config=synapse_sim_config,
                     offset=index,
+                    frequencies_to_apply=[synapse_sim_config.frequency],
                 )
 
                 synapse_settings.append(synapses_per_grp)
@@ -82,6 +91,43 @@ def _init_current_varying_simulation(
         logger.info("Simulation executor ended")
 
 
+def get_constant_frequencies_for_sim_id(
+    synapse_set_id: str, constant_frequency_sim_configs: list[SynapseSimulationConfig]
+):
+    constant_frequencies: list[float] = []
+    for sim_config in constant_frequency_sim_configs:
+        if sim_config.id == synapse_set_id and not isinstance(
+            sim_config.frequency, list
+        ):
+            constant_frequencies.append(sim_config.frequency)
+
+    return constant_frequencies
+
+
+def get_synapse_placement_config(
+    sim_id: str, placement_configs: SynapsesPlacementConfig
+) -> SynapseConfig:
+    for placement_config in placement_configs.config:
+        if placement_config.id == sim_id:
+            return placement_config
+
+    raise Exception(f"No synaptome placement config was found with id {sim_id}")
+
+
+def get_sim_configs_by_synapse_id(
+    sim_configs: list[SynapseSimulationConfig],
+) -> dict[str, list[SynapseSimulationConfig]]:
+    sim_id_to_sim_configs: dict[str, list[SynapseSimulationConfig]] = {}
+
+    for sim_config in sim_configs:
+        if sim_config.id in sim_id_to_sim_configs:
+            sim_id_to_sim_configs[sim_config.id].append(sim_config)
+        else:
+            sim_id_to_sim_configs[sim_config.id] = [sim_config]
+
+    return sim_id_to_sim_configs
+
+
 def _init_frequency_varying_simulation(
     model_id: str,
     token: str,
@@ -93,8 +139,6 @@ def _init_frequency_varying_simulation(
 
     try:
         me_model_id = model_id
-        frequency_to_synapse_series: dict[float, list[SynapseSeries]] = {}
-
         synaptome_details = fetch_synaptome_model_details(
             synaptome_self=model_id, bearer_token=token
         )
@@ -105,45 +149,95 @@ def _init_frequency_varying_simulation(
             hyamp=config.conditions.hypamp,
             bearer_token=token,
         )
+        assert config.synapses is not None
 
-        for index, synapse_sim_config in enumerate(config.synapses):  # type: ignore
-            synapse_placement_config = [
-                config
-                for config in synaptome_details.synaptome_placement_config.config
-                if synapse_sim_config.id == config.id
-            ][0]
+        variable_frequency_sim_configs: list[SynapseSimulationConfig] = []
+        constant_frequency_sim_configs: list[SynapseSimulationConfig] = []
 
-            frequencies = (
-                synapse_sim_config.frequency
-                if isinstance(synapse_sim_config.frequency, list)
-                else [synapse_sim_config.frequency]
+        # Split all incoming simulation configs into constant frequency or variable frequency sim configs
+        for syn_sim_config in config.synapses:
+            if isinstance(syn_sim_config.frequency, list):
+                variable_frequency_sim_configs.append(syn_sim_config)
+            else:
+                constant_frequency_sim_configs.append(syn_sim_config)
+
+        frequency_to_synapse_settings: dict[float, list[SynapseSeries]] = {}
+
+        offset = 0
+        for variable_frequency_sim_config in variable_frequency_sim_configs:
+            synapse_placement_config = get_synapse_placement_config(
+                variable_frequency_sim_config.id,
+                synaptome_details.synaptome_placement_config,
             )
 
-            for frequency in frequencies:
-                current_series_for_frequence = (
-                    frequency_to_synapse_series[frequency]
-                    if frequency in frequency_to_synapse_series
-                    else []
+            for frequency in variable_frequency_sim_config.frequency:
+                frequency_to_synapse_settings[frequency] = []
+
+                frequencies_to_apply = get_constant_frequencies_for_sim_id(
+                    variable_frequency_sim_config.id, constant_frequency_sim_configs
+                )
+                frequencies_to_apply.append(frequency)
+
+                # First, add synapse_series for sim_config with this variable frequency
+                frequency_to_synapse_settings[frequency].extend(
+                    model.get_synapse_series(
+                        synapse_placement_config,
+                        variable_frequency_sim_config,
+                        offset,
+                        frequencies_to_apply,
+                    )
+                )
+                offset += 1
+
+                sim_id_to_configs = get_sim_configs_by_synapse_id(
+                    constant_frequency_sim_configs
                 )
 
-                # 3. Get "pandas.Series" for each synapse
-                synapses_per_grp = model.get_synapse_series(
-                    synapse_placement_config=synapse_placement_config,
-                    synapse_simulation_config=synapse_sim_config,
-                    offset=index,
-                )
+                # Second, add synapse series for other sim configs of same synapse_set, but which have constant frequencies
+                if variable_frequency_sim_config.id in sim_id_to_configs:
+                    for sim_config in sim_id_to_configs[
+                        variable_frequency_sim_config.id
+                    ]:
+                        frequency_to_synapse_settings[frequency].extend(
+                            model.get_synapse_series(
+                                synapse_placement_config,
+                                sim_config,
+                                offset,
+                                frequencies_to_apply,
+                            )
+                        )
+                        offset += 1
+                sim_id_to_configs.pop(variable_frequency_sim_config.id)
 
-                current_series_for_frequence.extend(synapses_per_grp)
-                frequency_to_synapse_series[frequency] = current_series_for_frequence
+                # Finally, add synapse series for all other sim configs from different synapse_sets (these should have constant frequencies)
+                for index, sim_id in enumerate(sim_id_to_configs):
+                    sim_configs_for_set = sim_id_to_configs[sim_id]
+                    constant_frequencies_for_set = get_constant_frequencies_for_sim_id(
+                        sim_id, sim_configs_for_set
+                    )
+                    placement_config_for_set = get_synapse_placement_config(
+                        sim_id, synaptome_details.synaptome_placement_config
+                    )
 
-        for frequency in frequency_to_synapse_series:
+                    for sim_config in sim_configs_for_set:
+                        frequency_to_synapse_settings[frequency].extend(
+                            model.get_synapse_series(
+                                placement_config_for_set,
+                                sim_config,
+                                offset,
+                                constant_frequencies_for_set,
+                            )
+                        )
+                        offset += 1
+
+        for frequency in frequency_to_synapse_settings:
             logger.debug(
-                f"Constructed {len(frequency_to_synapse_series[frequency])} synapse series for frequency {frequency}"
+                f"Constructed {len(frequency_to_synapse_settings[frequency])} synapse series for frequency {frequency}"
             )
 
         model.CELL.start_frequency_varying_simulation(
             config=config,
-            frequency_to_synapse_series=frequency_to_synapse_series,
+            frequency_to_synapse_series=frequency_to_synapse_settings,
             simulation_queue=simulation_queue,
             req_id=req_id,
         )
