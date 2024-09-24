@@ -1,8 +1,6 @@
 """Model"""
 
 from enum import Enum
-import os
-from pathlib import Path
 from typing import List, NamedTuple
 from bluenaas.core.exceptions import SimulationError, SynapseGenerationError
 from filelock import FileLock
@@ -29,7 +27,7 @@ from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.utils.util import (
     get_sections,
     get_segments_satisfying_all_exclusion_rules,
-    locate_model,
+    get_model_path,
     perpendicular_vector,
     point_between_vectors,
     set_vector_length,
@@ -65,9 +63,7 @@ class Model:
 
         model_uuid = nexus_helper.get_model_uuid()
 
-        model_path = (
-            locate_model(model_uuid) or Path("/opt/blue-naas/models") / model_uuid
-        )
+        model_path = get_model_path(model_uuid)
         lock = FileLock(f"{model_path/'dir.lock'}")
 
         with lock.acquire(timeout=2 * 60):
