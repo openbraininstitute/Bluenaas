@@ -17,8 +17,10 @@ defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-mode
 
 HOC_FORMAT = ["application/x-neuron-hoc", "application/hoc"]
 
+RWX_TO_ALL = 0o777
+
 def opener(path, flags):
-    return os.open(path, flags, 0o777)
+    return os.open(path, flags, RWX_TO_ALL)
 
 
 def extract_org_project_from_id(url) -> dict[str, str | None]:
@@ -229,7 +231,7 @@ class Nexus:
                 )
 
     def create_file(self, path, content):
-        path.parent.mkdir(parents=True, exist_ok=True, mode=0o777)
+        path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8", opener=opener) as f:
             f.write(content)
 
