@@ -426,9 +426,11 @@ def generate_pre_spiketrain(
         spike_times = np.cumsum(spiketrain_raw) + delay
         all_spike_times.append(spike_times)
 
-    # Concatenate all spike trains and sort the result
-    merged_spiketrain = np.sort(np.concatenate(all_spike_times))
+    if len(all_spike_times) == 0:
+        return np.array([])
 
+    # np.unique() will sort `all_spike_times` and return only unique times
+    merged_spiketrain = np.unique(np.concatenate(all_spike_times))
     return merged_spiketrain
 
 
