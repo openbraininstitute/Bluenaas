@@ -40,7 +40,7 @@ def locate_model(model_uuid) -> Path | None:
         pathlib.Path: path for the model folder or None if not found.
     """
     model_path = get_model_path(model_uuid)
-    
+
     return model_path if model_path.exists() else None
 
 
