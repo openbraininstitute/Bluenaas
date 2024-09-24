@@ -7,6 +7,7 @@ from loguru import logger
 import requests
 
 from bluenaas.config.settings import settings
+from bluenaas.utils.util import get_model_path
 
 HTTP_TIMEOUT = 10  # seconds
 
@@ -233,7 +234,8 @@ class Nexus:
             dst.write(src.read())
 
     def create_model_folder(self, hoc_file, morphology_obj, mechanisms):
-        output_dir = model_dir / self.model_uuid
+        output_dir = get_model_path(self.model_uuid)
+
         self.create_file(output_dir / "cell.hoc", hoc_file)
 
         morph_name = morphology_obj["name"]
