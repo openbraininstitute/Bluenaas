@@ -1,12 +1,14 @@
 """Nexus module."""
 
 import zipfile
+import os
 from pathlib import Path
 from urllib.parse import quote_plus, unquote
 from loguru import logger
 import requests
 
 from bluenaas.config.settings import settings
+from bluenaas.utils.util import get_model_path
 
 HTTP_TIMEOUT = 10  # seconds
 
@@ -14,6 +16,11 @@ model_dir = Path("/opt/blue-naas/") / "models"
 defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
 
 HOC_FORMAT = ["application/x-neuron-hoc", "application/hoc"]
+
+RWX_TO_ALL = 0o777
+
+def opener(path, flags):
+    return os.open(path, flags, RWX_TO_ALL)
 
 
 def extract_org_project_from_id(url) -> dict[str, str | None]:
@@ -225,15 +232,16 @@ class Nexus:
 
     def create_file(self, path, content):
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8", opener=opener) as f:
             f.write(content)
 
     def copy_file_content(self, source_file: Path, target_file: Path):
-        with open(source_file, "r") as src, open(target_file, "w") as dst:
+        with open(source_file, "r") as src, open(target_file, "w", opener=opener) as dst:
             dst.write(src.read())
 
     def create_model_folder(self, hoc_file, morphology_obj, mechanisms):
-        output_dir = model_dir / self.model_uuid
+        output_dir = get_model_path(self.model_uuid)
+
         self.create_file(output_dir / "cell.hoc", hoc_file)
 
         morph_name = morphology_obj["name"]
