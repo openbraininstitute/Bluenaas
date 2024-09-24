@@ -4,9 +4,6 @@ import json
 from random import randint
 import re
 import subprocess
-import tarfile
-import zipfile
-from io import BytesIO
 from pathlib import Path
 import numpy as np
 from loguru import logger as L
@@ -31,47 +28,20 @@ def is_spine(sec_name):
     return "spine" in sec_name
 
 
-def _extract_model(model_path):
-    """Extract xz model to tmp folder."""
-    with tarfile.open(model_path) as f:
-        f.extractall("/opt/blue-naas/tmp")
-    return next(Path("/opt/blue-naas/tmp").iterdir())
-
-
-def extract_zip_model(content, model_uuid):
-    """Extract zip model to models folder."""
-    with zipfile.ZipFile(BytesIO(content), "r") as zip_ref:
-        zip_ref.extractall(Path("/opt/blue-naas/models") / model_uuid)
-
-
-def model_exists(model_uuid):
-    """Check if model exists in the mounted volume."""
-    model_path = Path("/opt/blue-naas/models") / model_uuid
-    return model_path.exists()
+def get_model_path(model_uuid) -> Path:
+    """Get model path."""
+    return Path("/opt/blue-naas/models") / model_uuid[0] / model_uuid[1] / model_uuid
 
 
 def locate_model(model_uuid) -> Path | None:
-    """Locate model according to the priorities.
-
-    First will look-up in models folder, then in the tmp folder, where unzipped models are going.
+    """Locate model.
 
     Returns:
-        pathlib.Path: path for the model
-
-    Raises:
-        Exception: if model not found
+        pathlib.Path: path for the model folder or None if not found.
     """
-    model_path = Path("/opt/blue-naas/models") / model_uuid
-    if model_path.suffixes == [".tar", ".xz"]:
-        return _extract_model(model_path)
-    if model_path.exists():
-        return model_path
-    model_path = (
-        Path("/opt/blue-naas/tmp") / model_uuid
-    )  # model catalog models go in here
-    if model_path.exists():
-        return model_path
-    return None
+    model_path = get_model_path(model_uuid)
+    
+    return model_path if model_path.exists() else None
 
 
 def compile_mechanisms(model_path, no_throw=False):
