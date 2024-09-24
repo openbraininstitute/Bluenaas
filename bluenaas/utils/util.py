@@ -413,24 +413,23 @@ def project_vector(v1: np.ndarray, v2: np.ndarray) -> np.ndarray:
 
 
 def generate_pre_spiketrain(
-    syn_input_config: SynapseSimulationConfig, frequency: float
+    duration: float, delay: float, frequencies: list[float]
 ) -> np.array:
-    duration = syn_input_config.duration
-    delay = syn_input_config.delay
+    all_spike_times = []
 
-    spike_interval = 1000 / frequency
-    spiketrain_size = int(round(float(duration) / 1000 * frequency))
-    spiketrain_raw = np.insert(
-        np.random.poisson(spike_interval, spiketrain_size)[:-1], 0, 0
-    )
-    return np.cumsum(spiketrain_raw) + delay
+    for frequency in frequencies:
+        spike_interval = 1000 / frequency
+        spiketrain_size = int(round(float(duration) / 1000 * frequency))
+        spiketrain_raw = np.insert(
+            np.random.poisson(spike_interval, spiketrain_size)[:-1], 0, 0
+        )
+        spike_times = np.cumsum(spiketrain_raw) + delay
+        all_spike_times.append(spike_times)
 
+    # Concatenate all spike trains and sort the result
+    merged_spiketrain = np.sort(np.concatenate(all_spike_times))
 
-def find_first_index_greater_than(arr: list[float], x: float) -> int | None:
-    try:
-        return next(i for i, val in enumerate(arr) if val >= x)
-    except StopIteration:
-        return None
+    return merged_spiketrain
 
 
 def find_first_index_less_than(arr: list[float], x: float) -> int | None:

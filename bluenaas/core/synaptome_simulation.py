@@ -34,7 +34,11 @@ def _add_single_synapse(
     )
     cell_synapse = cell.synapses[synid]
 
-    spike_train = generate_pre_spiketrain(synapse["synapseSimulationConfig"])
+    spike_train = generate_pre_spiketrain(
+        duration=synapse["synapseSimulationConfig"].duration,
+        delay=synapse["synapseSimulationConfig"].delay,
+        frequencies=synapse["frequencies_to_apply"],
+    )
     spike_threshold = -900.0  # TODO: Synapse - How to get spike threshold
     connection = Connection(
         cell_synapse,

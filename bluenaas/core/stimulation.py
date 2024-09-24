@@ -94,7 +94,6 @@ def _add_single_synapse(
     cell,
     synapse: SynapseSeries,
     experimental_setup: ExperimentSetupConfig,
-    frequency: float,
 ):
     from bluecellulab.circuit.config.sections import Conditions  # type: ignore
     from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
@@ -123,7 +122,11 @@ def _add_single_synapse(
     )
     cell_synapse = cell.synapses[synid]
 
-    spike_train = generate_pre_spiketrain(synapse["synapseSimulationConfig"], frequency)
+    spike_train = generate_pre_spiketrain(
+        duration=synapse["synapseSimulationConfig"].duration,
+        delay=synapse["synapseSimulationConfig"].delay,
+        frequencies=synapse["frequencies_to_apply"],
+    )
     spike_threshold = -900.0  # TODO: Synapse - How to get spike threshold
     connection = Connection(
         cell_synapse,
@@ -420,7 +423,6 @@ def _run_current_varying_stimulus(
                 cell=cell,
                 synapse=synapse,
                 experimental_setup=experimental_setup,
-                frequency=synapse["synapseSimulationConfig"].frequency,
             )
 
     for loc in recording_locations:
@@ -571,7 +573,6 @@ def _run_frequency_varying_stimulus(
                 cell=cell,
                 synapse=synapse,
                 experimental_setup=experimental_setup,
-                frequency=frequency,
             )
 
     for loc in recording_locations:
