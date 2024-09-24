@@ -17,7 +17,11 @@ from bluenaas.domains.simulation import (
     ExperimentSetupConfig,
 )
 from bluenaas.utils.const import QUEUE_STOP_EVENT, SUB_PROCESS_STOP_EVENT
-from bluenaas.utils.util import diff_list, generate_pre_spiketrain
+from bluenaas.utils.util import (
+    diff_list,
+    generate_pre_spiketrain,
+    log_stats_for_series_in_frequency,
+)
 
 DEFAULT_INJECTION_LOCATION = "soma[0]"
 
@@ -324,7 +328,6 @@ def _prepare_stimulation_parameters_by_frequency(
     amplitude = current_injection.stimulus.amplitudes
     stimulus_name = get_stimulus_name(protocol)
 
-    logger.info(f"Preparing args for {frequency_to_synapse_series}")
     # Prepare arguments for each frequency
     for frequency in frequency_to_synapse_series:
         if threshold_based:

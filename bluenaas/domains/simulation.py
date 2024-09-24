@@ -67,7 +67,6 @@ class SingleNeuronSimulationConfig(BaseModel):
     @classmethod
     def validate_amplitudes(cls, value, simulation):
         stuff = simulation.data
-        print(f"simulation_config {simulation}")
 
         if isinstance(value.stimulus.amplitudes, list):
             synapses = stuff.get("synapses") or []

@@ -10,7 +10,7 @@ from io import BytesIO
 from pathlib import Path
 import numpy as np
 from loguru import logger as L
-from bluenaas.domains.morphology import ExclusionRule, LocationData
+from bluenaas.domains.morphology import ExclusionRule, LocationData, SynapseSeries
 from bluenaas.domains.simulation import SynapseSimulationConfig
 
 PADDING = 2.0
@@ -460,6 +460,40 @@ def generate_pre_spiketrain(
     merged_spiketrain = np.sort(np.concatenate(all_spike_times))
 
     return merged_spiketrain
+
+
+def log_stats_for_series_in_frequency(
+    sim_configs: list[SynapseSeries],
+) -> None:
+    sim_id_to_sim_configs: dict[str, list[SynapseSeries]] = {}
+
+    for sim_config in sim_configs:
+        if sim_config["synapseSimulationConfig"].id in sim_id_to_sim_configs:
+            sim_id_to_sim_configs[sim_config["synapseSimulationConfig"].id].append(
+                sim_config
+            )
+        else:
+            sim_id_to_sim_configs[sim_config["synapseSimulationConfig"].id] = [
+                sim_config
+            ]
+
+    for sim_id in sim_id_to_sim_configs:
+        configs_for_id = sim_id_to_sim_configs[sim_id]
+        L.debug(
+            f"There are {len(sim_id_to_sim_configs[sim_id])} synapses for set {sim_id}"
+        )
+        sim_stats_to_count: dict[str, int] = {}
+
+        for config in configs_for_id:
+            sim = config["synapseSimulationConfig"]
+            key = f"WeightScalar: {sim.weightScalar} Duration: {sim.duration} Delay: {sim.delay} frequency {' '.join(map(str, config['frequencies_to_apply']))}"
+            if key in sim_stats_to_count:
+                sim_stats_to_count[key] = sim_stats_to_count[key] + 1
+            else:
+                sim_stats_to_count[key] = 1
+
+        for stat in sim_stats_to_count:
+            L.debug(f"Of which {sim_stats_to_count[stat]} have {stat}")
 
 
 def find_first_index_less_than(arr: list[float], x: float) -> int | None:
