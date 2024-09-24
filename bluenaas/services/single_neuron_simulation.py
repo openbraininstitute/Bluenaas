@@ -2,6 +2,7 @@ import json
 import multiprocessing as mp
 from itertools import chain
 from bluenaas.utils.streaming import free_resources_after_streaming
+from bluenaas.utils.util import log_stats_for_series_in_frequency
 from loguru import logger
 from http import HTTPStatus as status
 from fastapi.responses import StreamingResponse
@@ -234,6 +235,7 @@ def _init_frequency_varying_simulation(
             logger.debug(
                 f"Constructed {len(frequency_to_synapse_settings[frequency])} synapse series for frequency {frequency}"
             )
+            log_stats_for_series_in_frequency(frequency_to_synapse_settings[frequency])
 
         model.CELL.start_frequency_varying_simulation(
             config=config,
