@@ -259,6 +259,7 @@ class Model:
         synapse_placement_config: SynapseConfig,
         synapse_simulation_config: SynapseSimulationConfig,
         offset: int,
+        frequencies_to_apply: list[float],
     ) -> list[SynapseSeries]:
         synapse_series: list[SynapseSeries] = []
         _, section_map = get_sections(self.CELL._cell)
@@ -313,6 +314,7 @@ class Model:
                             simulation_config=synapse_simulation_config,
                         ),
                         "synapseSimulationConfig": synapse_simulation_config,
+                        "frequencies_to_apply": frequencies_to_apply,
                     }
                 )
 
