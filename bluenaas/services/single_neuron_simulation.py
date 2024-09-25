@@ -339,6 +339,7 @@ def execute_single_neuron_simulation(
                             "recording_name": recording_name,
                             "t": list(recording.time),
                             "v": list(recording.voltage),
+                            "varying_key": amplitude
                         }
                     )}\n"
                 else:
@@ -356,6 +357,7 @@ def execute_single_neuron_simulation(
                             "recording_name": recording_name,
                             "t": list(recording.time),
                             "v": list(recording.voltage),
+                            "varying_key": frequency
                         }
                     )}\n"
 
