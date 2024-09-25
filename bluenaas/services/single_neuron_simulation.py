@@ -208,7 +208,8 @@ def _init_frequency_varying_simulation(
                             )
                         )
                         offset += 1
-                sim_id_to_configs.pop(variable_frequency_sim_config.id)
+                    # Since all synapses for variable_frequency_sim_config are now added, remove it from the dictionary
+                    sim_id_to_configs.pop(variable_frequency_sim_config.id)
 
                 # Finally, add synapse series for all other sim configs from different synapse_sets (these should have constant frequencies)
                 for index, sim_id in enumerate(sim_id_to_configs):
