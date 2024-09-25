@@ -32,8 +32,8 @@ from bluenaas.utils.util import (
     point_between_vectors,
     set_vector_length,
 )
-from math import ceil
-from random import seed, random, randint
+from math import floor, modf
+from random import seed, random, randint, choice
 import numpy as np
 
 SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
@@ -140,8 +140,13 @@ class Model:
             return config.soma_synapse_count
         x_symbol, X_symbol = symbols("x X")
         expression = parse_expr(f"{config.formula} * {sec_length}")
-        synapse_count = ceil(expression.subs({x_symbol: distance, X_symbol: distance}))
-        return synapse_count
+        formula_value = expression.subs({x_symbol: distance, X_symbol: distance})
+        fractional_part, integer_part = modf(formula_value)
+
+        if fractional_part < random():
+            return floor(formula_value)
+
+        return floor(formula_value) + 1
 
     def _should_place_synapse_on_section_based_on_target(
         self, section_name: str, config: SynapseConfig
