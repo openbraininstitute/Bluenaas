@@ -5,7 +5,6 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.middleware.gzip import GZipMiddleware
 import sentry_sdk
-
 from bluenaas.config.settings import settings
 from bluenaas.core.exceptions import (
     BlueNaasError,
