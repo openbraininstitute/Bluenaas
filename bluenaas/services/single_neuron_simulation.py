@@ -1,11 +1,16 @@
 import json
 import multiprocessing as mp
 from itertools import chain
-from bluenaas.utils.streaming import free_resources_after_streaming
+from bluenaas.utils.streaming import (
+    StreamingResponseWithCleanup,
+    free_resources_after_streaming,
+)
 from bluenaas.utils.util import log_stats_for_series_in_frequency
 from loguru import logger
 from http import HTTPStatus as status
 from fastapi.responses import StreamingResponse
+from fastapi import Request
+
 from queue import Empty as QueueEmptyException
 
 from bluenaas.core.exceptions import (
@@ -88,8 +93,6 @@ def _init_current_varying_simulation(
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
         raise SimulationError from ex
-    finally:
-        logger.info("Simulation executor ended")
 
 
 def get_constant_frequencies_for_sim_id(
@@ -363,9 +366,14 @@ def execute_single_neuron_simulation(
 
             logger.info(f"Simulation {req_id} completed")
 
-        return StreamingResponse(
-            free_resources_after_streaming(queue_streamify, simulation_queue, _process),
-            media_type="application/octet-stream",
+        def cleanup():
+            simulation_queue.close()
+            simulation_queue.join_thread()
+            _process.terminate()
+            _process.join()
+
+        return StreamingResponseWithCleanup(
+            queue_streamify(), media_type="application/octet-stream", finalizer=cleanup
         )
     except Exception as ex:
         logger.exception(f"running simulation failed {ex}")

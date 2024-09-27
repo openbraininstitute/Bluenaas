@@ -3,6 +3,7 @@
 from __future__ import annotations
 import os
 import queue
+import signal
 from loguru import logger
 import neuron
 import numpy as np
@@ -20,8 +21,8 @@ from bluenaas.utils.const import QUEUE_STOP_EVENT, SUB_PROCESS_STOP_EVENT
 from bluenaas.utils.util import (
     diff_list,
     generate_pre_spiketrain,
-    log_stats_for_series_in_frequency,
 )
+import sys
 
 DEFAULT_INJECTION_LOCATION = "soma[0]"
 
@@ -697,12 +698,23 @@ def apply_multiple_stimulus(
             simulation_queue=sub_simulation_queue,
         )
 
-        with ctx.Pool(
+        sim_pool = ctx.Pool(
             processes=min(len(args), os.cpu_count() or len(args)),
             initializer=init_process_worker,
             initargs=(neuron_global_params,),
             maxtasksperchild=1,
-        ) as pool:
+        )
+
+        def terminate_pool(signal, stack):
+            sim_pool.close()
+            simulation_queue.put(QUEUE_STOP_EVENT)
+            sim_pool.terminate()
+            sim_pool.join()
+            sys.exit(0)
+
+        signal.signal(signal.SIGTERM, terminate_pool)
+
+        with sim_pool as pool:
             pool.starmap_async(_run_current_varying_stimulus, args)
 
             process_finished = 0
@@ -759,12 +771,23 @@ def apply_multiple_frequency(
 
         logger.debug(f"Applying simulation for {len(args)} frequencies")
 
-        with ctx.Pool(
+        sim_pool = ctx.Pool(
             processes=min(len(args), os.cpu_count() or len(args)),
             initializer=init_process_worker,
             initargs=(neuron_global_params,),
             maxtasksperchild=1,
-        ) as pool:
+        )
+
+        def terminate_pool(signal, stack):
+            sim_pool.close()
+            simulation_queue.put(QUEUE_STOP_EVENT)
+            sim_pool.terminate()
+            sim_pool.join()
+            sys.exit(0)
+
+        signal.signal(signal.SIGTERM, terminate_pool)
+
+        with sim_pool as pool:
             pool.starmap_async(_run_frequency_varying_stimulus, args)
 
             process_finished = 0
