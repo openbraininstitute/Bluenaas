@@ -724,11 +724,8 @@ def apply_multiple_stimulus(
                 except queue.Empty:
                     continue
     
-        logger.debug(f"Parent Finished running simulations for {req_id} {stop_event.is_set()}")
         # All child processes for simulations are done here.
-        simulation_queue.put(QUEUE_STOP_EVENT)
-        logger.debug("Parent Done Putting stop event in parent queue")
-        
+        simulation_queue.put(QUEUE_STOP_EVENT)        
 
 def apply_multiple_frequency(
     cell,

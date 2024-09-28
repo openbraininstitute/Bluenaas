@@ -99,8 +99,6 @@ def _init_current_varying_simulation(
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
         raise SimulationError from ex
-    finally:
-        logger.debug("Parent: Finally for _init_current_varying_simaultion")
 
 def get_constant_frequencies_for_sim_id(
     synapse_set_id: str, constant_frequency_sim_configs: list[SynapseSimulationConfig]

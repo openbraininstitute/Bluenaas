@@ -39,6 +39,7 @@ async def cleanup(stop_event: Event, process: BaseProcess):
     
     # Not sure why simply calling `process.join()` without the sleep above does not terminate the process (and subprocesses) in cases when multiple requests arrive simultaneuously, causing a race condition. 
     process.join() # Joining is blocking call. It helps cleanup child processes so that they don't become zombies
+    logger.debug(f"Done Cleaning up process {process.pid}")
 
 
 async def free_resources_after_streaming(
