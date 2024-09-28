@@ -23,6 +23,7 @@ from bluenaas.utils.util import (
     generate_pre_spiketrain,
 )
 import sys
+from multiprocessing.synchronize import Event
 
 DEFAULT_INJECTION_LOCATION = "soma[0]"
 
@@ -672,6 +673,7 @@ def apply_multiple_stimulus(
     synapse_generation_config: list[SynapseSeries] | None,
     simulation_queue: mp.Queue,
     req_id: str,
+    stop_event: Event
 ):
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
 
@@ -705,34 +707,28 @@ def apply_multiple_stimulus(
             maxtasksperchild=1,
         )
 
-        def terminate_pool(signal, stack):
-            sim_pool.close()
-            simulation_queue.put(QUEUE_STOP_EVENT)
-            sim_pool.terminate()
-            sim_pool.join()
-            sys.exit(0)
-
-        signal.signal(signal.SIGTERM, terminate_pool)
-
         with sim_pool as pool:
             pool.starmap_async(_run_current_varying_stimulus, args)
 
             process_finished = 0
 
-            while True:
+            while not stop_event.is_set():
                 try:
-                    record = sub_simulation_queue.get()
+                    record = sub_simulation_queue.get(timeout=1)
                     if record != SUB_PROCESS_STOP_EVENT:
                         simulation_queue.put(record)
                     else:
                         process_finished += 1
                         if process_finished == len(args):
-                            simulation_queue.put(QUEUE_STOP_EVENT)
                             break
                 except queue.Empty:
-                    simulation_queue.put(QUEUE_STOP_EVENT)
-                    break
-
+                    continue
+    
+        logger.debug(f"Parent Finished running simulations for {req_id} {stop_event.is_set()}")
+        # All child processes for simulations are done here.
+        simulation_queue.put(QUEUE_STOP_EVENT)
+        logger.debug("Parent Done Putting stop event in parent queue")
+        
 
 def apply_multiple_frequency(
     cell,
