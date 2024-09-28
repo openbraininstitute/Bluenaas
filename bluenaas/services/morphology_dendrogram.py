@@ -2,11 +2,11 @@ import json
 import re
 import signal
 import multiprocessing as mp
-from bluenaas.utils.streaming import free_resources_after_streaming
+from multiprocessing.synchronize import Event
+from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup, free_resources_after_streaming
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from http import HTTPStatus as status
-from threading import Event
 from queue import Empty as QueueEmptyException
 from bluenaas.core.exceptions import (
     BlueNaasError,
@@ -97,16 +97,8 @@ def get_single_morphology_dendrogram(
 
                 yield q_result
 
-        return StreamingResponse(
-            free_resources_after_streaming(
-                lambda: queue_streamify(
-                    que=morpho_dend_queue,
-                    stop_event=stop_event,
-                ),
-                morpho_dend_queue,
-                process,
-            ),
-            media_type="application/x-ndjson",
+        return StreamingResponseWithCleanup(
+            queue_streamify(que=morpho_dend_queue, stop_event=stop_event), media_type="application/x-ndjson", finalizer=lambda: cleanup(stop_event, process)
         )
 
     except Exception as ex:
