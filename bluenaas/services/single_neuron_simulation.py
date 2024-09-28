@@ -12,7 +12,6 @@ from bluenaas.utils.util import log_stats_for_series_in_frequency
 from loguru import logger
 from http import HTTPStatus as status
 from fastapi.responses import StreamingResponse
-from fastapi import Request
 
 from queue import Empty as QueueEmptyException
 from multiprocessing.synchronize import Event
@@ -92,13 +91,14 @@ def _init_current_varying_simulation(
             stop_event=stop_event
         )
     except SimulationError as ex:
-        logger.debug("Parent SimulationError from _init_current_varying_simaultion")
         simulation_queue.put(ex)
         simulation_queue.put(QUEUE_STOP_EVENT)
         raise ex
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
         raise SimulationError from ex
+    finally:
+        logger.info("Simulation executor ended")
 
 def get_constant_frequencies_for_sim_id(
     synapse_set_id: str, constant_frequency_sim_configs: list[SynapseSimulationConfig]
@@ -143,6 +143,7 @@ def _init_frequency_varying_simulation(
     config: SingleNeuronSimulationConfig,
     simulation_queue: mp.Queue,
     req_id: str,
+    stop_event: Event
 ):
     from bluenaas.core.model import model_factory
 
@@ -251,6 +252,7 @@ def _init_frequency_varying_simulation(
             frequency_to_synapse_series=frequency_to_synapse_settings,
             simulation_queue=simulation_queue,
             req_id=req_id,
+            stop_event=stop_event
         )
     except SimulationError as ex:
         logger.exception(f"Simulation executor error: {ex}")
