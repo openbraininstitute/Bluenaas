@@ -700,14 +700,12 @@ def apply_multiple_stimulus(
             simulation_queue=sub_simulation_queue,
         )
 
-        sim_pool = ctx.Pool(
+        with ctx.Pool(
             processes=min(len(args), os.cpu_count() or len(args)),
             initializer=init_process_worker,
             initargs=(neuron_global_params,),
             maxtasksperchild=1,
-        )
-
-        with sim_pool as pool:
+        ) as pool:
             pool.starmap_async(_run_current_varying_stimulus, args)
 
             process_finished = 0
@@ -736,6 +734,7 @@ def apply_multiple_frequency(
     frequency_to_synapse_series: dict[float, list[SynapseSeries]],
     simulation_queue: mp.Queue,
     req_id: str,
+    stop_event: Event
 ):
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
 
@@ -764,30 +763,19 @@ def apply_multiple_frequency(
 
         logger.debug(f"Applying simulation for {len(args)} frequencies")
 
-        sim_pool = ctx.Pool(
+        with ctx.Pool(
             processes=min(len(args), os.cpu_count() or len(args)),
             initializer=init_process_worker,
             initargs=(neuron_global_params,),
             maxtasksperchild=1,
-        )
-
-        def terminate_pool(signal, stack):
-            sim_pool.close()
-            simulation_queue.put(QUEUE_STOP_EVENT)
-            sim_pool.terminate()
-            sim_pool.join()
-            sys.exit(0)
-
-        signal.signal(signal.SIGTERM, terminate_pool)
-
-        with sim_pool as pool:
+        ) as pool:
             pool.starmap_async(_run_frequency_varying_stimulus, args)
 
             process_finished = 0
 
-            while True:
+            while not stop_event.is_set():
                 try:
-                    record = sub_simulation_queue.get()
+                    record = sub_simulation_queue.get(timeout=1)
                     if record != SUB_PROCESS_STOP_EVENT:
                         simulation_queue.put(record)
                     else:
@@ -796,5 +784,7 @@ def apply_multiple_frequency(
                             simulation_queue.put(QUEUE_STOP_EVENT)
                             break
                 except queue.Empty:
-                    simulation_queue.put(QUEUE_STOP_EVENT)
-                    break
+                    continue
+            
+        # All child processes for simulations are done here.
+        simulation_queue.put(QUEUE_STOP_EVENT) 
