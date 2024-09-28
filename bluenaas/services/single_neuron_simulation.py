@@ -1,8 +1,11 @@
+import asyncio
 import json
 import multiprocessing as mp
 from itertools import chain
+import time
 from bluenaas.utils.streaming import (
     StreamingResponseWithCleanup,
+    cleanup,
     free_resources_after_streaming,
 )
 from bluenaas.utils.util import log_stats_for_series_in_frequency
@@ -12,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from fastapi import Request
 
 from queue import Empty as QueueEmptyException
-
+from multiprocessing.synchronize import Event
 from bluenaas.core.exceptions import (
     BlueNaasError,
     BlueNaasErrorCode,
@@ -37,6 +40,7 @@ def _init_current_varying_simulation(
     config: SingleNeuronSimulationConfig,
     simulation_queue: mp.Queue,
     req_id: str,
+    stop_event: Event
 ):
     from bluenaas.core.model import model_factory
 
@@ -85,15 +89,18 @@ def _init_current_varying_simulation(
             synapse_generation_config=synapse_generation_config,
             simulation_queue=simulation_queue,
             req_id=req_id,
+            stop_event=stop_event
         )
     except SimulationError as ex:
+        logger.debug("Parent SimulationError from _init_current_varying_simaultion")
         simulation_queue.put(ex)
         simulation_queue.put(QUEUE_STOP_EVENT)
         raise ex
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
         raise SimulationError from ex
-
+    finally:
+        logger.debug("Parent: Finally for _init_current_varying_simaultion")
 
 def get_constant_frequencies_for_sim_id(
     synapse_set_id: str, constant_frequency_sim_configs: list[SynapseSimulationConfig]
@@ -284,6 +291,7 @@ def execute_single_neuron_simulation(
 ):
     try:
         ctx = mp.get_context("spawn")
+        stop_event = ctx.Event()
         simulation_queue = ctx.Queue()
 
         is_current_varying = is_current_varying_simulation(config)
@@ -297,6 +305,7 @@ def execute_single_neuron_simulation(
                 config,
                 simulation_queue,
                 req_id,
+                stop_event
             ),
             name=f"simulation_processor:{req_id}",
         )
@@ -305,6 +314,7 @@ def execute_single_neuron_simulation(
 
         def queue_streamify():
             while True:
+                logger.debug(f"Queue Streamifyi While Loop for {_process.pid}")
                 try:
                     # Simulation_Queue.get() is blocking. If child fails without writing to it,
                     # the process will hang forever. That's why timeout is added.
@@ -325,8 +335,10 @@ def execute_single_neuron_simulation(
                             "details": record.__str__(),
                         }
                     )}\n"
+                    logger.debug("Parent stopping because of error")
                     break
                 if record == QUEUE_STOP_EVENT:
+                    logger.debug("Parent received queue_stop_event")
                     break
 
                 if is_current_varying:
@@ -366,14 +378,9 @@ def execute_single_neuron_simulation(
 
             logger.info(f"Simulation {req_id} completed")
 
-        def cleanup():
-            simulation_queue.close()
-            simulation_queue.join_thread()
-            _process.terminate()
-            _process.join()
 
         return StreamingResponseWithCleanup(
-            queue_streamify(), media_type="application/octet-stream", finalizer=cleanup
+            queue_streamify(), media_type="application/octet-stream", finalizer=lambda: cleanup(stop_event, _process)
         )
     except Exception as ex:
         logger.exception(f"running simulation failed {ex}")

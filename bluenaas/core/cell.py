@@ -5,6 +5,7 @@ import multiprocessing as mp
 import os
 import re
 from loguru import logger
+from multiprocessing.synchronize import Event
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
@@ -188,6 +189,7 @@ class BaseCell:
         synapse_generation_config: list[SynapseSeries] | None,
         simulation_queue: mp.Queue,
         req_id: str,
+        stop_event: Event
     ):
         from bluenaas.core.stimulation import apply_multiple_stimulus
 
@@ -201,6 +203,7 @@ class BaseCell:
                 synapse_generation_config=synapse_generation_config,
                 simulation_queue=simulation_queue,
                 req_id=req_id,
+                stop_event=stop_event
             )
         except Exception as e:
             logger.exception(
