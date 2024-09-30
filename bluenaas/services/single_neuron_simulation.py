@@ -6,7 +6,6 @@ import time
 from bluenaas.utils.streaming import (
     StreamingResponseWithCleanup,
     cleanup,
-    free_resources_after_streaming,
 )
 from bluenaas.utils.util import log_stats_for_series_in_frequency
 from loguru import logger
@@ -314,7 +313,6 @@ def execute_single_neuron_simulation(
 
         def queue_streamify():
             while True:
-                logger.debug(f"Queue Streamifyi While Loop for {_process.pid}")
                 try:
                     # Simulation_Queue.get() is blocking. If child fails without writing to it,
                     # the process will hang forever. That's why timeout is added.
