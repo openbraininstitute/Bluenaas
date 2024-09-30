@@ -1,7 +1,6 @@
 """Cell module."""
 
 # pylint: disable=import-outside-toplevel
-import multiprocessing as mp
 import os
 import re
 from loguru import logger
@@ -187,21 +186,19 @@ class BaseCell:
         self,
         config: SingleNeuronSimulationConfig,
         synapse_generation_config: list[SynapseSeries] | None,
-        simulation_queue: mp.Queue,
         req_id: str,
         stop_event: Event
     ):
-        from bluenaas.core.stimulation import apply_multiple_stimulus
+        from bluenaas.core.stimulation.current import apply_multiple_stimulus
 
         try:
-            apply_multiple_stimulus(
+            return apply_multiple_stimulus(
                 cell=self._cell,
                 current_injection=config.currentInjection,
                 recording_locations=config.recordFrom,
                 experiment_setup=config.conditions,
                 simulation_duration=config.simulationDuration,
                 synapse_generation_config=synapse_generation_config,
-                simulation_queue=simulation_queue,
                 req_id=req_id,
                 stop_event=stop_event
             )
@@ -215,7 +212,7 @@ class BaseCell:
         self,
         config: SingleNeuronSimulationConfig,
         frequency_to_synapse_series: dict[float, list[SynapseSeries]],
-        simulation_queue: mp.Queue,
+        # simulation_queue: mp.Queue,
         req_id: str,
         stop_event: Event
     ):
@@ -229,7 +226,7 @@ class BaseCell:
                 experiment_setup=config.conditions,
                 simulation_duration=config.simulationDuration,
                 frequency_to_synapse_series=frequency_to_synapse_series,
-                simulation_queue=simulation_queue,
+                # simulation_queue=simulation_queue,
                 req_id=req_id,
                 stop_event=stop_event
             )

@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 from loguru import logger as L
 from bluenaas.domains.morphology import ExclusionRule, LocationData, SynapseSeries
-from bluenaas.domains.simulation import SynapseSimulationConfig
 
 PADDING = 2.0
 

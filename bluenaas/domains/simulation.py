@@ -1,5 +1,4 @@
 from typing import Annotated, List, Literal, Optional
-from annotated_types import Len
 from pydantic import BaseModel, Field, PositiveFloat, field_validator
 
 

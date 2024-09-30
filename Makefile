@@ -22,13 +22,10 @@ dev:
 	poetry run uvicorn bluenaas.app:app --reload --port 8081
 
 start:
-	docker compose -f docker-compose.yml up
+	docker compose -f docker-compose.yml --env-file .env.local up
 
-dockerbuild-linux:
+build:
 	docker build -t ${SERVICE_NAME} --platform=linux/amd64 -f Dockerfile.dev .
-
-dockerbuild-os:
-	docker build . -t ${SERVICE_NAME}
 
 format:	
 	poetry run ruff format
