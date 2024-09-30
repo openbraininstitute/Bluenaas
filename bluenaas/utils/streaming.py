@@ -33,26 +33,12 @@ async def cleanup(stop_event: Event, process: BaseProcess):
         await asyncio.sleep(0.1)
         counter=counter + 1
 
+    # If the process is not yet dead, force terminate.
     if process.is_alive():
         logger.debug("Process did not die by itself. Terminating.")
         process.terminate()
     
-    # Not sure why simply calling `process.join()` without the sleep above does not terminate the process (and subprocesses) in cases when multiple requests arrive simultaneuously, causing a race condition. 
+    # Cleanup resources by joining.
     process.join() # Joining is blocking call. It helps cleanup child processes so that they don't become zombies
     logger.debug(f"Done Cleaning up process {process.pid}")
 
-
-async def free_resources_after_streaming(
-    fn: Callable[..., Generator[Any, Any, None]],
-    queue: QueueType,
-    process: BaseProcess,
-):
-    try:
-        for element in fn():
-            yield element
-    finally:
-        logger.debug("Killing process and sub processes")
-        queue.close()
-        queue.join_thread()
-        process.join()
-        logger.debug("Cleaned up resources")

@@ -3,7 +3,7 @@ import re
 import signal
 import multiprocessing as mp
 from multiprocessing.synchronize import Event
-from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup, free_resources_after_streaming
+from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup
 from loguru import logger
 from http import HTTPStatus as status
 from queue import Empty as QueueEmptyException
