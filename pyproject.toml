@@ -41,3 +41,6 @@ build-backend = "poetry.core.masonry.api"
 [tool.pyright]
 venvPath = "/Users/meddah/Library/Caches/pypoetry/virtualenvs"
 venv = "bluenaas-DrmS_1CG-py3.12"
+
+[tool.poetry.scripts]
+monitor = "bluenaas.infrastructure.celery.monitor:main"

@@ -4,7 +4,7 @@
 import os
 import re
 from loguru import logger
-from multiprocessing.synchronize import Event
+from bluenaas.core.stimulation.utils import is_current_varying_simulation
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
@@ -182,53 +182,32 @@ class BaseCell:
 
         return protocol_mapping[protocol_name]
 
-    def start_current_varying_simulation(
+    def start_simulation(
         self,
         config: SingleNeuronSimulationConfig,
-        synapse_generation_config: list[SynapseSeries] | None,
-        req_id: str,
-        stop_event: Event
+        current_synapse_serires: list[SynapseSeries] | None,
+        frequency_to_synapse_series: dict[float, list[SynapseSeries]] | None,
     ):
         from bluenaas.core.stimulation.current import apply_multiple_stimulus
+        from bluenaas.core.stimulation.frequency import apply_multiple_frequency
 
         try:
-            return apply_multiple_stimulus(
-                cell=self._cell,
-                current_injection=config.currentInjection,
-                recording_locations=config.recordFrom,
-                experiment_setup=config.conditions,
-                simulation_duration=config.simulationDuration,
-                synapse_generation_config=synapse_generation_config,
-                req_id=req_id,
-                stop_event=stop_event
-            )
-        except Exception as e:
-            logger.exception(
-                f"Apply Generic Single Neuron Simulation error: {e}",
-            )
-            raise Exception(f"Apply Generic Single Neuron Simulation error: {e}") from e
-
-    def start_frequency_varying_simulation(
-        self,
-        config: SingleNeuronSimulationConfig,
-        frequency_to_synapse_series: dict[float, list[SynapseSeries]],
-        # simulation_queue: mp.Queue,
-        req_id: str,
-        stop_event: Event
-    ):
-        from bluenaas.core.stimulation import apply_multiple_frequency
-
-        try:
-            apply_multiple_frequency(
+            if is_current_varying_simulation(config):
+                return apply_multiple_stimulus(
+                    cell=self._cell,
+                    current_injection=config.currentInjection,
+                    recording_locations=config.recordFrom,
+                    experiment_setup=config.conditions,
+                    simulation_duration=config.simulationDuration,
+                    current_synapse_serires=current_synapse_serires,
+                )
+            return apply_multiple_frequency(
                 cell=self._cell,
                 current_injection=config.currentInjection,
                 recording_locations=config.recordFrom,
                 experiment_setup=config.conditions,
                 simulation_duration=config.simulationDuration,
                 frequency_to_synapse_series=frequency_to_synapse_series,
-                # simulation_queue=simulation_queue,
-                req_id=req_id,
-                stop_event=stop_event
             )
         except Exception as e:
             logger.exception(

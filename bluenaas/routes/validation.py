@@ -12,6 +12,7 @@ from bluenaas.services.validate_synapse_formula import (
 
 router = APIRouter(prefix="/validation")
 
+
 @router.post(
     "/synapse-formula",
     response_model=bool,

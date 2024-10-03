@@ -39,7 +39,7 @@ class SectionTarget(Enum):
     basal = "basal"
     dendrite = "dend"
     soma = "soma"
-    axom = "axon"
+    axon = "axon"
 
     @classmethod
     def list(cls):

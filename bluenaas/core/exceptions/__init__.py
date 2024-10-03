@@ -15,6 +15,7 @@ class BlueNaasErrorCode(StrEnum):
     SYNAPSE_PLACEMENT_ERROR = "SYNAPSE_PLACEMENT_ERROR"
     SIMULATION_ERROR = "SIMULATION_ERROR"
     MORPHOLOGY_GENERATION_ERROR = "MORPHOLOGY_GENERATION_ERROR"
+    DATABASE_URI_NOT_SET = "DATABASE_URI_NOT_SET"
 
 
 class BlueNaasError(Exception):
@@ -60,11 +61,14 @@ class SimulationError(Exception):
     def __str__(self) -> str:
         return self.message
 
+    def __reduce__(self):
+        return (self.__class__, (self.message,))
+
 
 class ChildSimulationError(Exception):
     def __init__(self, message: str = "Child simulation failed") -> None:
         self.message = message
-        super().__init__(self.message)
+        Exception.__init__(self, self.message)
 
     def __str__(self) -> str:
         return self.message
@@ -73,7 +77,7 @@ class ChildSimulationError(Exception):
 class SynapseGenerationError(Exception):
     def __init__(self, message: str = "Synapse generation failed") -> None:
         self.message = message
-        super().__init__(self.message)
+        Exception.__init__(self, self.message)
 
     def __str__(self) -> str:
         return self.message
@@ -82,7 +86,7 @@ class SynapseGenerationError(Exception):
 class MorphologyGenerationError(Exception):
     def __init__(self, message: str = "Morphology generation failed") -> None:
         self.message = message
-        super().__init__(self.message)
+        Exception.__init__(self, self.message)
 
     def __str__(self) -> str:
         return self.message
@@ -91,7 +95,7 @@ class MorphologyGenerationError(Exception):
 class StimulationPlotGenerationError(Exception):
     def __init__(self, message: str = "Stimulation plot generation failed") -> None:
         self.message = message
-        super().__init__(self.message)
+        Exception.__init__(self, self.message)
 
     def __str__(self) -> str:
         return self.message

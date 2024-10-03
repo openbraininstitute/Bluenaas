@@ -22,7 +22,8 @@ _DEPLOYMENT_ENV = _ENV if _is_valid_env(_ENV) else "development"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         # `.env.local` takes priority over `.env`
-        env_file=(".env", f".env.{_DEPLOYMENT_ENV}", ".env.local")
+        env_file=(".env", f".env.{_DEPLOYMENT_ENV}", ".env.local"),
+        extra="allow",
     )
 
     APP_NAME: str = "BlueNaas Service"
@@ -40,9 +41,11 @@ class Settings(BaseSettings):
     SENTRY_DSN: str | None = None
     SENTRY_TRACES_SAMPLE_RATE: float = 1.0
     SENTRY_PROFILES_SAMPLE_RATE: float = 1.0
-    
+
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
-    CELERY_RESULT_BACKEND: str = "db+postgresql+psycopg2://postgres:password@db:5432/bleunaas"
+    CELERY_RESULT_BACKEND: str = (
+        "db+postgresql+psycopg2://postgres:password@db:5432/bleunaas"
+    )
 
     DATABASE_URL: PostgresDsn = MultiHostUrl(
         "postgresql+psycopg2://postgres:password@db:5432/bleunaas"
@@ -50,8 +53,8 @@ class Settings(BaseSettings):
     DB_USER: str = "postgres"
     DB_PASSWORD: str = "password"
     DB_NAME: str = "bleunaas"
-    
-    AWS_ACCESS_KEY_ID: str = "test" 
+
+    AWS_ACCESS_KEY_ID: str = "test"
     AWS_SECRET_ACCESS_KEY: str = "test"
     AWS_REGION: str = "us-east-1"
 

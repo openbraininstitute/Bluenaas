@@ -24,6 +24,9 @@ dev:
 start:
 	docker compose -f docker-compose.yml --env-file .env.local up
 
+kill:
+	docker compose -f docker-compose.yml down --remove-orphans
+
 build:
 	docker build -t ${SERVICE_NAME} --platform=linux/amd64 -f Dockerfile.dev .
 

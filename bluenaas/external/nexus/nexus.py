@@ -19,6 +19,7 @@ HOC_FORMAT = ["application/x-neuron-hoc", "application/hoc"]
 
 RWX_TO_ALL = 0o777
 
+
 def opener(path, flags):
     return os.open(path, flags, RWX_TO_ALL)
 
@@ -236,7 +237,9 @@ class Nexus:
             f.write(content)
 
     def copy_file_content(self, source_file: Path, target_file: Path):
-        with open(source_file, "r") as src, open(target_file, "w", opener=opener) as dst:
+        with open(source_file, "r") as src, open(
+            target_file, "w", opener=opener
+        ) as dst:
             dst.write(src.read())
 
     def create_model_folder(self, hoc_file, morphology_obj, mechanisms):

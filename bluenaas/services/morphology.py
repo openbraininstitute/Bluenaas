@@ -30,7 +30,7 @@ def _build_morphology(
 
     try:
         model = model_factory(
-            model_id=model_id,
+            model_self=model_id,
             hyamp=None,
             bearer_token=token,
         )

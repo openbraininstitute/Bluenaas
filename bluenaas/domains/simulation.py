@@ -103,3 +103,13 @@ class StimulationItemResponse(BaseModel):
     y: List[float]
     name: str
     amplitude: float
+
+
+class SimulationBody(BaseModel):
+    modelId: str = Field(..., alias="model_id")
+    reqId: str = Field(..., alias="req_id")
+    config: SingleNeuronSimulationConfig
+    simulations: str
+
+    class Config:
+        populate_by_name = True

@@ -1,225 +1,329 @@
 from __future__ import annotations
+import os
+import queue as que
+from loguru import logger
 import numpy as np
-from typing import Dict, NamedTuple
-from enum import Enum, auto
-from bluenaas.domains.morphology import SynapseConfig, SynapseSeries, SynapsesPlacementConfig
-from bluenaas.domains.simulation import ExperimentSetupConfig, SingleNeuronSimulationConfig, SynapseSimulationConfig
-from bluenaas.utils.util import (
-    generate_pre_spiketrain,
+from typing import Literal
+from bluenaas.core.exceptions import ChildSimulationError
+from bluenaas.domains.morphology import SynapseSeries
+from bluenaas.domains.simulation import (
+    CurrentInjectionConfig,
+    ExperimentSetupConfig,
+    RecordingLocation,
 )
-
+from bluenaas.utils.const import SUB_PROCESS_STOP_EVENT
+from bluenaas.utils.util import diff_list
+from bluenaas.core.stimulation.utils import (
+    get_stimulus_from_name,
+    get_stimulus_name,
+    init_process_worker,
+)
 
 DEFAULT_INJECTION_LOCATION = "soma[0]"
 
 
-class Recording(NamedTuple):
-    """A tuple of the current, voltage and time recordings."""
-
-    current: np.ndarray
-    voltage: np.ndarray
-    time: np.ndarray
-
-
-class SynapseRecording(NamedTuple):
-    """A tuple of the current, voltage and time recordings."""
-
-    voltage: np.ndarray
-    time: np.ndarray
-
-
-class StimulusName(Enum):
-    """Allowed values for the StimulusName."""
-
-    AP_WAVEFORM = auto()
-    IDREST = auto()
-    IV = auto()
-    FIRE_PATTERN = auto()
-    POS_CHEOPS = auto()
-    NEG_CHEOPS = auto()
-
-
-StimulusRecordings = Dict[str, Recording]
-
-
-def _add_single_synapse(
+def prepare_stimulation_parameters(
     cell,
-    synapse: SynapseSeries,
+    current_injection: CurrentInjectionConfig,
+    recording_locations: list[RecordingLocation],
+    frequency_to_synapse_series: dict[float, list[SynapseSeries]] | None,
+    current_synapse_serires: list[SynapseSeries] | None,
+    conditions: ExperimentSetupConfig,
+    simulation_duration: int,
+    threshold_based: bool = False,
+    injection_segment: float = 0.5,
+    add_hypamp: bool = True,
+    varying_type: Literal["frequency", "current"] = "current",
+):
+    from bluecellulab.stimulus.factory import StimulusFactory
+
+    stim_factory = StimulusFactory(dt=1.0)
+    task_args = []
+
+    injection_section_name = (
+        current_injection.injectTo
+        if current_injection is not None and current_injection.injectTo is not None
+        else DEFAULT_INJECTION_LOCATION
+    )
+    protocol = current_injection.stimulus.stimulusProtocol
+    amplitudes = current_injection.stimulus.amplitudes
+    stimulus_name = get_stimulus_name(protocol)
+
+    # HERE: @dinika please confirm this is for both type of varying
+    assert current_injection is not None
+    if varying_type == "frequency":
+        # Prepare arguments for each frequency
+        for frequency in frequency_to_synapse_series:
+            if threshold_based:
+                thres_perc = amplitudes
+                amp = None
+            else:
+                thres_perc = None
+                amp = amplitudes
+
+            stimulus = get_stimulus_from_name(
+                stimulus_name, stim_factory, cell, thres_perc, amp
+            )
+
+            task_args.append(
+                (
+                    cell.template_params,
+                    stimulus,
+                    injection_section_name,
+                    injection_segment,
+                    recording_locations,
+                    frequency_to_synapse_series[frequency],
+                    conditions,
+                    simulation_duration,
+                    amplitudes,
+                    frequency,
+                    add_hypamp,
+                )
+            )
+    elif varying_type == "current":
+        for amplitude in amplitudes:
+            if threshold_based:
+                thres_perc = amplitude
+                amp = None
+            else:
+                thres_perc = None
+                amp = amplitude
+
+            stimulus = get_stimulus_from_name(
+                stimulus_name, stim_factory, cell, thres_perc, amp
+            )
+
+            task_args.append(
+                (
+                    cell.template_params,
+                    stimulus,
+                    injection_section_name,
+                    injection_segment,
+                    recording_locations,
+                    current_synapse_serires,
+                    conditions,
+                    simulation_duration,
+                    stimulus_name,
+                    amplitude,
+                    add_hypamp,
+                )
+            )
+
+    return task_args
+
+
+def basic_simulation_config(
+    template_params,
+    stimulus,
+    injection_section_name: str,
+    injection_segment: float,
+    recording_locations: list[RecordingLocation],
     experimental_setup: ExperimentSetupConfig,
+    add_hypamp: bool = True,
 ):
-    from bluecellulab.circuit.config.sections import Conditions  # type: ignore
-    from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
-    from bluecellulab import Connection
+    import neuron
+    from bluecellulab.cell.core import Cell
+    from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
+    from bluecellulab.rngsettings import RNGSettings
 
-    condition_parameters = Conditions(
-        celsius=experimental_setup.celsius,
-        v_init=experimental_setup.vinit,
-        randomize_gaba_rise_time=True,
+    rng = RNGSettings(
+        base_seed=experimental_setup.seed,
+        synapse_seed=experimental_setup.seed,
+        stimulus_seed=experimental_setup.seed,
     )
-    synid = SynapseID(f"{synapse["id"]}", synapse["id"])
-    # A tuple containing source and target popids used by the random number generation.
-    # Should correspond to source_popid and target_popid
-    popids = (2126, 378)
-    connection_modifiers = {
-        "add_synapses": True,
-    }
 
-    cell.add_replay_synapse(
-        synapse_id=synid,
-        syn_description=synapse["series"],
-        connection_modifiers=connection_modifiers,
-        condition_parameters=condition_parameters,
-        popids=popids,
-        extracellular_calcium=None,  # may not be value used in circuit
+    rng.set_seeds(
+        base_seed=experimental_setup.seed,
     )
-    cell_synapse = cell.synapses[synid]
 
-    spike_train = generate_pre_spiketrain(
-        duration=synapse["synapseSimulationConfig"].duration,
-        delay=synapse["synapseSimulationConfig"].delay,
-        frequencies=synapse["frequencies_to_apply"],
-    )
-    spike_threshold = -900.0  # TODO: Synapse - How to get spike threshold
-    connection = Connection(
-        cell_synapse,
-        pre_spiketrain=spike_train,
-        pre_cell=None,
-        stim_dt=cell.record_dt,
-        spike_threshold=spike_threshold,
-        spike_location="soma[0]",
-    )
-    cell.connections[synid] = connection
+    cell = Cell.from_template_parameters(template_params)
+    injection_section = cell.sections[injection_section_name]
 
+    for loc in recording_locations:
+        sec, seg = cell.sections[loc.section], loc.offset
 
-def is_valid_stimuls_result(value):
-    """Checks if the given value is a tuple of (str, Recording).
+        cell.add_voltage_recording(
+            section=sec,
+            segx=seg,
+        )
+        iclamp, _ = cell.inject_current_waveform(
+            stimulus.time,
+            stimulus.current,
+            section=injection_section,
+            segx=injection_segment,
+        )
 
-    Args:
-      value: The value to check.
+    current_vector = neuron.h.Vector()
+    current_vector.record(iclamp._ref_i)
+    current = np.array(current_vector.to_python())
+    neuron.h.v_init = experimental_setup.vinit
+    neuron.h.celsius = experimental_setup.celsius
 
-    Returns:
-      True if the value is a valid tuple, False otherwise.
-    """
+    if add_hypamp:
+        hyp_stim = Hyperpolarizing(
+            target="",
+            delay=0.0,
+            duration=stimulus.stimulus_time,
+        )
+        cell.add_replay_hypamp(hyp_stim)
 
-    if not isinstance(value, tuple) or len(value) != 2:
-        return False
-
-    key, recording = value
-    return isinstance(key, str) and isinstance(recording, Recording)
-
-
-def get_stimulus_name(protocol_name):
-    protocol_mapping = {
-        "ap_waveform": StimulusName.AP_WAVEFORM,
-        "idrest": StimulusName.IDREST,
-        "iv": StimulusName.IV,
-        "fire_pattern": StimulusName.FIRE_PATTERN,
-    }
-
-    if protocol_name not in protocol_mapping:
-        raise Exception("Protocol does not have StimulusName assigned")
-
-    return protocol_mapping[protocol_name]
+    return cell, current
 
 
-def init_process_worker(neuron_global_params):
-    """Load global parameters for the NEURON environment in each worker
-    process."""
+def dispatch_simulation_result(
+    cell,
+    queue,
+    current,
+    recording_locations: list[RecordingLocation],
+    simulation_duration: int,
+    time_step: int,
+    amplitude: float | None,
+    frequency: float | None,
+    varying_type: Literal["frequency", "current"],
+    varying_key: str,
+):
+    from bluecellulab.simulation.simulation import Simulation
+
+    prev_voltage = {}
+    prev_time = {}
+    final_result = {}
+
+    def enqueue_simulation_recordings():
+        for loc in recording_locations:
+            sec, seg = cell.sections[loc.section], loc.offset
+            cell_section = f"{loc.section}_{seg}"
+            stim_label = f"{varying_key}_{frequency if varying_type == "frequency" else amplitude}"
+
+            voltage = cell.get_voltage_recording(sec, seg)
+            time = cell.get_time()
+
+            if cell_section not in prev_voltage:
+                prev_voltage[cell_section] = np.array([])
+            if cell_section not in prev_time:
+                prev_time[cell_section] = np.array([])
+
+            voltage_diff = diff_list(prev_voltage[cell_section], voltage)
+            time_diff = diff_list(prev_time[cell_section], time)
+
+            prev_voltage[cell_section] = voltage
+            prev_time[cell_section] = time
+
+            queue.put(
+                {
+                    "stim_label": stim_label,
+                    "recording_name": cell_section,
+                    "amplitude": amplitude,
+                    "frequency": frequency,
+                    "time": time.tolist(),
+                    "current": time_diff.tolist(),
+                    "voltage": voltage_diff.tolist(),
+                    "varying_key": varying_key,
+                }
+            )
+
+            final_result[cell_section] = {
+                "stim_label": stim_label,
+                "recording_name": cell_section,
+                "amplitude": amplitude,
+                "frequency": frequency,
+                "time": time.tolist(),
+                "current": current.tolist(),
+                "voltage": voltage.tolist(),
+                "varying_key": varying_key,
+            }
+
+    try:
+        simulation = Simulation(
+            cell,
+            custom_progress_function=enqueue_simulation_recordings,
+        )
+
+        simulation.run(
+            maxtime=simulation_duration,
+            cvode=False,
+            show_progress=True,
+            dt=time_step,
+        )
+        return final_result
+    except Exception as ex:
+        logger.exception(f"child simulation failed {ex}")
+        raise ChildSimulationError from ex
+    finally:
+        logger.info("child simulation complete")
+        queue.put(SUB_PROCESS_STOP_EVENT)
+
+
+def apply_multiple_simulations(args, runner):
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
+    from celery import current_task, states
+    from bluenaas.infrastructure.celery import celery_app
+    import billiard as brd
 
-    NeuronGlobals.get_instance().load_params(neuron_global_params)
+    neuron_global_params = NeuronGlobals.get_instance().export_params()
 
+    try:
+        with brd.Manager() as manager:
+            queue = manager.Queue()
+            with brd.pool.Pool(
+                processes=min(len(args), os.cpu_count() or len(args)),
+                initializer=init_process_worker,
+                initargs=(neuron_global_params,),
+                maxtasksperchild=1,
+            ) as pool:
+                simulations = pool.starmap_async(
+                    runner,
+                    iterable=[(*arg, queue) for arg in args],
+                )
 
-def get_stimulus_from_name(
-    stimulus_name: StimulusName, stimulus_factory, cell, thres_perc, amp
-):
-    if stimulus_name == StimulusName.AP_WAVEFORM:
-        return stimulus_factory.ap_waveform(
-            threshold_current=cell.threshold,
-            threshold_percentage=thres_perc,
-            amplitude=amp,
+                process_finished = 0
+
+                while True:
+                    logger.info("@@@@---> here")
+                    try:
+                        record = queue.get(timeout=1)
+                        if record != SUB_PROCESS_STOP_EVENT:
+                            current_task.update_state(
+                                state="PROGRESS",
+                                meta={
+                                    "data": {
+                                        "amplitude": record["amplitude"],
+                                        "frequency": record["frequency"],
+                                        "stimulus_name": record["stim_label"],
+                                        "recording_name": record["recording_name"],
+                                        "varying_key": record["varying_key"],
+                                        "t": record["time"],
+                                        "v": record["voltage"],
+                                    }
+                                },
+                            )
+                        else:
+                            process_finished += 1
+                            if process_finished == len(args):
+                                logger.info(f"@@all process finished: {len(args)}")
+                                current_task.update_state(state=states.SUCCESS)
+                                break
+                    except que.Empty:
+                        continue
+                    except Exception as ex:
+                        current_task.update_state(
+                            state=states.FAILURE,
+                            meta={
+                                "data": None,
+                                "exit_due_exception": ex.__str__,
+                            },
+                        )
+                        celery_app.control.revoke(
+                            current_task.request.id, terminate=True
+                        )
+                return simulations.get()
+    except Exception as e:
+        current_task.update_state(
+            state=states.FAILURE,
+            meta={
+                "data": None,
+                "exit_due_exception": e.__str__,
+                "all_simulations_complete": False,
+            },
         )
-    elif stimulus_name == StimulusName.IDREST:
-        return stimulus_factory.idrest(
-            threshold_current=cell.threshold,
-            threshold_percentage=thres_perc,
-            amplitude=amp,
-        )
-    elif stimulus_name == StimulusName.IV:
-        return stimulus_factory.iv(
-            threshold_current=cell.threshold,
-            threshold_percentage=thres_perc,
-            amplitude=amp,
-        )
-    elif stimulus_name == StimulusName.FIRE_PATTERN:
-        return stimulus_factory.fire_pattern(
-            threshold_current=cell.threshold,
-            threshold_percentage=thres_perc,
-            amplitude=amp,
-        )
-    elif stimulus_name == StimulusName.POS_CHEOPS:
-        return stimulus_factory.pos_cheops(
-            threshold_current=cell.threshold,
-            threshold_percentage=thres_perc,
-            amplitude=amp,
-        )
-    elif stimulus_name == StimulusName.NEG_CHEOPS:
-        return stimulus_factory.neg_cheops(
-            threshold_current=cell.threshold,
-            threshold_percentage=thres_perc,
-            amplitude=amp,
-        )
-
-
-def get_constant_frequencies_for_sim_id(
-    synapse_set_id: str, constant_frequency_sim_configs: list[SynapseSimulationConfig]
-):
-    constant_frequencies: list[float] = []
-    for sim_config in constant_frequency_sim_configs:
-        if sim_config.id == synapse_set_id and not isinstance(
-            sim_config.frequency, list
-        ):
-            constant_frequencies.append(sim_config.frequency)
-
-    return constant_frequencies
-
-
-def get_synapse_placement_config(
-    sim_id: str, placement_configs: SynapsesPlacementConfig
-) -> SynapseConfig:
-    for placement_config in placement_configs.config:
-        if placement_config.id == sim_id:
-            return placement_config
-
-    raise Exception(f"No synaptome placement config was found with id {sim_id}")
-
-
-def get_sim_configs_by_synapse_id(
-    sim_configs: list[SynapseSimulationConfig],
-) -> dict[str, list[SynapseSimulationConfig]]:
-    sim_id_to_sim_configs: dict[str, list[SynapseSimulationConfig]] = {}
-
-    for sim_config in sim_configs:
-        if sim_config.id in sim_id_to_sim_configs:
-            sim_id_to_sim_configs[sim_config.id].append(sim_config)
-        else:
-            sim_id_to_sim_configs[sim_config.id] = [sim_config]
-
-    return sim_id_to_sim_configs
-
-
-def is_current_varying_simulation(config: SingleNeuronSimulationConfig) -> bool:
-    if config.type == "single-neuron-simulation" or config.synapses is None:
-        return True
-
-    synapse_set_with_multiple_frequency = [
-        synapse_set
-        for synapse_set in config.synapses
-        if isinstance(synapse_set.frequency, list)
-    ]
-    if len(synapse_set_with_multiple_frequency) > 0:
-        # TODO: This assertion should be at pydantic model level
-        assert not isinstance(config.currentInjection.stimulus.amplitudes, list)
-        return False
-
-    return True
-
+        celery_app.control.revoke(current_task.request.id, terminate=True)
+        logger.exception(f"Error during pool initialization or task submission: {e}")

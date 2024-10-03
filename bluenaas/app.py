@@ -17,10 +17,9 @@ from bluenaas.routes.simulation import router as simulation_router
 from bluenaas.routes.graph_data import router as graph_router
 from bluenaas.routes.synaptome import router as synaptome_router
 from bluenaas.routes.validation import router as validation_router
-from bluenaas.routes.distributed_simulation import router as distributed_simulation_router 
+
 from starlette.middleware.cors import CORSMiddleware
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
-
 
 sentry_sdk.init(
     dsn=settings.SENTRY_DSN,
@@ -104,7 +103,6 @@ base_router.include_router(simulation_router)
 base_router.include_router(synaptome_router)
 base_router.include_router(graph_router)
 base_router.include_router(validation_router)
-base_router.include_router(distributed_simulation_router)
 
 
 app.include_router(base_router)

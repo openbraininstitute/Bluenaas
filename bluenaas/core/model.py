@@ -44,8 +44,8 @@ MAXIMUM_ALLOWED_SYNAPSES = 20_000
 
 
 class Model:
-    def __init__(self, *, model_id: str, hyamp: float | None, token: str):
-        self.model_id: str = model_id
+    def __init__(self, *, model_self: str, hyamp: float | None, token: str):
+        self.model_self: str = model_self
         self.token: str = token
         self.CELL: HocCell = None
         self.threshold_current: int = 1
@@ -54,10 +54,10 @@ class Model:
 
     def build_model(self):
         """Prepare model."""
-        if self.model_id is None:
+        if self.model_self is None:
             raise Exception("Missing model _self url")
 
-        nexus_helper = Nexus({"token": self.token, "model_self_url": self.model_id})
+        nexus_helper = Nexus({"token": self.token, "model_self_url": self.model_self})
         [holding_current, threshold_current] = nexus_helper.get_currents()
         self.threshold_current = threshold_current
 
@@ -323,12 +323,12 @@ class Model:
 
 
 def model_factory(
-    model_id: str,
+    model_self: str,
     hyamp: float | None,
     bearer_token: str,
 ):
     model = Model(
-        model_id=model_id,
+        model_self=model_self,
         hyamp=hyamp,
         token=bearer_token,
     )

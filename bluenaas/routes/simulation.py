@@ -3,34 +3,57 @@ Simulation Routes
 contains the single neuron simulation endpoint (single neuron, single neuron with synaptome)
 """
 
-from typing import List
-
-from fastapi import APIRouter, Depends, Request
-
-from bluenaas.domains.simulation import (
-    SimulationItemResponse,
-    SingleNeuronSimulationConfig,
-)
+from fastapi import APIRouter, Depends
+from bluenaas.domains.simulation import SingleNeuronSimulationConfig
 from bluenaas.infrastructure.kc.auth import verify_jwt
-from bluenaas.services.single_neuron_simulation import execute_single_neuron_simulation
-
+from bluenaas.services.simulation.run_simulation import run_simulation
+from bluenaas.services.simulation.retrieve_simulation import retrieve_simulation
 
 router = APIRouter(prefix="/simulation")
 
 
 @router.post(
-    "/single-neuron/run",
-    response_model=List[SimulationItemResponse],
+    "/single-neuron/{org_id}/{project_id}/run",
 )
-def run_simulation(
-    request: Request,
-    model_id: str,
+def execute_simulation(
+    model_self: str,
+    org_id: str,
+    project_id: str,
     config: SingleNeuronSimulationConfig,
     token: str = Depends(verify_jwt),
 ):
-    return execute_single_neuron_simulation(
-        model_id=model_id,
-        token=token,
+    """
+    Initiates a simulation for a single neuron or synaptome model and returns a simulaton results.
+
+    Args:
+        model_id (str): The identifier of the neuron model to simulate.
+        org_id (str): The organization ID associated with the simulation request.
+        project_id (str): The project ID associated with the simulation request.
+        config (SingleNeuronSimulationConfig): Configuration settings for the simulation.
+        token (str): The JWT token for authentication and authorization.
+
+    Returns:
+        SimulationResponse: A response containing the task ID and initial simulation information.
+
+    Raises:
+        HTTPException: If there is an issue with the simulation request.
+    """
+    return run_simulation(
         config=config,
-        req_id=request.state.request_id,
+        token=token,
+        model_self=model_self,
+        org_id=org_id,
+        project_id=project_id,
     )
+
+
+@router.get(
+    "/single-neuron/{org_id}/{project_id}/{simulation_id}",
+)
+def get_simulation(
+    org_id: str,
+    project_id: str,
+    simulation_id: str,
+    token: str = Depends(verify_jwt),
+):
+    return retrieve_simulation()

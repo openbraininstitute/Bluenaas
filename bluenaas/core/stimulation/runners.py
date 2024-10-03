@@ -1,13 +1,13 @@
 from loguru import logger
-from bluenaas.core.stimulation.common import (
+from itertools import chain
+from bluenaas.core.exceptions import SimulationError
+
+from bluenaas.core.stimulation.utils import (
     get_constant_frequencies_for_sim_id,
     get_sim_configs_by_synapse_id,
     get_synapse_placement_config,
 )
-from itertools import chain
 from bluenaas.utils.util import log_stats_for_series_in_frequency
-
-from bluenaas.core.exceptions import SimulationError
 from bluenaas.core.model import fetch_synaptome_model_details
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
@@ -16,26 +16,51 @@ from bluenaas.domains.simulation import (
 )
 
 
-def _init_current_varying_simulation(
-    model_id: str,
+def init_current_varying_simulation(
+    model_self: str,
     token: str,
     config: SingleNeuronSimulationConfig,
-    req_id: str,
 ):
+    """
+    Initializes and starts a current-varying simulation for a specified neuron model.
+
+    This function sets up the simulation based on the provided model identifier,
+    and configuration. It handles synapse generation and initializes the simulation accordingly.
+
+    Args:
+        model_self (str): The identifier of the neuron model to simulate.
+        token (str): The authz token for nexus communication.
+        config (SingleNeuronSimulationConfig): The configuration settings for the simulation,
+                                               including type and synapse settings.
+
+    Returns:
+        SimulationResult: The result of the simulation initialization, typically containing
+                          details about the simulation run.
+
+    Raises:
+        SimulationError: If there is an error during the simulation setup or execution.
+
+    Workflow:
+        1. If the configuration specifies a synaptome simulation and includes synapse details,
+           fetch the synaptome model details to determine the appropriate me-model id.
+        2. Create the neuron model using the `model_factory` function.
+        3. If synapse details are provided, generate synapse settings based on the configuration.
+        4. Start the simulation using the generated settings and return the result.
+    """
     from bluenaas.core.model import model_factory
 
     try:
-        me_model_id = model_id
+        me_model_id = model_self
         synapse_generation_config: list[SynapseSeries] = None
 
         if config.type == "synaptome-simulation" and config.synapses is not None:
             synaptome_details = fetch_synaptome_model_details(
-                synaptome_self=model_id, bearer_token=token
+                synaptome_self=model_self, bearer_token=token
             )
             me_model_id = synaptome_details.base_model_self
 
         model = model_factory(
-            model_id=me_model_id,
+            model_self=me_model_id,
             hyamp=config.conditions.hypamp,
             bearer_token=token,
         )
@@ -63,10 +88,10 @@ def _init_current_varying_simulation(
 
             synapse_generation_config = list(chain.from_iterable(synapse_settings))
 
-        return model.CELL.start_current_varying_simulation(
+        return model.CELL.start_simulation(
             config=config,
-            synapse_generation_config=synapse_generation_config,
-            req_id=req_id,
+            current_synapse_serires=synapse_generation_config,
+            frequency_to_synapse_series=None,
         )
     except SimulationError as ex:
         raise ex
@@ -77,23 +102,52 @@ def _init_current_varying_simulation(
         logger.info("Simulation executor ended")
 
 
-def _init_frequency_varying_simulation(
-    model_id: str,
+def init_frequency_varying_simulation(
+    model_self: str,
     token: str,
     config: SingleNeuronSimulationConfig,
-    req_id: str,
 ):
+    """
+    Initializes and starts a frequency-varying simulation for a specified neuron model.
+
+    This function sets up the simulation based on the provided model identifier,
+    and configuration. It handles both variable and constant frequency synapse configurations
+    and initializes the simulation accordingly.
+
+    Args:
+        model_self (str): The identifier of the neuron model to simulate (typically a synaptome model).
+        token (str): The authz token for nexus communication.
+        config (SingleNeuronSimulationConfig): The configuration settings for the simulation,
+                                               including type and synapse settings.
+
+    Returns:
+        SimulationResult: The result of the simulation initialization, typically containing
+                          details about the simulation run.
+
+    Raises:
+        SimulationError: If there is an error during the simulation setup or execution.
+
+    Workflow:
+        1. Fetch the synaptome model details to determine the appropriate model id.
+        2. Create the neuron model using the `model_factory` function.
+        3. Separate incoming synapse configurations into those with constant and variable frequencies.
+        4. For each variable frequency configuration:
+           - Get the synapse placement configuration.
+           - Generate synapse series for the variable frequency.
+           - Include synapse series for constant frequency configurations associated with the same synapse set.
+        5. Start the simulation using the generated synapse series settings and return the result.
+    """
     from bluenaas.core.model import model_factory
 
     try:
-        me_model_id = model_id
+        me_model_id = model_self
         synaptome_details = fetch_synaptome_model_details(
-            synaptome_self=model_id, bearer_token=token
+            synaptome_self=model_self, bearer_token=token
         )
         me_model_id = synaptome_details.base_model_self
 
         model = model_factory(
-            model_id=me_model_id,
+            model_self=me_model_id,
             hyamp=config.conditions.hypamp,
             bearer_token=token,
         )
@@ -185,16 +239,13 @@ def _init_frequency_varying_simulation(
             )
             log_stats_for_series_in_frequency(frequency_to_synapse_settings[frequency])
 
-        model.CELL.start_frequency_varying_simulation(
+        return model.CELL.start_simulation(
             config=config,
             frequency_to_synapse_series=frequency_to_synapse_settings,
-            # simulation_queue=simulation_queue,
-            req_id=req_id,
+            current_synapse_serires=None,
         )
     except SimulationError as ex:
         logger.exception(f"Simulation executor error: {ex}")
-        # simulation_queue.put(ex)
-        # simulation_queue.put(QUEUE_STOP_EVENT)
         raise ex
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
