@@ -1,21 +1,17 @@
-# worker = select_best_worker(
-#         result_cpu, len(config.currentInjection.stimulus.amplitudes)
-#     )
-# result_cpu = celery_app.control.broadcast("cpu_usage_stats", reply=True, timeout=2)
-#     # TODO: there is no way to specify which worker is best in the current API
-
 import json
-
 from celery import states
-from fastapi.responses import StreamingResponse
 from loguru import logger
+from celery.exceptions import TaskRevokedError
+
 from bluenaas.domains.simulation import SingleNeuronSimulationConfig
+from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup_worker
 
 task_state_descriptions = {
     states.PENDING: "Simulation is waiting for execution.",
     states.STARTED: "Simulation has started executing.",
     states.SUCCESS: "The simulation completed successfully.",
     states.FAILURE: "The simulation has failed.",
+    states.REVOKED: "The simulation has been canceled.",
     "PROGRESS": "Simulation is currently in progress.",
 }
 
@@ -58,7 +54,6 @@ def run_simulation(
     """
     from bluenaas.infrastructure.celery import create_simulation, celery_app
     from celery.result import AsyncResult
-    from celery import current_task
 
     task = create_simulation.apply_async(
         kwargs={
@@ -70,7 +65,7 @@ def run_simulation(
         },
         ignore_result=True,
     )
-
+    logger.info(f"@@task id {task.id}")
     task_result = AsyncResult(
         task.id,
         app=celery_app,
@@ -92,6 +87,17 @@ def run_simulation(
             )}\n"
 
             while not task_result.ready():
+                if isinstance(task.info, TaskRevokedError):
+                    yield f"{json.dumps(
+                        {
+                            "type":  get_event_from_task_state(task.state),
+                            "description": task_state_descriptions[task.state],
+                            "state": task.state.lower(),
+                            "data": None,
+                        }
+                    )}\n"
+                    break
+
                 yield f"{json.dumps(
                         {
                             "type":  get_event_from_task_state(task.state),
@@ -103,11 +109,14 @@ def run_simulation(
         except Exception as ex:
             logger.info(f"Exception in task streaming: {ex}")
             # TODO: better way to terminate the task
-            celery_app.control.revoke(current_task.request.id, terminate=True)
+            celery_app.control.revoke(task.id, terminate=True)
             raise Exception("Trouble while streaming simulation data")
 
-    return StreamingResponse(
+    return StreamingResponseWithCleanup(
         streamify(),
+        finalizer=lambda: cleanup_worker(
+            task.id,
+        ),
         media_type="application/octet-stream",
         headers={
             "x-bnaas-task": task.id,

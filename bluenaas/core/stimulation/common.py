@@ -278,7 +278,6 @@ def apply_multiple_simulations(args, runner):
                 process_finished = 0
 
                 while True:
-                    logger.info("@@@@---> here")
                     try:
                         record = queue.get(timeout=1)
                         if record != SUB_PROCESS_STOP_EVENT:
@@ -299,12 +298,17 @@ def apply_multiple_simulations(args, runner):
                         else:
                             process_finished += 1
                             if process_finished == len(args):
-                                logger.info(f"@@all process finished: {len(args)}")
-                                current_task.update_state(state=states.SUCCESS)
+                                current_task.update_state(
+                                    state=states.SUCCESS,
+                                    meta={"all_simulations_finished": True},
+                                )
                                 break
                     except que.Empty:
                         continue
                     except Exception as ex:
+                        logger.exception(
+                            f"Error during pulling simulation data from sub processes: {ex}"
+                        )
                         current_task.update_state(
                             state=states.FAILURE,
                             meta={
@@ -317,6 +321,7 @@ def apply_multiple_simulations(args, runner):
                         )
                 return simulations.get()
     except Exception as e:
+        logger.exception(f"Error during pool initialization or task submission: {e}")
         current_task.update_state(
             state=states.FAILURE,
             meta={
@@ -326,4 +331,3 @@ def apply_multiple_simulations(args, runner):
             },
         )
         celery_app.control.revoke(current_task.request.id, terminate=True)
-        logger.exception(f"Error during pool initialization or task submission: {e}")

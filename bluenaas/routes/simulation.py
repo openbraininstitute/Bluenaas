@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from bluenaas.domains.simulation import SingleNeuronSimulationConfig
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.services.simulation.run_simulation import run_simulation
+from bluenaas.services.simulation.stop_simulation import stop_simulation
 from bluenaas.services.simulation.retrieve_simulation import retrieve_simulation
 
 router = APIRouter(prefix="/simulation")
@@ -44,6 +45,21 @@ def execute_simulation(
         model_self=model_self,
         org_id=org_id,
         project_id=project_id,
+    )
+
+
+@router.post(
+    "/single-neuron/{org_id}/{project_id}/{simulation_task_id}/stop",
+)
+async def kill_simulation(
+    org_id: str,
+    project_id: str,
+    task_id: str,
+    token: str = Depends(verify_jwt),
+):
+    return await stop_simulation(
+        token=token,
+        task_id=task_id,
     )
 
 

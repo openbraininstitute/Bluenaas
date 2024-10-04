@@ -4,7 +4,6 @@ import signal
 import multiprocessing as mp
 from multiprocessing.synchronize import Event
 from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup
-from fastapi.responses import StreamingResponse
 from loguru import logger
 from http import HTTPStatus as status
 from queue import Empty as QueueEmptyException
@@ -98,7 +97,9 @@ def get_single_morphology_dendrogram(
                 yield q_result
 
         return StreamingResponseWithCleanup(
-            queue_streamify(que=morpho_dend_queue, stop_event=stop_event), media_type="application/x-ndjson", finalizer=lambda: cleanup(stop_event, process)
+            queue_streamify(que=morpho_dend_queue, stop_event=stop_event),
+            media_type="application/x-ndjson",
+            finalizer=lambda: cleanup(stop_event, process),
         )
 
     except Exception as ex:

@@ -158,7 +158,7 @@ services:
     depends_on:
       - redis
     environment:
-      - REDIS_URL="redis://redis:6379/0"
+      - REDIS_URL=${CELERY_RESULT_BACKEND}
     volumes:
       - type: volume
         source: nfs_share
