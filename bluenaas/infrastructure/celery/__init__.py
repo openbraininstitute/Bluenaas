@@ -1,7 +1,9 @@
 from datetime import timedelta
 import json
+import time
 from celery import Celery
 from celery.worker.control import inspect_command
+from loguru import logger
 
 from bluenaas.config.settings import settings
 from bluenaas.core.stimulation.utils import is_current_varying_simulation
@@ -14,18 +16,20 @@ from bluenaas.domains.simulation import SingleNeuronSimulationConfig
 from bluenaas.infrastructure.celery.bluenaas_task import BluenaasTask
 
 celery_app = Celery(
-    "bluenaas",
+    settings.CELERY_APP_NAME,
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    task_cls="bluenaas.infrastructure.celery.bluenaas_task:BluenaasTask",
-    # worker_send_task_events=True,
-    # task_send_sent_event=True,
-    # task_acks_late=True,
-    # task_reject_on_worker_lost=True,
+    task_default_queue=settings.CELERY_QUE_SIMULATIONS,
+    task_acks_late=True,
+    task_send_sent_event=True,
+    task_reject_on_worker_lost=True,
+    broker_connection_retry_on_startup=True,
     result_compression="gzip",
-    result_expires=timedelta(minutes=1),
+    worker_concurrency=1,
     worker_prefetch_multiplier=1,
+    result_expires=timedelta(minutes=0.5),
     result_backend_transport_options={"global_keyprefix": "bnaas_sim_"},
+    task_cls="bluenaas.infrastructure.celery.bluenaas_task:BluenaasTask",
 )
 
 
@@ -47,6 +51,17 @@ def cpu_usage_stats(state):
             - cpu_usage_percent
     """
     return get_cpus_in_use()
+
+
+# NOTE: test task
+@celery_app.task(bind=True, queue="simulations")
+def create_dummy_task(self):
+    logger.info("[TASK_RECEIVED_NOW]")
+    if self.request.hostname.startswith("worker0"):
+        time.sleep(15)
+    else:
+        time.sleep(20)
+    return "me"
 
 
 @celery_app.task(bind=True, base=BluenaasTask)

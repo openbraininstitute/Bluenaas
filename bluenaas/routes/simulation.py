@@ -3,14 +3,28 @@ Simulation Routes
 contains the single neuron simulation endpoint (single neuron, single neuron with synaptome)
 """
 
-from fastapi import APIRouter, Depends
+import time
+from fastapi import APIRouter, Depends, Query
 from bluenaas.domains.simulation import SingleNeuronSimulationConfig
 from bluenaas.infrastructure.kc.auth import verify_jwt
+from bluenaas.infrastructure.celery import create_dummy_task
 from bluenaas.services.simulation.run_simulation import run_simulation
 from bluenaas.services.simulation.stop_simulation import stop_simulation
 from bluenaas.services.simulation.retrieve_simulation import retrieve_simulation
 
 router = APIRouter(prefix="/simulation")
+
+
+@router.post(
+    "/single-neuron/dummy",
+)
+def dummy_simulation(
+    tasks: int = Query(min=10, default=20),
+):
+    for i in range(tasks):
+        create_dummy_task.apply_async()
+        time.sleep(1)
+        i += 1
 
 
 @router.post(
@@ -24,7 +38,7 @@ def execute_simulation(
     token: str = Depends(verify_jwt),
 ):
     """
-    Initiates a simulation for a single neuron or synaptome model and returns a simulaton results.
+    Initiates a simulation for a single neuron or synaptome model and returns a simulation results.
 
     Args:
         model_id (str): The identifier of the neuron model to simulate.
