@@ -31,6 +31,8 @@ services:
       - ls
     depends_on:
       - redis
+    deploy:
+      replicas: 1
 
   redis:
     container_name: redis
@@ -44,23 +46,6 @@ services:
       retries: 3
     networks:
       - ls
-
-  # TODO: remove db definitly
-  # db:
-  #   container_name: db
-  #   image: postgres
-  #   env_file:
-  #     - "./.env.local"
-  #   restart: always
-  #   ports:
-  #     - 5432:5432
-  #   environment:
-  #     - POSTGRES_USER=${DB_USER}
-  #     - POSTGRES_PASSWORD=${DB_PASSWORD}
-  #     - POSTGRES_DB=${DB_NAME}
-  #     - POSTGRES_HOST_AUTH_METHOD=trust
-  #   networks:
-  #     - ls
 
   worker0:
     image: bluenaas-single-cell-svc
@@ -125,7 +110,7 @@ services:
       
   flower:
     image: mher/flower
-    container_name: queue_monitor
+    container_name: broker
     env_file: "./.env.local"
     ports:
       - 5555:5555
@@ -169,23 +154,23 @@ services:
       ls:
         ipv4_address: 10.0.3.22
 
-  monitor:
-    image: bluenaas-single-cell-svc
-    container_name: logs_monitor
-    env_file: "./.env.local"
-    build:
-      dockerfile: ./Dockerfile.dev
-    command: ["poetry", "run", "monitor"]
-    environment:
-      DEBUG: True
-    volumes:
-      - ${PWD}/bluenaas:/app/bluenaas
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - ls
-    depends_on:
-      - redis
+  # monitor:
+  #   image: bluenaas-single-cell-svc
+  #   container_name: logs_monitor
+  #   env_file: "./.env.local"
+  #   build:
+  #     dockerfile: ./Dockerfile.dev
+  #   command: ["poetry", "run", "monitor"]
+  #   environment:
+  #     DEBUG: "True"
+  #   volumes:
+  #     - ${PWD}/bluenaas:/app/bluenaas
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   networks:
+  #     - ls
+  #   depends_on:
+  #     - redis
 
 volumes:
   nfs_share:

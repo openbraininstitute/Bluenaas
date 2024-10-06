@@ -31,9 +31,12 @@ redis = "5.1.0"
 psutil = "^6.0.0"
 watchdog = {extras = ["watchmedo"], version = "^5.0.3"}
 billiard = "^4.2.1"
+mypy-boto3 = "^1.35.34"
+boto3-stubs = {extras = ["cloudwatch", "ec2", "ecs"], version = "^1.35.34"}
 
 [tool.poetry.group.types.dependencies]
 types-requests = "^2.32.0.20240712"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
@@ -43,4 +46,4 @@ venvPath = "/Users/meddah/Library/Caches/pypoetry/virtualenvs"
 venv = "bluenaas-DrmS_1CG-py3.12"
 
 [tool.poetry.scripts]
-monitor = "bluenaas.infrastructure.celery.monitor:main"
+monitor = "bluenaas.infrastructure.celery.events_monitoring:main"

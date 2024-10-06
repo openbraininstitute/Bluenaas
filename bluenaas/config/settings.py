@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = (
         "db+postgresql+psycopg2://postgres:password@db:5432/bleunaas"
     )
+    CELERY_APP_NAME: str = "bluenaas"
+    CELERY_QUE_SIMULATIONS: str = "simulations"
 
     DATABASE_URL: PostgresDsn = MultiHostUrl(
         "postgresql+psycopg2://postgres:password@db:5432/bleunaas"
@@ -57,6 +59,10 @@ class Settings(BaseSettings):
     AWS_ACCESS_KEY_ID: str = "test"
     AWS_SECRET_ACCESS_KEY: str = "test"
     AWS_REGION: str = "us-east-1"
+    CLUSTER_NAME: str = "cluster_01"
+    SERVICE_NAME: str = "ecs-service-vite"
+
+    DOCKER_HOST: str = "unix:///Users/meddah/.docker/run/docker.sock"
 
 
 settings = Settings()

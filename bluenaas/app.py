@@ -1,10 +1,14 @@
-from typing import Awaitable, Callable
 import uuid
+import threading
+import sentry_sdk
+from contextlib import asynccontextmanager
+from typing import Awaitable, Callable
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.middleware.gzip import GZipMiddleware
-import sentry_sdk
+from starlette.middleware.cors import CORSMiddleware
+from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 
 from bluenaas.config.settings import settings
 from bluenaas.core.exceptions import (
@@ -12,14 +16,16 @@ from bluenaas.core.exceptions import (
     BlueNaasErrorCode,
     BlueNaasErrorResponse,
 )
+
+from bluenaas.infrastructure.celery import celery_app
+from bluenaas.infrastructure.celery.worker_scalability import ScalabilityManager
+
 from bluenaas.routes.morphology import router as morphology_router
 from bluenaas.routes.simulation import router as simulation_router
 from bluenaas.routes.graph_data import router as graph_router
 from bluenaas.routes.synaptome import router as synaptome_router
 from bluenaas.routes.validation import router as validation_router
 
-from starlette.middleware.cors import CORSMiddleware
-from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 
 sentry_sdk.init(
     dsn=settings.SENTRY_DSN,
@@ -29,11 +35,29 @@ sentry_sdk.init(
 )
 
 
+def scale_controller():
+    def run_task():
+        task = ScalabilityManager(
+            celery_app=celery_app,
+        )
+        task.run()
+
+    monitor_thread = threading.Thread(target=run_task)
+    monitor_thread.start()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scale_controller()
+    yield
+
+
 app = FastAPI(
     debug=True,
     title=settings.APP_NAME,
     openapi_url=f"{settings.BASE_PATH}/openapi.json",
     docs_url=f"{settings.BASE_PATH}/docs",
+    lifespan=lifespan,
 )
 
 app.add_middleware(SentryAsgiMiddleware)
