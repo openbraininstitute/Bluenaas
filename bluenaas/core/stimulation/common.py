@@ -34,6 +34,7 @@ def prepare_stimulation_parameters(
     injection_segment: float = 0.5,
     add_hypamp: bool = True,
     varying_type: Literal["frequency", "current"] = "current",
+    run_without_updates: bool = False,
 ):
     from bluecellulab.stimulus.factory import StimulusFactory
 
@@ -78,6 +79,7 @@ def prepare_stimulation_parameters(
                     amplitudes,
                     frequency,
                     add_hypamp,
+                    run_without_updates,
                 )
             )
     elif varying_type == "current":
@@ -106,6 +108,7 @@ def prepare_stimulation_parameters(
                     stimulus_name,
                     amplitude,
                     add_hypamp,
+                    run_without_updates,
                 )
             )
 
@@ -320,6 +323,158 @@ def apply_multiple_simulations(args, runner):
                             current_task.request.id, terminate=True
                         )
                 return simulations.get()
+    except Exception as e:
+        logger.exception(f"Error during pool initialization or task submission: {e}")
+        current_task.update_state(
+            state=states.FAILURE,
+            meta={
+                "data": None,
+                "exit_due_exception": e.__str__,
+                "all_simulations_complete": False,
+            },
+        )
+        celery_app.control.revoke(current_task.request.id, terminate=True)
+
+
+def run_simulation_without_partial_updates(
+    cell,
+    queue,
+    current,
+    recording_locations: list[RecordingLocation],
+    simulation_duration: int,
+    time_step: int,
+    amplitude: float | None,
+    frequency: float | None,
+    varying_type: Literal["frequency", "current"],
+    varying_key: str,
+):
+    from bluecellulab.simulation.simulation import Simulation
+
+    try:
+        simulation = Simulation(cell)
+        stim_label = (
+            f"{varying_key}_{frequency if varying_type == "frequency" else amplitude}"
+        )
+
+        simulation.run(
+            maxtime=simulation_duration,
+            cvode=False,
+            dt=time_step,
+        )
+
+        sim_result_for_varying_key = []
+        for location in recording_locations:
+            recording_section = cell.sections[location.section]
+            recording_segment = location.offset
+            recording_name = f"{location.section}_{recording_segment}"
+
+            voltage = cell.get_voltage_recording(
+                section=recording_section, segx=recording_segment
+            )
+            time = cell.get_time()
+
+            sim_result_for_varying_key.append(
+                {
+                    "stim_label": stim_label,
+                    "recording_name": recording_name,
+                    "amplitude": amplitude,
+                    "frequency": frequency,
+                    "time": time.tolist(),
+                    "current": current.tolist(),
+                    "voltage": voltage.tolist(),
+                    "varying_key": varying_key,
+                }
+            )
+
+        queue.put(sim_result_for_varying_key)
+        return sim_result_for_varying_key
+    except Exception as ex:
+        logger.exception(f"child simulation failed {ex}")
+        raise ChildSimulationError from ex
+    finally:
+        logger.info("child simulation complete")
+        queue.put(SUB_PROCESS_STOP_EVENT)
+
+
+def apply_multiple_simulations_without_partial_updates(args, runner):
+    from bluecellulab.simulation.neuron_globals import NeuronGlobals
+    from celery import current_task, states
+    from bluenaas.infrastructure.celery import celery_app
+    import billiard as brd
+
+    neuron_global_params = NeuronGlobals.get_instance().export_params()
+
+    try:
+        with brd.Manager() as manager:
+            queue = manager.Queue()
+            with brd.pool.Pool(
+                processes=min(len(args), os.cpu_count() or len(args)),
+                initializer=init_process_worker,
+                initargs=(neuron_global_params,),
+                maxtasksperchild=1,
+            ) as pool:
+                simulations = pool.starmap_async(
+                    runner,
+                    iterable=[(*arg, queue) for arg in args],
+                )
+
+                process_finished = 0
+                record_location_to_simulaton_result = {}
+
+                while True:
+                    try:
+                        record = queue.get(timeout=1)
+                        if record != SUB_PROCESS_STOP_EVENT:
+                            for data_for_rec_location in record:
+                                recording_name = record["recording_name"]
+
+                                if (
+                                    recording_name
+                                    not in record_location_to_simulaton_result
+                                ):
+                                    record_location_to_simulaton_result[
+                                        recording_name
+                                    ] = []
+
+                                record_location_to_simulaton_result[
+                                    recording_name
+                                ].append(
+                                    {
+                                        "x": record["time"],
+                                        "y": record["voltage"],
+                                        "type": "scatter",
+                                        "name": record["stim_label"],
+                                        "recording": record["recording_name"],
+                                        "amplitude": record["amplitude"],
+                                        "frequency": record["frequency"],
+                                        "varying_key": record["varying_key"],
+                                    }
+                                )
+                        else:
+                            process_finished += 1
+                            if process_finished == len(args):
+                                current_task.update_state(
+                                    state=states.SUCCESS,
+                                    meta={"all_simulations_complete": True},
+                                )
+                                break
+                    except que.Empty:
+                        continue
+                    except Exception as ex:
+                        logger.exception(
+                            f"Error during pulling simulation data from sub processes: {ex}"
+                        )
+                        current_task.update_state(
+                            state=states.FAILURE,
+                            meta={
+                                "data": None,
+                                "exit_due_exception": ex.__str__,
+                            },
+                        )
+                        celery_app.control.revoke(
+                            current_task.request.id, terminate=True
+                        )
+                return record_location_to_simulaton_result
     except Exception as e:
         logger.exception(f"Error during pool initialization or task submission: {e}")
         current_task.update_state(

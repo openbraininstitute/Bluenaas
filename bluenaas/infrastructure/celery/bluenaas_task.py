@@ -1,7 +1,9 @@
-from celery import Task
+from celery import Task, states
+from loguru import logger
 
 from bluenaas.infrastructure.celery.worker_scalability import EcsTaskProtection
 from bluenaas.utils.run_on_env import run_on_env
+from bluenaas.external.nexus.nexus import Nexus
 
 
 class BluenaasTask(Task):
@@ -12,8 +14,22 @@ class BluenaasTask(Task):
         super().__init__()
 
     def before_start(self, task_id, args, kwargs):
-        # TODO: create a draft nexus simulation
+        logger.debug(f"About to start task {task_id}")
+
+        if "track_status" in kwargs and kwargs["track_status"] is True:
+            logger.debug(f"Updating status for {task_id} to STARTED")
+            assert "simulation_resource" in kwargs
+            nexus_helper = Nexus(
+                {"token": kwargs["token"], "model_self_url": kwargs["model_self"]}
+            )
+            nexus_helper.update_simulation_status(
+                org_id=kwargs["org_id"],
+                project_id=kwargs["project_id"],
+                simulation_resource_self=kwargs["simulation_resource"]["_self"],
+                status=states.STARTED,
+            )
         super().before_start(task_id, args, kwargs)
+        
         run_on_env(
             env_fns={
                 "production": self.task_protection.toggle_protection,
@@ -22,7 +38,23 @@ class BluenaasTask(Task):
         )
 
     def on_success(self, retval, task_id, args, kwargs):
-        # TODO: save simulation to nexus
+        logger.info(f"@@on_success {(task_id)}")
+        logger.debug(f"Task Results received: {retval}")
+
+        if "track_status" in kwargs and kwargs["track_status"] is True:
+            logger.debug(f"Updating status for {task_id} to SUCCESS")
+            assert "simulation_resource" in kwargs
+            nexus_helper = Nexus(
+                {"token": kwargs["token"], "model_self_url": kwargs["model_self"]}
+            )
+            nexus_helper.save_simulation_results(
+                simulation_resource_self=kwargs["simulation_resource"]["_self"],
+                simulation_config=kwargs["simulation_config"],
+                lab_id=kwargs["org_id"],
+                project_id=kwargs["project_id"],
+                status=states.SUCCESS,
+                results=retval["result"],
+            )
         run_on_env(
             env_fns={
                 "production": self.task_protection.extend_protection,
@@ -31,11 +63,25 @@ class BluenaasTask(Task):
         )
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
-        # TODO: save the failure in nexus too
-        super().on_failure(exc, task_id, args, kwargs, einfo)
+        logger.info(f"@@on_failure {(exc, task_id, args, kwargs, einfo)}")
+
+        if "track_status" in kwargs and kwargs["track_status"] is True:
+            logger.debug(f"Updating status for {task_id} to FAILURE")
+            assert "simulation_resource" in kwargs
+            nexus_helper = Nexus(
+                {"token": kwargs["token"], "model_self_url": kwargs["model_self"]}
+            )
+            nexus_helper.update_simulation_status(
+                org_id=kwargs["org_id"],
+                project_id=kwargs["project_id"],
+                simulation_resource_self=kwargs["simulation_resource"]["_self"],
+                status=states.FAILURE,
+            )  # TODO: Save error in simulation resource
         run_on_env(
             env_fns={
                 "production": self.task_protection.extend_protection,
             },
             ets=5,
         )
+        super().on_failure(exc, task_id, args, kwargs, einfo)
+        

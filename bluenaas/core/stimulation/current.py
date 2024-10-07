@@ -10,6 +10,8 @@ from bluenaas.core.stimulation.common import (
     apply_multiple_simulations,
     basic_simulation_config,
     dispatch_simulation_result,
+    run_simulation_without_partial_updates,
+    apply_multiple_simulations_without_partial_updates,
 )
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
@@ -32,6 +34,7 @@ def _run_current_varying_stimulus(
     amplitude: float,
     add_hypamp: bool = True,
     queue: Any | None = None,
+    run_without_updates: bool = False,
 ):
     logger.info(f"""
         [simulation stimulus/start]: {stimulus}
@@ -60,6 +63,21 @@ def _run_current_varying_stimulus(
                 experimental_setup=experimental_setup,
             )
 
+    if run_without_updates is True:
+        # TODO: Add args names
+        return run_simulation_without_partial_updates(
+            cell,
+            queue,
+            current,
+            recording_locations,
+            simulation_duration,
+            experimental_setup.time_step,
+            amplitude,
+            None,
+            "current",
+            stimulus_name.name,
+        )
+
     return dispatch_simulation_result(
         cell,
         queue,
@@ -81,6 +99,7 @@ def apply_multiple_stimulus(
     experiment_setup: ExperimentSetupConfig,
     simulation_duration: int,
     current_synapse_serires: list[SynapseSeries] | None,
+    run_without_updates: bool = False,
 ):
     logger.info(f"""
         Running Simulation of:
@@ -97,8 +116,13 @@ def apply_multiple_stimulus(
         conditions=experiment_setup,
         simulation_duration=simulation_duration,
         varying_type="current",
+        run_without_updates=run_without_updates,
     )
 
+    if run_without_updates:
+        return apply_multiple_simulations_without_partial_updates(
+            args=args, runner=_run_current_varying_stimulus
+        )
     return apply_multiple_simulations(
         args=args,
         runner=_run_current_varying_stimulus,
