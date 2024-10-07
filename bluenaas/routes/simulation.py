@@ -4,13 +4,16 @@ contains the single neuron simulation endpoint (single neuron, single neuron wit
 """
 
 import time
-from fastapi import APIRouter, Depends, Query
-from bluenaas.domains.simulation import SingleNeuronSimulationConfig
+from fastapi import APIRouter, Depends, Query, Response, status
+
+from bluenaas.domains.simulation import SingleNeuronSimulationConfig, SimulationStatus
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.infrastructure.celery import create_dummy_task
 from bluenaas.services.simulation.run_simulation import run_simulation
 from bluenaas.services.simulation.stop_simulation import stop_simulation
 from bluenaas.services.simulation.retrieve_simulation import retrieve_simulation
+from bluenaas.services.simulation.submit_simulation import submit_simulation
+from bluenaas.core.exceptions import BlueNaasError
 
 router = APIRouter(prefix="/simulation")
 
@@ -87,3 +90,33 @@ def get_simulation(
     token: str = Depends(verify_jwt),
 ):
     return retrieve_simulation()
+
+
+@router.post(
+    "/single-neuron/{org_id}/{project_id}/submit",
+    description="Submit simulation to be run as a background task",
+)
+async def start_simulation(
+    model_self: str,
+    org_id: str,
+    project_id: str,
+    config: SingleNeuronSimulationConfig,
+    response: Response,
+    token: str = Depends(verify_jwt),
+) -> SimulationStatus:
+    try:
+        result = submit_simulation(
+            token=token,
+            model_self=model_self,
+            org_id=org_id,
+            project_id=project_id,
+            config=config,
+        )
+        response.status_code = status.HTTP_202_ACCEPTED
+        return result
+    except BlueNaasError as e:
+        response.status_code = e.http_status_code
+        raise e
+    except Exception as e:
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        raise e

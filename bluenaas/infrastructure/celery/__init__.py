@@ -4,6 +4,7 @@ import time
 from celery import Celery
 from celery.worker.control import inspect_command
 from loguru import logger
+from typing import Any
 
 from bluenaas.config.settings import settings
 from bluenaas.core.stimulation.utils import is_current_varying_simulation
@@ -110,6 +111,57 @@ def create_simulation(
             model_self,
             token,
             cf,
+        )
+    return {
+        "org_id": org_id,
+        "project_id": project_id,
+        "model_self": model_self,
+        "config": config,
+        "result": result,
+    }
+
+
+@celery_app.task(bind=True, base=BluenaasTask)
+def create_background_simulation_task(
+    self,
+    *,
+    org_id: str,
+    project_id: str,
+    model_self: str,
+    config: dict,
+    token: str,
+    simulation_resource: dict[str, Any],
+    track_status: bool,
+):
+    """
+    Submits a simulation task (current varying or frequency varying) to the task queue.
+    Updates the underlying nexus simulation based on the status of simulation as follows:
+
+    - STARTED - When simulation task is picked up by a celery worker
+    - SUCCESS - When simulation is finished and all data is received. The results are also stored in nexus resource
+    - ERROR   - When there was an error in running simulation.
+
+    Returns:
+        dict: A dictionary containing the simulation details:
+            - org_id (str): The organization ID.
+            - project_id (str): The project ID.
+            - model_self (str): The model identifier.
+            - config (dict): The original configuration used for the simulation.
+            - result: The result of the simulation.
+    """
+    sim_config = SingleNeuronSimulationConfig(**json.loads(config))
+
+    if is_current_varying_simulation(sim_config):
+        result = init_current_varying_simulation(
+            model_self,
+            token,
+            sim_config,
+        )
+    else:
+        result = init_frequency_varying_simulation(
+            model_self,
+            token,
+            sim_config,
         )
     return {
         "org_id": org_id,
