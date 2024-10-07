@@ -65,17 +65,17 @@ class SingleNeuronSimulationConfig(BaseModel):
     @field_validator("currentInjection")
     @classmethod
     def validate_amplitudes(cls, value, simulation):
-        stuff = simulation.data
+        config = simulation.data
 
         if isinstance(value.stimulus.amplitudes, list):
-            synapses = stuff.get("synapses") or []
+            synapses = config.get("synapses") or []
             for synapse in synapses:
                 if isinstance(synapse.frequency, list):
                     raise ValueError(
                         "Amplitude should be a constant float if frequency is a list"
                     )
         elif isinstance(value.stimulus.amplitudes, float):
-            synapses = stuff.get("synapses") or []
+            synapses = config.get("synapses") or []
             synapses_with_variable_frequencies = [
                 synapse for synapse in synapses if isinstance(synapse.frequency, list)
             ]
@@ -113,3 +113,17 @@ class SimulationBody(BaseModel):
 
     class Config:
         populate_by_name = True
+
+
+class PlotDataEntry(BaseModel):
+    x: List[float]
+    y: List[float]
+    name: str
+    amplitude: Optional[float]
+    frequency: Optional[float]
+
+
+class SimulationStatus(BaseModel):
+    id: str
+    status: str  # TODO: Change to enum
+    results: Optional[dict[str, list[PlotDataEntry]]]
