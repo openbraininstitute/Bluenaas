@@ -33,10 +33,11 @@ def _run_current_varying_stimulus(
     stimulus_name: StimulusName,
     amplitude: float,
     add_hypamp: bool = True,
-    queue: Any | None = None,
     run_without_updates: bool = False,
+    queue: Any | None = None,
 ):
     logger.info(f"""
+        [run_without_updates]: {run_without_updates}
         [simulation stimulus/start]: {stimulus}
         [simulation injection_section_name (provided)]: {injection_section_name}
         [simulation recording_locations]: {recording_locations}
@@ -102,7 +103,7 @@ def apply_multiple_stimulus(
     run_without_updates: bool = False,
 ):
     logger.info(f"""
-        Running Simulation of:
+        Running Simulation run_without_updates {run_without_updates} of:
         {"CurrentInjection" if current_injection is not None else ""}
         {"Synaptome " if current_synapse_serires is not None else ""}
     """)
