@@ -9,6 +9,7 @@ from bluenaas.core.exceptions import (
     BlueNaasErrorCode,
     SimulationError,
 )
+from urllib.parse import quote_plus
 
 task_state_descriptions = {
     states.PENDING: "Simulation is waiting for execution.",
@@ -106,5 +107,5 @@ def submit_simulation(
 
     # Step 3: Return simulation status to user
     return SimulationStatus(
-        id=simulation_resource["@id"], status=states.PENDING, results=None
+        id=quote_plus(simulation_resource["@id"]), status=states.PENDING, results=None
     )

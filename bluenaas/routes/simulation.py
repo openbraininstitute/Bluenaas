@@ -14,6 +14,9 @@ from bluenaas.services.simulation.stop_simulation import stop_simulation
 from bluenaas.services.simulation.retrieve_simulation import retrieve_simulation
 from bluenaas.services.simulation.submit_simulation import submit_simulation
 from bluenaas.core.exceptions import BlueNaasError
+from bluenaas.services.simulation.fetch_simulation_status_and_results import (
+    fetch_simulation_status_and_results,
+)
 
 router = APIRouter(prefix="/simulation")
 
@@ -120,3 +123,18 @@ async def start_simulation(
     except Exception as e:
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         raise e
+
+
+@router.get(
+    "/single-neuron/{org_id}/{project_id}/{simulation_id}/status",  # TODO: Remove status from url after discussing use of previous get request with @meddah
+    description="Get results & status for a previously started simulation. If simulation is not complete then only the status of simulation is returned",
+)
+async def get_simulation_results(
+    org_id: str,
+    project_id: str,
+    simulation_id: str,
+    token: str = Depends(verify_jwt),
+) -> SimulationStatus:
+    return fetch_simulation_status_and_results(
+        token=token, org_id=org_id, project_id=project_id, simulation_id=simulation_id
+    )
