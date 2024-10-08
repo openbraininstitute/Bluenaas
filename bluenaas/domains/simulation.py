@@ -123,7 +123,10 @@ class PlotDataEntry(BaseModel):
     frequency: Optional[float]
 
 
-class SimulationStatus(BaseModel):
+SimulationStatus = Literal["PENDING", "STARTED", "SUCCESS", "FAILURE"]
+
+
+class SimulationStatusResponse(BaseModel):
     id: str
-    status: str  # TODO: Change to enum
+    status: SimulationStatus
     results: Optional[dict[str, list[PlotDataEntry]]]
