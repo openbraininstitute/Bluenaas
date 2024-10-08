@@ -20,6 +20,7 @@ def init_current_varying_simulation(
     model_self: str,
     token: str,
     config: SingleNeuronSimulationConfig,
+    run_without_updates: bool = False,
 ):
     """
     Initializes and starts a current-varying simulation for a specified neuron model.
@@ -92,6 +93,7 @@ def init_current_varying_simulation(
             config=config,
             current_synapse_serires=synapse_generation_config,
             frequency_to_synapse_series=None,
+            run_without_updates=run_without_updates,
         )
     except SimulationError as ex:
         raise ex

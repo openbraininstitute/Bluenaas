@@ -356,6 +356,9 @@ def run_simulation_without_partial_updates(
             f"{varying_key}_{frequency if varying_type == "frequency" else amplitude}"
         )
 
+        logger.debug(
+            f"Started running simulation without partial updates for {stim_label}"
+        )
         simulation.run(
             maxtime=simulation_duration,
             cvode=False,
@@ -386,6 +389,9 @@ def run_simulation_without_partial_updates(
                 }
             )
 
+        logger.debug(
+            f"Finished running simulation without partial updates for {stim_label}"
+        )
         queue.put(sim_result_for_varying_key)
         return sim_result_for_varying_key
     except Exception as ex:
@@ -426,7 +432,8 @@ def apply_multiple_simulations_without_partial_updates(args, runner):
                         record = queue.get(timeout=1)
                         if record != SUB_PROCESS_STOP_EVENT:
                             for data_for_rec_location in record:
-                                recording_name = record["recording_name"]
+                                trace = record[0]
+                                recording_name = trace["recording_name"]
 
                                 if (
                                     recording_name
@@ -440,14 +447,14 @@ def apply_multiple_simulations_without_partial_updates(args, runner):
                                     recording_name
                                 ].append(
                                     {
-                                        "x": record["time"],
-                                        "y": record["voltage"],
+                                        "x": trace["time"],
+                                        "y": trace["voltage"],
                                         "type": "scatter",
-                                        "name": record["stim_label"],
-                                        "recording": record["recording_name"],
-                                        "amplitude": record["amplitude"],
-                                        "frequency": record["frequency"],
-                                        "varying_key": record["varying_key"],
+                                        "name": trace["stim_label"],
+                                        "recording": trace["recording_name"],
+                                        "amplitude": trace["amplitude"],
+                                        "frequency": trace["frequency"],
+                                        "varying_key": trace["varying_key"],
                                     }
                                 )
                         else:

@@ -4,6 +4,7 @@ from loguru import logger
 from bluenaas.infrastructure.celery.worker_scalability import EcsTaskProtection
 from bluenaas.utils.run_on_env import run_on_env
 from bluenaas.external.nexus.nexus import Nexus
+import json
 
 
 class BluenaasTask(Task):
@@ -14,8 +15,6 @@ class BluenaasTask(Task):
         super().__init__()
 
     def before_start(self, task_id, args, kwargs):
-        logger.debug(f"About to start task {task_id}")
-
         if "track_status" in kwargs and kwargs["track_status"] is True:
             logger.debug(f"Updating status for {task_id} to STARTED")
             assert "simulation_resource" in kwargs
@@ -39,7 +38,6 @@ class BluenaasTask(Task):
 
     def on_success(self, retval, task_id, args, kwargs):
         logger.info(f"@@on_success {(task_id)}")
-        logger.debug(f"Task Results received: {retval}")
 
         if "track_status" in kwargs and kwargs["track_status"] is True:
             logger.debug(f"Updating status for {task_id} to SUCCESS")
@@ -49,8 +47,8 @@ class BluenaasTask(Task):
             )
             nexus_helper.save_simulation_results(
                 simulation_resource_self=kwargs["simulation_resource"]["_self"],
-                simulation_config=kwargs["simulation_config"],
-                lab_id=kwargs["org_id"],
+                config=json.loads(kwargs["config"]),
+                org_id=kwargs["org_id"],
                 project_id=kwargs["project_id"],
                 status=states.SUCCESS,
                 results=retval["result"],
