@@ -62,7 +62,6 @@ class Settings(BaseSettings):
     CLUSTER_NAME: str = "cluster_01"
     SERVICE_NAME: str = "ecs-service-vite"
 
-    DOCKER_HOST: str = "unix:///Users/meddah/.docker/run/docker.sock"
 
 
 settings = Settings()

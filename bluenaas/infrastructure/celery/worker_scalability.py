@@ -8,15 +8,13 @@ from bluenaas.infrastructure.celery.aws import (
 from bluenaas.infrastructure.celery.events_manager import CeleryEventsManager
 from bluenaas.infrastructure.celery.broker_manager import get_bulk_queues_depths
 
-# NOTE: this global variables are just for debugging
-scale_up_count = 0
-scale_down_count = 0
-total_worker = 0
+# NOTE: this global variable are just for testing/debugging
 in_use_instances = 2
 
 
 class WorkerScalability:
     # NOTE: this should be env variables
+    # NOTE: this is just test values, they are open for update after better requirements/tests
     # Number of tasks in queues to scale up workers.
     queue_depth_for_scale_up = 4
     # Number of tasks in queues to scale down workers.
@@ -119,40 +117,27 @@ class WorkerScalability:
         and the running tasks is greater then the threshold
         the ECS tasks will be reduced to the minimum allowed task count.
         """
+        # TODO, scaling down is a bit tricky, this will need more checking on the
+        # the status of the running containers, to not scale-in not completed tasks
         # TODO: bring this up when run in aws
         # (running_instances, pending_instances) = self._get_ecs_task_status()
         # in_use_instances = running_instances + pending_instances
         q_depths = get_bulk_queues_depths()
-        global scale_down_count, in_use_instances
-        logger.info(
-            f"[APPLY][SCALE_DOWN][TOTAL][1] {in_use_instances=} total:{q_depths["total"]}"
-        )
+        global in_use_instances
         if in_use_instances > q_depths["total"] and (
             in_use_instances > self.min_ecs_tasks
         ):
-            logger.info(
-                f'[APPLY][SCALE_DOWN] t:{q_depths["total"]}/l:{self.queue_depth_for_scale_down}'
-            )
-
-            scale_down_count += 1
             in_use_instances = q_depths["total"]
-            logger.info(
-                f"[APPLY][SCALE_DOWN][TOTAL][2] {scale_down_count=} total:{q_depths["total"]}"
-            )
+            logger.info(f"[APPLY][SCALE_DOWN][TOTAL] total:{q_depths["total"]}")
             # TODO: uncomment this for aws
             # self._update_ecs_task(q_depths["total"])
         if (
             q_depths["total"] == 0
             or q_depths["total"] <= self.queue_depth_for_scale_down
         ) and (in_use_instances > self.min_ecs_tasks):
-            logger.info(
-                f'[APPLY][SCALE_DOWN] t:{q_depths["total"]}/l:{self.queue_depth_for_scale_down}'
-            )
-
-            scale_down_count += 1
             in_use_instances = self.min_ecs_tasks
             logger.info(
-                f"[APPLY][SCALE_DOWN][TOTAL][2] {in_use_instances=} total:{q_depths["total"]}"
+                f"[APPLY][SCALE_DOWN][TOTAL] {in_use_instances=} total:{q_depths["total"]}"
             )
             # TODO: uncomment this for aws
             # self._update_ecs_task(self.min_ecs_tasks)
@@ -168,22 +153,14 @@ class WorkerScalability:
         # (running_instances, pending_instances) = self._get_ecs_task_status()
         # in_use_instances = running_instances + pending_instances
         q_depths = get_bulk_queues_depths()
-        global scale_up_count, in_use_instances
-        logger.info(
-            f"[APPLY][SCALE_UP][TOTAL][1] total:{q_depths["total"]} {in_use_instances=}"
-        )
+        global in_use_instances
         if (
             q_depths["total"] >= self.queue_depth_for_scale_up
             and in_use_instances < self.max_ecs_tasks
         ):
-            logger.info(
-                f'[APPLY][SCALE_UP] t:{q_depths["total"]}/l:{self.queue_depth_for_scale_up}'
-            )
-
-            scale_up_count += 1
             in_use_instances = q_depths["total"]
             logger.info(
-                f"[APPLY][SCALE_UP][TOTAL][2] total:{q_depths["total"]} {in_use_instances=}"
+                f"[APPLY][SCALE_UP][TOTAL] total:{q_depths["total"]} {in_use_instances=}"
             )
             # TODO: uncomment this for aws
             # self._scale_up_ecs_cluster(q_depths["total"])
@@ -216,6 +193,7 @@ class ScalabilityManager:
                 # NOTE: the right event is "before_task_publish" or "after_task_publish" but this two events are not working
                 # there is an open issue https://github.com/celery/celery/issues/3864
                 "task-sent": self.scale_up,
-                "task-received": self.scale_down,
+                "task-succeeded": self.scale_down,
+                "task-failed": self.scale_down,
             }
         )
