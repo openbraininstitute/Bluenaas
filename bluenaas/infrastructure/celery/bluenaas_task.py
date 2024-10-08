@@ -15,6 +15,8 @@ class BluenaasTask(Task):
         super().__init__()
 
     def before_start(self, task_id, args, kwargs):
+        logger.info(f"@@on_before_start {(task_id)}")
+
         if "track_status" in kwargs and kwargs["track_status"] is True:
             logger.debug(f"Updating status for {task_id} to STARTED")
             assert "simulation_resource" in kwargs
