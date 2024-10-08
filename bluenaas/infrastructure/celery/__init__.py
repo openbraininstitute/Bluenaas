@@ -153,9 +153,10 @@ def create_background_simulation_task(
 
     if is_current_varying_simulation(sim_config):
         result = init_current_varying_simulation(
-            model_self,
-            token,
-            sim_config,
+            model_self=model_self,
+            token=token,
+            config=sim_config,
+            run_without_updates=True,
         )
     else:
         result = init_frequency_varying_simulation(

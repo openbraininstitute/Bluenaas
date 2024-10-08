@@ -356,30 +356,38 @@ class Nexus:
 
     def save_file_to_nexus(
         self,
-        payload: Any,
+        payload: dict,
         content_type: str,
         filename: str,
         file_url: str,
         lab_id: str,
         project_id: str,
     ) -> dict:
-        files = {"file": (filename, BytesIO(payload), content_type)}
+        stringified_data = json.dumps(payload)
+
+        # Prepare the files for the POST request
+        files = {"file": (filename, stringified_data, content_type)}
+        file_headers = self.headers | {
+            # mandatory to upload to a S3 storage (AWS)
+            "x-nxs-file-content-length": str(len(stringified_data))
+        }
 
         response = requests.post(
-            file_url, headers=self.headers, files=files, timeout=HTTP_TIMEOUT
+            file_url, headers=file_headers, files=files, timeout=HTTP_TIMEOUT
         )
-        response.raise_for_status()
 
+        if not response.ok:
+            raise Exception("Error saving file to nexus", response.json())
         return response.json()
 
     def create_nexus_distribution(
-        self, payload: Any, filename: str, lab_id: str, project_id: str
+        self, payload: dict, filename: str, lab_id: str, project_id: str
     ):
         content_type = "application/json"
-        file_url = f"{settings.NEXUS_ROOT_URI}/files/${lab_id}/{project_id}"
+        file_url = f"{settings.NEXUS_ROOT_URI}/files/{lab_id}/{project_id}"
 
         saved_file = self.save_file_to_nexus(
-            payload=json.dumps(payload),
+            payload=payload,
             content_type=content_type,
             filename=filename,
             file_url=file_url,
@@ -532,7 +540,7 @@ class Nexus:
     def save_simulation_results(
         self,
         simulation_resource_self: str,
-        simulation_config: SingleNeuronSimulationConfig,
+        config: dict,
         org_id: str,
         project_id: str,
         status=str,
@@ -540,6 +548,7 @@ class Nexus:
     ):
         # Step 1: Create a distribution file to save results.
         try:
+            simulation_config = SingleNeuronSimulationConfig.model_validate(config)
             distribution_payload = NexusSimulationPayload(
                 config=simulation_config, simulation=results, stimulus=None
             )
@@ -549,7 +558,7 @@ class Nexus:
                 else "simulation-config-synaptome.json"
             )
             ditribution_resource = self.create_nexus_distribution(
-                payload=distribution_payload,
+                payload=distribution_payload.model_dump(),
                 filename=distribution_name,
                 lab_id=org_id,
                 project_id=project_id,
