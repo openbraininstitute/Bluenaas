@@ -87,7 +87,7 @@ class Nexus:
     def fetch_file_by_url(self, file_url):
         r = requests.get(file_url, headers=self.headers, timeout=HTTP_TIMEOUT)
         if not r.ok:
-            raise Exception("Error fetching file", r.status_code)
+            raise Exception("Error fetching file", r.json())
         return r
 
     def compose_url(self, url):
