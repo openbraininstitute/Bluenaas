@@ -473,6 +473,17 @@ class Nexus:
                 f"Failed to create simulation resource {error} {simulation_response.json()}"
             )
 
+    def fetch_resource_for_org_project(self, org_label, project_label, resource_id):
+        endpoint = f"{settings.NEXUS_ROOT_URI}/resources/{org_label}/{project_label}/_/{resource_id}"
+        r = requests.get(
+            endpoint,
+            headers=self.headers,
+            timeout=HTTP_TIMEOUT,
+        )
+        if not r.ok:
+            raise Exception("Error fetching resource", r.json())
+        return r.json()
+
     def update_resource_by_id(
         self, org_label, project_label, resource_id, previous_rev, payload
     ):
