@@ -30,7 +30,7 @@ NexusUsed = TypedDict(
 
 class NexusSimulationPayload(BaseModel):
     config: SingleNeuronSimulationConfig
-    simulation: Optional[dict[str, list[PlotDataEntry]]]
+    simulation: Any
     stimulus: Optional[
         StimulationItemResponse
     ]  # TODO: Check if stimulus data should be saved in draft simulations

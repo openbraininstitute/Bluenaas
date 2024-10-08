@@ -14,31 +14,6 @@ from bluenaas.core.exceptions import (
 )
 from urllib.parse import quote_plus
 
-task_state_descriptions = {
-    states.PENDING: "Simulation is waiting for execution.",
-    states.STARTED: "Simulation has started executing.",
-    states.SUCCESS: "The simulation completed successfully.",
-    states.FAILURE: "The simulation has failed.",
-    states.REVOKED: "The simulation has been canceled.",
-    "PROGRESS": "Simulation is currently in progress.",
-}
-
-
-def get_event_from_task_state(state):
-    """
-    Get the event type based on the task state.
-    """
-    if state in (states.PENDING, states.SUCCESS):
-        event = "info"
-    elif state == "PROGRESS":
-        event = "data"
-    elif state == states.FAILURE:
-        event = "error"
-    else:
-        event = "info"  # Default to info for unrecognized states
-
-    return event.lower()
-
 
 def submit_simulation(
     token: str,
@@ -61,7 +36,7 @@ def submit_simulation(
         SimulationResult
     """
     from bluenaas.infrastructure.celery import (
-        create_background_simulation_task,
+        create_simulation,
     )
 
     # Step 1: Create nexus resource for simulation and use status "PENDING"
@@ -95,7 +70,7 @@ def submit_simulation(
         ) from ex
 
     # Step 2: Submit task to celery
-    task = create_background_simulation_task.apply_async(
+    task = create_simulation.apply_async(
         kwargs={
             "org_id": org_id,
             "project_id": project_id,
@@ -103,7 +78,7 @@ def submit_simulation(
             "config": config.model_dump_json(),
             "token": token,
             "simulation_resource": simulation_resource,
-            "track_status": True,
+            "enable_realtime": False,
         },
     )
     logger.debug(f"Task submitted with id {task.id}")

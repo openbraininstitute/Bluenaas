@@ -17,7 +17,7 @@ class BluenaasTask(Task):
     def before_start(self, task_id, args, kwargs):
         logger.info(f"@@on_before_start {(task_id)}")
 
-        if "track_status" in kwargs and kwargs["track_status"] is True:
+        if kwargs.get("enable_realtime") is False:
             logger.debug(f"Updating status for {task_id} to STARTED")
             assert "simulation_resource" in kwargs
             nexus_helper = Nexus(
@@ -41,7 +41,7 @@ class BluenaasTask(Task):
     def on_success(self, retval, task_id, args, kwargs):
         logger.info(f"@@on_success {(task_id)}")
 
-        if "track_status" in kwargs and kwargs["track_status"] is True:
+        if kwargs.get("enable_realtime") is False:
             logger.debug(f"Updating status for {task_id} to SUCCESS")
             assert "simulation_resource" in kwargs
             nexus_helper = Nexus(
@@ -65,7 +65,7 @@ class BluenaasTask(Task):
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         logger.info(f"@@on_failure {(exc, task_id, args, kwargs, einfo)}")
 
-        if "track_status" in kwargs and kwargs["track_status"] is True:
+        if kwargs.get("enable_realtime") is False:
             logger.debug(f"Updating status for {task_id} to FAILURE")
             assert "simulation_resource" in kwargs
             nexus_helper = Nexus(
