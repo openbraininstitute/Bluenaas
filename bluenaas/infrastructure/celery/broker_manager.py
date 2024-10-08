@@ -49,7 +49,7 @@ def get_bulk_queues_depths(
                 total += queue_depth if queue_depth is not None else 0
             except redis.RedisError as e:
                 logger.exception(
-                    f"ERROR: Could not retrieve depth for queue {queue}: {e}"
+                    f"error: could not retrieve depth for queue {queue}: {e}"
                 )
                 continue
 
@@ -57,5 +57,5 @@ def get_bulk_queues_depths(
         return depths
 
     except redis.RedisError as e:
-        logger.exception(f"ERROR: Could not connect to Redis {e}")
+        logger.exception(f"error: could not connect to Redis {e}")
         return None

@@ -17,7 +17,7 @@ boto3_config = Config(
 
 def get_ecs_boto_client() -> ECSClient:
     """
-    Returns boto3 client for the provided service name
+    Returns boto3 client for the ECS service
     """
     try:
         return boto3.client(
@@ -30,7 +30,7 @@ def get_ecs_boto_client() -> ECSClient:
 
 def get_cloudwatch_boto_client() -> CloudWatchClient:
     """
-    Returns boto3 client for the provided service name
+    Returns boto3 client for Cloudwatch service
     """
     try:
         return boto3.client(

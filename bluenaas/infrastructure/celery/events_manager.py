@@ -1,31 +1,30 @@
 from datetime import datetime as dt
-from pprint import pprint
+
+from loguru import logger
 
 
-class Logger:
-    def _to_datetime(self, timestamp):
+class CeleryEventLogger:
+    def _to_timestamp(self, timestamp):
         return dt.fromtimestamp(timestamp) if timestamp is not None else None
 
     def log_task_status(self, task, event):
-        pprint(
-            "[{}] {} {} (STATE={}, UUID={})".format(
-                self._to_datetime(task.timestamp),
-                event["type"],
-                task.name,
-                task.state.lower(),
-                task.uuid,
-            )
+        logger.info(
+            f"""[{self._to_timestamp(task.timestamp)}] 
+                uuid:{task.uuid}
+                name: {task.name} 
+                type: {event["type"]} 
+                state: {task.state.lower()}
+            """
         )
 
     def log_event_details(self, event):
-        print("EVENT DETAILS: {}".format(event))
+        print("event details: {}".format(event))
 
     def log_task_details(self, task):
-        print("TASK DETAILS:")
-        print("UUID: {}".format(task.uuid))
-        print("Name: {}".format(task.name))
-        print("State: {}".format(task.state))
-        print("Sent: {}".format(self._to_datetime(task.sent)))
+        logger.info(f"task details: {task.name}")
+        logger.info(f"uuid: {task.uuid}")
+        logger.info(f"sent: {self._to_timestamp(task.sent)}")
+        logger.info(f"state: {task.state}")
 
 
 class CeleryEventsManager:
@@ -36,7 +35,7 @@ class CeleryEventsManager:
     ):
         self._app = celery_app
         self._state = celery_app.events.State()
-        self._logger = Logger()
+        self._logger = CeleryEventLogger()
         self._verbose = verbose
 
     def _event_handler(handler):
