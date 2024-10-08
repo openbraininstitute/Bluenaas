@@ -34,7 +34,7 @@ def prepare_stimulation_parameters(
     injection_segment: float = 0.5,
     add_hypamp: bool = True,
     varying_type: Literal["frequency", "current"] = "current",
-    run_without_updates: bool = False,
+    enable_realtime: bool = True,
 ):
     from bluecellulab.stimulus.factory import StimulusFactory
 
@@ -79,7 +79,7 @@ def prepare_stimulation_parameters(
                     amplitudes,
                     frequency,
                     add_hypamp,
-                    run_without_updates,
+                    enable_realtime,
                 )
             )
     elif varying_type == "current":
@@ -108,7 +108,7 @@ def prepare_stimulation_parameters(
                     stimulus_name,
                     amplitude,
                     add_hypamp,
-                    run_without_updates,
+                    enable_realtime,
                 )
             )
 
