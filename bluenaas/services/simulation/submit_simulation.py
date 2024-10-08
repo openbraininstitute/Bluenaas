@@ -2,7 +2,10 @@ from celery import states
 from loguru import logger
 from http import HTTPStatus
 
-from bluenaas.domains.simulation import SingleNeuronSimulationConfig, SimulationStatus
+from bluenaas.domains.simulation import (
+    SingleNeuronSimulationConfig,
+    SimulationStatusResponse,
+)
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.core.exceptions import (
     BlueNaasError,
@@ -106,6 +109,6 @@ def submit_simulation(
     logger.debug(f"Task submitted with id {task.id}")
 
     # Step 3: Return simulation status to user
-    return SimulationStatus(
-        id=quote_plus(simulation_resource["@id"]), status=states.PENDING, results=None
+    return SimulationStatusResponse(
+        id=quote_plus(simulation_resource["@id"]), status="PENDING", results=None
     )

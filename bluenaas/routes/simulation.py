@@ -6,7 +6,10 @@ contains the single neuron simulation endpoint (single neuron, single neuron wit
 import time
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from bluenaas.domains.simulation import SingleNeuronSimulationConfig, SimulationStatus
+from bluenaas.domains.simulation import (
+    SingleNeuronSimulationConfig,
+    SimulationStatusResponse,
+)
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.infrastructure.celery import create_dummy_task
 from bluenaas.services.simulation.run_simulation import run_simulation
@@ -106,7 +109,7 @@ async def start_simulation(
     config: SingleNeuronSimulationConfig,
     response: Response,
     token: str = Depends(verify_jwt),
-) -> SimulationStatus:
+) -> SimulationStatusResponse:
     try:
         result = submit_simulation(
             token=token,
@@ -134,7 +137,7 @@ async def get_simulation_results(
     project_id: str,
     simulation_id: str,
     token: str = Depends(verify_jwt),
-) -> SimulationStatus:
+) -> SimulationStatusResponse:
     return fetch_simulation_status_and_results(
         token=token, org_id=org_id, project_id=project_id, simulation_id=simulation_id
     )

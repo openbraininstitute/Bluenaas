@@ -9,13 +9,13 @@ import requests
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     StimulationItemResponse,
+    SimulationStatus,
 )
 from bluenaas.domains.nexus import NexusSimulationPayload, NexusSimulationResource
 from bluenaas.config.settings import settings
 from bluenaas.utils.util import get_model_path
 from bluenaas.core.exceptions import SimulationError
 from typing import Any, Optional
-from io import BytesIO
 import json
 
 HTTP_TIMEOUT = 10  # seconds
@@ -515,7 +515,7 @@ class Nexus:
         org_id: str,
         project_id: str,
         simulation_resource_self: str,
-        status=str,
+        status=SimulationStatus,
     ):
         try:
             simulation_resource = self.fetch_resource_by_self(simulation_resource_self)
@@ -543,7 +543,7 @@ class Nexus:
         config: dict,
         org_id: str,
         project_id: str,
-        status=str,
+        status=SimulationStatus,
         results=Any,
     ):
         # Step 1: Create a distribution file to save results.
