@@ -187,7 +187,7 @@ class BaseCell:
         config: SingleNeuronSimulationConfig,
         current_synapse_serires: list[SynapseSeries] | None,
         frequency_to_synapse_series: dict[float, list[SynapseSeries]] | None,
-        run_without_updates,
+        enable_realtime,
     ):
         from bluenaas.core.stimulation.current import apply_multiple_stimulus
         from bluenaas.core.stimulation.frequency import apply_multiple_frequency
@@ -201,7 +201,7 @@ class BaseCell:
                     experiment_setup=config.conditions,
                     simulation_duration=config.simulationDuration,
                     current_synapse_serires=current_synapse_serires,
-                    run_without_updates=run_without_updates,
+                    enable_realtime=enable_realtime,
                 )
             return apply_multiple_frequency(
                 cell=self._cell,

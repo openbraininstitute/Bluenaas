@@ -33,11 +33,11 @@ def _run_current_varying_stimulus(
     stimulus_name: StimulusName,
     amplitude: float,
     add_hypamp: bool = True,
-    run_without_updates: bool = False,
+    enable_realtime: bool = True,
     queue: Any | None = None,
 ):
     logger.info(f"""
-        [run_without_updates]: {run_without_updates}
+        [enable_realtime]: {enable_realtime}
         [simulation stimulus/start]: {stimulus}
         [simulation injection_section_name (provided)]: {injection_section_name}
         [simulation recording_locations]: {recording_locations}
@@ -64,7 +64,7 @@ def _run_current_varying_stimulus(
                 experimental_setup=experimental_setup,
             )
 
-    if run_without_updates is True:
+    if enable_realtime is False:
         # TODO: Add args names
         return run_simulation_without_partial_updates(
             cell,
@@ -100,10 +100,10 @@ def apply_multiple_stimulus(
     experiment_setup: ExperimentSetupConfig,
     simulation_duration: int,
     current_synapse_serires: list[SynapseSeries] | None,
-    run_without_updates: bool = False,
+    enable_realtime: bool = True,
 ):
     logger.info(f"""
-        Running Simulation run_without_updates {run_without_updates} of:
+        Running Simulation enable_realtime {enable_realtime} of:
         {"CurrentInjection" if current_injection is not None else ""}
         {"Synaptome " if current_synapse_serires is not None else ""}
     """)
@@ -117,10 +117,12 @@ def apply_multiple_stimulus(
         conditions=experiment_setup,
         simulation_duration=simulation_duration,
         varying_type="current",
-        run_without_updates=run_without_updates,
+        enable_realtime=enable_realtime,
     )
 
-    if run_without_updates:
+    logger.info(f"Enable real time {enable_realtime}")
+
+    if enable_realtime is False:
         return apply_multiple_simulations_without_partial_updates(
             args=args, runner=_run_current_varying_stimulus
         )

@@ -1,4 +1,4 @@
-from typing import Annotated, List, Literal, Optional
+from typing import Annotated, List, Literal, Optional, Any
 from pydantic import BaseModel, Field, PositiveFloat, field_validator
 
 
@@ -129,4 +129,4 @@ SimulationStatus = Literal["PENDING", "STARTED", "SUCCESS", "FAILURE"]
 class SimulationStatusResponse(BaseModel):
     id: str
     status: SimulationStatus
-    results: Optional[dict[str, list[PlotDataEntry]]]
+    results: Any
