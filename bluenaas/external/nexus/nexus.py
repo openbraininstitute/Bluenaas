@@ -394,10 +394,6 @@ class Nexus:
             lab_id=lab_id,
             project_id=project_id,
         )
-        if not saved_file["_rev"]:
-            raise Exception(
-                "Revision in file metadata missing when creating distribution"
-            )
 
         distribution_url = f"{settings.NEXUS_ROOT_URI}/files/{lab_id}/{project_id}/{quote_plus(saved_file["@id"])}?rev={saved_file["_rev"]}"
         distribution = {
