@@ -22,6 +22,8 @@ def get_ecs_boto_client() -> ECSClient:
     try:
         return boto3.client(
             "ecs",
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
             config=boto3_config,
         )
     except Exception as ex:
@@ -35,6 +37,8 @@ def get_cloudwatch_boto_client() -> CloudWatchClient:
     try:
         return boto3.client(
             "cloudwatch",
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
             config=boto3_config,
         )
     except Exception as ex:

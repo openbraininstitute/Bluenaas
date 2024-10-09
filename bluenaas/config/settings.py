@@ -58,10 +58,16 @@ class Settings(BaseSettings):
 
     AWS_ACCESS_KEY_ID: str = "test"
     AWS_SECRET_ACCESS_KEY: str = "test"
-    AWS_REGION: str = "us-east-1"
-    CLUSTER_NAME: str = "cluster_01"
-    SERVICE_NAME: str = "ecs-service-vite"
+    AWS_REGION: str = "eu-north-1"
+    AWS_CLUSTER_NAME: str = "bnaas-cluster-01"
+    AWS_SERVICE_NAME: str = "bnaas-service"
 
+    AWS_TASK_PROTECTION_EXPIRE_IN_MIN: int = 60
+
+    CELERY_QUEUE_DEPTH_FOR_SCALE_UP: int = 2
+    CELERY_QUEUE_DEPTH_FOR_SCALE_DOWN: int = 2
+    AWS_MIN_ECS_TASKS: int = 1
+    AWS_MAX_ECS_TASKS: int = 8
 
 
 settings = Settings()
