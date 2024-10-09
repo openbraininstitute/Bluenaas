@@ -558,7 +558,7 @@ class Nexus:
                 else "simulation-config-synaptome.json"
             )
             ditribution_resource = self.create_nexus_distribution(
-                payload=distribution_payload.model_dump(),
+                payload=distribution_payload.model_dump(by_alias=True),
                 filename=distribution_name,
                 lab_id=org_id,
                 project_id=project_id,
