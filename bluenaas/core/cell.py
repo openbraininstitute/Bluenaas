@@ -210,6 +210,7 @@ class BaseCell:
                 experiment_setup=config.conditions,
                 simulation_duration=config.simulationDuration,
                 frequency_to_synapse_series=frequency_to_synapse_series,
+                enable_realtime=enable_realtime,
             )
         except Exception as e:
             logger.exception(

@@ -30,10 +30,12 @@ def _run_frequency_varying_stimulus(
     amplitude: float,
     frequency: float,
     add_hypamp: bool = True,
+    enable_realtime: bool = True,
     queue: Any | None = None,
 ):
     logger.info(f"@@@-->queue {queue}")
     logger.info(f"""
+        [enable_realtime]: {enable_realtime}
         [simulation stimulus/start]: {stimulus}
         [simulation injection_section_name (provided)]: {injection_section_name}
         [simulation recording_locations]: {recording_locations}
@@ -68,6 +70,7 @@ def _run_frequency_varying_stimulus(
         frequency,
         "frequency",
         "Frequency",
+        enable_realtime,
     )
 
 
@@ -78,6 +81,7 @@ def apply_multiple_frequency(
     experiment_setup: ExperimentSetupConfig,
     simulation_duration: int,
     frequency_to_synapse_series: dict[float, list[SynapseSeries]],
+    enable_realtime: bool = True,
 ):
     logger.info(f"""
         Running Simulation With Frequencies of:
@@ -96,6 +100,7 @@ def apply_multiple_frequency(
         conditions=experiment_setup,
         simulation_duration=simulation_duration,
         varying_type="frequency",
+        enable_realtime=enable_realtime,
     )
 
     logger.debug(f"Applying simulation for {len(args)} frequencies")
