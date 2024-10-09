@@ -114,6 +114,7 @@ def create_simulation(
             model_self,
             token,
             cf,
+            enable_realtime=enable_realtime,
         )
     return {
         "org_id": org_id,
