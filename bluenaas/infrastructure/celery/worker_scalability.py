@@ -1,5 +1,9 @@
+import os
 import time
+from celery import Celery
 from loguru import logger
+import requests
+from requests.adapters import Retry, HTTPAdapter
 from bluenaas.config.settings import settings
 from bluenaas.infrastructure.celery.aws import (
     get_cloudwatch_boto_client,
@@ -12,30 +16,37 @@ from bluenaas.infrastructure.celery.broker_manager import get_bulk_queues_depths
 in_use_instances = 2
 
 
+# NOTE: the work scalability is only when use the EC2 launch type
+# NOTE: if Fargate is the way we go, then no need for scalability manager
 class WorkerScalability:
     # NOTE: this should be env variables
     # NOTE: this is just test values, they are open for update after better requirements/tests
     # Number of tasks in queues to scale up workers.
-    queue_depth_for_scale_up = 4
+    queue_depth_for_scale_up = settings.CELERY_QUEUE_DEPTH_FOR_SCALE_UP
     # Number of tasks in queues to scale down workers.
-    queue_depth_for_scale_down = 2
+    queue_depth_for_scale_down = settings.CELERY_QUEUE_DEPTH_FOR_SCALE_DOWN
     # Minimum support workers ECS can launch
-    min_ecs_tasks = 2
+    min_ecs_tasks = settings.AWS_MIN_ECS_TASKS
     # Maximum support workers ECS can launch
-    max_ecs_tasks = 10
+    max_ecs_tasks = settings.AWS_MAX_ECS_TASKS
 
     def _get_ecs_task_status(self):
         client = get_ecs_boto_client()
         service_type = client.describe_services(
-            cluster=settings.CLUSTER_NAME,
+            cluster=settings.AWS_CLUSTER_NAME,
             services=[
-                settings.SERVICE_NAME,
+                settings.AWS_SERVICE_NAME,
             ],
         )["services"][0]
         running_instances = service_type["runningCount"]
         pending_instances = service_type["pendingCount"]
+        in_use_instances = running_instances + pending_instances
 
-        return (running_instances, pending_instances)
+        return (
+            running_instances,
+            pending_instances,
+            in_use_instances,
+        )
 
     def _update_ecs_task(self, desired_count: int):
         """
@@ -50,18 +61,22 @@ class WorkerScalability:
         client = get_ecs_boto_client()
         try:
             service_type = client.describe_services(
-                cluster=settings.CLUSTER_NAME,
+                cluster=settings.AWS_CLUSTER_NAME,
                 services=[
-                    settings.SERVICE_NAME,
+                    settings.AWS_SERVICE_NAME,
                 ],
             )
+            # logger.info(f'@@ [service_type]: {json.dumps(service_type, indent=4, default=str)}')
             if (
                 service_type["services"]
                 and service_type["services"][0]["desiredCount"] != desired_count
             ):
+                logger.info(
+                    f'updating service --> current desired: {service_type["services"][0]["desiredCount"]} '
+                )
                 client.update_service(
-                    cluster=settings.CLUSTER_NAME,
-                    service=settings.SERVICE_NAME,
+                    cluster=settings.AWS_CLUSTER_NAME,
+                    service=settings.AWS_SERVICE_NAME,
                     desiredCount=desired_count,
                 )
         except Exception as ex:
@@ -75,8 +90,9 @@ class WorkerScalability:
         :param needed_instances: The number of additional tasks required.
         :return: None
         """
-        (running_instances, pending_instances) = self._get_ecs_task_status()
-        in_use_instances = running_instances + pending_instances
+        (running_instances, pending_instances, in_use_instances) = (
+            self._get_ecs_task_status()
+        )
         desired_instances = running_instances + needed_instances
 
         if desired_instances > self.max_ecs_tasks:
@@ -117,30 +133,25 @@ class WorkerScalability:
         and the running tasks is greater then the threshold
         the ECS tasks will be reduced to the minimum allowed task count.
         """
-        # TODO, scaling down is a bit tricky, this will need more checking on the
-        # the status of the running containers, to not scale-in not completed tasks
-        # TODO: bring this up when run in aws
-        # (running_instances, pending_instances) = self._get_ecs_task_status()
-        # in_use_instances = running_instances + pending_instances
+        # TODO: uncomment this for aws
+        # (running_instances, pending_instances, in_use_instances) = self._get_ecs_task_status()
         q_depths = get_bulk_queues_depths()
-        global in_use_instances
+        # global in_use_instances
         if in_use_instances > q_depths["total"] and (
             in_use_instances > self.min_ecs_tasks
         ):
             in_use_instances = q_depths["total"]
-            logger.info(f"[APPLY][SCALE_DOWN][TOTAL] total:{q_depths["total"]}")
             # TODO: uncomment this for aws
             # self._update_ecs_task(q_depths["total"])
+            pass
         if (
             q_depths["total"] == 0
             or q_depths["total"] <= self.queue_depth_for_scale_down
         ) and (in_use_instances > self.min_ecs_tasks):
             in_use_instances = self.min_ecs_tasks
-            logger.info(
-                f"[APPLY][SCALE_DOWN][TOTAL] {in_use_instances=} total:{q_depths["total"]}"
-            )
             # TODO: uncomment this for aws
             # self._update_ecs_task(self.min_ecs_tasks)
+            pass
 
     def scale_up_workers(self):
         """
@@ -150,28 +161,35 @@ class WorkerScalability:
         then the ECS tasks will be scaled up accordingly.
         """
         # TODO: bring this up when run in aws
-        # (running_instances, pending_instances) = self._get_ecs_task_status()
-        # in_use_instances = running_instances + pending_instances
-        q_depths = get_bulk_queues_depths()
+        # (running_instances, pending_instances, in_use_instances) = (
+        #     self._get_ecs_task_status()
+        # )
         global in_use_instances
+
+        q_depths = get_bulk_queues_depths()
+        desired_instances = q_depths["total"]
+        if desired_instances > self.max_ecs_tasks:
+            desired_instances = self.max_ecs_tasks
+        if not in_use_instances:
+            # TODO: uncomment this for aws
+            # self._scale_up_ecs_cluster(desired_instances)
+            pass
         if (
             q_depths["total"] >= self.queue_depth_for_scale_up
             and in_use_instances < self.max_ecs_tasks
         ):
             in_use_instances = q_depths["total"]
-            logger.info(
-                f"[APPLY][SCALE_UP][TOTAL] total:{q_depths["total"]} {in_use_instances=}"
-            )
             # TODO: uncomment this for aws
             # self._scale_up_ecs_cluster(q_depths["total"])
+            pass
 
 
-class ScalabilityManager:
+class TaskScalabilityManager:
     def __init__(
         self,
         celery_app,
     ) -> None:
-        self._celery_app = celery_app
+        self._celery_app: Celery = celery_app
         self.state = self._celery_app.events.State()
         self.scale_mng = WorkerScalability()
 
@@ -184,11 +202,11 @@ class ScalabilityManager:
         self.scale_mng.scale_down_workers()
 
     def run(self):
-        self.events_handler = CeleryEventsManager(
+        events_handler = CeleryEventsManager(
             celery_app=self._celery_app,
             verbose=False,
         )
-        self.events_handler.run(
+        events_handler.run(
             handlers={
                 # NOTE: the right event is "before_task_publish" or "after_task_publish" but this two events are not working
                 # there is an open issue https://github.com/celery/celery/issues/3864
@@ -196,4 +214,29 @@ class ScalabilityManager:
                 "task-succeeded": self.scale_down,
                 "task-failed": self.scale_down,
             }
+        )
+
+
+class EcsTaskProtection:
+    def __init__(self) -> None:
+        self.ser = requests.Session()
+
+        retries = Retry(
+            total=3,
+            backoff_factor=0.1,
+            status_forcelist=[500, 502, 503, 504],
+        )
+
+        self.ser.mount("http://", HTTPAdapter(max_retries=retries))
+
+    def toggle_protection(self, is_protected: bool = True):
+        self.ser.put(
+            "http://{}/task-protection/v1/state".format(os.getenv("ECS_AGENT_URI", "")),
+            headers={
+                "Content-Type": "application/json",
+            },
+            json={
+                "ProtectionEnabled": is_protected,
+                "ExpiresInMinutes": settings.AWS_TASK_PROTECTION_EXPIRE_IN_MIN,
+            },
         )

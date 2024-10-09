@@ -18,7 +18,7 @@ from bluenaas.core.exceptions import (
 )
 
 from bluenaas.infrastructure.celery import celery_app
-from bluenaas.infrastructure.celery.worker_scalability import ScalabilityManager
+from bluenaas.infrastructure.celery.worker_scalability import TaskScalabilityManager
 
 from bluenaas.routes.morphology import router as morphology_router
 from bluenaas.routes.simulation import router as simulation_router
@@ -35,9 +35,10 @@ sentry_sdk.init(
 )
 
 
+# NOTE: the scaling controller only if we go with EC2  type
 def scale_controller():
     def run_task():
-        task = ScalabilityManager(
+        task = TaskScalabilityManager(
             celery_app=celery_app,
         )
         task.run()
@@ -57,6 +58,7 @@ app = FastAPI(
     title=settings.APP_NAME,
     openapi_url=f"{settings.BASE_PATH}/openapi.json",
     docs_url=f"{settings.BASE_PATH}/docs",
+    # NOTE: needed if scaling controller is enabled
     lifespan=lifespan,
 )
 
