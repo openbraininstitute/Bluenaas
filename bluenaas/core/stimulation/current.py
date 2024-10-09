@@ -11,7 +11,6 @@ from bluenaas.core.stimulation.common import (
     basic_simulation_config,
     dispatch_simulation_result,
     run_simulation_without_partial_updates,
-    apply_multiple_simulations_without_partial_updates,
 )
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
@@ -122,10 +121,6 @@ def apply_multiple_stimulus(
 
     logger.info(f"Enable real time {enable_realtime}")
 
-    if enable_realtime is False:
-        return apply_multiple_simulations_without_partial_updates(
-            args=args, runner=_run_current_varying_stimulus
-        )
     return apply_multiple_simulations(
         args=args,
         runner=_run_current_varying_stimulus,

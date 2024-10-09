@@ -24,12 +24,9 @@ def fetch_simulation_status_and_results(
                 id=simulation_id, status=simulation_resource["status"], results=None
             )
 
-        logger.debug(f"Distribution {simulation_resource["distribution"]}")
         file_url = simulation_resource["distribution"]["contentUrl"]
-        logger.debug(f"File URL {file_url}")
         file_response = nexus_helper.fetch_file_by_url(file_url)
         results = file_response.json()
-        logger.debug(f"Results {results}")
         return SimulationStatusResponse(
             id=simulation_id,
             status=simulation_resource["status"],
