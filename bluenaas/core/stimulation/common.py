@@ -184,6 +184,7 @@ def dispatch_simulation_result(
     frequency: float | None,
     varying_type: Literal["frequency", "current"],
     varying_key: str,
+    enable_realtime: bool,
 ):
     from bluecellulab.simulation.simulation import Simulation
 
@@ -191,7 +192,7 @@ def dispatch_simulation_result(
     prev_time = {}
     final_result = {}
 
-    def enqueue_simulation_recordings():
+    def process_simulation_recordings(enable_realtime=True):
         for loc in recording_locations:
             sec, seg = cell.sections[loc.section], loc.offset
             cell_section = f"{loc.section}_{seg}"
@@ -200,29 +201,30 @@ def dispatch_simulation_result(
             voltage = cell.get_voltage_recording(sec, seg)
             time = cell.get_time()
 
-            if cell_section not in prev_voltage:
-                prev_voltage[cell_section] = np.array([])
-            if cell_section not in prev_time:
-                prev_time[cell_section] = np.array([])
+            if enable_realtime:
+                if cell_section not in prev_voltage:
+                    prev_voltage[cell_section] = np.array([])
+                if cell_section not in prev_time:
+                    prev_time[cell_section] = np.array([])
 
-            voltage_diff = diff_list(prev_voltage[cell_section], voltage)
-            time_diff = diff_list(prev_time[cell_section], time)
+                voltage_diff = diff_list(prev_voltage[cell_section], voltage)
+                time_diff = diff_list(prev_time[cell_section], time)
 
-            prev_voltage[cell_section] = voltage
-            prev_time[cell_section] = time
+                prev_voltage[cell_section] = voltage
+                prev_time[cell_section] = time
 
-            queue.put(
-                {
-                    "stim_label": stim_label,
-                    "recording_name": cell_section,
-                    "amplitude": amplitude,
-                    "frequency": frequency,
-                    "time": time.tolist(),
-                    "current": time_diff.tolist(),
-                    "voltage": voltage_diff.tolist(),
-                    "varying_key": varying_key,
-                }
-            )
+                queue.put(
+                    {
+                        "stim_label": stim_label,
+                        "recording_name": cell_section,
+                        "amplitude": amplitude,
+                        "frequency": frequency,
+                        "time": time.tolist(),
+                        "current": time_diff.tolist(),
+                        "voltage": voltage_diff.tolist(),
+                        "varying_key": varying_key,
+                    }
+                )
 
             final_result[cell_section] = {
                 "stim_label": stim_label,
@@ -236,18 +238,27 @@ def dispatch_simulation_result(
             }
 
     try:
-        simulation = Simulation(
-            cell,
-            custom_progress_function=enqueue_simulation_recordings,
-        )
+        if enable_realtime:
+            simulation = Simulation(
+                cell, custom_progress_function=process_simulation_recordings
+            )
 
-        simulation.run(
-            maxtime=simulation_duration,
-            cvode=False,
-            show_progress=True,
-            dt=time_step,
-        )
-        return final_result
+            simulation.run(
+                maxtime=simulation_duration,
+                cvode=False,
+                show_progress=True,
+                dt=time_step,
+            )
+            return final_result
+        else:
+            simulation = Simulation(cell)
+            simulation.run(
+                maxtime=simulation_duration,
+                cvode=False,
+                dt=time_step,
+            )
+            process_simulation_recordings(enable_realtime=False)
+            return final_result
     except Exception as ex:
         logger.exception(f"child simulation failed {ex}")
         raise ChildSimulationError from ex
@@ -349,90 +360,26 @@ def apply_multiple_simulations(args, runner):
         celery_app.control.revoke(current_task.request.id, terminate=True)
 
 
-def run_simulation_without_partial_updates(
-    cell,
-    queue,
-    current,
-    recording_locations: list[RecordingLocation],
-    simulation_duration: int,
-    time_step: int,
-    amplitude: float | None,
-    frequency: float | None,
-    varying_type: Literal["frequency", "current"],
-    varying_key: str,
-):
-    from bluecellulab.simulation.simulation import Simulation
-
-    try:
-        simulation = Simulation(cell)
-        stim_label = (
-            f"{varying_key}_{frequency if varying_type == "frequency" else amplitude}"
-        )
-
-        logger.debug(
-            f"Started running simulation without partial updates for {stim_label}"
-        )
-        simulation.run(
-            maxtime=simulation_duration,
-            cvode=False,
-            dt=time_step,
-        )
-
-        sim_result_for_varying_key = []
-        for location in recording_locations:
-            recording_section = cell.sections[location.section]
-            recording_segment = location.offset
-            recording_name = f"{location.section}_{recording_segment}"
-
-            voltage = cell.get_voltage_recording(
-                section=recording_section, segx=recording_segment
-            )
-            time = cell.get_time()
-
-            sim_result_for_varying_key.append(
-                {
-                    "stim_label": stim_label,
-                    "recording_name": recording_name,
-                    "amplitude": amplitude,
-                    "frequency": frequency,
-                    "time": time.tolist(),
-                    "current": current.tolist(),
-                    "voltage": voltage.tolist(),
-                    "varying_key": varying_key,
-                }
-            )
-
-        logger.debug(
-            f"Finished running simulation without partial updates for {stim_label}"
-        )
-        queue.put(sim_result_for_varying_key)
-        return sim_result_for_varying_key
-    except Exception as ex:
-        logger.exception(f"child simulation failed {ex}")
-        raise ChildSimulationError from ex
-    finally:
-        logger.info("child simulation complete")
-        queue.put(SUB_PROCESS_STOP_EVENT)
-
-
 def get_simulations_by_recoding_name(simulations: list) -> dict[str, list]:
     record_location_to_simulaton_result: dict[str, list] = {}
-    for sim_result in simulations:
-        trace = sim_result[0]
-        recording_name = trace["recording_name"]
-        if recording_name not in record_location_to_simulaton_result:
-            record_location_to_simulaton_result[recording_name] = []
 
-        record_location_to_simulaton_result[recording_name].append(
-            {
-                "x": trace["time"],
-                "y": trace["voltage"],
-                "type": "scatter",
-                "name": trace["stim_label"],
-                "recording": trace["recording_name"],
-                "amplitude": trace["amplitude"],
-                "frequency": trace["frequency"],
-                "varying_key": trace["varying_key"],
-            }
-        )
+    # Iterate over simulation result for each current/frequency
+    for trace in simulations:
+        # For a given current/frequency, gather data for different recording locations
+        for recording_name in trace:
+            if recording_name not in record_location_to_simulaton_result:
+                record_location_to_simulaton_result[recording_name] = []
+
+            record_location_to_simulaton_result[recording_name].append(
+                {
+                    "x": trace[recording_name]["time"],
+                    "y": trace[recording_name]["voltage"],
+                    "type": "scatter",
+                    "name": trace[recording_name]["stim_label"],
+                    "recording": trace[recording_name]["recording_name"],
+                    "amplitude": trace[recording_name]["amplitude"],
+                    "frequency": trace[recording_name]["frequency"],
+                    "varying_key": trace[recording_name]["varying_key"],
+                }
+            )
     return record_location_to_simulaton_result
