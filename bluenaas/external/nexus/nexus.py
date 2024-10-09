@@ -421,7 +421,7 @@ class Nexus:
         sim_name: str,
         description: str,
         simulation_config: SingleNeuronSimulationConfig,
-        me_model: dict,
+        model: dict,
         status: str,
     ):
         record_locations = [
@@ -437,8 +437,9 @@ class Nexus:
             distribution=[],
             injectionLocation=simulation_config.currentInjection.injectTo,
             recordingLocation=record_locations,
-            brainLocation=me_model["brainLocation"],
-            used={"@type": me_model["@type"], "@id": me_model["@id"]},
+            brainLocation=model["brainLocation"],
+            # Model can be MEModel or SingleNeuronSynaptome
+            used={"@type": model["@type"], "@id": model["@id"]},
             is_draft=True,
             status=status,
         )
@@ -453,7 +454,7 @@ class Nexus:
     ):
         # Step 1: Get me_model
         try:
-            me_model = self.fetch_resource_by_id(self.model_id)
+            model = self.fetch_resource_by_id(self.model_id)
         except Exception:
             raise SimulationError(f"No me_model with self {self.model_id} found")
         # Step 2: Create simulation resource with status = "PENDING"
@@ -462,7 +463,7 @@ class Nexus:
                 sim_name="draft_simulation",
                 description="simulation launched by bluenaas",
                 simulation_config=simulation_config,
-                me_model=me_model,
+                model=model,
                 status=status,
             )
             simulation_resource_url = f"{settings.NEXUS_ROOT_URI}/resources/{lab_id}/{project_id}?indexing=sync"
