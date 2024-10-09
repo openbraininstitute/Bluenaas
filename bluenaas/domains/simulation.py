@@ -55,7 +55,9 @@ SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
 
 
 class SingleNeuronSimulationConfig(BaseModel):
-    synapses: list[SynapseSimulationConfig] | None = None
+    synapses: list[SynapseSimulationConfig] | None = Field(
+        serialization_alias="synaptome", default=None
+    )
     currentInjection: CurrentInjectionConfig
     recordFrom: list[RecordingLocation]
     conditions: ExperimentSetupConfig
@@ -85,6 +87,9 @@ class SingleNeuronSimulationConfig(BaseModel):
                 )
 
         return value
+
+    class Config:
+        populate_by_name = True
 
 
 class StimulationPlotConfig(BaseModel):
