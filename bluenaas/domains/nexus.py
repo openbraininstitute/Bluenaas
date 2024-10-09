@@ -22,18 +22,18 @@ class NexusBaseResource(BaseModel):
 NexusUsed = TypedDict(
     "NexusUsed",
     {
-        "@type": list[str],
+        "@type": list[str] | str,
         "@id": str,
     },
 )
 
 
 class NexusSimulationPayload(BaseModel):
-    config: SingleNeuronSimulationConfig
     simulation: Any
     stimulus: Optional[
         StimulationItemResponse
     ]  # TODO: Check if stimulus data should be saved in draft simulations
+    config: SingleNeuronSimulationConfig
 
 
 class NexusSimulationResource(BaseModel):
