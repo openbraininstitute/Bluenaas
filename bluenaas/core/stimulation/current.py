@@ -10,7 +10,6 @@ from bluenaas.core.stimulation.common import (
     apply_multiple_simulations,
     basic_simulation_config,
     dispatch_simulation_result,
-    run_simulation_without_partial_updates,
 )
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
@@ -63,21 +62,6 @@ def _run_current_varying_stimulus(
                 experimental_setup=experimental_setup,
             )
 
-    if enable_realtime is False:
-        # TODO: Add args names
-        return run_simulation_without_partial_updates(
-            cell,
-            queue,
-            current,
-            recording_locations,
-            simulation_duration,
-            experimental_setup.time_step,
-            amplitude,
-            None,
-            "current",
-            stimulus_name.name,
-        )
-
     return dispatch_simulation_result(
         cell,
         queue,
@@ -89,6 +73,7 @@ def _run_current_varying_stimulus(
         None,
         "current",
         stimulus_name.name,
+        enable_realtime,
     )
 
 
@@ -118,8 +103,6 @@ def apply_multiple_stimulus(
         varying_type="current",
         enable_realtime=enable_realtime,
     )
-
-    logger.info(f"Enable real time {enable_realtime}")
 
     return apply_multiple_simulations(
         args=args,
