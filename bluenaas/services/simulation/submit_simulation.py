@@ -5,14 +5,44 @@ from http import HTTPStatus
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     SimulationStatusResponse,
+    StimulationPlotConfig,
+    SimulationStimulusConfig,
+    StimulationItemResponse,
 )
 from bluenaas.external.nexus.nexus import Nexus
+from bluenaas.core.simulation_factory_plot import StimulusFactoryPlot
 from bluenaas.core.exceptions import (
     BlueNaasError,
     BlueNaasErrorCode,
     SimulationError,
 )
+from bluenaas.core.model import model_factory
 from urllib.parse import quote_plus
+
+
+def get_stimulation_plot_data(
+    token: str, model_self: str, stimulus: SimulationStimulusConfig
+) -> list[StimulationItemResponse]:
+    model = model_factory(
+        model_self=model_self,
+        hyamp=None,
+        bearer_token=token,
+    )
+    stimulus_config = StimulationPlotConfig(
+        stimulusProtocol=stimulus.stimulusProtocol,
+        amplitudes=stimulus.amplitudes
+        if isinstance(stimulus.amplitudes, list)
+        else [stimulus.amplitudes],
+    )
+    stimulus_factory_plot = StimulusFactoryPlot(
+        stimulus_config,
+        model.threshold_current,
+    )
+    plot_data = stimulus_factory_plot.apply_stim()
+    return [
+        StimulationItemResponse.model_validate(stimulus_data)
+        for stimulus_data in plot_data
+    ]
 
 
 def submit_simulation(
@@ -39,12 +69,28 @@ def submit_simulation(
         create_simulation,
     )
 
-    # Step 1: Create nexus resource for simulation and use status "PENDING"
+    # Step 1: Generate stimulus data to be saved in nexus resource in step 1
+    try:
+        stimulus_plot_data = get_stimulation_plot_data(
+            token=token,
+            model_self=model_self,
+            stimulus=config.currentInjection.stimulus,
+        )
+    except Exception as ex:
+        logger.exception(f"Generation of stimulus data failed {ex}")
+        raise BlueNaasError(
+            http_status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            error_code=BlueNaasErrorCode.SIMULATION_ERROR,
+            message="Generation of stimulus data failed",
+            details=ex.__str__(),
+        )
+
+    # Step 2: Create nexus resource for simulation and use status "PENDING"
     try:
         nexus_helper = Nexus({"token": token, "model_self_url": model_self})
         simulation_resource = nexus_helper.create_simulation_resource(
             simulation_config=config,
-            stimulus=None,
+            stimulus=stimulus_plot_data,
             status=states.PENDING,
             lab_id=org_id,
             project_id=project_id,
