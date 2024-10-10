@@ -135,3 +135,11 @@ class SimulationStatusResponse(BaseModel):
     id: str
     status: SimulationStatus
     results: Any
+
+    simulation_config: Optional[SingleNeuronSimulationConfig]
+    name: str
+    description: str
+    created_by: str
+
+    me_model_self: str
+    synaptome_model_self: Optional[str]
