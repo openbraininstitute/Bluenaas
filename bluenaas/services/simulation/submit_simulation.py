@@ -22,10 +22,10 @@ from urllib.parse import quote_plus
 
 
 def get_stimulation_plot_data(
-    token: str, model_self: str, stimulus: SimulationStimulusConfig
+    token: str, me_model_self: str, stimulus: SimulationStimulusConfig
 ) -> list[StimulationItemResponse]:
     model = model_factory(
-        model_self=model_self,
+        model_self=me_model_self,
         hyamp=None,
         bearer_token=token,
     )
@@ -53,7 +53,7 @@ def submit_simulation(
     config: SingleNeuronSimulationConfig,
 ):
     """
-    Starts a (background) simulation job in celery and returns simulation status right away, without waiting for simulation to finish.
+    Starts a (background) simulation job in celery and returns simulation status right away, without waiting for the simulation to finish.
 
     Args:
         token (str): Authorization token to access the simulation.
@@ -63,17 +63,26 @@ def submit_simulation(
         config (SingleNeuronSimulationConfig): The simulation configuration.
 
     Returns:
-        SimulationResult
+        SimulationStatusResponse
     """
     from bluenaas.infrastructure.celery import (
         create_simulation,
     )
 
+    nexus_helper = Nexus({"token": token, "model_self_url": model_self})
+
     # Step 1: Generate stimulus data to be saved in nexus resource in step 1
     try:
+        me_model_self = model_self
+        if config.type == "synaptome-simulation":
+            synaptome_model = nexus_helper.fetch_resource_by_self(model_self)
+            me_model_id = synaptome_model["used"]["@id"]
+            me_model = nexus_helper.fetch_resource_by_id(me_model_id)
+            me_model_self = me_model["_self"]
+
         stimulus_plot_data = get_stimulation_plot_data(
             token=token,
-            model_self=model_self,
+            me_model_self=me_model_self,
             stimulus=config.currentInjection.stimulus,
         )
     except Exception as ex:
@@ -87,7 +96,6 @@ def submit_simulation(
 
     # Step 2: Create nexus resource for simulation and use status "PENDING"
     try:
-        nexus_helper = Nexus({"token": token, "model_self_url": model_self})
         simulation_resource = nexus_helper.create_simulation_resource(
             simulation_config=config,
             status=states.PENDING,
