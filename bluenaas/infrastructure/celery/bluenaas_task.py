@@ -50,6 +50,7 @@ class BluenaasTask(Task):
             nexus_helper.save_simulation_results(
                 simulation_resource_self=kwargs["simulation_resource"]["_self"],
                 config=json.loads(kwargs["config"]),
+                stimulus_plot_data=json.loads(kwargs["stimulus_plot_data"]),
                 org_id=kwargs["org_id"],
                 project_id=kwargs["project_id"],
                 status=states.SUCCESS,
