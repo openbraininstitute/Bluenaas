@@ -193,6 +193,7 @@ class Nexus:
         }
         return distribution
 
+    # Note: This function doesn't seem to work for distributions uploaded on s3. See discussion here - https://bluebrainproject.slack.com/archives/G013PKBUHT2/p1728567806810799
     def update_nexus_distribution(
         self, file_url: str, filename: str, content_type: str, data_to_add: dict
     ):
@@ -215,7 +216,9 @@ class Nexus:
         )
 
         if not response.ok:
-            raise Exception("Error updating distribution", response.json())
+            raise Exception(
+                f"Error updating distribution: {response.status_code}", response.json()
+            )
         return response.json()
 
     def compose_url(self, url):
@@ -479,7 +482,6 @@ class Nexus:
     def create_simulation_resource(
         self,
         simulation_config: SingleNeuronSimulationConfig,
-        stimulus: list[StimulationItemResponse],
         status: str,  # TODO: Add better type
         lab_id: str,
         project_id: str,
@@ -490,20 +492,7 @@ class Nexus:
         except Exception:
             raise SimulationError(f"No me_model with self {self.model_id} found")
 
-        # Step 2: Create a distribution for simulation resource
-        try:
-            distribution = self.create_simulation_distribution(
-                simulation_config=simulation_config,
-                stimulus=stimulus,
-                org_id=lab_id,
-                project_id=project_id,
-            )
-        except Exception as error:
-            raise SimulationError(
-                f"Failed to create distribution for simulation {error}"
-            )
-
-        # Step 3: Create simulation resource with status = "PENDING"
+        # Step 2: Create simulation resource with status = "PENDING"
         try:
             sim_name = (
                 "draft_single_neuron_simulation"
@@ -515,7 +504,6 @@ class Nexus:
                 sim_name=sim_name,
                 description="simulation launched by bluenaas",
                 simulation_config=simulation_config,
-                distribution=distribution,
                 model=model,
                 status=status,
             )
@@ -570,38 +558,46 @@ class Nexus:
         self,
         simulation_resource_self: str,
         config: dict,
+        stimulus_plot_data: list[StimulationItemResponse],
         org_id: str,
         project_id: str,
         status=SimulationStatus,
         results=Any,
     ):
-        # Step 1: Fetch simulation resource
-        simulation_resource = self.fetch_resource_by_self(simulation_resource_self)
-
-        # Step 2: Update the simulation distribution with results.
+        # Step 1: Create a distribution file to save results.
         try:
-            distribution = simulation_resource["distribution"]
-            logger.debug(f"Distributtion {distribution}")
-            self.update_nexus_distribution(
-                file_url=distribution["contentUrl"],
-                filename=distribution["name"],
-                content_type=distribution["encodingFormat"],
-                data_to_add={"simulation": results},
+            simulation_config = SingleNeuronSimulationConfig.model_validate(config)
+            distribution_payload = NexusSimulationPayload(
+                config=simulation_config,
+                simulation=results,
+                stimulus=stimulus_plot_data,
+            )
+            distribution_name = (
+                "simulation-config-single-neuron.json"
+                if simulation_config.type == "single-neuron-simulation"
+                else "simulation-config-synaptome.json"
+            )
+            ditribution_resource = self.create_nexus_distribution(
+                payload=distribution_payload.model_dump(by_alias=True),
+                filename=distribution_name,
+                lab_id=org_id,
+                project_id=project_id,
             )
         except Exception as e:
             logger.exception(
-                f"Could not update distribution with simulation results for resource {simulation_resource_self}. Exception {e}"
+                f"Could not create distribution with simulation results for resource {simulation_resource_self}. Exception {e}"
             )
             raise SimulationError(
-                f"Could not update distribution with simulation results for resource {simulation_resource_self}"
+                f"Could not create distribution with simulation results for resource {simulation_resource_self}"
             )
 
-        # Step 3: Update status of simulation resource
+        # Step 2: Add distribution file to simulation resource as well as update status
         try:
             simulation_resource = self.fetch_resource_by_self(simulation_resource_self)
 
             updated_resource = simulation_resource | {
                 "status": status,
+                "distribution": [ditribution_resource],
             }
 
             return self.update_resource_by_id(
@@ -624,7 +620,6 @@ class Nexus:
         sim_name: str,
         description: str,
         simulation_config: SingleNeuronSimulationConfig,
-        distribution: dict,
         model: dict,
         status: str,
     ):
@@ -638,7 +633,7 @@ class Nexus:
             name=sim_name,
             description=description,
             context="https://bbp.neuroshapes.org",
-            distribution=[distribution],
+            distribution=[],
             injectionLocation=simulation_config.currentInjection.injectTo,
             recordingLocation=record_locations,
             brainLocation=model["brainLocation"],

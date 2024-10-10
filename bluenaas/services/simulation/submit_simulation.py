@@ -1,6 +1,7 @@
 from celery import states
 from loguru import logger
 from http import HTTPStatus
+import json
 
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
@@ -39,10 +40,9 @@ def get_stimulation_plot_data(
         model.threshold_current,
     )
     plot_data = stimulus_factory_plot.apply_stim()
-    return [
-        StimulationItemResponse.model_validate(stimulus_data)
-        for stimulus_data in plot_data
-    ]
+    for trace in plot_data:
+        StimulationItemResponse.model_validate(trace)
+    return plot_data
 
 
 def submit_simulation(
@@ -90,7 +90,6 @@ def submit_simulation(
         nexus_helper = Nexus({"token": token, "model_self_url": model_self})
         simulation_resource = nexus_helper.create_simulation_resource(
             simulation_config=config,
-            stimulus=stimulus_plot_data,
             status=states.PENDING,
             lab_id=org_id,
             project_id=project_id,
@@ -122,6 +121,7 @@ def submit_simulation(
             "project_id": project_id,
             "model_self": model_self,
             "config": config.model_dump_json(),
+            "stimulus_plot_data": json.dumps(stimulus_plot_data),
             "token": token,
             "simulation_resource": simulation_resource,
             "enable_realtime": False,
