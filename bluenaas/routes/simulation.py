@@ -87,7 +87,7 @@ async def kill_simulation(
 
 
 @router.get(
-    "/single-neuron/{org_id}/{project_id}/{simulation_id}",
+    "/single-neuron/{org_id}/{project_id}/{simulation_id}/real-time-status",
 )
 def get_simulation(
     org_id: str,
@@ -99,10 +99,10 @@ def get_simulation(
 
 
 @router.post(
-    "/single-neuron/{org_id}/{project_id}/submit",
-    description="Submit simulation to be run as a background task",
+    "/single-neuron/{org_id}/{project_id}/launch",
+    description="Launch simulation to be run as a background task",
 )
-async def start_simulation(
+async def launch_simulation(
     model_self: str,
     org_id: str,
     project_id: str,
@@ -129,7 +129,7 @@ async def start_simulation(
 
 
 @router.get(
-    "/single-neuron/{org_id}/{project_id}/{simulation_id}/status",  # TODO: Remove status from url after discussing use of previous get request with @meddah
+    "/single-neuron/{org_id}/{project_id}/{simulation_id}",  # TODO: Remove status from url after discussing use of previous get request with @meddah
     description="Get results & status for a previously started simulation. If simulation is not complete then only the status of simulation is returned",
 )
 async def get_simulation_results(
