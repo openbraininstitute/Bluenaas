@@ -139,5 +139,17 @@ def submit_simulation(
 
     # Step 3: Return simulation status to user
     return SimulationStatusResponse(
-        id=quote_plus(simulation_resource["@id"]), status="PENDING", results=None
+        id=quote_plus(simulation_resource["@id"]),
+        status="PENDING",
+        results=None,
+        # simulation details
+        simulation_config=config,
+        name=simulation_resource["name"],
+        description=simulation_resource["description"],
+        created_by=simulation_resource["_createdBy"],
+        # Used model details
+        me_model_self=me_model_self,
+        synaptome_model_self=model_self
+        if config.type == "synaptome-simulation"
+        else None,
     )
