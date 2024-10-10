@@ -86,18 +86,6 @@ async def kill_simulation(
     )
 
 
-@router.get(
-    "/single-neuron/{org_id}/{project_id}/{simulation_id}/real-time-status",
-)
-def get_simulation(
-    org_id: str,
-    project_id: str,
-    simulation_id: str,
-    token: str = Depends(verify_jwt),
-):
-    return retrieve_simulation()
-
-
 @router.post(
     "/single-neuron/{org_id}/{project_id}/launch",
     description="Launch simulation to be run as a background task",
@@ -129,7 +117,7 @@ async def launch_simulation(
 
 
 @router.get(
-    "/single-neuron/{org_id}/{project_id}/{simulation_id}",  # TODO: Remove status from url after discussing use of previous get request with @meddah
+    "/single-neuron/{org_id}/{project_id}/{simulation_id}",
     description="Get results & status for a previously started simulation. If simulation is not complete then only the status of simulation is returned",
 )
 async def get_simulation_results(
@@ -141,3 +129,15 @@ async def get_simulation_results(
     return fetch_simulation_status_and_results(
         token=token, org_id=org_id, project_id=project_id, simulation_id=simulation_id
     )
+
+
+@router.get(
+    "/single-neuron/{org_id}/{project_id}/{simulation_id}/real-time-status",
+)
+def get_simulation(
+    org_id: str,
+    project_id: str,
+    simulation_id: str,
+    token: str = Depends(verify_jwt),
+):
+    return retrieve_simulation()
