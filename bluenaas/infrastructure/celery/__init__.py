@@ -75,6 +75,7 @@ def create_simulation(
     config: dict,
     token: str,
     simulation_resource: Optional[dict[str, Any]],
+    stimulus_plot_data: Optional[list[dict[str, Any]]],
     enable_realtime: bool = True,
 ):
     """
