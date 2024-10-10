@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 import queue as que
 from loguru import logger
+from collections import namedtuple
 import numpy as np
 from typing import Literal
 from bluenaas.core.exceptions import ChildSimulationError
@@ -20,6 +21,25 @@ from bluenaas.core.stimulation.utils import (
 )
 
 DEFAULT_INJECTION_LOCATION = "soma[0]"
+
+TaskArgs = namedtuple(
+    "TaskArgs",
+    [
+        "template_params",
+        "stimulus",
+        "injection_section_name",
+        "injection_segment",
+        "recording_locations",
+        "synapse_series",
+        "conditions",
+        "simulation_duration",
+        "stimulus_name_or_frequency",
+        "amplitude_or_additional_param",
+        "add_hypamp",
+        "enable_realtime",
+        "queue",
+    ],
+)
 
 
 def prepare_stimulation_parameters(
@@ -67,7 +87,7 @@ def prepare_stimulation_parameters(
             )
 
             task_args.append(
-                (
+                TaskArgs(
                     cell.template_params,
                     stimulus,
                     injection_section_name,
@@ -80,6 +100,7 @@ def prepare_stimulation_parameters(
                     frequency,
                     add_hypamp,
                     enable_realtime,
+                    None,
                 )
             )
     elif varying_type == "current":
@@ -96,7 +117,7 @@ def prepare_stimulation_parameters(
             )
 
             task_args.append(
-                (
+                TaskArgs(
                     cell.template_params,
                     stimulus,
                     injection_section_name,
@@ -109,6 +130,7 @@ def prepare_stimulation_parameters(
                     amplitude,
                     add_hypamp,
                     enable_realtime,
+                    None,
                 )
             )
 
@@ -274,8 +296,7 @@ def apply_multiple_simulations(args, runner):
     import billiard as brd
 
     neuron_global_params = NeuronGlobals.get_instance().export_params()
-    # TODO: Convert args to namedtuple so that the `enable_realtime` argument can be retrieved by name instead of index which is prone to errors.
-    enable_realtime = all(arg[-1] is True for arg in args)
+    enable_realtime = all(arg.enable_realtime is True for arg in args)
     logger.debug(
         f"Parent process is about to start parallel simulations. enable_realtime {enable_realtime}"
     )
@@ -291,11 +312,16 @@ def apply_multiple_simulations(args, runner):
                 if enable_realtime is True:
                     simulations = pool.starmap_async(
                         runner,
-                        iterable=[(*arg, queue) for arg in args],
+                        iterable=[
+                            arg._replace(queue=queue) for arg in args
+                        ],  # Add queue to arguments passed to `runner`
                     )
                 else:
                     simulations = pool.starmap(
-                        runner, iterable=[(*arg, queue) for arg in args]
+                        runner,
+                        iterable=[
+                            arg._replace(queue=queue) for arg in args
+                        ],  # Add queue to arguments passed to `runner`
                     )
 
                 process_finished = 0
