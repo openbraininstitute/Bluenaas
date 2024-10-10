@@ -249,7 +249,6 @@ def dispatch_simulation_result(
                 show_progress=True,
                 dt=time_step,
             )
-            return final_result
         else:
             simulation = Simulation(cell)
             simulation.run(
@@ -258,7 +257,8 @@ def dispatch_simulation_result(
                 dt=time_step,
             )
             process_simulation_recordings(enable_realtime=False)
-            return final_result
+
+        return final_result
     except Exception as ex:
         logger.exception(f"child simulation failed {ex}")
         raise ChildSimulationError from ex

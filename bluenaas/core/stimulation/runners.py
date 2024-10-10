@@ -99,7 +99,7 @@ def init_current_varying_simulation(
         raise ex
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
-        raise SimulationError from ex
+        raise SimulationError(ex.__str__())
     finally:
         logger.info("Simulation executor ended")
 

@@ -1,10 +1,10 @@
+import json
 from celery import Task, states
 from loguru import logger
 
 from bluenaas.infrastructure.celery.worker_scalability import EcsTaskProtection
 from bluenaas.utils.run_on_env import run_on_env
 from bluenaas.external.nexus.nexus import Nexus
-import json
 
 
 class BluenaasTask(Task):
@@ -30,7 +30,7 @@ class BluenaasTask(Task):
                 status=states.STARTED,
             )
         super().before_start(task_id, args, kwargs)
-        
+
         run_on_env(
             env_fns={
                 "production": self.task_protection.toggle_protection,
@@ -76,12 +76,15 @@ class BluenaasTask(Task):
                 project_id=kwargs["project_id"],
                 simulation_resource_self=kwargs["simulation_resource"]["_self"],
                 status=states.FAILURE,
-            )  # TODO: Save error in simulation resource
+                err=exc.__str__(),
+            )
+
+        super().on_failure(exc, task_id, args, kwargs, einfo)
+
         run_on_env(
             env_fns={
                 "production": self.task_protection.extend_protection,
             },
             ets=5,
         )
-        super().on_failure(exc, task_id, args, kwargs, einfo)
-        
+
