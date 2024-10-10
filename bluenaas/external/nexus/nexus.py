@@ -513,11 +513,15 @@ class Nexus:
         project_id: str,
         simulation_resource_self: str,
         status=SimulationStatus,
+        err: Optional[str] = None,
     ):
         try:
             simulation_resource = self.fetch_resource_by_self(simulation_resource_self)
 
-            updated_resource = simulation_resource | {"status": status}
+            updated_resource = simulation_resource | {
+                "status": status,
+                **({"error": err} if err is not None else {}),
+            }
 
             return self.update_resource_by_id(
                 org_label=org_id,
