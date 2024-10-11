@@ -116,6 +116,17 @@ class Nexus:
             raise Exception("Error fetching resource", r.json())
         return r.json()
 
+    def deprecate_resource(self, org_label, project_label, resource_id, previous_rev):
+        endpoint = f"{settings.NEXUS_ROOT_URI}/resources/{org_label}/{project_label}/_/{quote_plus(resource_id)}?rev={previous_rev}"
+        r = requests.delete(
+            endpoint,
+            headers=self.content_modification_headers(),
+            timeout=HTTP_TIMEOUT,
+        )
+        if not r.ok:
+            raise Exception("Error updating resource", r.json())
+        return r.json()
+
     def fetch_resources_of_type(
         self,
         org_label: str,

@@ -1,9 +1,9 @@
 from http import HTTPStatus
 from bluenaas.external.nexus.nexus import Nexus
-from bluenaas.domains.simulation import SimulationStatusResponse, SimulationType
+from bluenaas.domains.simulation import SimulationStatusResponse
 from urllib.parse import unquote
 from loguru import logger
-from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode, SimulationError
+from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.utils.simulation import get_simulation_type, to_simulation_response
 
 
@@ -19,6 +19,15 @@ def fetch_simulation_status_and_results(
         simulation_resource = nexus_helper.fetch_resource_for_org_project(
             org_label=org_id, project_label=project_id, resource_id=simulation_id
         )
+
+        if simulation_resource.get("_deprecated"):
+            raise BlueNaasError(
+                http_status_code=HTTPStatus.NOT_FOUND,
+                error_code=BlueNaasErrorCode.NEXUS_ERROR,
+                message="Deleted simulation cannot be retrieved",
+            )
+
+        logger.debug(f"DEPRECATED {simulation_resource["_deprecated"]}")
         sim_type = get_simulation_type(simulation_resource)
 
         used_model_id = simulation_resource["used"]["@id"]
