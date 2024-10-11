@@ -96,17 +96,15 @@ def submit_simulation(
 
     # Step 2: Create nexus resource for simulation and use status "PENDING"
     try:
-        simulation_resource = nexus_helper.create_simulation_resource(
+        created_sim_resource = nexus_helper.create_simulation_resource(
             simulation_config=config,
             status=states.PENDING,
             lab_id=org_id,
             project_id=project_id,
         )
-        logger.debug(
-            f"Created nexus resource for simulation {simulation_resource["@id"]}"
-        )
+        simulation_resource = created_sim_resource["resource"]
     except SimulationError as ex:
-        logger.debug(f"Creating nexus resource for simulation failed {ex}")
+        logger.exception(f"Creating nexus resource for simulation failed {ex}")
         raise BlueNaasError(
             http_status_code=HTTPStatus.BAD_GATEWAY,
             error_code=BlueNaasErrorCode.NEXUS_ERROR,
@@ -143,9 +141,10 @@ def submit_simulation(
         status="PENDING",
         results=None,
         # simulation details
+        type=config.type,
         simulation_config=config,
-        name=simulation_resource["name"],
-        description=simulation_resource["description"],
+        name=created_sim_resource["name"],
+        description=created_sim_resource["description"],
         created_by=simulation_resource["_createdBy"],
         # Used model details
         me_model_self=me_model_self,

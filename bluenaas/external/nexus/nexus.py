@@ -11,7 +11,11 @@ from bluenaas.domains.simulation import (
     StimulationItemResponse,
     SimulationStatus,
 )
-from bluenaas.domains.nexus import NexusSimulationPayload, NexusSimulationResource
+from bluenaas.domains.nexus import (
+    NexusSimulationPayload,
+    NexusSimulationResource,
+    CreatedNexusResource,
+)
 from bluenaas.config.settings import settings
 from bluenaas.utils.util import get_model_path
 from bluenaas.core.exceptions import SimulationError
@@ -103,7 +107,7 @@ class Nexus:
         return r.json()
 
     def fetch_resource_for_org_project(self, org_label, project_label, resource_id):
-        endpoint = f"{settings.NEXUS_ROOT_URI}/resources/{org_label}/{project_label}/_/{resource_id}"
+        endpoint = f"{settings.NEXUS_ROOT_URI}/resolvers/{org_label}/{project_label}/_/{quote_plus(resource_id, safe=":")}"
         r = requests.get(
             endpoint,
             headers=self.headers,
@@ -485,7 +489,7 @@ class Nexus:
         status: str,  # TODO: Add better type
         lab_id: str,
         project_id: str,
-    ):
+    ) -> CreatedNexusResource:
         # Step 1: Get me_model
         try:
             model = self.fetch_resource_by_id(self.model_id)
@@ -499,10 +503,10 @@ class Nexus:
                 if simulation_config.type == "single-neuron-simulation"
                 else "draft_synaptome_simulation"
             )
-
+            description = "simulation launched by bluenaas"
             simulation_resource = self.prepare_nexus_simulation(
                 sim_name=sim_name,
-                description="simulation launched by bluenaas",
+                description=description,
                 simulation_config=simulation_config,
                 model=model,
                 status=status,
@@ -517,7 +521,11 @@ class Nexus:
             )
             simulation_response.raise_for_status()
 
-            return simulation_response.json()
+            return {
+                "resource": simulation_response.json(),
+                "name": sim_name,
+                "description": description,
+            }
         except Exception as error:
             raise SimulationError(
                 f"Failed to create simulation resource {error} {simulation_response.json()}"
