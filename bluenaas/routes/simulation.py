@@ -117,17 +117,20 @@ async def launch_simulation(
 
 
 @router.get(
-    "/single-neuron/{org_id}/{project_id}/{simulation_id}",
+    "/single-neuron/{org_id}/{project_id}/{url_encoded_simulation_id}",
     description="Get results & status for a previously started simulation. If simulation is not complete then only the status of simulation is returned",
 )
 async def get_simulation_results(
     org_id: str,
     project_id: str,
-    simulation_id: str,
+    url_encoded_simulation_id: str,
     token: str = Depends(verify_jwt),
 ) -> SimulationStatusResponse:
     return fetch_simulation_status_and_results(
-        token=token, org_id=org_id, project_id=project_id, simulation_id=simulation_id
+        token=token,
+        org_id=org_id,
+        project_id=project_id,
+        encoded_simulation_id=url_encoded_simulation_id,
     )
 
 
