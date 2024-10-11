@@ -27,6 +27,10 @@ NexusUsed = TypedDict(
     },
 )
 
+CreatedNexusResource = TypedDict(
+    "CreatedNexusResource", {"resource": dict, "name": str, "description": str}
+)
+
 
 class NexusSimulationPayload(BaseModel):
     simulation: Any
