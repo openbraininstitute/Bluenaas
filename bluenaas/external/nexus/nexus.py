@@ -489,7 +489,7 @@ class Nexus:
         status: str,  # TODO: Add better type
         lab_id: str,
         project_id: str,
-    ) -> CreatedNexusResource:
+    ) -> dict:
         # Step 1: Get me_model
         try:
             model = self.fetch_resource_by_id(self.model_id)
@@ -520,12 +520,7 @@ class Nexus:
                 timeout=HTTP_TIMEOUT,
             )
             simulation_response.raise_for_status()
-
-            return {
-                "resource": simulation_response.json(),
-                "name": sim_name,
-                "description": description,
-            }
+            return simulation_response.json()
         except Exception as error:
             raise SimulationError(
                 f"Failed to create simulation resource {error} {simulation_response.json()}"

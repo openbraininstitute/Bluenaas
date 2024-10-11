@@ -136,11 +136,14 @@ class SimulationStatusResponse(BaseModel):
     status: SimulationStatus
     results: Any
 
+    type: SimulationType
     name: str
     description: str
     created_by: str
+    injection_location: str
+    recording_location: list[str]
+    brain_location: dict
     simulation_config: Optional[SingleNeuronSimulationConfig]
-    type: SimulationType
 
     me_model_self: str
     synaptome_model_self: Optional[str]

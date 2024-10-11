@@ -117,8 +117,22 @@ async def launch_simulation(
 
 
 @router.get(
+    "/single-neuron/{org_id}/{project_id}",
+    description="Get all simulations for a project",
+    summary="The data for each simulation contains relevant metadata. However, in order to not bloat the response, the results of the simulations are not returned.",
+)
+async def get_all_simulations_for_project(
+    org_id: str,
+    project_id: str,
+    url_encoded_simulation_id: str,
+    token: str = Depends(verify_jwt),
+) -> list[SimulationStatusResponse]:
+    return
+
+
+@router.get(
     "/single-neuron/{org_id}/{project_id}/{url_encoded_simulation_id}",
-    description="Get results & status for a previously started simulation. If simulation is not complete then only the status of simulation is returned",
+    description="Get results & status for a previously started simulation. If simulation is not complete the results are null",
 )
 async def get_simulation_results(
     org_id: str,
@@ -136,6 +150,7 @@ async def get_simulation_results(
 
 @router.get(
     "/single-neuron/{org_id}/{project_id}/{simulation_id}/real-time-status",
+    deprecated=True,
 )
 def get_simulation(
     org_id: str,

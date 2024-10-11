@@ -1,9 +1,9 @@
 from http import HTTPStatus
 from bluenaas.external.nexus.nexus import Nexus
-from bluenaas.domains.simulation import SimulationStatusResponse, SimulationType
+from bluenaas.domains.simulation import SimulationStatusResponse
 from urllib.parse import unquote
 from loguru import logger
-from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode, SimulationError
+from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.utils.simulation import get_simulation_type, to_simulation_response
 
 
@@ -51,6 +51,7 @@ def fetch_simulation_status_and_results(
         file_url = simulation_resource["distribution"]["contentUrl"]
         file_response = nexus_helper.fetch_file_by_url(file_url)
         results = file_response.json()
+
         return to_simulation_response(
             encoded_simulation_id=encoded_simulation_id,
             simulation_resource=simulation_resource,
