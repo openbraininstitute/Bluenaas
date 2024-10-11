@@ -52,6 +52,12 @@ class SimulationWithSynapseBody(BaseModel):
 
 
 SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
+NexusSimulationType = Literal["SingleNeuronSimulation", "SynaptomeSimulation"]
+
+SIMULATION_TYPE_MAP: dict[NexusSimulationType, SimulationType] = {
+    "SingleNeuronSimulation": "single-neuron-simulation",
+    "SynaptomeSimulation": "synaptome-simulation",
+}
 
 
 class SingleNeuronSimulationConfig(BaseModel):
@@ -141,9 +147,16 @@ class SimulationStatusResponse(BaseModel):
     description: str
     created_by: str
     injection_location: str
-    recording_location: list[str]
+    recording_location: list[str] | str
     brain_location: dict
     simulation_config: Optional[SingleNeuronSimulationConfig]
 
     me_model_self: str
     synaptome_model_self: Optional[str]
+
+
+class PaginatedSimulations(BaseModel):
+    page_offset: int
+    page_size: int
+    total: int
+    results: list[SimulationStatusResponse]

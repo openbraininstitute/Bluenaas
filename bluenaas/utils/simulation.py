@@ -1,25 +1,34 @@
 from typing import Optional
-from loguru import logger
-from bluenaas.domains.simulation import SimulationType, SimulationStatusResponse
-from bluenaas.core.exceptions import SimulationError
+from bluenaas.domains.simulation import (
+    SimulationType,
+    NexusSimulationType,
+    SimulationStatusResponse,
+    SIMULATION_TYPE_MAP,
+)
 
 
 def get_simulation_type(simulation_resource: dict) -> SimulationType:
     if isinstance(simulation_resource["@type"], list):
-        sim_type = [
+        nexus_sim_type = [
             res_type
             for res_type in simulation_resource["@type"]
             if res_type == "SingleNeuronSimulation" or res_type == "SynaptomeSimulation"
         ][0]
     else:
-        sim_type = simulation_resource["@type"]
+        nexus_sim_type = simulation_resource["@type"]
 
-    if sim_type == "SingleNeuronSimulation":
-        return "single-neuron-simulation"
-    if sim_type == "SynaptomeSimulation":
-        return "synaptome-simulation"
+    if nexus_sim_type in SIMULATION_TYPE_MAP:
+        return SIMULATION_TYPE_MAP[nexus_sim_type]
+    else:
+        raise ValueError(f"Unsupported simulation type {nexus_sim_type}")
 
-    raise SimulationError(f"Unsupported simulation type {sim_type}")
+
+def get_nexus_simulation_type(sim_type: SimulationType) -> NexusSimulationType:
+    sim_types_to_nexus_types = {v: k for k, v in SIMULATION_TYPE_MAP.items()}
+    if sim_type in sim_types_to_nexus_types:
+        return sim_types_to_nexus_types[sim_type]
+    else:
+        raise ValueError(f"Unsupported simulation type {sim_type}")
 
 
 def to_simulation_response(
@@ -29,7 +38,6 @@ def to_simulation_response(
     synaptome_model_self: Optional[str],
     distribution: Optional[dict],
 ):
-    logger.debug(f"Sim resource {simulation_resource}")
     return SimulationStatusResponse(
         id=encoded_simulation_id,
         status=simulation_resource["status"],

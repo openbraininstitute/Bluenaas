@@ -3,7 +3,7 @@
 import zipfile
 import os
 from pathlib import Path
-from urllib.parse import quote_plus, unquote
+from urllib.parse import quote_plus, unquote, urlencode
 from loguru import logger
 import requests
 from bluenaas.domains.simulation import (
@@ -14,12 +14,11 @@ from bluenaas.domains.simulation import (
 from bluenaas.domains.nexus import (
     NexusSimulationPayload,
     NexusSimulationResource,
-    CreatedNexusResource,
 )
 from bluenaas.config.settings import settings
 from bluenaas.utils.util import get_model_path
 from bluenaas.core.exceptions import SimulationError
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 import json
 
 HTTP_TIMEOUT = 10  # seconds
@@ -108,6 +107,28 @@ class Nexus:
 
     def fetch_resource_for_org_project(self, org_label, project_label, resource_id):
         endpoint = f"{settings.NEXUS_ROOT_URI}/resolvers/{org_label}/{project_label}/_/{quote_plus(resource_id, safe=":")}"
+        r = requests.get(
+            endpoint,
+            headers=self.headers,
+            timeout=HTTP_TIMEOUT,
+        )
+        if not r.ok:
+            raise Exception("Error fetching resource", r.json())
+        return r.json()
+
+    def fetch_resources_of_type(
+        self,
+        org_label: str,
+        project_label: str,
+        res_types: Sequence[str],
+        offset: int,
+        size: int,
+    ):
+        query_params = [("type", res_type) for res_type in res_types]
+        query_params.append(("size", str(size)))
+        query_params.append(("from", str(offset)))
+
+        endpoint = f"{settings.NEXUS_ROOT_URI}/resources/{org_label}/{project_label}?{urlencode(query_params)}"
         r = requests.get(
             endpoint,
             headers=self.headers,
