@@ -140,7 +140,7 @@ SimulationStatus = Literal["PENDING", "STARTED", "SUCCESS", "FAILURE"]
 class SimulationStatusResponse(BaseModel):
     id: str
     status: SimulationStatus
-    results: Any
+    results: Optional[dict]
 
     type: SimulationType
     name: str
