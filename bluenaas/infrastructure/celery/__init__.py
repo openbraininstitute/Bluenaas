@@ -58,9 +58,9 @@ def cpu_usage_stats(state):
 def create_dummy_task(self):
     logger.info("[TASK_RECEIVED_NOW]")
     if self.request.hostname.startswith("worker0"):
-        time.sleep(40)
+        time.sleep(20)
     else:
-        time.sleep(30)
+        time.sleep(20)
     return "me"
 
 

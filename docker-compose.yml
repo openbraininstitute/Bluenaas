@@ -107,10 +107,10 @@ services:
       - bluenaas
     networks:
       - ls
-      
+
   flower:
     image: mher/flower
-    container_name: broker
+    container_name: flower
     env_file: "./.env.local"
     ports:
       - 5555:5555
@@ -154,23 +154,23 @@ services:
       ls:
         ipv4_address: 10.0.3.22
 
-  # monitor:
-  #   image: bluenaas-single-cell-svc
-  #   container_name: logs_monitor
-  #   env_file: "./.env.local"
-  #   build:
-  #     dockerfile: ./Dockerfile.dev
-  #   command: ["poetry", "run", "monitor"]
-  #   environment:
-  #     DEBUG: "True"
-  #   volumes:
-  #     - ${PWD}/bluenaas:/app/bluenaas
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   networks:
-  #     - ls
-  #   depends_on:
-  #     - redis
+  monitor:
+    image: bluenaas-single-cell-svc
+    container_name: logs_monitor
+    env_file: "./.env.local"
+    build:
+      dockerfile: ./Dockerfile.dev
+    command: ["poetry", "run", "monitor"]
+    environment:
+      DEBUG: "True"
+    volumes:
+      - ${PWD}/bluenaas:/app/bluenaas
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ls
+    depends_on:
+      - redis
 
 volumes:
   nfs_share:
