@@ -2,10 +2,10 @@ from celery import states
 from loguru import logger
 from http import HTTPStatus
 import json
+from urllib.parse import quote_plus
 
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
-    SimulationStatusResponse,
     StimulationPlotConfig,
     SimulationStimulusConfig,
     StimulationItemResponse,
@@ -18,7 +18,7 @@ from bluenaas.core.exceptions import (
     SimulationError,
 )
 from bluenaas.core.model import model_factory
-from urllib.parse import quote_plus
+from bluenaas.utils.simulation import to_simulation_response
 
 
 def get_stimulation_plot_data(
@@ -74,8 +74,10 @@ def submit_simulation(
     # Step 1: Generate stimulus data to be saved in nexus resource in step 1
     try:
         me_model_self = model_self
+        synaptome_model_self = None
         if config.type == "synaptome-simulation":
-            synaptome_model = nexus_helper.fetch_resource_by_self(model_self)
+            synaptome_model_self = model_self
+            synaptome_model = nexus_helper.fetch_resource_by_self(synaptome_model_self)
             me_model_id = synaptome_model["used"]["@id"]
             me_model = nexus_helper.fetch_resource_by_id(me_model_id)
             me_model_self = me_model["_self"]
@@ -96,13 +98,17 @@ def submit_simulation(
 
     # Step 2: Create nexus resource for simulation and use status "PENDING"
     try:
-        created_sim_resource = nexus_helper.create_simulation_resource(
+        sim_response = nexus_helper.create_simulation_resource(
             simulation_config=config,
             status=states.PENDING,
             lab_id=org_id,
             project_id=project_id,
         )
-        simulation_resource = created_sim_resource["resource"]
+        simulation_resource = nexus_helper.fetch_resource_for_org_project(
+            org_label=org_id,
+            project_label=project_id,
+            resource_id=sim_response["@id"],
+        )
     except SimulationError as ex:
         logger.exception(f"Creating nexus resource for simulation failed {ex}")
         raise BlueNaasError(
@@ -129,26 +135,17 @@ def submit_simulation(
             "config": config.model_dump_json(),
             "stimulus_plot_data": json.dumps(stimulus_plot_data),
             "token": token,
-            "simulation_resource": simulation_resource,
+            "simulation_resource": sim_response,
             "enable_realtime": False,
         },
     )
     logger.debug(f"Task submitted with id {task.id}")
 
     # Step 3: Return simulation status to user
-    return SimulationStatusResponse(
-        id=quote_plus(simulation_resource["@id"]),
-        status="PENDING",
-        results=None,
-        # simulation details
-        type=config.type,
-        simulation_config=config,
-        name=created_sim_resource["name"],
-        description=created_sim_resource["description"],
-        created_by=simulation_resource["_createdBy"],
-        # Used model details
+    return to_simulation_response(
+        encoded_simulation_id=quote_plus(simulation_resource["@id"]),
+        simulation_resource=simulation_resource,
         me_model_self=me_model_self,
-        synaptome_model_self=model_self
-        if config.type == "synaptome-simulation"
-        else None,
+        synaptome_model_self=synaptome_model_self,
+        distribution=None,
     )

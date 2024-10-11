@@ -28,7 +28,7 @@ NexusUsed = TypedDict(
 )
 
 CreatedNexusResource = TypedDict(
-    "CreatedNexusResource", {"resource": dict, "name": str, "description": str}
+    "CreatedNexusResource", {"source": dict, "metadata": dict}
 )
 
 
