@@ -6,9 +6,12 @@ contains the single neuron simulation endpoint (single neuron, single neuron wit
 import time
 from fastapi import APIRouter, Depends, Query, Response, status
 
+from typing import Optional
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     SimulationStatusResponse,
+    SimulationType,
+    PaginatedSimulations,
 )
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.infrastructure.celery import create_dummy_task
@@ -19,6 +22,9 @@ from bluenaas.services.simulation.submit_simulation import submit_simulation
 from bluenaas.core.exceptions import BlueNaasError
 from bluenaas.services.simulation.fetch_simulation_status_and_results import (
     fetch_simulation_status_and_results,
+)
+from bluenaas.services.simulation.fetch_all_simulations_for_project import (
+    fetch_all_simulations_of_project,
 )
 
 router = APIRouter(prefix="/simulation")
@@ -119,15 +125,24 @@ async def launch_simulation(
 @router.get(
     "/single-neuron/{org_id}/{project_id}",
     description="Get all simulations for a project",
-    summary="The data for each simulation contains relevant metadata. However, in order to not bloat the response, the results of the simulations are not returned.",
+    summary="Returns all simulations in the provided project. Please note, the data for simulations do not contain simulation results (x, y points) to not bloat the response.",
 )
 async def get_all_simulations_for_project(
     org_id: str,
     project_id: str,
-    url_encoded_simulation_id: str,
+    simulation_type: Optional[SimulationType] = None,
+    page_offset: int = 0,
+    page_size: int = 20,
     token: str = Depends(verify_jwt),
-) -> list[SimulationStatusResponse]:
-    return
+) -> PaginatedSimulations:
+    return fetch_all_simulations_of_project(
+        token=token,
+        org_id=org_id,
+        project_id=project_id,
+        sim_type=simulation_type,
+        offset=page_offset,
+        size=page_size,
+    )
 
 
 @router.get(
