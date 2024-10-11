@@ -1,6 +1,7 @@
 from http import HTTPStatus
 from typing import Optional
 from bluenaas.external.nexus.nexus import Nexus
+from urllib.parse import quote_plus
 from bluenaas.domains.simulation import (
     SimulationStatusResponse,
     SimulationType,
@@ -81,7 +82,7 @@ def fetch_all_simulations_of_project(
                     me_model_self = me_model["_self"]
 
                 simulation = to_simulation_response(
-                    encoded_simulation_id=full_simulation_resource["@id"],
+                    encoded_simulation_id=quote_plus(full_simulation_resource["@id"]),
                     simulation_resource=full_simulation_resource,
                     me_model_self=me_model_self,
                     synaptome_model_self=synaptome_model_self,

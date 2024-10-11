@@ -23,6 +23,7 @@ from bluenaas.core.exceptions import BlueNaasError
 from bluenaas.services.simulation.fetch_simulation_status_and_results import (
     fetch_simulation_status_and_results,
 )
+from bluenaas.services.simulation.deprecate_simulation import deprecate_simulation
 from bluenaas.services.simulation.fetch_all_simulations_for_project import (
     fetch_all_simulations_of_project,
 )
@@ -149,7 +150,7 @@ async def get_all_simulations_for_project(
     "/single-neuron/{org_id}/{project_id}/{url_encoded_simulation_id}",
     description="Get results & status for a previously started simulation. If simulation is not complete the results are null",
 )
-async def get_simulation_results(
+async def get_simulation(
     org_id: str,
     project_id: str,
     url_encoded_simulation_id: str,
@@ -163,11 +164,29 @@ async def get_simulation_results(
     )
 
 
+@router.delete(
+    "/single-neuron/{org_id}/{project_id}/{url_encoded_simulation_id}",
+    description="Delete simulation resource",
+)
+async def delete_simulation(
+    org_id: str,
+    project_id: str,
+    url_encoded_simulation_id: str,
+    token: str = Depends(verify_jwt),
+) -> None:
+    return deprecate_simulation(
+        token=token,
+        org_id=org_id,
+        project_id=project_id,
+        encoded_simulation_id=url_encoded_simulation_id,
+    )
+
+
 @router.get(
     "/single-neuron/{org_id}/{project_id}/{simulation_id}/real-time-status",
     deprecated=True,
 )
-def get_simulation(
+def get_simulation_realtime(
     org_id: str,
     project_id: str,
     simulation_id: str,
