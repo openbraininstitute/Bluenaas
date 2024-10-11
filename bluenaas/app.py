@@ -1,5 +1,4 @@
 import uuid
-import threading
 import sentry_sdk
 from contextlib import asynccontextmanager
 from typing import Awaitable, Callable
@@ -17,8 +16,9 @@ from bluenaas.core.exceptions import (
     BlueNaasErrorResponse,
 )
 
-from bluenaas.infrastructure.celery import celery_app
-from bluenaas.infrastructure.celery.worker_scalability import TaskScalabilityManager
+from bluenaas.infrastructure.celery.worker_scalability import (
+    scale_controller,
+)
 
 from bluenaas.routes.morphology import router as morphology_router
 from bluenaas.routes.simulation import router as simulation_router
@@ -33,18 +33,6 @@ sentry_sdk.init(
     profiles_sample_rate=1.0,
     environment=settings.DEPLOYMENT_ENV,
 )
-
-
-# NOTE: the scaling controller only if we go with EC2  type
-def scale_controller():
-    def run_task():
-        task = TaskScalabilityManager(
-            celery_app=celery_app,
-        )
-        task.run()
-
-    monitor_thread = threading.Thread(target=run_task)
-    monitor_thread.start()
 
 
 @asynccontextmanager

@@ -16,12 +16,12 @@ def get_queue_depth(queue: str):
         if queue in all_keys_decoded:
             queue_depth = r.llen(queue)
         return queue_depth
-    except redis.RedisError as e:
-        logger.exception(f"error: Could not connect to Redis {e}")
-        return None
+    except redis.RedisError as ex:
+        logger.exception(f"error: Could not connect to Redis {ex}")
+        return ex
     except Exception as ex:
         logger.warning(f"error: Redis error {ex}")
-        return None
+        return ex
 
 
 def get_bulk_queues_depths(
@@ -36,7 +36,7 @@ def get_bulk_queues_depths(
         all_keys_decoded = [key.decode("utf-8") for key in all_keys]
 
         if queues_to_check is None:
-            raise
+            raise ValueError("No queue was specified to be query")
         if queues_to_check:
             queues = [queue for queue in all_keys_decoded if queue in queues_to_check]
 
@@ -56,6 +56,9 @@ def get_bulk_queues_depths(
         depths["total"] = total
         return depths
 
-    except redis.RedisError as e:
-        logger.exception(f"error: could not connect to Redis {e}")
-        return None
+    except redis.RedisError as ex:
+        logger.exception(f"error: could not connect to Redis {ex}")
+        raise ex
+    except Exception as ex:
+        logger.exception(f"error: failed to gather queues data {ex}")
+        raise ex

@@ -1,27 +1,41 @@
 from celery import Task
-from loguru import logger
+
+from bluenaas.infrastructure.celery.worker_scalability import EcsTaskProtection
+from bluenaas.utils.run_on_env import run_on_env
 
 
 class BluenaasTask(Task):
+    track_started = True
+
     def __init__(self):
-        # self.task_protection = EcsTaskProtection()
+        self.task_protection = EcsTaskProtection()
         super().__init__()
 
     def before_start(self, task_id, args, kwargs):
         # TODO: create a draft nexus simulation
         super().before_start(task_id, args, kwargs)
-        # TODO: uncomment for aws
-        # self.task_protection.toggle_protection(True)
+        run_on_env(
+            env_fns={
+                "production": self.task_protection.toggle_protection,
+            },
+            is_protected=True,
+        )
 
     def on_success(self, retval, task_id, args, kwargs):
-        logger.info(f"@@on_success {(task_id)}")
         # TODO: save simulation to nexus
-        # TODO: uncomment for aws
-        # self.task_protection.toggle_protection(False)
+        run_on_env(
+            env_fns={
+                "production": self.task_protection.extend_protection,
+            },
+            ets=5,
+        )
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
-        logger.info(f"@@on_failure {(exc, task_id, args, kwargs, einfo)}")
         # TODO: save the failure in nexus too
         super().on_failure(exc, task_id, args, kwargs, einfo)
-        # TODO: uncomment for aws
-        # self.task_protection.toggle_protection(False)
+        run_on_env(
+            env_fns={
+                "production": self.task_protection.extend_protection,
+            },
+            ets=5,
+        )

@@ -2,17 +2,16 @@ from os import getenv
 from typing import Literal, TypeGuard, get_args
 
 from dotenv import load_dotenv
-from pydantic import PostgresDsn
-from pydantic_core import MultiHostUrl, Url
+from pydantic_core import Url
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 load_dotenv("")
 
-_ENVS = Literal["development", "testing", "staging", "production"]
+ENVS = Literal["development", "testing", "staging", "production"]
 
 
-def _is_valid_env(env: str | None) -> TypeGuard[_ENVS]:
-    return env in get_args(_ENVS)
+def _is_valid_env(env: str | None) -> TypeGuard[ENVS]:
+    return env in get_args(ENVS)
 
 
 _ENV = getenv("DEPLOYMENT_ENV")
@@ -28,7 +27,7 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "BlueNaas Service"
     APP_DEBUG: bool = False
-    DEPLOYMENT_ENV: _ENVS = _DEPLOYMENT_ENV
+    DEPLOYMENT_ENV: ENVS = _DEPLOYMENT_ENV
     BASE_PATH: str = ""
     CORS_ORIGINS: list[str] = []
     NEXUS_ROOT_URI: Url = Url("https://openbluebrain.com/api/nexus/v1")
@@ -49,13 +48,6 @@ class Settings(BaseSettings):
     CELERY_APP_NAME: str = "bluenaas"
     CELERY_QUE_SIMULATIONS: str = "simulations"
 
-    DATABASE_URL: PostgresDsn = MultiHostUrl(
-        "postgresql+psycopg2://postgres:password@db:5432/bleunaas"
-    )
-    DB_USER: str = "postgres"
-    DB_PASSWORD: str = "password"
-    DB_NAME: str = "bleunaas"
-
     AWS_ACCESS_KEY_ID: str = "test"
     AWS_SECRET_ACCESS_KEY: str = "test"
     AWS_REGION: str = "eu-north-1"
@@ -63,10 +55,6 @@ class Settings(BaseSettings):
     AWS_SERVICE_NAME: str = "bnaas-service"
 
     AWS_TASK_PROTECTION_EXPIRE_IN_MIN: int = 60
-
-    CELERY_QUEUE_DEPTH_FOR_SCALE_UP: int = 2
-    CELERY_QUEUE_DEPTH_FOR_SCALE_DOWN: int = 2
-    AWS_MIN_ECS_TASKS: int = 1
     AWS_MAX_ECS_TASKS: int = 8
 
 
