@@ -41,7 +41,7 @@ def get_stimulation_plot_data(
     return plot_data
 
 
-def prepare_simulation_resources(
+def prepare_simulation_resource(
     token,
     model_self,
     org_id,
@@ -49,6 +49,7 @@ def prepare_simulation_resources(
     config,
 ):
     nexus_helper = Nexus({"token": token, "model_self_url": model_self})
+
     # Step 1: Generate stimulus data to be saved in nexus resource in step 1
     try:
         me_model_self = model_self
@@ -74,7 +75,7 @@ def prepare_simulation_resources(
             details=ex.__str__(),
         )
 
-    # Step 2: Create nexus resource for simulation and set status "PENDING"
+    # Step 2: Create nexus resource for simulation and use status "PENDING"
     try:
         sim_response = nexus_helper.create_simulation_resource(
             simulation_config=config,

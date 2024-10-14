@@ -16,6 +16,7 @@ from bluenaas.domains.nexus import (
     BaseNexusSimulationResource,
 )
 from bluenaas.config.settings import settings
+from bluenaas.utils.ensure_list import ensure_list
 from bluenaas.utils.generate_id import generate_id
 from bluenaas.utils.util import get_model_path
 from bluenaas.core.exceptions import SimulationError
@@ -44,17 +45,6 @@ def extract_org_project_from_id(url) -> dict[str, str | None]:
         return {"org": org_project[0], "project": org_project[1]}
     else:
         return {"org": None, "project": None}  # Handle URLs with fewer than 3 parts
-
-
-def ensure_list(value):
-    # If it's a dictionary, convert it to a list containing the dictionary
-    if isinstance(value, dict):
-        return [value]
-    # If it's already a list, return it as is
-    elif isinstance(value, list):
-        return value
-    else:
-        raise TypeError("Value must be either a dictionary or a list.")
 
 
 class Nexus:
@@ -269,7 +259,7 @@ class Nexus:
         workflow_resource = self.fetch_resource_by_id(workflow_id)
 
         configuration = None
-        workflow_resource_list = ensure_list(workflow_resource["hasPart"])
+        workflow_resource_list = ensure_list(workflow_resource["hasPart"], dict)
         for part in workflow_resource_list:
             if part["@type"] == "EModelConfiguration":
                 configuration = part
@@ -288,7 +278,7 @@ class Nexus:
         morphology_resource = self.fetch_resource_by_id(morph_id)
 
         swc = None
-        distributions = ensure_list(morphology_resource["distribution"])
+        distributions = ensure_list(morphology_resource["distribution"], dict)
         for distribution in distributions:
             if distribution["encodingFormat"] == "application/swc":
                 swc = distribution
@@ -314,9 +304,9 @@ class Nexus:
 
     def get_memodel_morphology(self, memodel_resource):
         morphology_id = None
-        for haspart in ensure_list(memodel_resource["hasPart"]):
-            if haspart["@type"] == "NeuronMorphology":
-                morphology_id = haspart["@id"]
+        for haspart in ensure_list(memodel_resource["hasPart"], dict):
+            if haspart.get("@type") == "NeuronMorphology":
+                morphology_id = haspart.get("@id")
         if morphology_id is None:
             raise Exception("No Morphology found in ME-Model")
 
@@ -325,8 +315,8 @@ class Nexus:
     def get_mechanisms(self, configuration):
         # fetch only SubCellularModelScripts. Morphologies will be fetched later
         scripts = []
-        for config in ensure_list(configuration["uses"]):
-            if config["@type"] != "NeuronMorphology":
+        for config in ensure_list(configuration["uses"], dict):
+            if config.get("@type") != "NeuronMorphology":
                 scripts.append(config)
 
         model_resources = []
@@ -345,11 +335,11 @@ class Nexus:
 
         mechanisms = []
         for model_resource in model_resources:
-            distributions = ensure_list(model_resource["distribution"])
+            distributions = ensure_list(model_resource["distribution"], dict)
             distribution = list(
                 filter(
-                    lambda x: x["encodingFormat"] == "application/mod"
-                    or x["encodingFormat"] == "application/neuron-mod",
+                    lambda x: x.get("encodingFormat") == "application/mod"
+                    or x.get("encodingFormat") == "application/neuron-mod",
                     distributions,
                 )
             )[0]
@@ -364,7 +354,7 @@ class Nexus:
         workflow_resource = self.fetch_resource_by_id(workflow_id)
 
         script = None
-        for generated in ensure_list(workflow_resource["generates"]):
+        for generated in ensure_list(workflow_resource["generates"], dict):
             if generated["@type"] == "EModelScript":
                 script = generated
                 break
@@ -545,7 +535,6 @@ class Nexus:
                 status=status,
             )
             simulation_resource_url = f"{settings.NEXUS_ROOT_URI}/resources/{org_id}/{project_id}?indexing=sync"
-            logger.info(f"@@simulation_resource {simulation_resource=}")
             simulation_response = requests.post(
                 url=simulation_resource_url,
                 headers=self.content_modification_headers(),
@@ -564,7 +553,8 @@ class Nexus:
         org_id: str,
         project_id: str,
         resource_self: str,
-        status=SimulationStatus,
+        status: SimulationStatus,
+        is_draft: bool,
         err: Optional[str] = None,
     ):
         try:
@@ -572,6 +562,7 @@ class Nexus:
 
             updated_resource = simulation_resource | {
                 "status": status,
+                "is_draft": is_draft,
                 **({"error": err} if err is not None else {}),
             }
 
@@ -597,8 +588,9 @@ class Nexus:
         stimulus_plot_data: list[StimulationItemResponse],
         org_id: str,
         project_id: str,
-        status=SimulationStatus,
-        results=Any,
+        status: SimulationStatus,
+        is_draft: bool,
+        results: Any,
     ):
         # Step 1: Create a distribution file to save results.
         try:
@@ -633,6 +625,7 @@ class Nexus:
 
             updated_resource = simulation_resource | {
                 "status": status,
+                "is_draft": is_draft,
                 "distribution": [distribution_resource],
             }
 
@@ -659,7 +652,9 @@ class Nexus:
         model: dict,
         status: str,
     ):
-        record_locations = [f"{r.section}_${r.offset}" for r in config.recordFrom]
+        record_locations = [
+            f"{r.section}_{r.offset}" for r in ensure_list(config.record_from, str)
+        ]
         return BaseNexusSimulationResource(
             type=["Entity", "SingleNeuronSimulation"]
             if config.type == "single-neuron-simulation"
@@ -668,8 +663,8 @@ class Nexus:
             description=description,
             context="https://bbp.neuroshapes.org",
             distribution=[],
-            injectionLocation=config.currentInjection.injectTo,
-            recordingLocation=record_locations,
+            injectionLocation=config.current_injection.injectTo,
+            recordingLocation=ensure_list(record_locations, str),
             brainLocation=model["brainLocation"],
             # Model can be MEModel or SingleNeuronSynaptome
             used={"@type": model["@type"], "@id": model["@id"]},

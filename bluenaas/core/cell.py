@@ -194,27 +194,27 @@ class BaseCell:
             if is_current_varying_simulation(config):
                 return apply_multiple_stimulus(
                     cell=self._cell,
-                    current_injection=config.currentInjection,
-                    recording_locations=config.recordFrom,
+                    current_injection=config.current_injection,
+                    recording_locations=config.record_from,
                     experiment_setup=config.conditions,
-                    simulation_duration=config.simulationDuration,
+                    simulation_duration=config.duration,
                     current_synapse_series=current_synapse_series,
                     enable_realtime=enable_realtime,
                 )
             return apply_multiple_frequency(
                 cell=self._cell,
-                current_injection=config.currentInjection,
-                recording_locations=config.recordFrom,
+                current_injection=config.current_injection,
+                recording_locations=config.record_from,
                 experiment_setup=config.conditions,
-                simulation_duration=config.simulationDuration,
+                simulation_duration=config.duration,
                 frequency_to_synapse_series=frequency_to_synapse_series,
                 enable_realtime=enable_realtime,
             )
         except Exception as e:
             logger.exception(
-                f"Apply Generic Single Neuron Simulation error: {e}",
+                f"Single Neuron Simulation error: {e}",
             )
-            raise Exception(f"Apply Generic Single Neuron Simulation error: {e}") from e
+            raise Exception(f"Single Neuron Simulation error: {e}")
 
 
 class HocCell(BaseCell):

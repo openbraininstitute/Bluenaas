@@ -1,5 +1,5 @@
 import json
-from celery import Task, states
+from celery import Task
 from loguru import logger
 
 from bluenaas.infrastructure.celery.worker_scalability import EcsTaskProtection
@@ -30,7 +30,8 @@ class BluenaasTask(Task):
                 org_id=kwargs["org_id"],
                 project_id=kwargs["project_id"],
                 resource_self=kwargs["simulation_resource"]["_self"],
-                status=states.STARTED,
+                status="started",
+                is_draft=True,
             )
         super().before_start(task_id, args, kwargs)
 
@@ -59,10 +60,11 @@ class BluenaasTask(Task):
                 stimulus_plot_data=json.loads(kwargs["stimulus_plot_data"]),
                 org_id=kwargs["org_id"],
                 project_id=kwargs["project_id"],
-                status=states.SUCCESS,
+                status="success",
+                is_draft=not kwargs.get("autosave"),
                 results=retval["result"],
             )
-
+        super().on_success(retval, task_id, args, kwargs)
         run_on_env(
             env_fns={
                 "production": self.task_protection.extend_protection,
@@ -86,12 +88,12 @@ class BluenaasTask(Task):
                 org_id=kwargs["org_id"],
                 project_id=kwargs["project_id"],
                 resource_self=kwargs["simulation_resource"]["_self"],
-                status=states.FAILURE,
+                status="failure",
+                is_draft=not kwargs.get("autosave"),
                 err=exc.__str__(),
             )
 
         super().on_failure(exc, task_id, args, kwargs, einfo)
-
         run_on_env(
             env_fns={
                 "production": self.task_protection.extend_protection,

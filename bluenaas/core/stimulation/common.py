@@ -12,7 +12,9 @@ from bluenaas.domains.simulation import (
     ExperimentSetupConfig,
     RecordingLocation,
 )
-from bluenaas.utils.const import SUB_PROCESS_STOP_EVENT
+from bluenaas.utils.const import (
+    SUB_PROCESS_STOP_EVENT,
+)
 from bluenaas.utils.util import diff_list
 from bluenaas.core.stimulation.utils import (
     get_stimulus_from_name,
@@ -66,11 +68,10 @@ def prepare_stimulation_parameters(
         if current_injection is not None and current_injection.injectTo is not None
         else DEFAULT_INJECTION_LOCATION
     )
-    protocol = current_injection.stimulus.stimulusProtocol
+    protocol = current_injection.stimulus.stimulus_protocol
     amplitudes = current_injection.stimulus.amplitudes
     stimulus_name = get_stimulus_name(protocol)
 
-    # HERE: @dinika please confirm this is for both type of varying
     assert current_injection is not None
     if varying_type == "frequency":
         # Prepare arguments for each frequency
@@ -218,7 +219,7 @@ def dispatch_simulation_result(
         for loc in recording_locations:
             sec, seg = cell.sections[loc.section], loc.offset
             cell_section = f"{loc.section}_{seg}"
-            stim_label = f"{varying_key}_{frequency if varying_type == "frequency" else amplitude}"
+            label = f"{varying_key}_{frequency if varying_type == "frequency" else amplitude}"
 
             voltage = cell.get_voltage_recording(sec, seg)
             time = cell.get_time()
@@ -237,24 +238,22 @@ def dispatch_simulation_result(
 
                 queue.put(
                     {
-                        "stim_label": stim_label,
+                        "label": label,
                         "recording_name": cell_section,
                         "amplitude": amplitude,
                         "frequency": frequency,
-                        "time": time.tolist(),
-                        "current": time_diff.tolist(),
+                        "time": time_diff.tolist(),
                         "voltage": voltage_diff.tolist(),
                         "varying_key": varying_key,
                     }
                 )
 
             final_result[cell_section] = {
-                "stim_label": stim_label,
+                "label": label,
                 "recording_name": cell_section,
                 "amplitude": amplitude,
                 "frequency": frequency,
                 "time": time.tolist(),
-                "current": current.tolist(),
                 "voltage": voltage.tolist(),
                 "varying_key": varying_key,
             }
@@ -274,12 +273,13 @@ def dispatch_simulation_result(
             cvode=False,
         )
 
-        if not enable_realtime:
-            process_simulation_recordings(enable_realtime=False)
+        process_simulation_recordings(enable_realtime)
 
         return final_result
     except Exception as ex:
-        logger.exception(f"child simulation failed {ex}")
+        queue.put(
+            ChildSimulationError("child simulation failed {}".format(ex.__str__()))
+        )
         raise ChildSimulationError from ex
     finally:
         logger.info("child simulation complete")
@@ -295,101 +295,91 @@ def apply_multiple_simulations(args, runner):
     neuron_global_params = NeuronGlobals.get_instance().export_params()
     enable_realtime = all(arg.enable_realtime is True for arg in args)
     logger.debug(
-        f"Parent process is about to start parallel simulations. enable_realtime {enable_realtime}"
+        f"Parent process is about to start parallel simulations. [{enable_realtime=}]"
     )
-    try:
-        with brd.Manager() as manager:
-            queue = manager.Queue()
-            with brd.pool.Pool(
-                processes=min(len(args), os.cpu_count() or len(args)),
-                initializer=init_process_worker,
-                initargs=(neuron_global_params,),
-                maxtasksperchild=1,
-            ) as pool:
-                if enable_realtime is True:
-                    simulations = pool.starmap_async(
-                        runner,
-                        iterable=[
-                            arg._replace(queue=queue) for arg in args
-                        ],  # Add queue to arguments passed to `runner`
-                    )
-                else:
-                    simulations = pool.starmap(
-                        runner,
-                        iterable=[
-                            arg._replace(queue=queue) for arg in args
-                        ],  # Add queue to arguments passed to `runner`
-                    )
 
-                process_finished = 0
-                while True and enable_realtime:
-                    try:
-                        record = queue.get(timeout=1)
-                        if record != SUB_PROCESS_STOP_EVENT:
-                            current_task.update_state(
-                                state="PROGRESS",
-                                meta={
-                                    "error": None,
-                                    "all_simulations_finished": False,
-                                    "result": {
-                                        "amplitude": record["amplitude"],
-                                        "frequency": record["frequency"],
-                                        "stimulus_name": record["stim_label"],
-                                        "recording_name": record["recording_name"],
-                                        "varying_key": record["varying_key"],
-                                        "t": record["time"],
-                                        "v": record["voltage"],
-                                    },
-                                },
-                            )
-                        else:
-                            process_finished += 1
-                            if process_finished == len(args):
-                                current_task.update_state(
-                                    state=states.SUCCESS,
-                                    meta={
-                                        "result": None,
-                                        "error": None,
-                                        "all_simulations_finished": True,
-                                    },
-                                )
-                                break
-                    except que.Empty:
-                        continue
-                    except Exception as ex:
-                        logger.exception(
-                            f"Error during pulling simulation data from sub processes: {ex}"
-                        )
+    with brd.Manager() as manager:
+        queue = manager.Queue()
+        with brd.pool.Pool(
+            processes=min(len(args), os.cpu_count() or len(args)),
+            initializer=init_process_worker,
+            initargs=(neuron_global_params,),
+            maxtasksperchild=1,
+        ) as pool:
+            if enable_realtime is True:
+                simulations = pool.starmap_async(
+                    runner,
+                    iterable=[arg._replace(queue=queue) for arg in args],
+                )
+            else:
+                simulations = pool.starmap(
+                    runner,
+                    iterable=[arg._replace(queue=queue) for arg in args],
+                )
+
+            process_finished = 0
+            while True and enable_realtime:
+                try:
+                    record = queue.get(timeout=1)
+                    if isinstance(record, ChildSimulationError):
                         current_task.update_state(
                             state=states.FAILURE,
                             meta={
                                 "result": None,
-                                "error": ex.__str__,
+                                "error": record.__str__(),
+                                "exc_type": "ChildSimulationError",
                                 "all_simulations_finished": False,
                             },
                         )
-                        celery_app.control.revoke(
-                            current_task.request.id, terminate=True
+                    elif record != SUB_PROCESS_STOP_EVENT:
+                        current_task.update_state(
+                            state="PROGRESS",
+                            meta={
+                                "error": None,
+                                "all_simulations_finished": False,
+                                "result": {
+                                    "label": record["label"],
+                                    "amplitude": record["amplitude"],
+                                    "frequency": record["frequency"],
+                                    "recording": record["recording_name"],
+                                    "varying_key": record["varying_key"],
+                                    "t": record["time"],
+                                    "v": record["voltage"],
+                                },
+                            },
                         )
+                    else:
+                        process_finished += 1
+                        if process_finished == len(args):
+                            current_task.update_state(
+                                state=states.SUCCESS,
+                                meta={
+                                    "result": None,
+                                    "error": None,
+                                    "all_simulations_finished": True,
+                                },
+                            )
+                            break
+                except que.Empty:
+                    continue
+                except Exception as ex:
+                    logger.exception(
+                        f"Error during pulling simulation data from sub processes: {ex}"
+                    )
+                    current_task.update_state(
+                        state=states.FAILURE,
+                        meta={
+                            "result": None,
+                            "error": ex.__str__(),
+                            "exc_type": ex.__class__.__name__,
+                            "all_simulations_finished": False,
+                        },
+                    )
+                    celery_app.control.revoke(current_task.request.id, terminate=True)
 
-                if enable_realtime:
-                    return simulations.get()
-
-                # In case of non_realtime updates simulations will be an array of sim results for different current/frequencies.
-                return get_simulations_by_recoding_name(
-                    simulations=simulations,
-                )
-    except Exception as e:
-        logger.exception(f"Error during pool initialization or task submission: {e}")
-        current_task.update_state(
-            state=states.FAILURE,
-            meta={
-                "result": None,
-                "error": e.__str__,
-                "all_simulations_complete": False,
-            },
-        )
-        celery_app.control.revoke(current_task.request.id, terminate=True)
+            return get_simulations_by_recoding_name(
+                simulations=simulations.get() if enable_realtime else simulations,
+            )
 
 
 def get_simulations_by_recoding_name(simulations: list) -> dict[str, list]:
@@ -404,14 +394,15 @@ def get_simulations_by_recoding_name(simulations: list) -> dict[str, list]:
 
             record_location_to_simulation_result[recording_name].append(
                 {
-                    "x": trace[recording_name]["time"],
-                    "y": trace[recording_name]["voltage"],
-                    "type": "scatter",
-                    "name": trace[recording_name]["stim_label"],
-                    "recording": trace[recording_name]["recording_name"],
+                    "label": trace[recording_name]["label"],
                     "amplitude": trace[recording_name]["amplitude"],
                     "frequency": trace[recording_name]["frequency"],
+                    "recording": trace[recording_name]["recording_name"],
                     "varying_key": trace[recording_name]["varying_key"],
+                    "type": "scatter",
+                    "t": trace[recording_name]["time"],
+                    "v": trace[recording_name]["voltage"],
                 }
             )
+
     return record_location_to_simulation_result

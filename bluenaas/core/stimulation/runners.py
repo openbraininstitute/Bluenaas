@@ -95,8 +95,6 @@ def init_current_varying_simulation(
             frequency_to_synapse_series=None,
             enable_realtime=enable_realtime,
         )
-    except SimulationError as ex:
-        raise ex
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
         raise SimulationError(ex.__str__())
@@ -248,11 +246,8 @@ def init_frequency_varying_simulation(
             current_synapse_series=None,
             enable_realtime=enable_realtime,
         )
-    except SimulationError as ex:
-        logger.exception(f"Simulation executor error: {ex}")
-        raise ex
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
-        raise SimulationError from ex
+        raise SimulationError(ex.__str__())
     finally:
         logger.info("Simulation executor ended")

@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Annotated, Any, List, Optional, TypedDict
 from pydantic import BaseModel, Field
 from bluenaas.domains.simulation import (
+    SimulationStatus,
     SingleNeuronSimulationConfig,
     StimulationItemResponse,
 )
@@ -66,7 +67,7 @@ class FullNexusSimulationResource(NexusBaseResource):
     recordingLocation: list[str] | str
     brainLocation: Any  # TODO Add better type
     is_draft: bool | None = None
-    status: str | None = None  # TODO Add better type
+    status: SimulationStatus | None = None  # TODO Add better type
 
     class Config:
         populate_by_name = True
