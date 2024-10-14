@@ -47,7 +47,7 @@ def prepare_stimulation_parameters(
     current_injection: CurrentInjectionConfig,
     recording_locations: list[RecordingLocation],
     frequency_to_synapse_series: dict[float, list[SynapseSeries]] | None,
-    current_synapse_serires: list[SynapseSeries] | None,
+    current_synapse_series: list[SynapseSeries] | None,
     conditions: ExperimentSetupConfig,
     simulation_duration: int,
     threshold_based: bool = False,
@@ -123,7 +123,7 @@ def prepare_stimulation_parameters(
                     injection_section_name,
                     injection_segment,
                     recording_locations,
-                    current_synapse_serires,
+                    current_synapse_series,
                     conditions,
                     simulation_duration,
                     stimulus_name,
@@ -290,10 +290,10 @@ def dispatch_simulation_result(
 
 
 def apply_multiple_simulations(args, runner):
-    from bluecellulab.simulation.neuron_globals import NeuronGlobals
-    from celery import current_task, states
-    from bluenaas.infrastructure.celery import celery_app
     import billiard as brd
+    from celery import current_task, states
+    from bluecellulab.simulation.neuron_globals import NeuronGlobals
+    from bluenaas.infrastructure.celery import celery_app
 
     neuron_global_params = NeuronGlobals.get_instance().export_params()
     enable_realtime = all(arg.enable_realtime is True for arg in args)
@@ -387,16 +387,16 @@ def apply_multiple_simulations(args, runner):
 
 
 def get_simulations_by_recoding_name(simulations: list) -> dict[str, list]:
-    record_location_to_simulaton_result: dict[str, list] = {}
+    record_location_to_simulation_result: dict[str, list] = {}
 
     # Iterate over simulation result for each current/frequency
     for trace in simulations:
         # For a given current/frequency, gather data for different recording locations
         for recording_name in trace:
-            if recording_name not in record_location_to_simulaton_result:
-                record_location_to_simulaton_result[recording_name] = []
+            if recording_name not in record_location_to_simulation_result:
+                record_location_to_simulation_result[recording_name] = []
 
-            record_location_to_simulaton_result[recording_name].append(
+            record_location_to_simulation_result[recording_name].append(
                 {
                     "x": trace[recording_name]["time"],
                     "y": trace[recording_name]["voltage"],
@@ -408,4 +408,4 @@ def get_simulations_by_recoding_name(simulations: list) -> dict[str, list]:
                     "varying_key": trace[recording_name]["varying_key"],
                 }
             )
-    return record_location_to_simulaton_result
+    return record_location_to_simulation_result

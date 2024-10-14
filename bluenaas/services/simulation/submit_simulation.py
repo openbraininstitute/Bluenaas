@@ -1,9 +1,10 @@
+import json
 from celery import states
 from loguru import logger
 from http import HTTPStatus
-import json
 from urllib.parse import quote_plus
 
+from bluenaas.domains.nexus import NexusSimulationResource
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     StimulationPlotConfig,
@@ -18,7 +19,7 @@ from bluenaas.core.exceptions import (
     SimulationError,
 )
 from bluenaas.core.model import model_factory
-from bluenaas.utils.simulation import to_simulation_response
+from bluenaas.utils.simulation import convert_to_simulation_response
 
 
 def get_stimulation_plot_data(
@@ -65,9 +66,7 @@ def submit_simulation(
     Returns:
         SimulationStatusResponse
     """
-    from bluenaas.infrastructure.celery import (
-        create_simulation,
-    )
+    from bluenaas.infrastructure.celery import create_simulation
 
     nexus_helper = Nexus({"token": token, "model_self_url": model_self})
 
@@ -101,7 +100,7 @@ def submit_simulation(
         sim_response = nexus_helper.create_simulation_resource(
             simulation_config=config,
             status=states.PENDING,
-            lab_id=org_id,
+            org_id=org_id,
             project_id=project_id,
         )
         simulation_resource = nexus_helper.fetch_resource_for_org_project(
@@ -133,18 +132,21 @@ def submit_simulation(
             "project_id": project_id,
             "model_self": model_self,
             "config": config.model_dump_json(),
-            "stimulus_plot_data": json.dumps(stimulus_plot_data),
             "token": token,
+            "stimulus_plot_data": json.dumps(stimulus_plot_data),
             "simulation_resource": sim_response,
             "enable_realtime": False,
         },
+        ignore_result=True,
     )
     logger.debug(f"Task submitted with id {task.id}")
 
     # Step 3: Return simulation status to user
-    return to_simulation_response(
-        encoded_simulation_id=quote_plus(simulation_resource["@id"]),
-        simulation_resource=simulation_resource,
+    return convert_to_simulation_response(
+        simulation_uri=quote_plus(simulation_resource["@id"]),
+        simulation_resource=NexusSimulationResource.model_validate(
+            simulation_resource,
+        ),
         me_model_self=me_model_self,
         synaptome_model_self=synaptome_model_self,
         distribution=None,

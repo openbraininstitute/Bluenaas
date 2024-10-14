@@ -12,12 +12,16 @@ from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.services.synapses_placement import generate_synapses_placement
 
 
-router = APIRouter(prefix="/synaptome")
+router = APIRouter(
+    prefix="/synaptome",
+    tags=["Synaptome"],
+)
 
 
 @router.post(
     "/generate-placement",
     response_model=SynapsePlacementResponse,
+    summary="Retrieve synapses positions coordinates for 3D plan",
 )
 def place_synapses(
     request: Request,

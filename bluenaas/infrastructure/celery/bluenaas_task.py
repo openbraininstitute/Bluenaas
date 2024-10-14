@@ -26,7 +26,7 @@ class BluenaasTask(Task):
             nexus_helper.update_simulation_status(
                 org_id=kwargs["org_id"],
                 project_id=kwargs["project_id"],
-                simulation_resource_self=kwargs["simulation_resource"]["_self"],
+                resource_self=kwargs["simulation_resource"]["_self"],
                 status=states.STARTED,
             )
         super().before_start(task_id, args, kwargs)
@@ -48,7 +48,7 @@ class BluenaasTask(Task):
                 {"token": kwargs["token"], "model_self_url": kwargs["model_self"]}
             )
             nexus_helper.save_simulation_results(
-                simulation_resource_self=kwargs["simulation_resource"]["_self"],
+                resource_self=kwargs["simulation_resource"]["_self"],
                 config=json.loads(kwargs["config"]),
                 stimulus_plot_data=json.loads(kwargs["stimulus_plot_data"]),
                 org_id=kwargs["org_id"],
@@ -56,6 +56,7 @@ class BluenaasTask(Task):
                 status=states.SUCCESS,
                 results=retval["result"],
             )
+
         run_on_env(
             env_fns={
                 "production": self.task_protection.extend_protection,
@@ -75,7 +76,7 @@ class BluenaasTask(Task):
             nexus_helper.update_simulation_status(
                 org_id=kwargs["org_id"],
                 project_id=kwargs["project_id"],
-                simulation_resource_self=kwargs["simulation_resource"]["_self"],
+                resource_self=kwargs["simulation_resource"]["_self"],
                 status=states.FAILURE,
                 err=exc.__str__(),
             )
@@ -88,4 +89,3 @@ class BluenaasTask(Task):
             },
             ets=5,
         )
-

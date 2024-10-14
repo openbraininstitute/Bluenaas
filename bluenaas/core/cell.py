@@ -6,9 +6,7 @@ import re
 from loguru import logger
 from bluenaas.core.stimulation.utils import is_current_varying_simulation
 from bluenaas.domains.morphology import SynapseSeries
-from bluenaas.domains.simulation import (
-    SingleNeuronSimulationConfig,
-)
+from bluenaas.domains.simulation import SingleNeuronSimulationConfig
 from bluenaas.utils.util import (
     compile_mechanisms,
     get_sec_name,
@@ -185,7 +183,7 @@ class BaseCell:
     def start_simulation(
         self,
         config: SingleNeuronSimulationConfig,
-        current_synapse_serires: list[SynapseSeries] | None,
+        current_synapse_series: list[SynapseSeries] | None,
         frequency_to_synapse_series: dict[float, list[SynapseSeries]] | None,
         enable_realtime,
     ):
@@ -200,7 +198,7 @@ class BaseCell:
                     recording_locations=config.recordFrom,
                     experiment_setup=config.conditions,
                     simulation_duration=config.simulationDuration,
-                    current_synapse_serires=current_synapse_serires,
+                    current_synapse_series=current_synapse_series,
                     enable_realtime=enable_realtime,
                 )
             return apply_multiple_frequency(

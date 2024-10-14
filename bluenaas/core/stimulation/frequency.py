@@ -96,7 +96,7 @@ def apply_multiple_frequency(
         current_injection=current_injection,
         recording_locations=recording_locations,
         frequency_to_synapse_series=frequency_to_synapse_series,
-        current_synapse_serires=None,
+        current_synapse_series=None,
         conditions=experiment_setup,
         simulation_duration=simulation_duration,
         varying_type="frequency",

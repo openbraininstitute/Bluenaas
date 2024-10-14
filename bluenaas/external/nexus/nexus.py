@@ -177,7 +177,7 @@ class Nexus:
         content_type: str,
         filename: str,
         file_url: str,
-        lab_id: str,
+        org_id: str,
         project_id: str,
     ) -> dict:
         stringified_data = json.dumps(payload)
@@ -198,21 +198,21 @@ class Nexus:
         return response.json()
 
     def create_nexus_distribution(
-        self, payload: dict, filename: str, lab_id: str, project_id: str
+        self, payload: dict, filename: str, org_id: str, project_id: str
     ):
         content_type = "application/json"
-        file_url = f"{settings.NEXUS_ROOT_URI}/files/{lab_id}/{project_id}"
+        file_url = f"{settings.NEXUS_ROOT_URI}/files/{org_id}/{project_id}"
 
         saved_file = self.save_file_to_nexus(
             payload=payload,
             content_type=content_type,
             filename=filename,
             file_url=file_url,
-            lab_id=lab_id,
+            org_id=org_id,
             project_id=project_id,
         )
 
-        distribution_url = f"{settings.NEXUS_ROOT_URI}/files/{lab_id}/{project_id}/{quote_plus(saved_file["@id"])}?rev={saved_file["_rev"]}"
+        distribution_url = f"{settings.NEXUS_ROOT_URI}/files/{org_id}/{project_id}/{quote_plus(saved_file["@id"])}?rev={saved_file["_rev"]}"
         distribution = {
             "@type": "DataDownload",
             "name": saved_file["_filename"],
@@ -519,7 +519,7 @@ class Nexus:
         self,
         simulation_config: SingleNeuronSimulationConfig,
         status: str,  # TODO: Add better type
-        lab_id: str,
+        org_id: str,
         project_id: str,
     ) -> dict:
         # Step 1: Get me_model
@@ -539,11 +539,11 @@ class Nexus:
             simulation_resource = self.prepare_nexus_simulation(
                 sim_name=sim_name,
                 description=description,
-                simulation_config=simulation_config,
+                config=simulation_config,
                 model=model,
                 status=status,
             )
-            simulation_resource_url = f"{settings.NEXUS_ROOT_URI}/resources/{lab_id}/{project_id}?indexing=sync"
+            simulation_resource_url = f"{settings.NEXUS_ROOT_URI}/resources/{org_id}/{project_id}?indexing=sync"
 
             simulation_response = requests.post(
                 url=simulation_resource_url,
@@ -562,12 +562,12 @@ class Nexus:
         self,
         org_id: str,
         project_id: str,
-        simulation_resource_self: str,
+        resource_self: str,
         status=SimulationStatus,
         err: Optional[str] = None,
     ):
         try:
-            simulation_resource = self.fetch_resource_by_self(simulation_resource_self)
+            simulation_resource = self.fetch_resource_by_self(resource_self)
 
             updated_resource = simulation_resource | {
                 "status": status,
@@ -583,15 +583,15 @@ class Nexus:
             )
         except Exception as e:
             logger.exception(
-                f"Could not update simulation resource {simulation_resource_self} with status {status}. Exception {e}"
+                f"Could not update simulation resource {resource_self} with status {status}. Exception {e}"
             )
             raise SimulationError(
-                f"Could not update simulation resource {simulation_resource_self} with status {status}"
+                f"Could not update simulation resource {resource_self} with status {status}"
             )
 
     def save_simulation_results(
         self,
-        simulation_resource_self: str,
+        resource_self: str,
         config: dict,
         stimulus_plot_data: list[StimulationItemResponse],
         org_id: str,
@@ -612,27 +612,27 @@ class Nexus:
                 if simulation_config.type == "single-neuron-simulation"
                 else "simulation-config-synaptome.json"
             )
-            ditribution_resource = self.create_nexus_distribution(
+            distribution_resource = self.create_nexus_distribution(
                 payload=distribution_payload.model_dump(by_alias=True),
                 filename=distribution_name,
-                lab_id=org_id,
+                org_id=org_id,
                 project_id=project_id,
             )
         except Exception as e:
             logger.exception(
-                f"Could not create distribution with simulation results for resource {simulation_resource_self}. Exception {e}"
+                f"Could not create distribution with simulation results for resource {resource_self}. Exception {e}"
             )
             raise SimulationError(
-                f"Could not create distribution with simulation results for resource {simulation_resource_self}"
+                f"Could not create distribution with simulation results for resource {resource_self}"
             )
 
         # Step 2: Add distribution file to simulation resource as well as update status
         try:
-            simulation_resource = self.fetch_resource_by_self(simulation_resource_self)
+            simulation_resource = self.fetch_resource_by_self(resource_self)
 
             updated_resource = simulation_resource | {
                 "status": status,
-                "distribution": [ditribution_resource],
+                "distribution": [distribution_resource],
             }
 
             return self.update_resource_by_id(
@@ -644,32 +644,30 @@ class Nexus:
             )
         except Exception as e:
             logger.exception(
-                f"Could not update simulation resource {simulation_resource_self} with status {status}. Exception {e}"
+                f"Could not update simulation resource {resource_self} with status {status}. Exception {e}"
             )
             raise SimulationError(
-                f"Could not update simulation resource {simulation_resource_self} with status {status}"
+                f"Could not update simulation resource {resource_self} with status {status}"
             )
 
     def prepare_nexus_simulation(
         self,
         sim_name: str,
         description: str,
-        simulation_config: SingleNeuronSimulationConfig,
+        config: SingleNeuronSimulationConfig,
         model: dict,
         status: str,
     ):
-        record_locations = [
-            f"{r.section}_${r.offset}" for r in simulation_config.recordFrom
-        ]
+        record_locations = [f"{r.section}_${r.offset}" for r in config.recordFrom]
         return NexusSimulationResource(
             type=["Entity", "SingleNeuronSimulation"]
-            if simulation_config.type == "single-neuron-simulation"
+            if config.type == "single-neuron-simulation"
             else ["Entity", "SynaptomeSimulation"],
             name=sim_name,
             description=description,
             context="https://bbp.neuroshapes.org",
             distribution=[],
-            injectionLocation=simulation_config.currentInjection.injectTo,
+            injectionLocation=config.currentInjection.injectTo,
             recordingLocation=record_locations,
             brainLocation=model["brainLocation"],
             # Model can be MEModel or SingleNeuronSynaptome
@@ -680,23 +678,23 @@ class Nexus:
 
     def create_simulation_distribution(
         self,
-        simulation_config: SingleNeuronSimulationConfig,
+        config: SingleNeuronSimulationConfig,
         stimulus: list[StimulationItemResponse],
         org_id: str,
         project_id: str,
     ):
         distribution_payload = NexusSimulationPayload(
-            config=simulation_config, simulation=None, stimulus=stimulus
+            config=config, simulation=None, stimulus=stimulus
         )
         distribution_name = (
             "simulation-config-single-neuron.json"
-            if simulation_config.type == "single-neuron-simulation"
+            if config.type == "single-neuron-simulation"
             else "simulation-config-synaptome.json"
         )
-        ditribution_resource = self.create_nexus_distribution(
+        distribution_resource = self.create_nexus_distribution(
             payload=distribution_payload.model_dump(by_alias=True),
             filename=distribution_name,
-            lab_id=org_id,
+            org_id=org_id,
             project_id=project_id,
         )
-        return ditribution_resource
+        return distribution_resource
