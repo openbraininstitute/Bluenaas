@@ -1,17 +1,19 @@
 from http import HTTPStatus
 from typing import Optional
-from bluenaas.external.nexus.nexus import Nexus
 from urllib.parse import quote_plus
+from loguru import logger
+
+from bluenaas.domains.nexus import NexusSimulationResource
+from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.domains.simulation import (
-    SimulationStatusResponse,
+    SimulationResultItemResponse,
     SimulationType,
     NexusSimulationType,
-    PaginatedSimulations,
+    PaginatedSimulationsResponse,
 )
-from loguru import logger
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.utils.simulation import (
-    to_simulation_response,
+    convert_to_simulation_response,
     get_nexus_simulation_type,
     get_simulation_type,
 )
@@ -24,7 +26,7 @@ def fetch_all_simulations_of_project(
     sim_type: Optional[SimulationType],
     offset: int,
     size: int,
-) -> PaginatedSimulations:
+) -> PaginatedSimulationsResponse:
     try:
         nexus_sim_types: list[NexusSimulationType] = (
             ["SingleNeuronSimulation", "SynaptomeSimulation"]
@@ -36,16 +38,16 @@ def fetch_all_simulations_of_project(
             {"token": token, "model_self_url": ""}
         )  # TODO: Remove model_id as a required field for nexus helper
 
-        nexus_sim_reponse = nexus_helper.fetch_resources_of_type(
+        nexus_sim_response = nexus_helper.fetch_resources_of_type(
             org_label=org_id,
             project_label=project_id,
             res_types=nexus_sim_types,
             offset=offset,
             size=size,
         )
-        nexus_simulations = nexus_sim_reponse["_results"]
+        nexus_simulations = nexus_sim_response["_results"]
 
-        simulations: list[SimulationStatusResponse] = []
+        simulations: list[SimulationResultItemResponse] = []
 
         for nexus_sim in nexus_simulations:
             try:
@@ -56,9 +58,12 @@ def fetch_all_simulations_of_project(
                     resource_id=nexus_sim["@id"],
                 )
                 used_model_id = full_simulation_resource["used"]["@id"]
-                sim_type = get_simulation_type(
-                    simulation_resource=full_simulation_resource
+                logger.info(f"@@full_simulation_resource {full_simulation_resource=}")
+                valid_simulation = NexusSimulationResource.model_validate(
+                    full_simulation_resource
                 )
+                logger.info(f"@@valid_simulation {valid_simulation=}")
+                sim_type = get_simulation_type(simulation_resource=valid_simulation)
 
                 if sim_type == "single-neuron-simulation":
                     me_model_self = nexus_helper.fetch_resource_for_org_project(
@@ -81,23 +86,24 @@ def fetch_all_simulations_of_project(
                     )
                     me_model_self = me_model["_self"]
 
-                simulation = to_simulation_response(
-                    encoded_simulation_id=quote_plus(full_simulation_resource["@id"]),
-                    simulation_resource=full_simulation_resource,
+                simulation = convert_to_simulation_response(
+                    simulation_uri=quote_plus(full_simulation_resource["@id"]),
+                    simulation_resource=valid_simulation,
                     me_model_self=me_model_self,
                     synaptome_model_self=synaptome_model_self,
                     distribution=None,
                 )
                 simulations.append(simulation)
             except Exception as err:
+                logger.exception(f"@@ex {err}")
                 logger.warning(
                     f"Nexus Simulation {nexus_sim["_self"]} could not be converted to a bluenaas compatible simulation {err}"
                 )
 
-        return PaginatedSimulations(
+        return PaginatedSimulationsResponse(
             page_offset=offset,
             page_size=len(simulations),
-            total=nexus_sim_reponse["_total"],
+            total=nexus_sim_response["_total"],
             results=simulations,
         )
     except Exception as ex:

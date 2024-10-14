@@ -91,7 +91,7 @@ def init_current_varying_simulation(
 
         return model.CELL.start_simulation(
             config=config,
-            current_synapse_serires=synapse_generation_config,
+            current_synapse_series=synapse_generation_config,
             frequency_to_synapse_series=None,
             enable_realtime=enable_realtime,
         )
@@ -245,7 +245,7 @@ def init_frequency_varying_simulation(
         return model.CELL.start_simulation(
             config=config,
             frequency_to_synapse_series=frequency_to_synapse_settings,
-            current_synapse_serires=None,
+            current_synapse_series=None,
             enable_realtime=enable_realtime,
         )
     except SimulationError as ex:

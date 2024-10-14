@@ -15,6 +15,7 @@ router = APIRouter(prefix="/graph")
 @router.post(
     "/direct-current-plot",
     response_model=List[StimulationItemResponse],
+    summary="Retrieve current stimulation plot data",
 )
 def retrieve_stimulation_plot(
     request: Request,

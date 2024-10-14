@@ -83,13 +83,13 @@ def apply_multiple_stimulus(
     recording_locations: list[RecordingLocation],
     experiment_setup: ExperimentSetupConfig,
     simulation_duration: int,
-    current_synapse_serires: list[SynapseSeries] | None,
+    current_synapse_series: list[SynapseSeries] | None,
     enable_realtime: bool = True,
 ):
     logger.info(f"""
         Running Simulation enable_realtime {enable_realtime} of:
         {"CurrentInjection" if current_injection is not None else ""}
-        {"Synaptome " if current_synapse_serires is not None else ""}
+        {"Synaptome " if current_synapse_series is not None else ""}
     """)
 
     args = prepare_stimulation_parameters(
@@ -97,7 +97,7 @@ def apply_multiple_stimulus(
         current_injection=current_injection,
         recording_locations=recording_locations,
         frequency_to_synapse_series=None,
-        current_synapse_serires=current_synapse_serires,
+        current_synapse_series=current_synapse_series,
         conditions=experiment_setup,
         simulation_duration=simulation_duration,
         varying_type="current",

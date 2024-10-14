@@ -3,7 +3,6 @@ from typing import Annotated, Any, List, Optional, TypedDict
 from pydantic import BaseModel, Field
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
-    PlotDataEntry,
     StimulationItemResponse,
 )
 
@@ -40,18 +39,16 @@ class NexusSimulationPayload(BaseModel):
     config: SingleNeuronSimulationConfig
 
 
-class NexusSimulationResource(BaseModel):
-    type: Annotated[str | List[str], Field(alias="@type")]
-    context: Annotated[str, Field(alias="@context")]
+class NexusSimulationResource(NexusBaseResource):
     name: str
     description: str
     used: NexusUsed
-    distribution: list[dict[str, Any]]
+    distribution: list[dict[str, Any]] | dict[str, Any]
     injectionLocation: str
-    recordingLocation: list[str]
+    recordingLocation: list[str] | str
     brainLocation: Any  # TODO Add better type
-    is_draft: bool
-    status: str  # TODO Add better type
+    is_draft: bool | None = None
+    status: str | None = None  # TODO Add better type
 
     class Config:
         populate_by_name = True

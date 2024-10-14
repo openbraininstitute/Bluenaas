@@ -74,8 +74,8 @@ def create_simulation(
     model_self: str,
     config: dict,
     token: str,
-    simulation_resource: Optional[dict[str, Any]],
-    stimulus_plot_data: Optional[list[dict[str, Any]]],
+    simulation_resource: Optional[dict[str, Any]] = None,
+    stimulus_plot_data: Optional[list[dict[str, Any]]] = None,
     enable_realtime: bool = True,
 ):
     """

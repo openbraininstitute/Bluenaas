@@ -1,4 +1,5 @@
-from typing import Annotated, List, Literal, Optional, Any
+from datetime import datetime
+from typing import Annotated, List, Literal, Optional
 from pydantic import BaseModel, Field, PositiveFloat, field_validator
 
 
@@ -67,8 +68,8 @@ class SingleNeuronSimulationConfig(BaseModel):
     currentInjection: CurrentInjectionConfig
     recordFrom: list[RecordingLocation]
     conditions: ExperimentSetupConfig
-    type: SimulationType
-    simulationDuration: int
+    type: SimulationType = None
+    simulationDuration: int = None
 
     @field_validator("currentInjection")
     @classmethod
@@ -137,26 +138,31 @@ class PlotDataEntry(BaseModel):
 SimulationStatus = Literal["PENDING", "STARTED", "SUCCESS", "FAILURE"]
 
 
-class SimulationStatusResponse(BaseModel):
+class SimulationResultItemResponse(BaseModel):
     id: str
-    status: SimulationStatus
+    self_uri: str
+    status: SimulationStatus | None = None
     results: Optional[dict]
 
     type: SimulationType
     name: str
     description: str
     created_by: str
+    created_at: datetime
     injection_location: str
     recording_location: list[str] | str
     brain_location: dict
-    simulation_config: Optional[SingleNeuronSimulationConfig]
+    config: Optional[SingleNeuronSimulationConfig]
 
     me_model_self: str
     synaptome_model_self: Optional[str]
 
+    def __getitem__(self, key):
+        return getattr(self, key)
 
-class PaginatedSimulations(BaseModel):
+
+class PaginatedSimulationsResponse(BaseModel):
     page_offset: int
     page_size: int
     total: int
-    results: list[SimulationStatusResponse]
+    results: list[SimulationResultItemResponse]
