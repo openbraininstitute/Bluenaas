@@ -54,6 +54,7 @@ def execute_simulation(
     org_id: str,
     project_id: str,
     config: SingleNeuronSimulationConfig,
+    autosave: bool,
     token: str = Depends(verify_jwt),
 ):
     """
@@ -78,6 +79,7 @@ def execute_simulation(
         model_self=model_self,
         org_id=org_id,
         project_id=project_id,
+        autosave=autosave,
     )
 
 

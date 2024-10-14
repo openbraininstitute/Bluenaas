@@ -1,12 +1,8 @@
-import json
 from celery import states
 from loguru import logger
 from http import HTTPStatus
-from urllib.parse import quote_plus
 
-from bluenaas.domains.nexus import NexusSimulationResource
 from bluenaas.domains.simulation import (
-    SingleNeuronSimulationConfig,
     StimulationPlotConfig,
     SimulationStimulusConfig,
     StimulationItemResponse,
@@ -19,7 +15,6 @@ from bluenaas.core.exceptions import (
     SimulationError,
 )
 from bluenaas.core.model import model_factory
-from bluenaas.utils.simulation import convert_to_simulation_response
 
 
 def get_stimulation_plot_data(
@@ -46,30 +41,14 @@ def get_stimulation_plot_data(
     return plot_data
 
 
-def submit_simulation(
-    token: str,
-    model_self: str,
-    org_id: str,
-    project_id: str,
-    config: SingleNeuronSimulationConfig,
+def prepare_simulation_resources(
+    token,
+    model_self,
+    org_id,
+    project_id,
+    config,
 ):
-    """
-    Starts a (background) simulation job in celery and returns simulation status right away, without waiting for the simulation to finish.
-
-    Args:
-        token (str): Authorization token to access the simulation.
-        model_self (str): The _self of the neuron model to simulate.
-        org_id (str): The ID of the organization running the simulation.
-        project_id (str): The ID of the project the simulation belongs to.
-        config (SingleNeuronSimulationConfig): The simulation configuration.
-
-    Returns:
-        SimulationStatusResponse
-    """
-    from bluenaas.infrastructure.celery import create_simulation
-
     nexus_helper = Nexus({"token": token, "model_self_url": model_self})
-
     # Step 1: Generate stimulus data to be saved in nexus resource in step 1
     try:
         me_model_self = model_self
@@ -95,7 +74,7 @@ def submit_simulation(
             details=ex.__str__(),
         )
 
-    # Step 2: Create nexus resource for simulation and use status "PENDING"
+    # Step 2: Create nexus resource for simulation and set status "PENDING"
     try:
         sim_response = nexus_helper.create_simulation_resource(
             simulation_config=config,
@@ -125,29 +104,10 @@ def submit_simulation(
             details=ex.__str__(),
         ) from ex
 
-    # Step 2: Submit task to celery
-    task = create_simulation.apply_async(
-        kwargs={
-            "org_id": org_id,
-            "project_id": project_id,
-            "model_self": model_self,
-            "config": config.model_dump_json(),
-            "token": token,
-            "stimulus_plot_data": json.dumps(stimulus_plot_data),
-            "simulation_resource": sim_response,
-            "enable_realtime": False,
-        },
-        ignore_result=True,
-    )
-    logger.debug(f"Task submitted with id {task.id}")
-
-    # Step 3: Return simulation status to user
-    return convert_to_simulation_response(
-        simulation_uri=quote_plus(simulation_resource["@id"]),
-        simulation_resource=NexusSimulationResource.model_validate(
-            simulation_resource,
-        ),
-        me_model_self=me_model_self,
-        synaptome_model_self=synaptome_model_self,
-        distribution=None,
+    return (
+        me_model_self,
+        synaptome_model_self,
+        stimulus_plot_data,
+        sim_response,
+        simulation_resource,
     )

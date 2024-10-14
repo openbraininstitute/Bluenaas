@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, List, Literal, Optional
+from typing import Annotated, List, Literal, Optional, TypedDict
 from pydantic import BaseModel, Field, PositiveFloat, field_validator
 
 
@@ -135,7 +135,7 @@ class PlotDataEntry(BaseModel):
     frequency: Optional[float]
 
 
-SimulationStatus = Literal["PENDING", "STARTED", "SUCCESS", "FAILURE"]
+SimulationStatus = Literal["pending", "started", "success", "failure"]
 
 
 class SimulationResultItemResponse(BaseModel):
@@ -166,3 +166,27 @@ class PaginatedSimulationsResponse(BaseModel):
     page_size: int
     total: int
     results: list[SimulationResultItemResponse]
+
+
+SimulationEvent = Literal["init", "info", "data", "error"]
+
+SimulationSteamData = TypedDict(
+    "SimulationSteamData",
+    {
+        "amplitude": str,
+        "frequency": str,
+        "stimulus_name": str,
+        "recording_name": str,
+        "varying_key": str,
+        "t": list[float],
+        "v": list[float],
+    },
+)
+
+
+class StreamSimulationResponse(BaseModel):
+    event: SimulationEvent
+    state: SimulationStatus
+    task_id: str
+    description: str
+    data: SimulationSteamData

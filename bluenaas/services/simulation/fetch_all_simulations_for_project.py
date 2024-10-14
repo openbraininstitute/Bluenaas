@@ -3,7 +3,7 @@ from typing import Optional
 from urllib.parse import quote_plus
 from loguru import logger
 
-from bluenaas.domains.nexus import NexusSimulationResource
+from bluenaas.domains.nexus import FullNexusSimulationResource
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.domains.simulation import (
     SimulationResultItemResponse,
@@ -59,7 +59,7 @@ def fetch_all_simulations_of_project(
                 )
                 used_model_id = full_simulation_resource["used"]["@id"]
                 logger.info(f"@@full_simulation_resource {full_simulation_resource=}")
-                valid_simulation = NexusSimulationResource.model_validate(
+                valid_simulation = FullNexusSimulationResource.model_validate(
                     full_simulation_resource
                 )
                 logger.info(f"@@valid_simulation {valid_simulation=}")
