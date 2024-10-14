@@ -77,6 +77,7 @@ def create_simulation(
     simulation_resource: Optional[dict[str, Any]] = None,
     stimulus_plot_data: Optional[list[dict[str, Any]]] = None,
     enable_realtime: bool = True,
+    autosave: bool = False,
 ):
     """
     Creates a simulation based on the provided configuration and parameters.
@@ -97,7 +98,7 @@ def create_simulation(
         dict: A dictionary containing the simulation details:
             - org_id (str): The organization ID.
             - project_id (str): The project ID.
-            - model_self (str): The model identifier.
+            - model_self (str): The model self identifier.
             - config (dict): The original configuration used for the simulation.
             - result: The result of the simulation.
     """
@@ -117,10 +118,13 @@ def create_simulation(
             cf,
             enable_realtime=enable_realtime,
         )
+
     return {
         "org_id": org_id,
         "project_id": project_id,
         "model_self": model_self,
         "config": config,
         "result": result,
+        "simulation_resource": simulation_resource,
+        "stimulus_plot_data": stimulus_plot_data,
     }

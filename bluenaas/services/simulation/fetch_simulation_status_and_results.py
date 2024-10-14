@@ -1,7 +1,7 @@
 from http import HTTPStatus
 
 from pydantic import Field
-from bluenaas.domains.nexus import NexusSimulationResource
+from bluenaas.domains.nexus import FullNexusSimulationResource
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.domains.simulation import SimulationResultItemResponse
 from urllib.parse import unquote
@@ -36,7 +36,9 @@ def fetch_simulation_status_and_results(
                 error_code=BlueNaasErrorCode.NEXUS_ERROR,
                 message="Deleted simulation cannot be retrieved",
             )
-        valid_simulation = NexusSimulationResource.model_validate(simulation_resource)
+        valid_simulation = FullNexusSimulationResource.model_validate(
+            simulation_resource
+        )
         sim_type = get_simulation_type(
             simulation_resource=valid_simulation,
         )

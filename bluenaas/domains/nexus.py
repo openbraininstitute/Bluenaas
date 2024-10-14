@@ -39,7 +39,25 @@ class NexusSimulationPayload(BaseModel):
     config: SingleNeuronSimulationConfig
 
 
-class NexusSimulationResource(NexusBaseResource):
+class BaseNexusSimulationResource(BaseModel):
+    type: Annotated[str | List[str], Field(alias="@type")]
+    context: Annotated[str, Field(alias="@context")]
+
+    name: str
+    description: str
+    used: NexusUsed
+    distribution: list[dict[str, Any]] | dict[str, Any]
+    injectionLocation: str
+    recordingLocation: list[str] | str
+    brainLocation: Any  # TODO Add better type
+    is_draft: bool | None = None
+    status: str | None = None  # TODO Add better type
+
+    class Config:
+        populate_by_name = True
+
+
+class FullNexusSimulationResource(NexusBaseResource):
     name: str
     description: str
     used: NexusUsed

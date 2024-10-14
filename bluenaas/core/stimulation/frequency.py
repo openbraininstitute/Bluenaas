@@ -33,8 +33,8 @@ def _run_frequency_varying_stimulus(
     enable_realtime: bool = True,
     queue: Any | None = None,
 ):
-    logger.info(f"@@@-->queue {queue}")
     logger.info(f"""
+        [frequency]: {frequency}
         [enable_realtime]: {enable_realtime}
         [simulation stimulus/start]: {stimulus}
         [simulation injection_section_name (provided)]: {injection_section_name}

@@ -260,24 +260,21 @@ def dispatch_simulation_result(
             }
 
     try:
-        if enable_realtime:
-            simulation = Simulation(
-                cell, custom_progress_function=process_simulation_recordings
-            )
+        simulation = Simulation(
+            cell,
+            custom_progress_function=process_simulation_recordings
+            if enable_realtime
+            else None,
+        )
 
-            simulation.run(
-                maxtime=simulation_duration,
-                cvode=False,
-                show_progress=True,
-                dt=time_step,
-            )
-        else:
-            simulation = Simulation(cell)
-            simulation.run(
-                maxtime=simulation_duration,
-                cvode=False,
-                dt=time_step,
-            )
+        simulation.run(
+            maxtime=simulation_duration,
+            show_progress=enable_realtime,
+            dt=time_step,
+            cvode=False,
+        )
+
+        if not enable_realtime:
             process_simulation_recordings(enable_realtime=False)
 
         return final_result
@@ -332,7 +329,9 @@ def apply_multiple_simulations(args, runner):
                             current_task.update_state(
                                 state="PROGRESS",
                                 meta={
-                                    "data": {
+                                    "error": None,
+                                    "all_simulations_finished": False,
+                                    "result": {
                                         "amplitude": record["amplitude"],
                                         "frequency": record["frequency"],
                                         "stimulus_name": record["stim_label"],
@@ -340,7 +339,7 @@ def apply_multiple_simulations(args, runner):
                                         "varying_key": record["varying_key"],
                                         "t": record["time"],
                                         "v": record["voltage"],
-                                    }
+                                    },
                                 },
                             )
                         else:
@@ -348,7 +347,11 @@ def apply_multiple_simulations(args, runner):
                             if process_finished == len(args):
                                 current_task.update_state(
                                     state=states.SUCCESS,
-                                    meta={"all_simulations_finished": True},
+                                    meta={
+                                        "result": None,
+                                        "error": None,
+                                        "all_simulations_finished": True,
+                                    },
                                 )
                                 break
                     except que.Empty:
@@ -360,8 +363,9 @@ def apply_multiple_simulations(args, runner):
                         current_task.update_state(
                             state=states.FAILURE,
                             meta={
-                                "data": None,
-                                "exit_due_exception": ex.__str__,
+                                "result": None,
+                                "error": ex.__str__,
+                                "all_simulations_finished": False,
                             },
                         )
                         celery_app.control.revoke(
@@ -372,14 +376,16 @@ def apply_multiple_simulations(args, runner):
                     return simulations.get()
 
                 # In case of non_realtime updates simulations will be an array of sim results for different current/frequencies.
-                return get_simulations_by_recoding_name(simulations=simulations)
+                return get_simulations_by_recoding_name(
+                    simulations=simulations,
+                )
     except Exception as e:
         logger.exception(f"Error during pool initialization or task submission: {e}")
         current_task.update_state(
             state=states.FAILURE,
             meta={
-                "data": None,
-                "exit_due_exception": e.__str__,
+                "result": None,
+                "error": e.__str__,
                 "all_simulations_complete": False,
             },
         )
