@@ -56,12 +56,12 @@ def convert_to_simulation_response(
         status=simulation_resource.status,
         created_by=simulation_resource.createdBy,
         created_at=simulation_resource.createdAt,
-        results=distribution["simulation"] if distribution is not None else None,
+        results=distribution.get("simulation", None),
         # simulation details
         injection_location=simulation_resource.injectionLocation,
         recording_location=simulation_resource.recordingLocation,
         brain_location=simulation_resource.brainLocation,
-        config=distribution["config"] if distribution is not None else None,
+        config=distribution.get("config", None),
         # Used model details
         me_model_self=me_model_self,
         synaptome_model_self=synaptome_model_self,
