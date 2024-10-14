@@ -4,7 +4,14 @@ from loguru import logger
 from celery.exceptions import TaskRevokedError
 
 from bluenaas.core.exceptions import SimulationError
-from bluenaas.domains.simulation import SingleNeuronSimulationConfig
+from bluenaas.domains.simulation import (
+    SimulationEvent,
+    SingleNeuronSimulationConfig,
+    StreamSimulationResponse,
+)
+from bluenaas.services.simulation.submit_simulation.prepare_resources import (
+    prepare_simulation_resources,
+)
 from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup_worker
 
 task_state_descriptions = {
@@ -14,10 +21,11 @@ task_state_descriptions = {
     states.FAILURE: "The simulation has failed.",
     states.REVOKED: "The simulation has been canceled.",
     "PROGRESS": "Simulation is currently in progress.",
+    "INIT": "Simulation is captured by the system",
 }
 
 
-def get_event_from_task_state(state):
+def get_event_from_task_state(state) -> SimulationEvent:
     """
     Get the event type based on the task state.
     """
@@ -39,7 +47,8 @@ def run_simulation(
     org_id: str,
     project_id: str,
     config: SingleNeuronSimulationConfig,
-):
+    autosave: bool = False,
+) -> StreamSimulationResponse:
     """
     Initiates a simulation task and streams real-time updates to the client.
 
@@ -56,6 +65,21 @@ def run_simulation(
     from bluenaas.infrastructure.celery import create_simulation, celery_app
     from celery.result import AsyncResult
 
+    if autosave:
+        (
+            _,
+            _,
+            stimulus_plot_data,
+            sim_response,
+            simulation_resource,
+        ) = prepare_simulation_resources(
+            token,
+            model_self,
+            org_id,
+            project_id,
+            SingleNeuronSimulationConfig.model_validate(config),
+        )
+
     task = create_simulation.apply_async(
         kwargs={
             "model_self": model_self,
@@ -63,6 +87,9 @@ def run_simulation(
             "project_id": project_id,
             "config": config.model_dump_json(),
             "token": token,
+            "simulation_resource": sim_response,
+            "stimulus_plot_data": json.dumps(stimulus_plot_data),
+            "autosave": autosave,
         },
         ignore_result=True,
     )
@@ -82,8 +109,11 @@ def run_simulation(
         try:
             yield f"{json.dumps(
                 {
-                    "event": "info",
+                    "event": "init",
+                    "description": task_state_descriptions["INIT"],
+                    "state": "captured",
                     "task_id": task.id,
+                    "data": None,
                 }
             )}\n"
 
@@ -93,22 +123,25 @@ def run_simulation(
                 ):
                     yield f"{json.dumps(
                         {
-                            "type":  get_event_from_task_state(task.state),
+                            "event":  get_event_from_task_state(task.state),
                             "description": task_state_descriptions[task.state],
                             "state": task.state.lower(),
                             "data": None,
+                            "task_id": task.id,
                         }
                     )}\n"
                     break
 
                 yield f"{json.dumps(
                         {
-                            "type":  get_event_from_task_state(task.state),
+                            "event":  get_event_from_task_state(task.state),
                             "description": task_state_descriptions[task.state],
                             "state": task.state.lower(),
                             "data": task.info,
+                            "task_id": task.id,
                         }
                     )}\n"
+
         except Exception as ex:
             logger.info(f"Exception in task streaming: {ex}")
             # TODO: better way to terminate the task

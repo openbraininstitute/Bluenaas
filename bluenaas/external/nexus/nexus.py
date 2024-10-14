@@ -13,9 +13,10 @@ from bluenaas.domains.simulation import (
 )
 from bluenaas.domains.nexus import (
     NexusSimulationPayload,
-    NexusSimulationResource,
+    BaseNexusSimulationResource,
 )
 from bluenaas.config.settings import settings
+from bluenaas.utils.generate_id import generate_id
 from bluenaas.utils.util import get_model_path
 from bluenaas.core.exceptions import SimulationError
 from typing import Any, Optional, Sequence
@@ -531,11 +532,11 @@ class Nexus:
         # Step 2: Create simulation resource with status = "PENDING"
         try:
             sim_name = (
-                "draft_single_neuron_simulation"
+                "single-neuron-simulation-{}".format(generate_id(10))
                 if simulation_config.type == "single-neuron-simulation"
-                else "draft_synaptome_simulation"
+                else "synaptome-simulation-{}".format(generate_id(10))
             )
-            description = "simulation launched by bluenaas"
+            description = "simulation"
             simulation_resource = self.prepare_nexus_simulation(
                 sim_name=sim_name,
                 description=description,
@@ -544,7 +545,7 @@ class Nexus:
                 status=status,
             )
             simulation_resource_url = f"{settings.NEXUS_ROOT_URI}/resources/{org_id}/{project_id}?indexing=sync"
-
+            logger.info(f"@@simulation_resource {simulation_resource=}")
             simulation_response = requests.post(
                 url=simulation_resource_url,
                 headers=self.content_modification_headers(),
@@ -659,7 +660,7 @@ class Nexus:
         status: str,
     ):
         record_locations = [f"{r.section}_${r.offset}" for r in config.recordFrom]
-        return NexusSimulationResource(
+        return BaseNexusSimulationResource(
             type=["Entity", "SingleNeuronSimulation"]
             if config.type == "single-neuron-simulation"
             else ["Entity", "SynaptomeSimulation"],
