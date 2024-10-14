@@ -344,7 +344,7 @@ class SynaptomeDetails(NamedTuple):
 
 
 def fetch_synaptome_model_details(synaptome_self: str, bearer_token: str):
-    """For a given synamptome model, returns the following:
+    """For a given synaptome model, returns the following:
     1. The base me-model or e-model
     2. The configuration for all synapse groups added to the given synaptome model
     """
@@ -359,7 +359,9 @@ def fetch_synaptome_model_details(synaptome_self: str, bearer_token: str):
         }
 
         synaptome_resource_req = requests.get(
-            synaptome_self, headers=resource_headers, verify=False
+            synaptome_self,
+            headers=resource_headers,
+            verify=False,
         )
         synaptome_resource_req.raise_for_status()
         synaptome_model_resource = synaptome_resource_req.json()

@@ -1,4 +1,6 @@
 from http import HTTPStatus
+
+from pydantic import Field
 from bluenaas.external.nexus.nexus import Nexus
 from urllib.parse import unquote
 from loguru import logger
@@ -6,10 +8,13 @@ from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 
 
 def deprecate_simulation(
-    token: str, org_id: str, project_id: str, encoded_simulation_id: str
+    token: str,
+    org_id: str,
+    project_id: str,
+    simulation_uri: str = Field(..., description="URL-encoded simulation URI"),
 ) -> None:
     try:
-        simulation_id = unquote(encoded_simulation_id)
+        simulation_id = unquote(simulation_uri)
         nexus_helper = Nexus(
             {"token": token, "model_self_url": ""}
         )  # TODO: Remove model_id as a required field for nexus helper

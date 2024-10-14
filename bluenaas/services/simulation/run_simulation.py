@@ -3,6 +3,7 @@ from celery import states
 from loguru import logger
 from celery.exceptions import TaskRevokedError
 
+from bluenaas.core.exceptions import SimulationError
 from bluenaas.domains.simulation import SingleNeuronSimulationConfig
 from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup_worker
 
@@ -65,7 +66,7 @@ def run_simulation(
         },
         ignore_result=True,
     )
-    logger.info(f"@@task id {task.id}")
+
     task_result = AsyncResult(
         task.id,
         app=celery_app,
@@ -87,7 +88,9 @@ def run_simulation(
             )}\n"
 
             while not task_result.ready():
-                if isinstance(task.info, TaskRevokedError):
+                if isinstance(task.info, TaskRevokedError) or isinstance(
+                    task.info, SimulationError
+                ):
                     yield f"{json.dumps(
                         {
                             "type":  get_event_from_task_state(task.state),
