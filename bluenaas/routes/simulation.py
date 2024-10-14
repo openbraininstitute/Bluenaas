@@ -7,6 +7,7 @@ import time
 from fastapi import APIRouter, Depends, Path, Query, Response, status
 from typing import Optional
 
+from bluenaas.config.settings import settings
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     SimulationResultItemResponse,
@@ -34,7 +35,7 @@ router = APIRouter(
 
 
 @router.post(
-    "/single-neuron/dummy",
+    "/single-neuron/dummy", include_in_schema=settings.DEPLOYMENT_ENV != "production"
 )
 def dummy_simulation(
     tasks: int = Query(min=10, default=20),

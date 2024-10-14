@@ -65,7 +65,7 @@ def fetch_simulation_status_and_results(
 
         if (
             valid_simulation
-            and valid_simulation.status != "SUCCESS"
+            and valid_simulation.status != "success"
             and valid_simulation.distribution is None
         ):
             return convert_to_simulation_response(
@@ -80,16 +80,21 @@ def fetch_simulation_status_and_results(
         file_response = nexus_helper.fetch_file_by_url(file_url)
         distribution = file_response.json()
 
-        return convert_to_simulation_response(
-            simulation_uri=simulation_uri,
-            simulation_resource=valid_simulation,
-            me_model_self=me_model_self,
-            synaptome_model_self=synaptome_model_self,
-            distribution=distribution,
-        )
+        logger.info(f"@@valid_simulation {valid_simulation=}")
+        logger.info(f"@@distribution {distribution=}")
+        try:
+            return convert_to_simulation_response(
+                simulation_uri=simulation_uri,
+                simulation_resource=valid_simulation,
+                me_model_self=me_model_self,
+                synaptome_model_self=synaptome_model_self,
+                distribution=distribution,
+            )
+        except Exception as ex:
+            logger.error(f"@@error {ex}")
 
     except Exception as ex:
-        logger.exception(f"Error fetching simulation results {ex}")
+        # logger.exception(f"Error fetching simulation results {ex}")
         raise BlueNaasError(
             http_status_code=HTTPStatus.BAD_GATEWAY,
             error_code=BlueNaasErrorCode.NEXUS_ERROR,

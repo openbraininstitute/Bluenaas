@@ -3,7 +3,7 @@ from celery import states
 from loguru import logger
 from celery.exceptions import TaskRevokedError
 
-from bluenaas.core.exceptions import SimulationError
+from bluenaas.core.exceptions import ChildSimulationError, SimulationError
 from bluenaas.domains.simulation import (
     SimulationEvent,
     SingleNeuronSimulationConfig,
@@ -71,7 +71,7 @@ def run_simulation(
             _,
             stimulus_plot_data,
             sim_response,
-            simulation_resource,
+            _,
         ) = prepare_simulation_resources(
             token,
             model_self,
@@ -118,8 +118,10 @@ def run_simulation(
             )}\n"
 
             while not task_result.ready():
-                if isinstance(task.info, TaskRevokedError) or isinstance(
-                    task.info, SimulationError
+                if (
+                    isinstance(task.info, TaskRevokedError)
+                    or isinstance(task.info, SimulationError)
+                    or isinstance(task.info, ChildSimulationError)
                 ):
                     yield f"{json.dumps(
                         {
@@ -144,8 +146,6 @@ def run_simulation(
 
         except Exception as ex:
             logger.info(f"Exception in task streaming: {ex}")
-            # TODO: better way to terminate the task
-            celery_app.control.revoke(task.id, terminate=True)
             raise Exception("Trouble while streaming simulation data")
 
     return StreamingResponseWithCleanup(

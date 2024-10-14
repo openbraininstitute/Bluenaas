@@ -221,7 +221,7 @@ def is_current_varying_simulation(config: SingleNeuronSimulationConfig) -> bool:
     ]
     if len(synapse_set_with_multiple_frequency) > 0:
         # TODO: This assertion should be at pydantic model level
-        assert not isinstance(config.currentInjection.stimulus.amplitudes, list)
+        assert not isinstance(config.current_injection.stimulus.amplitudes, list)
         return False
 
     return True

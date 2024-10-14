@@ -1,6 +1,5 @@
 from typing import Callable, Dict, Optional, TypeVar
 
-from loguru import logger
 from bluenaas.config.settings import ENVS, settings
 
 T = TypeVar("T")
@@ -49,7 +48,7 @@ def run_on_env(
     """
     current_env = settings.DEPLOYMENT_ENV
     fn = env_fns.get(current_env)
-    logger.info(f"@@current_env {current_env=}")
+
     if fn:
         return fn(*args, **kwargs)
     elif fallback:

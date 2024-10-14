@@ -57,10 +57,11 @@ class BlueNaasErrorResponse(BaseModel):
 class SimulationError(Exception):
     def __init__(self, message: str = "Simulation failed") -> None:
         self.message = message
+        self.exc_type = type(self).__name__
         super().__init__(self.message)
 
     def __str__(self) -> str:
-        return self.message
+        return f"[{self.exc_type}] {self.message}"
 
     def __reduce__(self):
         return (self.__class__, (self.message,))
@@ -69,10 +70,11 @@ class SimulationError(Exception):
 class ChildSimulationError(Exception):
     def __init__(self, message: str = "Child simulation failed") -> None:
         self.message = message
+        self.exc_type = type(self).__name__
         Exception.__init__(self, self.message)
 
     def __str__(self) -> str:
-        return self.message
+        return f"[{self.exc_type}] {self.message}"
 
 
 class SynapseGenerationError(Exception):

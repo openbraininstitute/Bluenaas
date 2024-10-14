@@ -21,7 +21,7 @@ def before_task(
     logger.info("@@before_task_publish")
     logger.info(f"@@config, {body[1]["config"]} {type(body[1]["config"])}")
     _config = SingleNeuronSimulationConfig.model_validate(json.loads(body[1]["config"]))
-    cpu_needed = len(_config.currentInjection.stimulus.amplitudes)
+    cpu_needed = len(_config.current_injection.stimulus.amplitudes)
     logger.info(f"@@__cpu_needed__: {cpu_needed}")
     logger.info(f"@@__all_stats__: {celery_app.control.inspect().stats()}")
     logger.info(f"@@__all_stats__: {celery_app.control.inspect().active()}")

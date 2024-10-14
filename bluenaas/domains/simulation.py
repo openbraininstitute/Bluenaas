@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field, PositiveFloat, field_validator
 
 
 class SimulationStimulusConfig(BaseModel):
-    stimulusType: Literal["current_clamp", "voltage_clamp", "conductance"]
-    stimulusProtocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
+    stimulus_type: Literal["current_clamp", "voltage_clamp", "conductance"]
+    stimulus_protocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
     amplitudes: list[float] | float
 
     @field_validator("amplitudes")
@@ -44,12 +44,12 @@ class SynapseSimulationConfig(BaseModel):
     delay: int
     duration: Annotated[int, Field(le=3000)]
     frequency: PositiveFloat | list[PositiveFloat]
-    weightScalar: PositiveFloat
+    weight_scalar: PositiveFloat
 
 
 class SimulationWithSynapseBody(BaseModel):
-    directCurrentConfig: CurrentInjectionConfig
-    synapseConfigs: list[SynapseSimulationConfig]
+    direct_current_config: CurrentInjectionConfig
+    synapse_configs: list[SynapseSimulationConfig]
 
 
 SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
@@ -65,13 +65,13 @@ class SingleNeuronSimulationConfig(BaseModel):
     synapses: list[SynapseSimulationConfig] | None = Field(
         alias="synaptome", default=None
     )
-    currentInjection: CurrentInjectionConfig
-    recordFrom: list[RecordingLocation]
+    current_injection: CurrentInjectionConfig
+    record_from: list[RecordingLocation]
     conditions: ExperimentSetupConfig
     type: SimulationType = None
-    simulationDuration: int = None
+    duration: int = None
 
-    @field_validator("currentInjection")
+    @field_validator("current_injection")
     @classmethod
     def validate_amplitudes(cls, value, simulation):
         config = simulation.data
@@ -100,7 +100,7 @@ class SingleNeuronSimulationConfig(BaseModel):
 
 
 class StimulationPlotConfig(BaseModel):
-    stimulusProtocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
+    stimulus_protocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
     amplitudes: List[float]
 
 
@@ -173,10 +173,10 @@ SimulationEvent = Literal["init", "info", "data", "error"]
 SimulationSteamData = TypedDict(
     "SimulationSteamData",
     {
+        "label": str,
         "amplitude": str,
         "frequency": str,
-        "stimulus_name": str,
-        "recording_name": str,
+        "recording": str,
         "varying_key": str,
         "t": list[float],
         "v": list[float],
