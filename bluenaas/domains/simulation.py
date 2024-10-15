@@ -26,7 +26,7 @@ class RecordingLocation(BaseModel):
 
 
 class CurrentInjectionConfig(BaseModel):
-    injectTo: str
+    inject_to: str
     stimulus: SimulationStimulusConfig
 
 

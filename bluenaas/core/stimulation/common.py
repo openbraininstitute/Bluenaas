@@ -15,6 +15,7 @@ from bluenaas.domains.simulation import (
 from bluenaas.utils.const import (
     SUB_PROCESS_STOP_EVENT,
 )
+from bluenaas.utils.simulation import get_simulations_by_recoding_name
 from bluenaas.utils.util import diff_list
 from bluenaas.core.stimulation.utils import (
     get_stimulus_from_name,
@@ -64,8 +65,8 @@ def prepare_stimulation_parameters(
     task_args = []
 
     injection_section_name = (
-        current_injection.injectTo
-        if current_injection is not None and current_injection.injectTo is not None
+        current_injection.inject_to
+        if current_injection is not None and current_injection.inject_to is not None
         else DEFAULT_INJECTION_LOCATION
     )
     protocol = current_injection.stimulus.stimulus_protocol
@@ -290,7 +291,6 @@ def apply_multiple_simulations(args, runner):
     import billiard as brd
     from celery import current_task, states
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
-    from bluenaas.infrastructure.celery import celery_app
 
     neuron_global_params = NeuronGlobals.get_instance().export_params()
     enable_realtime = all(arg.enable_realtime is True for arg in args)
@@ -375,34 +375,9 @@ def apply_multiple_simulations(args, runner):
                             "all_simulations_finished": False,
                         },
                     )
-                    celery_app.control.revoke(current_task.request.id, terminate=True)
+                    # FIXME: need to confirm if we should revoke the task here
+                    # celery_app.control.revoke(current_task.request.id, terminate=True)
 
             return get_simulations_by_recoding_name(
                 simulations=simulations.get() if enable_realtime else simulations,
             )
-
-
-def get_simulations_by_recoding_name(simulations: list) -> dict[str, list]:
-    record_location_to_simulation_result: dict[str, list] = {}
-
-    # Iterate over simulation result for each current/frequency
-    for trace in simulations:
-        # For a given current/frequency, gather data for different recording locations
-        for recording_name in trace:
-            if recording_name not in record_location_to_simulation_result:
-                record_location_to_simulation_result[recording_name] = []
-
-            record_location_to_simulation_result[recording_name].append(
-                {
-                    "label": trace[recording_name]["label"],
-                    "amplitude": trace[recording_name]["amplitude"],
-                    "frequency": trace[recording_name]["frequency"],
-                    "recording": trace[recording_name]["recording_name"],
-                    "varying_key": trace[recording_name]["varying_key"],
-                    "type": "scatter",
-                    "t": trace[recording_name]["time"],
-                    "v": trace[recording_name]["voltage"],
-                }
-            )
-
-    return record_location_to_simulation_result

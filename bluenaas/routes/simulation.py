@@ -3,6 +3,7 @@ Simulation Routes
 contains the single neuron simulation endpoint (single neuron, single neuron with synaptome)
 """
 
+from datetime import datetime
 import time
 from fastapi import APIRouter, Depends, Path, Query, Response, status
 from typing import Optional
@@ -10,6 +11,7 @@ from typing import Optional
 from fastapi.params import Body
 
 from bluenaas.config.settings import settings
+from bluenaas.domains.nexus import DeprecateNexusResponse
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     SimulationResultItemResponse,
@@ -151,6 +153,12 @@ async def get_all_simulations_for_project(
     simulation_type: Optional[SimulationType] = None,
     page_offset: int = 0,
     page_size: int = 20,
+    created_at_start: Optional[datetime] = Query(
+        None, description="Filter by createdAt date (YYYY-MM-DDTHH:MM:SSZ)"
+    ),
+    created_at_end: Optional[datetime] = Query(
+        None, description="Filter by createdAt date (YYYY-MM-DDTHH:MM:SSZ)"
+    ),
     token: str = Depends(verify_jwt),
 ) -> PaginatedSimulationsResponse:
     return fetch_all_simulations_of_project(
@@ -160,6 +168,8 @@ async def get_all_simulations_for_project(
         sim_type=simulation_type,
         offset=page_offset,
         size=page_size,
+        created_at_start=created_at_start,
+        created_at_end=created_at_end,
     )
 
 
@@ -199,7 +209,7 @@ async def delete_simulation(
         ..., description="URL-encoded simulation URI (resource ID in nexus context)"
     ),
     token: str = Depends(verify_jwt),
-) -> None:
+) -> DeprecateNexusResponse:
     return deprecate_simulation(
         token=token,
         org_id=org_id,

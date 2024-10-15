@@ -1,4 +1,3 @@
-from celery import states
 from loguru import logger
 from http import HTTPStatus
 
@@ -78,7 +77,7 @@ def setup_simulation_resources(
     try:
         sim_response = nexus_helper.create_simulation_resource(
             simulation_config=config,
-            status=states.PENDING,
+            status="pending",
             org_id=org_id,
             project_id=project_id,
         )

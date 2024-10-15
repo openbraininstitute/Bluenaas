@@ -102,3 +102,9 @@ class StimulationPlotGenerationError(Exception):
 
     def __str__(self) -> str:
         return self.message
+
+
+class ResourceDeprecationError(Exception):
+    def __init__(self, message, response_data):
+        super().__init__(message)
+        self.response_data = response_data

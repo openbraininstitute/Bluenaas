@@ -71,3 +71,9 @@ class FullNexusSimulationResource(NexusBaseResource):
 
     class Config:
         populate_by_name = True
+
+
+class DeprecateNexusResponse(BaseModel):
+    id: str
+    deprecated: bool
+    updated_at: datetime
