@@ -3,7 +3,7 @@ Synapse Placement Generation:
 Exposes an endpoint (`/generate-placement`) to generate synapse placements based on user-provided parameters
 """
 
-from fastapi import APIRouter, Body, Depends, Request
+from fastapi import APIRouter, Body, Depends
 
 from bluenaas.domains.validation import SynaptomeFormulaResponse
 from bluenaas.infrastructure.kc.auth import verify_jwt
@@ -23,9 +23,8 @@ router = APIRouter(
     summary="validate synapse generation formula",
 )
 def place_synapses(
-    request: Request,
     formula: str = Body(embed=True),
-    token: str = Depends(verify_jwt),
+    _: str = Depends(verify_jwt),
 ):
     return validate_synapse_generation_formula(
         formula=formula,

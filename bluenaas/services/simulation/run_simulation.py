@@ -10,18 +10,18 @@ from bluenaas.domains.simulation import (
     StreamSimulationResponse,
 )
 from bluenaas.services.simulation.submit_simulation.prepare_resources import (
-    prepare_simulation_resources,
+    setup_simulation_resources,
 )
 from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup_worker
 
 task_state_descriptions = {
-    states.PENDING: "Simulation is waiting for execution.",
-    states.STARTED: "Simulation has started executing.",
-    states.SUCCESS: "The simulation completed successfully.",
-    states.FAILURE: "The simulation has failed.",
-    states.REVOKED: "The simulation has been canceled.",
-    "PROGRESS": "Simulation is currently in progress.",
     "INIT": "Simulation is captured by the system",
+    "PROGRESS": "Simulation is currently in progress.",
+    "PENDING": "Simulation is waiting for execution.",
+    "STARTED": "Simulation has started executing.",
+    "SUCCESS": "The simulation completed successfully.",
+    "FAILURE": "The simulation has failed.",
+    "REVOKED": "The simulation has been canceled.",
 }
 
 
@@ -36,7 +36,7 @@ def get_event_from_task_state(state) -> SimulationEvent:
     elif state == states.FAILURE:
         event = "error"
     else:
-        event = "info"  # Default to info for unrecognized states
+        event = "info"
 
     return event.lower()
 
@@ -52,15 +52,25 @@ def run_simulation(
     """
     Initiates a simulation task and streams real-time updates to the client.
 
+    This function starts a simulation task asynchronously using Celery and streams real-time
+    updates about the simulation's progress back to the client. It supports automatic saving
+    of simulation results if the `autosave` option is enabled.
+
     Args:
-        token (str): Authorization token to access the simulation.
-        model_self (str): The _self of the neuron model to simulate.
-        org_id (str): The ID of the organization running the simulation.
-        project_id (str): The ID of the project the simulation belongs to.
-        config (SingleNeuronSimulationConfig): The simulation configuration.
+        token (str): Authorization token to access the simulation and related resources.
+        model_self (str): The identifier (_self) of the neuron model being simulated.
+        org_id (str): The ID of the organization initiating the simulation.
+        project_id (str): The ID of the project under which the simulation is being executed.
+        config (SingleNeuronSimulationConfig): The configuration settings for the simulation.
+        autosave (bool, optional): If `True`, the simulation results will be automatically saved.
+                                   Defaults to `False`.
 
     Returns:
-        StreamingResponse: A stream of task updates, including the task ID and status changes.
+        StreamSimulationResponse: A streaming response containing real-time updates on the
+                                  simulation task, including the task ID and status changes.
+
+    Raises:
+        Exception: If an error occurs during the streaming of simulation data.
     """
     from bluenaas.infrastructure.celery import create_simulation, celery_app
     from celery.result import AsyncResult
@@ -72,7 +82,7 @@ def run_simulation(
             stimulus_plot_data,
             sim_response,
             _,
-        ) = prepare_simulation_resources(
+        ) = setup_simulation_resources(
             token,
             model_self,
             org_id,

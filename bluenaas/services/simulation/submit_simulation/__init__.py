@@ -4,8 +4,8 @@ from urllib.parse import quote_plus
 
 from bluenaas.domains.nexus import FullNexusSimulationResource
 from bluenaas.domains.simulation import SingleNeuronSimulationConfig
-from bluenaas.services.simulation.submit_simulation.prepare_resources import (
-    prepare_simulation_resources,
+from bluenaas.services.simulation.submit_simulation.setup_resources import (
+    setup_simulation_resources,
 )
 from bluenaas.utils.simulation import convert_to_simulation_response
 
@@ -18,7 +18,7 @@ def submit_simulation(
     config: SingleNeuronSimulationConfig,
 ):
     """
-    Starts a (background) simulation job in celery and returns simulation status right away, without waiting for the simulation to finish.
+    Starts a simulation  and returns simulation result and status when it finished,
 
     Args:
         token (str): Authorization token to access the simulation.
@@ -38,7 +38,7 @@ def submit_simulation(
         stimulus_plot_data,
         sim_response,
         simulation_resource,
-    ) = prepare_simulation_resources(
+    ) = setup_simulation_resources(
         token,
         model_self,
         org_id,
@@ -57,7 +57,7 @@ def submit_simulation(
             "stimulus_plot_data": json.dumps(stimulus_plot_data),
             "simulation_resource": sim_response,
             "enable_realtime": False,
-            "autosave": False,
+            "autosave": True,
         },
         ignore_result=True,
     )
