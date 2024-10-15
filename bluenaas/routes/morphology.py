@@ -16,11 +16,11 @@ router = APIRouter(
 )
 def retrieve_morphology(
     request: Request,
-    model_id: str = Query(""),
+    model_self: str = Query(""),
     token: str = Depends(verify_jwt),
 ):
     return get_single_morphology(
-        model_id=model_id,
+        model_self=model_self,
         token=token,
         req_id=request.state.request_id,
     )
@@ -32,11 +32,11 @@ def retrieve_morphology(
 )
 def retrieve_morphology_dendrogram(
     request: Request,
-    model_id: str = Query(""),
+    model_self: str = Query(""),
     token: str = Depends(verify_jwt),
 ):
     return get_single_morphology_dendrogram(
-        model_id=model_id,
+        model_self=model_self,
         token=token,
         req_id=request.state.request_id,
     )

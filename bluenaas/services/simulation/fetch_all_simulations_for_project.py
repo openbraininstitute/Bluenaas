@@ -1,3 +1,4 @@
+from datetime import datetime
 from http import HTTPStatus
 from typing import Optional
 from urllib.parse import quote_plus
@@ -26,6 +27,8 @@ def fetch_all_simulations_of_project(
     sim_type: Optional[SimulationType],
     offset: int,
     size: int,
+    created_at_start: datetime,
+    created_at_end: datetime,
 ) -> PaginatedSimulationsResponse:
     try:
         nexus_sim_types: list[NexusSimulationType] = (
@@ -44,6 +47,8 @@ def fetch_all_simulations_of_project(
             res_types=nexus_sim_types,
             offset=offset,
             size=size,
+            created_at_start=created_at_start,
+            created_at_end=created_at_end,
         )
         nexus_simulations = nexus_sim_response["_results"]
 
@@ -58,11 +63,9 @@ def fetch_all_simulations_of_project(
                     resource_id=nexus_sim["@id"],
                 )
                 used_model_id = full_simulation_resource["used"]["@id"]
-                logger.info(f"@@full_simulation_resource {full_simulation_resource=}")
                 valid_simulation = FullNexusSimulationResource.model_validate(
                     full_simulation_resource
                 )
-                logger.info(f"@@valid_simulation {valid_simulation=}")
                 sim_type = get_simulation_type(simulation_resource=valid_simulation)
 
                 if sim_type == "single-neuron-simulation":
