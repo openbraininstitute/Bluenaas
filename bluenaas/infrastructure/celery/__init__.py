@@ -65,7 +65,11 @@ def create_dummy_task(self):
     return "me"
 
 
-@celery_app.task(bind=True, base=BluenaasTask)
+@celery_app.task(
+    bind=True,
+    base=BluenaasTask,
+    serializer="json",
+)
 def create_simulation(
     self,
     *,
@@ -82,24 +86,33 @@ def create_simulation(
     """
     Creates a simulation based on the provided configuration and parameters.
 
-    This task initializes either a current-varying or frequency-varying simulation
-    depending on the configuration provided.
+    This task initializes a simulation using the provided configuration, which can either
+    be current-varying or frequency-varying, depending on the setup.
 
     Args:
-        self: The current task instance (provided automatically by Celery).
+        self: The current task instance (automatically provided by Celery).
         org_id (str): The ID of the organization initiating the simulation.
-        project_id (str): The ID of the project under which the simulation is run.
+        project_id (str): The ID of the project under which the simulation is executed.
         model_self (str): The identifier for the neuron model being simulated.
-        config (dict): The configuration settings for the simulation, which must
-                       be in a JSON-serializable format.
-        token (str): Authorization token to access necessary resources for simulation.
+        config (dict): The configuration settings for the simulation, provided in a
+                       JSON-serializable format.
+        token (str): The authorization token used to authenticate and access necessary
+                     resources for the simulation.
+        simulation_resource (Optional[dict[str, Any]]): An optional resource object
+                     that may contain additional data required for the simulation. Defaults to None.
+        stimulus_plot_data (Optional[list[dict[str, Any]]]): Optional data for stimulus
+                     plotting during the simulation. Defaults to None.
+        enable_realtime (bool): Whether to enable real-time updates during the simulation.
+                     Defaults to True.
+        autosave (bool): Whether the simulation should be automatically saved after completion.
+                     Defaults to False.
 
     Returns:
-        dict: A dictionary containing the simulation details:
+        dict: A dictionary containing the details of the created simulation, including:
             - org_id (str): The organization ID.
             - project_id (str): The project ID.
-            - model_self (str): The model self identifier.
-            - config (dict): The original configuration used for the simulation.
+            - model_self (str): The neuron model identifier used in the simulation.
+            - config (dict): The configuration settings used for the simulation.
             - result: The result of the simulation.
     """
     cf = SingleNeuronSimulationConfig(**json.loads(config))
