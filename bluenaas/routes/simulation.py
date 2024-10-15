@@ -7,12 +7,15 @@ import time
 from fastapi import APIRouter, Depends, Path, Query, Response, status
 from typing import Optional
 
+from fastapi.params import Body
+
 from bluenaas.config.settings import settings
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     SimulationResultItemResponse,
     SimulationType,
     PaginatedSimulationsResponse,
+    StreamSimulationResponse,
 )
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.infrastructure.celery import create_dummy_task
@@ -35,7 +38,8 @@ router = APIRouter(
 
 
 @router.post(
-    "/single-neuron/dummy", include_in_schema=settings.DEPLOYMENT_ENV != "production"
+    "/single-neuron/dummy",
+    include_in_schema=settings.DEPLOYMENT_ENV != "production",
 )
 def dummy_simulation(
     tasks: int = Query(min=10, default=20),
@@ -55,9 +59,9 @@ def execute_simulation(
     org_id: str,
     project_id: str,
     config: SingleNeuronSimulationConfig,
-    autosave: bool,
+    autosave: Optional[bool] = Body(default=False, embed=True),
     token: str = Depends(verify_jwt),
-):
+) -> StreamSimulationResponse:
     """
     Initiates a simulation for a single neuron or synaptome model and returns a simulation results.
 
@@ -85,8 +89,8 @@ def execute_simulation(
 
 
 @router.post(
-    "/single-neuron/{org_id}/{project_id}/{simulation_task_id}/stop",
-    summary="stop simulation by task-id (only available when simulation started by the /run endpoint)",
+    "/single-neuron/{org_id}/{project_id}/{task_id}/stop",
+    summary="stop simulation by task-id (only available when simulation started by the /run-realtime endpoint)",
 )
 async def kill_simulation(
     org_id: str,
@@ -171,7 +175,9 @@ async def get_all_simulations_for_project(
 async def get_simulation(
     org_id: str,
     project_id: str,
-    simulation_uri: str = Path(..., description="URL-encoded simulation URI"),
+    simulation_uri: str = Path(
+        ..., description="URL-encoded simulation URI (resource ID in nexus context)"
+    ),
     token: str = Depends(verify_jwt),
 ) -> SimulationResultItemResponse:
     return fetch_simulation_status_and_results(
@@ -189,7 +195,9 @@ async def get_simulation(
 async def delete_simulation(
     org_id: str,
     project_id: str,
-    simulation_uri: str = Path(..., description="URL-encoded simulation URI"),
+    simulation_uri: str = Path(
+        ..., description="URL-encoded simulation URI (resource ID in nexus context)"
+    ),
     token: str = Depends(verify_jwt),
 ) -> None:
     return deprecate_simulation(
