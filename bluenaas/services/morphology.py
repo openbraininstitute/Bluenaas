@@ -17,7 +17,7 @@ from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
 def _build_morphology(
-    model_id: str,
+    model_self: str,
     token: str,
     queue: mp.Queue,
     stop_event: Event,
@@ -30,7 +30,7 @@ def _build_morphology(
 
     try:
         model = model_factory(
-            model_self=model_id,
+            model_self=model_self,
             hyamp=None,
             bearer_token=token,
         )
@@ -54,7 +54,7 @@ def _build_morphology(
 
 
 def get_single_morphology(
-    model_id: str,
+    model_self: str,
     token: str,
     req_id: str,
 ):
@@ -67,7 +67,7 @@ def get_single_morphology(
         process = ctx.Process(
             target=_build_morphology,
             args=(
-                model_id,
+                model_self,
                 token,
                 morpho_queue,
                 stop_event,

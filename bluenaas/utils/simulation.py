@@ -56,13 +56,42 @@ def convert_to_simulation_response(
         status=simulation_resource.status,
         created_by=simulation_resource.createdBy,
         created_at=simulation_resource.createdAt,
-        results=distribution.get("simulation", None),
+        results=distribution and distribution.get("simulation", None),
         # simulation details
         injection_location=simulation_resource.injectionLocation,
         recording_location=simulation_resource.recordingLocation,
-        brain_location=simulation_resource.brainLocation,
-        config=distribution.get("config", None),
+        brain_location={
+            "@type": simulation_resource.brainLocation.get("@type"),
+            "brain_region": simulation_resource.brainLocation.get("brainRegion"),
+        },
+        config=distribution and distribution.get("config", None),
         # Used model details
         me_model_self=me_model_self,
         synaptome_model_self=synaptome_model_self,
     )
+
+
+def get_simulations_by_recoding_name(simulations: list) -> dict[str, list]:
+    record_location_to_simulation_result: dict[str, list] = {}
+
+    # Iterate over simulation result for each current/frequency
+    for trace in simulations:
+        # For a given current/frequency, gather data for different recording locations
+        for recording_name in trace:
+            if recording_name not in record_location_to_simulation_result:
+                record_location_to_simulation_result[recording_name] = []
+
+            record_location_to_simulation_result[recording_name].append(
+                {
+                    "label": trace[recording_name]["label"],
+                    "amplitude": trace[recording_name]["amplitude"],
+                    "frequency": trace[recording_name]["frequency"],
+                    "recording": trace[recording_name]["recording_name"],
+                    "varying_key": trace[recording_name]["varying_key"],
+                    "type": "scatter",
+                    "t": trace[recording_name]["time"],
+                    "v": trace[recording_name]["voltage"],
+                }
+            )
+
+    return record_location_to_simulation_result

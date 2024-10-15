@@ -2,14 +2,19 @@ import json
 from celery import states
 from loguru import logger
 from celery.exceptions import TaskRevokedError
+from fastapi import HTTPException, status
 
-from bluenaas.core.exceptions import ChildSimulationError, SimulationError
+from bluenaas.core.exceptions import (
+    BlueNaasError,
+    ChildSimulationError,
+    SimulationError,
+)
 from bluenaas.domains.simulation import (
     SimulationEvent,
     SingleNeuronSimulationConfig,
     StreamSimulationResponse,
 )
-from bluenaas.services.simulation.submit_simulation.prepare_resources import (
+from bluenaas.services.simulation.submit_simulation.setup_resources import (
     setup_simulation_resources,
 )
 from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup_worker
@@ -75,19 +80,33 @@ def run_simulation(
     from bluenaas.infrastructure.celery import create_simulation, celery_app
     from celery.result import AsyncResult
 
-    if autosave:
-        (
-            _,
-            _,
-            stimulus_plot_data,
-            sim_response,
-            _,
-        ) = setup_simulation_resources(
-            token,
-            model_self,
-            org_id,
-            project_id,
-            SingleNeuronSimulationConfig.model_validate(config),
+    sim_response = None
+    stimulus_plot_data = None
+
+    try:
+        if autosave:
+            (
+                _,
+                _,
+                stimulus_plot_data,
+                sim_response,
+                _,
+            ) = setup_simulation_resources(
+                token,
+                model_self,
+                org_id,
+                project_id,
+                SingleNeuronSimulationConfig.model_validate(config),
+            )
+    except BlueNaasError as e:
+        raise HTTPException(
+            status_code=e.http_status_code,
+            detail=e.message,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.__str__(),
         )
 
     task = create_simulation.apply_async(
@@ -97,8 +116,10 @@ def run_simulation(
             "project_id": project_id,
             "config": config.model_dump_json(),
             "token": token,
-            "simulation_resource": sim_response,
-            "stimulus_plot_data": json.dumps(stimulus_plot_data),
+            "simulation_resource": sim_response if sim_response is not None else None,
+            "stimulus_plot_data": json.dumps(stimulus_plot_data)
+            if stimulus_plot_data is not None
+            else None,
             "autosave": autosave,
         },
         ignore_result=True,
@@ -138,8 +159,8 @@ def run_simulation(
                             "event":  get_event_from_task_state(task.state),
                             "description": task_state_descriptions[task.state],
                             "state": task.state.lower(),
-                            "data": None,
                             "task_id": task.id,
+                            "data": None,
                         }
                     )}\n"
                     break
@@ -149,8 +170,8 @@ def run_simulation(
                             "event":  get_event_from_task_state(task.state),
                             "description": task_state_descriptions[task.state],
                             "state": task.state.lower(),
-                            "data": task.info,
                             "task_id": task.id,
+                            "data": task.info,
                         }
                     )}\n"
 

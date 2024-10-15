@@ -1,5 +1,6 @@
 """Nexus module."""
 
+from datetime import datetime
 import zipfile
 import os
 from pathlib import Path
@@ -19,7 +20,7 @@ from bluenaas.config.settings import settings
 from bluenaas.utils.ensure_list import ensure_list
 from bluenaas.utils.generate_id import generate_id
 from bluenaas.utils.util import get_model_path
-from bluenaas.core.exceptions import SimulationError
+from bluenaas.core.exceptions import ResourceDeprecationError, SimulationError
 from typing import Any, Optional, Sequence
 import json
 
@@ -45,6 +46,25 @@ def extract_org_project_from_id(url) -> dict[str, str | None]:
         return {"org": org_project[0], "project": org_project[1]}
     else:
         return {"org": None, "project": None}  # Handle URLs with fewer than 3 parts
+
+
+def construct_time_range(
+    start_date: Optional[datetime], end_date: Optional[datetime]
+) -> str:
+    """
+    Constructs a time range string based on the given start and end dates.
+
+    Args:
+        start_date (Optional[datetime]): The start date of the range.
+        end_date (Optional[datetime]): The end date of the range.
+
+    Returns:
+        str: The constructed time range string in the format 'start..end'.
+    """
+    start_str = start_date.strftime("%Y-%m-%dT%H:%M:%SZ") if start_date else "*"
+    end_str = end_date.strftime("%Y-%m-%dT%H:%M:%SZ") if end_date else "*"
+
+    return "{}..{}".format(start_str, end_str)
 
 
 class Nexus:
@@ -115,7 +135,7 @@ class Nexus:
             timeout=HTTP_TIMEOUT,
         )
         if not r.ok:
-            raise Exception("Error updating resource", r.json())
+            raise ResourceDeprecationError("Error deprecating resource", r.json())
         return r.json()
 
     def fetch_resources_of_type(
@@ -125,10 +145,15 @@ class Nexus:
         res_types: Sequence[str],
         offset: int,
         size: int,
+        created_at_start: datetime,
+        created_at_end: datetime,
     ):
         query_params = [("type", res_type) for res_type in res_types]
         query_params.append(("size", str(size)))
         query_params.append(("from", str(offset)))
+        query_params.append(
+            ("createdAt", construct_time_range(created_at_start, created_at_end))
+        )
 
         endpoint = f"{settings.NEXUS_ROOT_URI}/resources/{org_label}/{project_label}?{urlencode(query_params)}"
         r = requests.get(
@@ -509,7 +534,7 @@ class Nexus:
     def create_simulation_resource(
         self,
         simulation_config: SingleNeuronSimulationConfig,
-        status: str,  # TODO: Add better type
+        status: SimulationStatus,
         org_id: str,
         project_id: str,
     ) -> dict:
@@ -663,7 +688,7 @@ class Nexus:
             description=description,
             context="https://bbp.neuroshapes.org",
             distribution=[],
-            injectionLocation=config.current_injection.injectTo,
+            injectionLocation=config.current_injection.inject_to,
             recordingLocation=ensure_list(record_locations, str),
             brainLocation=model["brainLocation"],
             # Model can be MEModel or SingleNeuronSynaptome
