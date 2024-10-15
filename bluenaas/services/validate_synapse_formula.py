@@ -2,7 +2,7 @@ from loguru import logger
 import sympy as sp
 from http import HTTPStatus as status
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
-from bluenaas.domains.validation import SynaptomeFormulaResponse  # type: ignore
+from bluenaas.domains.validation import PlaceSynapsesFormulaValidationResponse  # type: ignore
 
 
 def validate_synapse_generation_formula(
@@ -32,13 +32,13 @@ def validate_synapse_generation_formula(
         symbols = expr.free_symbols
 
         if symbols.issubset(allowed_symbols):
-            return SynaptomeFormulaResponse(
+            return PlaceSynapsesFormulaValidationResponse(
                 valid=True,
             )
         else:
             # Handle case where symbols are invalid
             invalid_symbols = symbols - allowed_symbols
-            return SynaptomeFormulaResponse(
+            return PlaceSynapsesFormulaValidationResponse(
                 valid=False,
                 type="InvalidSymbolsError",
                 message=f"Invalid symbols found: {', '.join(str(s) for s in invalid_symbols)}",
@@ -47,7 +47,7 @@ def validate_synapse_generation_formula(
         logger.error(
             f"validating synapse generation formula failed [SympifyError, SyntaxError] {ex}"
         )
-        return SynaptomeFormulaResponse(
+        return PlaceSynapsesFormulaValidationResponse(
             valid=False,
             type="SyntaxError",
             message=ex.__str__(),
@@ -56,7 +56,7 @@ def validate_synapse_generation_formula(
         logger.error(
             f"validating synapse generation formula failed [AttributeError] {ex}"
         )
-        return SynaptomeFormulaResponse(
+        return PlaceSynapsesFormulaValidationResponse(
             valid=False,
             type="AttributeError",
             message=ex.__str__(),

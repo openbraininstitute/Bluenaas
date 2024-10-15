@@ -184,6 +184,11 @@ SimulationSteamData = TypedDict(
 )
 
 
+class StreamSimulationBodyRequest(BaseModel):
+    config: SingleNeuronSimulationConfig
+    autosave: Optional[bool] = False
+
+
 class StreamSimulationResponse(BaseModel):
     event: SimulationEvent
     state: SimulationStatus

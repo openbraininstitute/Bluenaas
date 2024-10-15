@@ -8,6 +8,7 @@ from loguru import logger
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
+from scalar_fastapi import get_scalar_api_reference  # type: ignore
 
 from bluenaas.config.settings import settings
 from bluenaas.core.exceptions import (
@@ -110,6 +111,16 @@ def root() -> str:
 @base_router.get("/health")
 def health() -> str:
     return "OK"
+
+
+@app.get("/sdocs", include_in_schema=False)
+async def scalar_html():
+    return get_scalar_api_reference(
+        openapi_url=app.openapi_url,
+        title=app.title,
+        # hideDarkModeToggle=False,
+        # theme="modern"
+    )
 
 
 base_router.include_router(morphology_router)

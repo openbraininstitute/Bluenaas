@@ -1,11 +1,18 @@
 from fastapi.responses import JSONResponse
 from http import HTTPStatus
 
+from pydantic import BaseModel
+
+
+class StopSimulationResponse(BaseModel):
+    task_id: str
+    message: str
+
 
 async def stop_simulation(
     token: str,
     task_id: str,
-):
+) -> StopSimulationResponse:
     from celery.result import AsyncResult
     from bluenaas.infrastructure.celery import celery_app
 

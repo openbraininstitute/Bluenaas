@@ -1,11 +1,13 @@
 """
-Synapse Placement Generation:
-Exposes an endpoint (`/generate-placement`) to generate synapse placements based on user-provided parameters
+Validation endpoints
 """
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Depends
 
-from bluenaas.domains.validation import SynaptomeFormulaResponse
+from bluenaas.domains.validation import (
+    PlaceSynapsesBodyRequest,
+    PlaceSynapsesFormulaValidationResponse,
+)
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.services.validate_synapse_formula import (
     validate_synapse_generation_formula,
@@ -19,13 +21,29 @@ router = APIRouter(
 
 @router.post(
     "/synapse-formula",
-    response_model=SynaptomeFormulaResponse,
-    summary="validate synapse generation formula",
+    response_model=PlaceSynapsesFormulaValidationResponse,
+    summary="Validate synapse generation formula",
 )
 def place_synapses(
-    formula: str = Body(embed=True),
+    request: PlaceSynapsesBodyRequest,
     _: str = Depends(verify_jwt),
 ):
+    """
+    This endpoint accepts a synapse generation formula and validates its
+    syntax and correctness. A valid formula is essential for accurate
+    synapse generation.
+
+    Args:
+
+        formula (str): The synapse generation mathematical formula to be validated.
+
+    Returns:
+
+        SynaptomeFormulaResponse: A response model indicating the result
+                                  of the formula validation, including
+                                  any error messages or confirmation
+                                  of validity.
+    """
     return validate_synapse_generation_formula(
-        formula=formula,
+        formula=request.formula,
     )
