@@ -3,6 +3,30 @@ from typing import Annotated, List, Literal, Optional, TypedDict
 from pydantic import BaseModel, Field, PositiveFloat, field_validator
 
 
+SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
+NexusSimulationType = Literal["SingleNeuronSimulation", "SynaptomeSimulation"]
+
+SimulationStatus = Literal["pending", "started", "success", "failure"]
+SimulationEvent = Literal["init", "info", "data", "error"]
+SimulationSteamData = TypedDict(
+    "SimulationSteamData",
+    {
+        "label": str,
+        "amplitude": str,
+        "frequency": str,
+        "recording": str,
+        "varying_key": str,
+        "t": list[float],
+        "v": list[float],
+    },
+)
+
+SIMULATION_TYPE_MAP: dict[NexusSimulationType, SimulationType] = {
+    "SingleNeuronSimulation": "single-neuron-simulation",
+    "SynaptomeSimulation": "synaptome-simulation",
+}
+
+
 class SimulationStimulusConfig(BaseModel):
     stimulus_type: Literal["current_clamp", "voltage_clamp", "conductance"]
     stimulus_protocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
@@ -39,7 +63,7 @@ class ExperimentSetupConfig(BaseModel):
     seed: int
 
 
-class SynapseSimulationConfig(BaseModel):
+class SynaptomeSimulationConfig(BaseModel):
     id: str
     delay: int
     duration: Annotated[int, Field(le=3000)]
@@ -49,20 +73,11 @@ class SynapseSimulationConfig(BaseModel):
 
 class SimulationWithSynapseBody(BaseModel):
     direct_current_config: CurrentInjectionConfig
-    synapse_configs: list[SynapseSimulationConfig]
-
-
-SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
-NexusSimulationType = Literal["SingleNeuronSimulation", "SynaptomeSimulation"]
-
-SIMULATION_TYPE_MAP: dict[NexusSimulationType, SimulationType] = {
-    "SingleNeuronSimulation": "single-neuron-simulation",
-    "SynaptomeSimulation": "synaptome-simulation",
-}
+    synapse_configs: list[SynaptomeSimulationConfig]
 
 
 class SingleNeuronSimulationConfig(BaseModel):
-    synapses: list[SynapseSimulationConfig] | None = Field(
+    synaptome: list[SynaptomeSimulationConfig] | None = Field(
         alias="synaptome", default=None
     )
     current_injection: CurrentInjectionConfig
@@ -135,9 +150,6 @@ class PlotDataEntry(BaseModel):
     frequency: Optional[float]
 
 
-SimulationStatus = Literal["pending", "started", "success", "failure"]
-
-
 class SimulationResultItemResponse(BaseModel):
     id: str
     self_uri: str
@@ -166,22 +178,6 @@ class PaginatedSimulationsResponse(BaseModel):
     page_size: int
     total: int
     results: list[SimulationResultItemResponse]
-
-
-SimulationEvent = Literal["init", "info", "data", "error"]
-
-SimulationSteamData = TypedDict(
-    "SimulationSteamData",
-    {
-        "label": str,
-        "amplitude": str,
-        "frequency": str,
-        "recording": str,
-        "varying_key": str,
-        "t": list[float],
-        "v": list[float],
-    },
-)
 
 
 class StreamSimulationBodyRequest(BaseModel):

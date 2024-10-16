@@ -21,12 +21,12 @@ router = APIRouter(
 @router.post(
     "/generate-placement",
     response_model=SynapsePlacementResponse,
-    summary="Retrieve synapses positions coordinates for 3D plan",
+    summary="Get synapses coordinates in 3D plan",
 )
 def place_synapses(
     request: Request,
     params: SynapsePlacementBody,
-    model_id: str = Query(),
+    model_self: str = Query(),
     token: str = Depends(verify_jwt),
 ) -> SynapsePlacementResponse:
     """
@@ -34,30 +34,9 @@ def place_synapses(
 
     This endpoint accepts a set of parameters to calculate the positions of synapses
     in a 3D model.
-
-    Args:
-
-        params (SynapsePlacementBody): A body model containing the necessary
-                                        parameters for synapse placement.
-
-        model_id (str): The unique identifier of the model for which synapses
-                        are to be placed.
-
-    Returns:
-
-        SynapsePlacementResponse: A response model containing the coordinates
-                                  of the synapses positions for the 3D plan.
-
-    Raises:
-
-        HTTPException: If the request is invalid or if there is an error
-                       during the synapse placement generation, an appropriate
-                       HTTP exception will be raised with the corresponding
-                       error message and status code.
-
     """
     return generate_synapses_placement(
-        model_id=model_id,
+        model_self=model_self,
         token=token,
         params=params,
         req_id=request.state.request_id,

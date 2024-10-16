@@ -22,7 +22,7 @@ from bluenaas.domains.morphology import (
     SynapsesPlacementConfig,
 )
 from bluenaas.domains.nexus import NexusBaseResource
-from bluenaas.domains.simulation import SynapseSimulationConfig
+from bluenaas.domains.simulation import SynaptomeSimulationConfig
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.utils.util import (
     get_sections,
@@ -216,7 +216,7 @@ class Model:
         section_info: LocationData,
         seg_indices_to_include: List[int],
         placement_config: SynapseConfig,
-        simulation_config: SynapseSimulationConfig,
+        simulation_config: SynaptomeSimulationConfig,
     ):
         from bluecellulab.circuit.synapse_properties import SynapseProperty  # type: ignore
 
@@ -258,7 +258,7 @@ class Model:
     def get_synapse_series(
         self,
         synapse_placement_config: SynapseConfig,
-        synapse_simulation_config: SynapseSimulationConfig,
+        synapse_simulation_config: SynaptomeSimulationConfig,
         offset: int,
         frequencies_to_apply: list[float],
     ) -> list[SynapseSeries]:

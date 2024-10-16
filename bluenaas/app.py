@@ -102,13 +102,13 @@ async def bluenaas_exception_handler(
 base_router = APIRouter(prefix=settings.BASE_PATH)
 
 
-@base_router.get("/")
+@base_router.get("/", include_in_schema=False)
 def root() -> str:
     return "Server is running."
 
 
 # TODO: add a proper health check logic, see https://pypi.org/project/fastapi-health/.
-@base_router.get("/health")
+@base_router.get("/health", include_in_schema=False)
 def health() -> str:
     return "OK"
 

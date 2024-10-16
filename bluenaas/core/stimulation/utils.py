@@ -10,7 +10,7 @@ from bluenaas.domains.morphology import (
 from bluenaas.domains.simulation import (
     ExperimentSetupConfig,
     SingleNeuronSimulationConfig,
-    SynapseSimulationConfig,
+    SynaptomeSimulationConfig,
 )
 from bluenaas.utils.util import generate_pre_spiketrain
 
@@ -174,7 +174,7 @@ def get_stimulus_from_name(
 
 
 def get_constant_frequencies_for_sim_id(
-    synapse_set_id: str, constant_frequency_sim_configs: list[SynapseSimulationConfig]
+    synapse_set_id: str, constant_frequency_sim_configs: list[SynaptomeSimulationConfig]
 ):
     constant_frequencies: list[float] = []
     for sim_config in constant_frequency_sim_configs:
@@ -197,9 +197,9 @@ def get_synapse_placement_config(
 
 
 def get_sim_configs_by_synapse_id(
-    sim_configs: list[SynapseSimulationConfig],
-) -> dict[str, list[SynapseSimulationConfig]]:
-    sim_id_to_sim_configs: dict[str, list[SynapseSimulationConfig]] = {}
+    sim_configs: list[SynaptomeSimulationConfig],
+) -> dict[str, list[SynaptomeSimulationConfig]]:
+    sim_id_to_sim_configs: dict[str, list[SynaptomeSimulationConfig]] = {}
 
     for sim_config in sim_configs:
         if sim_config.id in sim_id_to_sim_configs:
@@ -211,12 +211,12 @@ def get_sim_configs_by_synapse_id(
 
 
 def is_current_varying_simulation(config: SingleNeuronSimulationConfig) -> bool:
-    if config.type == "single-neuron-simulation" or config.synapses is None:
+    if config.type == "single-neuron-simulation" or config.synaptome is None:
         return True
 
     synapse_set_with_multiple_frequency = [
         synapse_set
-        for synapse_set in config.synapses
+        for synapse_set in config.synaptome
         if isinstance(synapse_set.frequency, list)
     ]
     if len(synapse_set_with_multiple_frequency) > 0:

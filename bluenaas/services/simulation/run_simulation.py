@@ -1,5 +1,6 @@
 import json
 from celery import states
+from celery.result import AsyncResult
 from loguru import logger
 from celery.exceptions import TaskRevokedError
 from fastapi import HTTPException, status
@@ -17,7 +18,9 @@ from bluenaas.domains.simulation import (
 from bluenaas.services.simulation.submit_simulation.setup_resources import (
     setup_simulation_resources,
 )
+from bluenaas.utils.get_last_progress_time import get_last_progress_time
 from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup_worker
+
 
 task_state_descriptions = {
     "INIT": "Simulation is captured by the system",
@@ -77,8 +80,7 @@ def run_simulation(
     Raises:
         Exception: If an error occurs during the streaming of simulation data.
     """
-    from bluenaas.infrastructure.celery import create_simulation, celery_app
-    from celery.result import AsyncResult
+    from bluenaas.infrastructure.celery import create_simulation
 
     sim_response = None
     stimulus_plot_data = None
@@ -125,11 +127,6 @@ def run_simulation(
         ignore_result=True,
     )
 
-    task_result = AsyncResult(
-        task.id,
-        app=celery_app,
-    )
-
     def streamify():
         """
         A generator that streams simulation updates to the client.
@@ -148,32 +145,20 @@ def run_simulation(
                 }
             )}\n"
 
-            while not task_result.ready():
+            lst = []
+            while not task.ready():
                 if (
                     isinstance(task.info, TaskRevokedError)
                     or isinstance(task.info, SimulationError)
                     or isinstance(task.info, ChildSimulationError)
                 ):
-                    yield f"{json.dumps(
-                        {
-                            "event":  get_event_from_task_state(task.state),
-                            "description": task_state_descriptions[task.state],
-                            "state": task.state.lower(),
-                            "task_id": task.id,
-                            "data": None,
-                        }
-                    )}\n"
+                    yield build_stream_obj(task)
                     break
+                if get_last_progress_time(task, lst):
+                    yield build_stream_obj(task)
 
-                yield f"{json.dumps(
-                        {
-                            "event":  get_event_from_task_state(task.state),
-                            "description": task_state_descriptions[task.state],
-                            "state": task.state.lower(),
-                            "task_id": task.id,
-                            "data": task.info,
-                        }
-                    )}\n"
+            if task.successful() or task.failed():
+                yield build_stream_obj(task)
 
         except Exception as ex:
             logger.info(f"Exception in task streaming: {ex}")
@@ -189,3 +174,16 @@ def run_simulation(
             "x-bnaas-task": task.id,
         },
     )
+
+
+def build_stream_obj(task: AsyncResult):
+    res = f"{json.dumps(
+            {
+                "event": get_event_from_task_state(task.state),
+                "description": task_state_descriptions[task.state],
+                "state": task.state.lower(),
+                "task_id": task.id,
+                "data": task.result or None,
+            }
+        )}\n"
+    return res

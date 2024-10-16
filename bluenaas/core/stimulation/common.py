@@ -231,8 +231,8 @@ def dispatch_simulation_result(
                 if cell_section not in prev_time:
                     prev_time[cell_section] = np.array([])
 
-                voltage_diff = diff_list(prev_voltage[cell_section], voltage)
                 time_diff = diff_list(prev_time[cell_section], time)
+                voltage_diff = diff_list(prev_voltage[cell_section], voltage)
 
                 prev_voltage[cell_section] = voltage
                 prev_time[cell_section] = time
@@ -240,12 +240,14 @@ def dispatch_simulation_result(
                 queue.put(
                     {
                         "label": label,
-                        "recording_name": cell_section,
+                        "recording": cell_section,
                         "amplitude": amplitude,
                         "frequency": frequency,
-                        "time": time_diff.tolist(),
-                        "voltage": voltage_diff.tolist(),
-                        "varying_key": varying_key,
+                        "varying_key": frequency
+                        if varying_key == "frequency"
+                        else amplitude,
+                        "t": time_diff.tolist(),
+                        "v": voltage_diff.tolist(),
                     }
                 )
 
@@ -278,10 +280,11 @@ def dispatch_simulation_result(
 
         return final_result
     except Exception as ex:
-        queue.put(
-            ChildSimulationError("child simulation failed {}".format(ex.__str__()))
+        exception = ChildSimulationError(
+            "child simulation failed {}".format(ex.__str__())
         )
-        raise ChildSimulationError from ex
+        queue.put(exception)
+        raise exception from ex
     finally:
         logger.info("child simulation complete")
         queue.put(SUB_PROCESS_STOP_EVENT)
@@ -290,16 +293,15 @@ def dispatch_simulation_result(
 def apply_multiple_simulations(args, runner):
     import billiard as brd
     from celery import current_task, states
+    from celery.exceptions import Ignore
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
 
     neuron_global_params = NeuronGlobals.get_instance().export_params()
     enable_realtime = all(arg.enable_realtime is True for arg in args)
-    logger.debug(
-        f"Parent process is about to start parallel simulations. [{enable_realtime=}]"
-    )
 
     with brd.Manager() as manager:
         queue = manager.Queue()
+
         with brd.pool.Pool(
             processes=min(len(args), os.cpu_count() or len(args)),
             initializer=init_process_worker,
@@ -326,7 +328,7 @@ def apply_multiple_simulations(args, runner):
                             state=states.FAILURE,
                             meta={
                                 "result": None,
-                                "error": record.__str__(),
+                                "exc_message": record.__str__(),
                                 "exc_type": "ChildSimulationError",
                                 "all_simulations_finished": False,
                             },
@@ -335,16 +337,20 @@ def apply_multiple_simulations(args, runner):
                         current_task.update_state(
                             state="PROGRESS",
                             meta={
-                                "error": None,
+                                "exc_type": None,
+                                "exc_message": None,
                                 "all_simulations_finished": False,
                                 "result": {
-                                    "label": record["label"],
-                                    "amplitude": record["amplitude"],
-                                    "frequency": record["frequency"],
-                                    "recording": record["recording_name"],
-                                    "varying_key": record["varying_key"],
-                                    "t": record["time"],
-                                    "v": record["voltage"],
+                                    "hash": hash(
+                                        "{}/{}/{}/{}/{}".format(
+                                            record["recording"],
+                                            record["amplitude"],
+                                            record["frequency"],
+                                            tuple(record["t"]),
+                                            tuple(record["v"]),
+                                        )
+                                    ),
+                                    **record,
                                 },
                             },
                         )
@@ -354,8 +360,10 @@ def apply_multiple_simulations(args, runner):
                             current_task.update_state(
                                 state=states.SUCCESS,
                                 meta={
+                                    "hash": "success",
                                     "result": None,
-                                    "error": None,
+                                    "exc_type": None,
+                                    "exc_message": None,
                                     "all_simulations_finished": True,
                                 },
                             )
@@ -369,14 +377,14 @@ def apply_multiple_simulations(args, runner):
                     current_task.update_state(
                         state=states.FAILURE,
                         meta={
+                            "hash": "failure",
                             "result": None,
-                            "error": ex.__str__(),
-                            "exc_type": ex.__class__.__name__,
+                            "exc_message": ex.__str__(),
+                            "exc_type": type(ex).__name__,
                             "all_simulations_finished": False,
                         },
                     )
-                    # FIXME: need to confirm if we should revoke the task here
-                    # celery_app.control.revoke(current_task.request.id, terminate=True)
+                    raise Ignore()
 
             return get_simulations_by_recoding_name(
                 simulations=simulations.get() if enable_realtime else simulations,

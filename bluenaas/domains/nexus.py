@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Any, List, Optional, TypedDict
+from typing import Annotated, Any, List, TypedDict
 from pydantic import BaseModel, Field
 from bluenaas.domains.simulation import (
     SimulationStatus,
@@ -34,9 +34,7 @@ CreatedNexusResource = TypedDict(
 
 class NexusSimulationPayload(BaseModel):
     simulation: Any
-    stimulus: Optional[
-        list[StimulationItemResponse]
-    ]  # TODO: Check if stimulus data should be saved in draft simulations
+    stimulus: list[StimulationItemResponse]
     config: SingleNeuronSimulationConfig
 
 

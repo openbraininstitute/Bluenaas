@@ -12,7 +12,7 @@ from bluenaas.core.model import fetch_synaptome_model_details
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
-    SynapseSimulationConfig,
+    SynaptomeSimulationConfig,
 )
 
 
@@ -54,7 +54,7 @@ def init_current_varying_simulation(
         me_model_id = model_self
         synapse_generation_config: list[SynapseSeries] = None
 
-        if config.type == "synaptome-simulation" and config.synapses is not None:
+        if config.type == "synaptome-simulation" and config.synaptome is not None:
             synaptome_details = fetch_synaptome_model_details(
                 synaptome_self=model_self, bearer_token=token
             )
@@ -66,10 +66,10 @@ def init_current_varying_simulation(
             bearer_token=token,
         )
 
-        if config.type == "synaptome-simulation" and config.synapses is not None:
+        if config.type == "synaptome-simulation" and config.synaptome is not None:
             # only current injection simulation
             synapse_settings: list[list[SynapseSeries]] = []
-            for index, synapse_sim_config in enumerate(config.synapses):
+            for index, synapse_sim_config in enumerate(config.synaptome):
                 # 3. Get "pandas.Series" for each synapse
                 synapse_placement_config = [
                     config
@@ -152,13 +152,13 @@ def init_frequency_varying_simulation(
             hyamp=config.conditions.hypamp,
             bearer_token=token,
         )
-        assert config.synapses is not None
+        assert config.synaptome is not None
 
-        variable_frequency_sim_configs: list[SynapseSimulationConfig] = []
-        constant_frequency_sim_configs: list[SynapseSimulationConfig] = []
+        variable_frequency_sim_configs: list[SynaptomeSimulationConfig] = []
+        constant_frequency_sim_configs: list[SynaptomeSimulationConfig] = []
 
         # Split all incoming simulation configs into constant frequency or variable frequency sim configs
-        for syn_sim_config in config.synapses:
+        for syn_sim_config in config.synaptome:
             if isinstance(syn_sim_config.frequency, list):
                 variable_frequency_sim_configs.append(syn_sim_config)
             else:
