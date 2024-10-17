@@ -177,6 +177,7 @@ def run_simulation(
 
 
 def build_stream_obj(task: AsyncResult):
+    logger.info(f"---> {task.state} / {task.result}")
     res = f"{json.dumps(
             {
                 "event": get_event_from_task_state(task.state),

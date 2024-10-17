@@ -12,7 +12,7 @@ def get_last_progress_time(task: AsyncResult, lst: list[int]):
             if result is not None and isinstance(result, dict):
                 hashed_record = result.get("hash", None)
 
-    if hashed_record not in lst:
+    if hashed_record not in lst or hashed_record is None:
         lst.append(hashed_record)
         should_update = True
 

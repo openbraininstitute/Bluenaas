@@ -49,7 +49,7 @@ def init_current_varying_simulation(
         4. Start the simulation using the generated settings and return the result.
     """
     from bluenaas.core.model import model_factory
-
+    
     try:
         me_model_id = model_self
         synapse_generation_config: list[SynapseSeries] = None

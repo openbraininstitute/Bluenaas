@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import hashlib
 import queue as que
 from loguru import logger
 from collections import namedtuple
@@ -40,7 +41,7 @@ TaskArgs = namedtuple(
         "amplitude_or_additional_param",
         "add_hypamp",
         "enable_realtime",
-        "queue",
+        # "queue",
     ],
 )
 
@@ -102,7 +103,7 @@ def prepare_stimulation_parameters(
                     frequency,
                     add_hypamp,
                     enable_realtime,
-                    None,
+                    # None,
                 )
             )
     elif varying_type == "current":
@@ -132,7 +133,7 @@ def prepare_stimulation_parameters(
                     amplitude,
                     add_hypamp,
                     enable_realtime,
-                    None,
+                    # None,
                 )
             )
 
@@ -197,9 +198,14 @@ def basic_simulation_config(
     return cell, current
 
 
+def combined_md5_hash(input_string: str) -> str:
+    md5_hash = hashlib.md5(input_string.encode('utf-8')).hexdigest()
+
+    return md5_hash
+
 def dispatch_simulation_result(
     cell,
-    queue,
+    # queue,
     current,
     recording_locations: list[RecordingLocation],
     simulation_duration: int,
@@ -209,12 +215,19 @@ def dispatch_simulation_result(
     varying_type: Literal["frequency", "current"],
     varying_key: str,
     enable_realtime: bool,
+    task_id: str,
 ):
+    logger.info(f"@@@@--> {task_id=}")
     from bluecellulab.simulation.simulation import Simulation
+    from celery import current_app
 
     prev_voltage = {}
     prev_time = {}
     final_result = {}
+
+    task = current_app.tasks[
+        "bluenaas.infrastructure.celery.create_simulation"
+    ].AsyncResult(task_id)
 
     def process_simulation_recordings(enable_realtime=True):
         for loc in recording_locations:
@@ -236,20 +249,48 @@ def dispatch_simulation_result(
 
                 prev_voltage[cell_section] = voltage
                 prev_time[cell_section] = time
-
-                queue.put(
-                    {
-                        "label": label,
-                        "recording": cell_section,
-                        "amplitude": amplitude,
-                        "frequency": frequency,
-                        "varying_key": frequency
-                        if varying_key == "frequency"
-                        else amplitude,
-                        "t": time_diff.tolist(),
-                        "v": voltage_diff.tolist(),
-                    }
+                task.backend.store_result(
+                    task_id,
+                    result={
+                        "exc_type": None,
+                        "exc_message": None,
+                        "all_simulations_finished": False,
+                        "result": {
+                            # "hash": hash(
+                            #     (
+                            #         cell_section,
+                            #         label,
+                            #         tuple(time_diff.tolist()),
+                            #         tuple(voltage_diff.tolist()),
+                            #     )
+                            # ),
+                            "hash": combined_md5_hash(cell_section + label + str(time_diff.tolist()[-1] if time_diff.tolist() else  "")),
+                            "label": label,
+                            "recording": cell_section,
+                            "amplitude": amplitude,
+                            "frequency": frequency,
+                            "varying_key": frequency
+                            if varying_key == "frequency"
+                            else amplitude,
+                            "t": time_diff.tolist(),
+                            "v": voltage_diff.tolist(),
+                        },
+                    },
+                    state="PROGRESS",
                 )
+                # queue.put(
+                #     {
+                #         "label": label,
+                #         "recording": cell_section,
+                #         "amplitude": amplitude,
+                #         "frequency": frequency,
+                #         "varying_key": frequency
+                #         if varying_key == "frequency"
+                #         else amplitude,
+                #         "t": time_diff.tolist(),
+                #         "v": voltage_diff.tolist(),
+                #     }
+                # )
 
             final_result[cell_section] = {
                 "label": label,
@@ -283,11 +324,11 @@ def dispatch_simulation_result(
         exception = ChildSimulationError(
             "child simulation failed {}".format(ex.__str__())
         )
-        queue.put(exception)
+        # queue.put(exception)
         raise exception from ex
     finally:
         logger.info("child simulation complete")
-        queue.put(SUB_PROCESS_STOP_EVENT)
+        # queue.put(SUB_PROCESS_STOP_EVENT)
 
 
 def apply_multiple_simulations(args, runner):
@@ -299,93 +340,104 @@ def apply_multiple_simulations(args, runner):
     neuron_global_params = NeuronGlobals.get_instance().export_params()
     enable_realtime = all(arg.enable_realtime is True for arg in args)
 
-    with brd.Manager() as manager:
-        queue = manager.Queue()
+    # with brd.Manager() as manager:
+    #     queue = manager.Queue()
 
-        with brd.pool.Pool(
-            processes=min(len(args), os.cpu_count() or len(args)),
-            initializer=init_process_worker,
-            initargs=(neuron_global_params,),
-            maxtasksperchild=1,
-        ) as pool:
-            if enable_realtime is True:
-                simulations = pool.starmap_async(
-                    runner,
-                    iterable=[arg._replace(queue=queue) for arg in args],
-                )
-            else:
-                simulations = pool.starmap(
-                    runner,
-                    iterable=[arg._replace(queue=queue) for arg in args],
-                )
-
-            process_finished = 0
-            while True and enable_realtime:
-                try:
-                    record = queue.get(timeout=1)
-                    if isinstance(record, ChildSimulationError):
-                        current_task.update_state(
-                            state=states.FAILURE,
-                            meta={
-                                "result": None,
-                                "exc_message": record.__str__(),
-                                "exc_type": "ChildSimulationError",
-                                "all_simulations_finished": False,
-                            },
-                        )
-                    elif record != SUB_PROCESS_STOP_EVENT:
-                        current_task.update_state(
-                            state="PROGRESS",
-                            meta={
-                                "exc_type": None,
-                                "exc_message": None,
-                                "all_simulations_finished": False,
-                                "result": {
-                                    "hash": hash(
-                                        "{}/{}/{}/{}/{}".format(
-                                            record["recording"],
-                                            record["amplitude"],
-                                            record["frequency"],
-                                            tuple(record["t"]),
-                                            tuple(record["v"]),
-                                        )
-                                    ),
-                                    **record,
-                                },
-                            },
-                        )
-                    else:
-                        process_finished += 1
-                        if process_finished == len(args):
-                            current_task.update_state(
-                                state=states.SUCCESS,
-                                meta={
-                                    "hash": "success",
-                                    "result": None,
-                                    "exc_type": None,
-                                    "exc_message": None,
-                                    "all_simulations_finished": True,
-                                },
-                            )
-                            break
-                except que.Empty:
-                    continue
-                except Exception as ex:
-                    logger.exception(
-                        f"Error during pulling simulation data from sub processes: {ex}"
-                    )
-                    current_task.update_state(
-                        state=states.FAILURE,
-                        meta={
-                            "hash": "failure",
-                            "result": None,
-                            "exc_message": ex.__str__(),
-                            "exc_type": type(ex).__name__,
-                            "all_simulations_finished": False,
-                        },
-                    )
-                    raise Ignore()
-
-            return get_simulations_by_recoding_name(
-                simulations=simulations.get() if enable_realtime else simulations,
+    with brd.pool.Pool(
+        processes=min(len(args), os.cpu_count() or len(args)),
+        initializer=init_process_worker,
+        initargs=(neuron_global_params,),
+        maxtasksperchild=1,
+    ) as pool:
+        if enable_realtime is True:
+            simulations = pool.starmap(
+                runner,
+                # iterable=[arg._replace(queue=queue) for arg in args],
+                iterable=args,
             )
+        else:
+            simulations = pool.starmap(
+                runner,
+                iterable=args,
+            )
+
+        # process_finished = 0
+        # while True and enable_realtime:
+        #     try:
+        #         record = queue.get(timeout=1)
+        #         if isinstance(record, ChildSimulationError):
+        #             current_task.update_state(
+        #                 state=states.FAILURE,
+        #                 meta={
+        #                     "result": None,
+        #                     "exc_message": record.__str__(),
+        #                     "exc_type": "ChildSimulationError",
+        #                     "all_simulations_finished": False,
+        #                 },
+        #             )
+        #         elif record != SUB_PROCESS_STOP_EVENT:
+        #             current_task.update_state(
+        #                 state="PROGRESS",
+        #                 meta={
+        #                     "exc_type": None,
+        #                     "exc_message": None,
+        #                     "all_simulations_finished": False,
+        #                     "result": {
+        #                         "hash": hash(
+        #                             "{}/{}/{}/{}/{}".format(
+        #                                 record["recording"],
+        #                                 record["amplitude"],
+        #                                 record["frequency"],
+        #                                 tuple(record["t"]),
+        #                                 tuple(record["v"]),
+        #                             )
+        #                         ),
+        #                         **record,
+        #                     },
+        #                 },
+        #             )
+        #         else:
+        #             process_finished += 1
+        #             if process_finished == len(args):
+        #                 current_task.update_state(
+        #                     state=states.SUCCESS,
+        #                     meta={
+        #                         "hash": "success",
+        #                         "result": None,
+        #                         "exc_type": None,
+        #                         "exc_message": None,
+        #                         "all_simulations_finished": True,
+        #                     },
+        #                 )
+        #                 break
+        #     except que.Empty:
+        #         continue
+        #     except Exception as ex:
+        #         logger.exception(
+        #             f"Error during pulling simulation data from sub processes: {ex}"
+        #         )
+        #         current_task.update_state(
+        #             state=states.FAILURE,
+        #             meta={
+        #                 "hash": "failure",
+        #                 "result": None,
+        #                 "exc_message": ex.__str__(),
+        #                 "exc_type": type(ex).__name__,
+        #                 "all_simulations_finished": False,
+        #             },
+        #         )
+        #         raise Ignore()
+
+        data = get_simulations_by_recoding_name(
+            simulations=simulations if enable_realtime else simulations,
+        )
+        current_task.update_state(
+            state=states.SUCCESS,
+            meta={
+                "exc_type": None,
+                "exc_message": None,
+                "all_simulations_finished": True,
+                "result": None,
+            },
+        )
+        return data

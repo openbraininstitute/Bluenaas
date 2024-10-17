@@ -32,7 +32,7 @@ def _run_current_varying_stimulus(
     amplitude: float,
     add_hypamp: bool = True,
     enable_realtime: bool = True,
-    queue: Any | None = None,
+    # queue: Any | None = None,
 ):
     logger.info(f"""
         [enable_realtime]: {enable_realtime}
@@ -40,7 +40,7 @@ def _run_current_varying_stimulus(
         [simulation injection_section_name (provided)]: {injection_section_name}
         [simulation recording_locations]: {recording_locations}
     """)
-
+    from celery import current_task
     (cell, current) = basic_simulation_config(
         template_params,
         stimulus,
@@ -64,7 +64,7 @@ def _run_current_varying_stimulus(
 
     return dispatch_simulation_result(
         cell,
-        queue,
+        # queue,
         current,
         recording_locations,
         simulation_duration,
@@ -74,6 +74,7 @@ def _run_current_varying_stimulus(
         "current",
         stimulus_name.name,
         enable_realtime,
+        current_task.request.id,
     )
 
 
