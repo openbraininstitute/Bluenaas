@@ -8,8 +8,8 @@ NexusSimulationType = Literal["SingleNeuronSimulation", "SynaptomeSimulation"]
 
 SimulationStatus = Literal["pending", "started", "success", "failure"]
 SimulationEvent = Literal["init", "info", "data", "error"]
-SimulationSteamData = TypedDict(
-    "SimulationSteamData",
+SimulationStreamData = TypedDict(
+    "SimulationStreamData",
     {
         "label": str,
         "amplitude": str,
@@ -190,4 +190,4 @@ class StreamSimulationResponse(BaseModel):
     state: SimulationStatus
     task_id: str
     description: str
-    data: SimulationSteamData
+    data: SimulationStreamData

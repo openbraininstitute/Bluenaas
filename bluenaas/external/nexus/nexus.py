@@ -587,7 +587,7 @@ class Nexus:
 
             updated_resource = simulation_resource | {
                 "status": status,
-                "is_draft": is_draft,
+                "isDraft": is_draft,
                 **({"error": err} if err is not None else {}),
             }
 
@@ -650,7 +650,7 @@ class Nexus:
 
             updated_resource = simulation_resource | {
                 "status": status,
-                "is_draft": is_draft,
+                "isDraft": is_draft,
                 "distribution": [distribution_resource],
             }
 
@@ -693,7 +693,7 @@ class Nexus:
             brainLocation=model["brainLocation"],
             # Model can be MEModel or SingleNeuronSynaptome
             used={"@type": model["@type"], "@id": model["@id"]},
-            is_draft=True,
+            isDraft=True,
             status=status,
         )
 

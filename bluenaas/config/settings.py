@@ -42,9 +42,7 @@ class Settings(BaseSettings):
     SENTRY_PROFILES_SAMPLE_RATE: float = 1.0
 
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
-    CELERY_RESULT_BACKEND: str = (
-        "db+postgresql+psycopg2://postgres:password@db:5432/bleunaas"
-    )
+    CELERY_RESULT_BACKEND: str = "redis://redis:6379/0"
     CELERY_APP_NAME: str = "bluenaas"
     CELERY_QUE_SIMULATIONS: str = "simulations"
 
