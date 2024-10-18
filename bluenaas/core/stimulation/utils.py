@@ -61,6 +61,7 @@ def add_single_synapse(
     synid = SynapseID(f"{synapse["id"]}", synapse["id"])
     # A tuple containing source and target popids used by the random number generation.
     # Should correspond to source_popid and target_popid
+    # TODO: remove `popids` if not needed
     popids = (2126, 378)
     connection_modifiers = {
         "add_synapses": True,
@@ -81,6 +82,7 @@ def add_single_synapse(
         delay=synapse["synapseSimulationConfig"].delay,
         frequencies=synapse["frequencies_to_apply"],
     )
+    # TODO: remove `spike_threshold` default value is -30 and that's fine
     spike_threshold = -900.0  # TODO: Synapse - How to get spike threshold
     connection = Connection(
         cell_synapse,

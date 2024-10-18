@@ -23,12 +23,15 @@ dev:
 
 start:
 	docker compose -f docker-compose.yml --env-file .env.local up
+s: start
 
 kill:
 	docker compose -f docker-compose.yml down --remove-orphans
+k: kill
 
 build:
 	docker build -t ${SERVICE_NAME} --platform=linux/amd64 -f Dockerfile.dev .
+b: build
 
 format:	
 	poetry run ruff format
@@ -44,3 +47,9 @@ lint-check:
 	
 type-check:
 	poetry run mypy bluenaas/app.py --strict
+
+all:
+	make kill
+	make build
+	make start
+a: all

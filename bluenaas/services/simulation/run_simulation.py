@@ -80,7 +80,7 @@ def run_simulation(
     Raises:
         Exception: If an error occurs during the streaming of simulation data.
     """
-    from bluenaas.infrastructure.celery import create_simulation
+    from bluenaas.infrastructure.celery.tasks.create_simulation import create_simulation
 
     sim_response = None
     stimulus_plot_data = None
