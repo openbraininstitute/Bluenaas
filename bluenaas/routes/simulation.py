@@ -4,12 +4,10 @@ contains the single neuron simulation endpoint (single neuron, single neuron wit
 """
 
 from datetime import datetime
-import time
 from fastapi import APIRouter, Depends, Path, Query, Response, status
 from typing import Optional
 
 
-from bluenaas.config.settings import settings
 from bluenaas.domains.nexus import DeprecateNexusResponse
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
@@ -20,7 +18,6 @@ from bluenaas.domains.simulation import (
     StreamSimulationResponse,
 )
 from bluenaas.infrastructure.kc.auth import verify_jwt
-from bluenaas.infrastructure.celery import create_dummy_task
 from bluenaas.services.simulation.run_simulation import run_simulation
 from bluenaas.services.simulation.stop_simulation import (
     StopSimulationResponse,
@@ -40,19 +37,6 @@ router = APIRouter(
     prefix="/simulation",
     tags=["Simulation"],
 )
-
-
-@router.post(
-    "/single-neuron/dummy",
-    include_in_schema=settings.DEPLOYMENT_ENV != "production",
-)
-def dummy_simulation(
-    tasks: int = Query(min=10, default=20),
-):
-    for i in range(tasks):
-        create_dummy_task.apply_async()
-        time.sleep(1)
-        i += 1
 
 
 @router.post(
