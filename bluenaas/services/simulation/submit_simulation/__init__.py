@@ -30,7 +30,7 @@ def submit_simulation(
     Returns:
         SimulationResultItemResponse
     """
-    from bluenaas.infrastructure.celery import create_simulation
+    from bluenaas.infrastructure.celery.tasks.create_simulation import create_simulation
 
     (
         me_model_self,

@@ -44,3 +44,13 @@ lint-check:
 	
 type-check:
 	poetry run mypy bluenaas/app.py --strict
+
+all:
+	make kill
+	make build
+	make start
+
+a: all
+b: build
+s: start
+k: kill
