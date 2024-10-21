@@ -1,12 +1,12 @@
 from __future__ import annotations
+import json
 import os
-from pathlib import PosixPath
+from pathlib import Path
 import queue as que
 from loguru import logger
 from collections import namedtuple
 import numpy as np
 from typing import Literal
-from bluenaas.core.cell import HocCell
 from bluenaas.core.exceptions import ChildSimulationError
 from bluenaas.core.model import model_factory
 from bluenaas.domains.morphology import SynapseSeries
@@ -19,6 +19,7 @@ from bluenaas.domains.simulation import (
 from bluenaas.utils.const import (
     SUB_PROCESS_STOP_EVENT,
 )
+from bluenaas.utils.serializer import deserialize_template_params
 from bluenaas.utils.simulation import get_simulations_by_recoding_name
 from bluenaas.utils.util import diff_list
 from bluenaas.core.stimulation.utils import (
@@ -407,26 +408,20 @@ def setup_basic_simulation_config(
     me_model_id: str = None,
     token: str | None = None,
 ):
-    # os.chdir("/opt/blue-naas")
-    # os.chdir(model_path)
-    # HocCell(model_uuid)
-
-    cwd = os.getcwd()
-    logger.info(f"@@@@-> {cwd=}")
     model = model_factory(
         model_self=me_model_id,
         hyamp=config.conditions.hypamp,
         bearer_token=token,
     )
-    model.build_model()
+
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
-    neuron_global_params = NeuronGlobals.get_instance().export_params()
-    NeuronGlobals.get_instance().load_params(neuron_global_params)
-    
-    from bluecellulab.importer import neuron
     from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
     from bluecellulab.rngsettings import RNGSettings
     from bluecellulab.stimulus.factory import StimulusFactory
+    from bluecellulab.importer import neuron
+
+    neuron_global_params = NeuronGlobals.get_instance().export_params()
+    NeuronGlobals.get_instance().load_params(neuron_global_params)
 
     rng = RNGSettings(
         base_seed=experimental_setup.seed,
@@ -437,46 +432,47 @@ def setup_basic_simulation_config(
     rng.set_seeds(
         base_seed=experimental_setup.seed,
     )
+    # from bluecellulab.importer import neuron
+    cell = model.CELL._cell
+    injection_section = cell.sections[injection_section_name]
 
-    # injection_section = cell.sections[injection_section_name]
+    sec, seg = cell.sections[recording_location.section], recording_location.offset
 
-    # sec, seg = cell.sections[recording_location.section], recording_location.offset
+    cell.add_voltage_recording(
+        section=sec,
+        segx=seg,
+    )
 
-    # cell.add_voltage_recording(
-    #     section=sec,
-    #     segx=seg,
-    # )
+    protocol = config.current_injection.stimulus.stimulus_protocol
+    stimulus_name = get_stimulus_name(protocol)
+    stim_factory = StimulusFactory(dt=1.0)
+    stimulus = get_stimulus_from_name(
+        stimulus_name,
+        stim_factory,
+        cell,
+        None,
+        amplitude,
+    )
 
-    # protocol = config.current_injection.stimulus.stimulus_protocol
-    # stimulus_name = get_stimulus_name(protocol)
-    # stim_factory = StimulusFactory(dt=1.0)
-    # stimulus = get_stimulus_from_name(
-    #     stimulus_name,
-    #     stim_factory,
-    #     cell,
-    #     None,
-    #     amplitude,
-    # )
+    iclamp, _ = cell.inject_current_waveform(
+        stimulus.time,
+        stimulus.current,
+        section=injection_section,
+        segx=injection_segment,
+    )
 
-    # iclamp, _ = cell.inject_current_waveform(
-    #     stimulus.time,
-    #     stimulus.current,
-    #     section=injection_section,
-    #     segx=injection_segment,
-    # )
+    current_vector = neuron.h.Vector()
+    current_vector.record(iclamp._ref_i)
+    current = np.array(current_vector.to_python())
+    neuron.h.v_init = experimental_setup.vinit
+    neuron.h.celsius = experimental_setup.celsius
 
-    # current_vector = neuron.h.Vector()
-    # current_vector.record(iclamp._ref_i)
-    # current = np.array(current_vector.to_python())
-    # neuron.h.v_init = experimental_setup.vinit
-    # neuron.h.celsius = experimental_setup.celsius
-
-    # if add_hypamp:
-    #     hyp_stim = Hyperpolarizing(
-    #         target="",
-    #         delay=0.0,
-    #         duration=stimulus.stimulus_time,
-    #     )
-    #     cell.add_replay_hypamp(hyp_stim)
-
-    # return (current, cell)
+    if add_hypamp:
+        hyp_stim = Hyperpolarizing(
+            target="",
+            delay=0.0,
+            duration=stimulus.stimulus_time,
+        )
+        cell.add_replay_hypamp(hyp_stim)
+        
+    return (current, cell)

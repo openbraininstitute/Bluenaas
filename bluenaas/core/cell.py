@@ -3,6 +3,7 @@
 # pylint: disable=import-outside-toplevel
 import os
 import re
+import subprocess
 from loguru import logger
 from bluenaas.core.stimulation.utils import is_current_varying_simulation
 from bluenaas.domains.morphology import SynapseSeries
@@ -60,6 +61,10 @@ class BaseCell:
         os.chdir(model_path)
         cwd = os.getcwd()
         logger.info(f"@@@@->222 {cwd=}")   
+        logger.info(f'@@model_path: {model_path=}')
+        logger.info(f'@@os.getcwd: {os.getcwd()}')
+        compilation_output = subprocess.check_output([f"{os.getcwd()}/x86_64/special"])
+        logger.info(f"----> {compilation_output.decode()}")
         # importing here to avoid segmentation fault
         from bluecellulab import Cell
         from bluecellulab.circuit.circuit_access import EmodelProperties
