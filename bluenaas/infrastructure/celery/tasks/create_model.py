@@ -14,11 +14,7 @@ from bluenaas.utils.serializer import (
 )
 
 
-@celery_app.task(
-    bind=True,
-    serializer="json",
-    queue="builder"
-)
+@celery_app.task(bind=True, serializer="json", queue="builder")
 def create_model(
     self,
     model_self: str,
@@ -45,7 +41,7 @@ def create_model(
     cell = model.CELL._cell
     template_params = cell.template_params
     synapse_generation_config: list[SynapseSeries] = None
-
+    model_uuid = model.model_uuid
     if cf.type == "synaptome-simulation" and cf.synaptome is not None:
         # only current injection simulation
         synapse_settings: list[list[SynapseSeries]] = []
@@ -70,4 +66,9 @@ def create_model(
         synapse_generation_config = list(chain.from_iterable(synapse_settings))
     logger.info(f"@@-> {template_params=}")
     logger.info(f"@@-> {synapse_generation_config=}")
-    return (serialize_template_params(template_params), synapse_generation_config)
+    return (
+        model_uuid,
+        me_model_id,
+        serialize_template_params(template_params),
+        synapse_generation_config,
+    )
