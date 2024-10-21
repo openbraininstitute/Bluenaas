@@ -58,7 +58,8 @@ class BaseCell:
 
         # make sure x86_64 is in current dir before importing neuron
         os.chdir(model_path)
-
+        cwd = os.getcwd()
+        logger.info(f"@@@@->222 {cwd=}")   
         # importing here to avoid segmentation fault
         from bluecellulab import Cell
         from bluecellulab.circuit.circuit_access import EmodelProperties
@@ -215,6 +216,15 @@ class BaseCell:
                 f"Single Neuron Simulation error: {e}",
             )
             raise Exception(f"Single Neuron Simulation error: {e}")
+
+    def start_solo_simulation(
+        self,
+        config: SingleNeuronSimulationConfig,
+        current_synapse_series: list[SynapseSeries] | None,
+        frequency_to_synapse_series: dict[float, list[SynapseSeries]] | None,
+        enable_realtime,
+    ):
+        pass
 
 
 class HocCell(BaseCell):
