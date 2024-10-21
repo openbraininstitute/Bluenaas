@@ -10,7 +10,7 @@ from bluenaas.domains.simulation import (
 from bluenaas.infrastructure.celery.tasks.create_current_sim_instance import (
     create_single_current_simulation,
 )
-from bluenaas.infrastructure.celery.tasks.create_model import create_model
+from bluenaas.infrastructure.celery.tasks.initiate_simulation import initiate_simulation
 from bluenaas.infrastructure.kc.auth import verify_jwt
 
 router = APIRouter(
@@ -62,7 +62,7 @@ def grouped_sim(
                 )
             )
     logger.info(f"--> {instances=}")
-    job = create_model.s(
+    job = initiate_simulation.s(
         model_self,
         token,
         config.model_dump_json(),

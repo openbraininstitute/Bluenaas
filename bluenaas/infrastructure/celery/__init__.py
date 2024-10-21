@@ -24,7 +24,7 @@ celery_app.autodiscover_tasks(
     [
         "bluenaas.infrastructure.celery.tasks.create_current_sim_instance",
         "bluenaas.infrastructure.celery.tasks.create_simulation",
-        "bluenaas.infrastructure.celery.tasks.create_model",
+        "bluenaas.infrastructure.celery.tasks.initiate_simulation",
     ],
     force=True
 )
