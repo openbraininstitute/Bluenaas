@@ -110,17 +110,83 @@ services:
     networks:
       - ls
 
-  # worker2:
+  worker2:
+    image: bluenaas-single-cell-svc
+    container_name: worker2
+    env_file: "./.env.local"
+    build:
+      dockerfile: ./Dockerfile.dev
+    command: ["./celery.sh"]
+    environment:
+      - WORKER_NAME=worker2
+      - QUEUE_NAME=simulator
+      - POOL_TYPE=prefork
+      - PYTHONUNBUFFERED=1
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    healthcheck:
+      test: "celery -A bluenaas.infrastructure.celery status || exit 1"
+      interval: 2s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ${PWD}/bluenaas:/app/bluenaas
+      # - ${PWD}/celert/start.sh:/app/bluenaas/celery.sh
+      - type: volume
+        source: nfs_share
+        target: /opt
+        volume:
+          nocopy: true
+    depends_on:
+      - redis
+      - bluenaas
+    networks:
+      - ls
+  
+  # worker3:
   #   image: bluenaas-single-cell-svc
-  #   container_name: worker2
+  #   container_name: worker3
   #   env_file: "./.env.local"
   #   build:
   #     dockerfile: ./Dockerfile.dev
   #   command: ["./celery.sh"]
   #   environment:
-  #     - WORKER_NAME=worker2
+  #     - WORKER_NAME=worker3
   #     - QUEUE_NAME=simulator
-  #     - POOL_TYPE=solo
+  #     - POOL_TYPE=prefork
+  #     - PYTHONUNBUFFERED=1
+  #     - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+  #     - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+  #   healthcheck:
+  #     test: "celery -A bluenaas.infrastructure.celery status || exit 1"
+  #     interval: 2s
+  #     timeout: 5s
+  #     retries: 5
+  #   volumes:
+  #     - ${PWD}/bluenaas:/app/bluenaas
+  #     # - ${PWD}/celert/start.sh:/app/bluenaas/celery.sh
+  #     - type: volume
+  #       source: nfs_share
+  #       target: /opt
+  #       volume:
+  #         nocopy: true
+  #   depends_on:
+  #     - redis
+  #     - bluenaas
+  #   networks:
+  #     - ls
+  
+  # worker4:
+  #   image: bluenaas-single-cell-svc
+  #   container_name: worker4
+  #   env_file: "./.env.local"
+  #   build:
+  #     dockerfile: ./Dockerfile.dev
+  #   command: ["./celery.sh"]
+  #   environment:
+  #     - WORKER_NAME=worker4
+  #     - QUEUE_NAME=simulator
+  #     - POOL_TYPE=prefork
   #     - PYTHONUNBUFFERED=1
   #     - CELERY_BROKER_URL=${CELERY_BROKER_URL}
   #     - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}

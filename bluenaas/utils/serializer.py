@@ -1,5 +1,13 @@
 import json
 from pathlib import Path
+import pandas as pd
+
+from bluenaas.domains.morphology import SynapseSeries
+from bluenaas.domains.simulation import (
+    CurrentInjectionConfig,
+    SynaptomeSimulationConfig,
+)
+
 
 def serialize_template_params(params: any) -> str:
     # Convert Path to string and pydantic dataclass to dict
@@ -40,3 +48,56 @@ def deserialize_template_params(json_str: str):
         template_format=data["template_format"],
         emodel_properties=emodel_properties,
     )
+
+
+def serialize_synapse_series(synapse: SynapseSeries) -> dict:
+    return {
+        "id": synapse["id"],
+        "series": synapse["series"].to_dict(),
+        "directCurrentConfig": synapse["directCurrentConfig"].model_dump(),
+        "synapseSimulationConfig": synapse["synapseSimulationConfig"].model_dump(),
+        "frequencies_to_apply": synapse["frequencies_to_apply"],
+    }
+
+
+def serialize_synapse_series_list(synapse_series_list: list[SynapseSeries]) -> str:
+    return json.dumps(
+        [serialize_synapse_series(synapse) for synapse in synapse_series_list]
+    )
+
+
+def serialize_synapse_series_dict(
+    synapse_series_dict: dict[float, list[SynapseSeries]],
+) -> str:
+    return json.dumps(
+        {
+            k: [serialize_synapse_series(synapse) for synapse in v]
+            for k, v in synapse_series_dict.items()
+        }
+    )
+
+
+def deserialize_synapse_series(data: dict) -> SynapseSeries:
+    return {
+        "id": data["id"],
+        "series": pd.Series(data["series"]),  # Convert dict back to pandas.Series
+        "directCurrentConfig": CurrentInjectionConfig(**data["directCurrentConfig"]),
+        "synapseSimulationConfig": SynaptomeSimulationConfig(
+            **data["synapseSimulationConfig"]
+        ),
+        "frequencies_to_apply": data["frequencies_to_apply"],
+    }
+
+
+def deserialize_synapse_series_list(serialized_data: str) -> list[SynapseSeries]:
+    return [deserialize_synapse_series(item) for item in json.loads(serialized_data)]
+
+
+def deserialize_synapse_series_dict(
+    serialized_data: str,
+) -> dict[float, list[SynapseSeries]]:
+    data = json.loads(serialized_data)
+    return {
+        float(k): [deserialize_synapse_series(item) for item in v]
+        for k, v in data.items()
+    }

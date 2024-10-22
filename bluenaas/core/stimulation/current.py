@@ -42,7 +42,7 @@ def _run_current_varying_stimulus(
         [simulation recording_locations]: {recording_locations}
     """)
     cwd = os.getcwd()
-    logger.info(f'@@@@-> {cwd=}')
+    logger.info(f"@@@@-> {cwd=}")
     (cell, current) = basic_simulation_config(
         template_params,
         stimulus,

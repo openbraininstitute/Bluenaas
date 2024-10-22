@@ -19,6 +19,12 @@ from bluenaas.domains.simulation import (
 )
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.services.simulation.run_simulation import run_simulation
+from bluenaas.services.simulation.run_distributed_simulation import (
+    run_distributed_simulation,
+)
+from bluenaas.services.simulation.shutdown_distributed_simulation import (
+    do_shutdown_simulation,
+)
 from bluenaas.services.simulation.stop_simulation import (
     StopSimulationResponse,
     stop_simulation,
@@ -37,6 +43,51 @@ router = APIRouter(
     prefix="/simulation",
     tags=["Simulation"],
 )
+
+
+@router.post(
+    "/single-neuron/{org_id}/{project_id}/distributed",
+    summary="Run neuron simulation distributed per worker",
+)
+def distributed_simulation(
+    model_self: str,
+    org_id: str,
+    project_id: str,
+    request: StreamSimulationBodyRequest,
+    token: str = Depends(verify_jwt),
+):
+    return run_distributed_simulation(
+        org_id=org_id,
+        token=token,
+        project_id=project_id,
+        model_self=model_self,
+        config=request.config,
+        autosave=request.autosave,
+        realtime=request.realtime,
+    )
+
+
+@router.post(
+    "/single-neuron/{org_id}/{project_id}/{task_id}/distributed/shutdown",
+    summary=(
+        """
+        Stop neuron distributed simulation
+        """
+    ),
+)
+async def shutdown_simulation(
+    org_id: str,
+    project_id: str,
+    job_id: str,
+    token: str = Depends(verify_jwt),
+) -> StopSimulationResponse:
+    """
+    Shutdown a running simulation identified by the given job ID (grouped simulations)
+    """
+    return await do_shutdown_simulation(
+        token=token,
+        task_id=job_id,
+    )
 
 
 @router.post(

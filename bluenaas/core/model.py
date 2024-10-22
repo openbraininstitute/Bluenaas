@@ -80,17 +80,13 @@ class Model:
                     else holding_current,
                 )
             else:
-                logger.info('@@@@--> building cell')
-                try:
-                    self.CELL = HocCell(
-                        model_uuid=model_uuid,
-                        threshold_current=threshold_current,
-                        holding_current=self.holding_current
-                        if self.holding_current is not None
-                        else holding_current,
-                    )
-                except Exception as e:
-                    logger.exception(f"e-->{e}")
+                self.CELL = HocCell(
+                    model_uuid=model_uuid,
+                    threshold_current=threshold_current,
+                    holding_current=self.holding_current
+                    if self.holding_current is not None
+                    else holding_current,
+                )
 
     def _generate_synapse(
         self, section_info: LocationData, seg_indices_to_include: list[int]
