@@ -17,16 +17,19 @@ celery_app = Celery(
     worker_prefetch_multiplier=1,
     result_expires=timedelta(minutes=0.5),
     result_backend_transport_options={"global_keyprefix": "bnaas_sim_"},
-    include=["bluenaas.infrastructure.celery.bluenaas_task"],
+    include=[
+        "bluenaas.infrastructure.celery.full_simulation_task_class",
+        "bluenaas.infrastructure.celery.single_simulation_task_class",
+    ],
 )
 
 celery_app.autodiscover_tasks(
     [
-        "bluenaas.infrastructure.celery.tasks.create_current_sim_instance",
+        "bluenaas.infrastructure.celery.tasks.single_simulation_runner",
         "bluenaas.infrastructure.celery.tasks.create_simulation",
         "bluenaas.infrastructure.celery.tasks.initiate_simulation",
     ],
-    force=True
+    force=True,
 )
 # Set the start method to "spawn"
 context._force_start_method("fork")  # Force fork start method

@@ -59,12 +59,10 @@ class BaseCell:
 
         # make sure x86_64 is in current dir before importing neuron
         os.chdir(model_path)
-        cwd = os.getcwd()
-        logger.info(f"@@@@->222 {cwd=}")   
-        logger.info(f'@@model_path: {model_path=}')
-        logger.info(f'@@os.getcwd: {os.getcwd()}')
-        compilation_output = subprocess.check_output([f"{os.getcwd()}/x86_64/special"])
-        logger.info(f"----> {compilation_output.decode()}")
+
+        logger.info("[Mechanisms presence checker]")
+        subprocess.check_output([f"{os.getcwd()}/x86_64/special"])
+
         # importing here to avoid segmentation fault
         from bluecellulab import Cell
         from bluecellulab.circuit.circuit_access import EmodelProperties

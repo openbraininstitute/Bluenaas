@@ -1,7 +1,5 @@
 from __future__ import annotations
-import json
 import os
-from pathlib import Path
 import queue as que
 from loguru import logger
 from collections import namedtuple
@@ -19,7 +17,6 @@ from bluenaas.domains.simulation import (
 from bluenaas.utils.const import (
     SUB_PROCESS_STOP_EVENT,
 )
-from bluenaas.utils.serializer import deserialize_template_params
 from bluenaas.utils.simulation import get_simulations_by_recoding_name
 from bluenaas.utils.util import diff_list
 from bluenaas.core.stimulation.utils import (
@@ -282,7 +279,6 @@ def dispatch_simulation_result(
         )
 
         process_simulation_recordings(enable_realtime)
-
         return final_result
     except Exception as ex:
         exception = ChildSimulationError(
@@ -399,12 +395,12 @@ def apply_multiple_simulations(args, runner):
 def setup_basic_simulation_config(
     template_params,
     config: SingleNeuronSimulationConfig,
-    injection_section_name: str,
     injection_segment: float,
     recording_location: RecordingLocation,
     experimental_setup: ExperimentSetupConfig,
     amplitude: float,
     add_hypamp: bool = True,
+    thres_perc: float = None,
     me_model_id: str = None,
     token: str | None = None,
 ):
@@ -422,6 +418,8 @@ def setup_basic_simulation_config(
 
     neuron_global_params = NeuronGlobals.get_instance().export_params()
     NeuronGlobals.get_instance().load_params(neuron_global_params)
+
+    injection_section_name = config.current_injection.inject_to
 
     rng = RNGSettings(
         base_seed=experimental_setup.seed,
@@ -450,7 +448,7 @@ def setup_basic_simulation_config(
         stimulus_name,
         stim_factory,
         cell,
-        None,
+        thres_perc,
         amplitude,
     )
 
@@ -474,5 +472,5 @@ def setup_basic_simulation_config(
             duration=stimulus.stimulus_time,
         )
         cell.add_replay_hypamp(hyp_stim)
-        
+
     return (current, cell)

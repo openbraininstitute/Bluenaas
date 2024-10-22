@@ -12,7 +12,7 @@ from bluenaas.core.stimulation.runners import (
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
 )
-from bluenaas.infrastructure.celery.bluenaas_task import BluenaasTask
+from bluenaas.infrastructure.celery.full_simulation_task_class import BluenaasTask
 from bluenaas.infrastructure.celery import celery_app
 
 

@@ -3,11 +3,10 @@ import json
 from loguru import logger
 
 
-from bluenaas.core.model import fetch_synaptome_model_details
+from bluenaas.core.model import Model, SynaptomeDetails, fetch_synaptome_model_details
 from bluenaas.core.stimulation.utils import (
     get_constant_frequencies_for_sim_id,
     get_sim_configs_by_synapse_id,
-    get_stimulus_name,
     get_synapse_placement_config,
     is_current_varying_simulation,
 )
@@ -18,6 +17,8 @@ from bluenaas.domains.simulation import (
     SynaptomeSimulationConfig,
 )
 from bluenaas.utils.serializer import (
+    serialize_synapse_series_dict,
+    serialize_synapse_series_list,
     serialize_template_params,
 )
 from bluenaas.utils.util import log_stats_for_series_in_frequency
@@ -41,6 +42,7 @@ def initiate_simulation(
 
     cf = SingleNeuronSimulationConfig(**json.loads(config))
     me_model_id = model_self
+    synaptome_details = None
 
     if cf.type == "synaptome-simulation" and cf.synaptome is not None:
         synaptome_details = fetch_synaptome_model_details(
@@ -56,10 +58,39 @@ def initiate_simulation(
 
     cell = model.CELL._cell
     template_params = cell.template_params
-    synapse_generation_config: list[SynapseSeries] = None
-    frequency_to_synapse_settings: dict[float, list[SynapseSeries]] = {}
 
-    
+    (synapse_generation_config, frequency_to_synapse_config) = setup_synapses_series(
+        cf,
+        synaptome_details,
+        model,
+    )
+
+    output = (
+        me_model_id,
+        serialize_template_params(template_params),
+        serialize_synapse_series_list(synapse_generation_config)
+        if synapse_generation_config is not None
+        else None,
+        serialize_synapse_series_dict(frequency_to_synapse_config)
+        if frequency_to_synapse_config is not None
+        else None,
+    )
+    logger.info(f"[INITIATE SIMULATION] {output=}")
+
+    return output
+
+
+def setup_synapses_series(
+    cf: SingleNeuronSimulationConfig,
+    synaptome_details: SynaptomeDetails | None,
+    model: Model,
+) -> tuple[list[SynapseSeries] | None, dict[float, list[SynapseSeries]] | None]:
+    synapse_generation_config: list[SynapseSeries] = None
+    frequency_to_synapse_config: dict[float, list[SynapseSeries]] = {}
+
+    if synaptome_details is None:
+        return (None, None)
+
     if is_current_varying_simulation(cf):
         if cf.type == "synaptome-simulation" and cf.synaptome is not None:
             # only current injection simulation
@@ -84,18 +115,18 @@ def initiate_simulation(
 
             synapse_generation_config = list(chain.from_iterable(synapse_settings))
     else:
-        assert config.synaptome is not None
+        assert cf.synaptome is not None
 
         variable_frequency_sim_configs: list[SynaptomeSimulationConfig] = []
         constant_frequency_sim_configs: list[SynaptomeSimulationConfig] = []
         # Split all incoming simulation configs into constant frequency or variable frequency sim configs
-        for syn_sim_config in config.synaptome:
+        for syn_sim_config in cf.synaptome:
             if isinstance(syn_sim_config.frequency, list):
                 variable_frequency_sim_configs.append(syn_sim_config)
             else:
                 constant_frequency_sim_configs.append(syn_sim_config)
 
-        frequency_to_synapse_settings: dict[float, list[SynapseSeries]] = {}
+        frequency_to_synapse_config: dict[float, list[SynapseSeries]] = {}
 
         offset = 0
         for variable_frequency_sim_config in variable_frequency_sim_configs:
@@ -105,7 +136,7 @@ def initiate_simulation(
             )
 
             for frequency in variable_frequency_sim_config.frequency:
-                frequency_to_synapse_settings[frequency] = []
+                frequency_to_synapse_config[frequency] = []
 
                 frequencies_to_apply = get_constant_frequencies_for_sim_id(
                     variable_frequency_sim_config.id, constant_frequency_sim_configs
@@ -113,7 +144,7 @@ def initiate_simulation(
                 frequencies_to_apply.append(frequency)
 
                 # First, add synapse_series for sim_config with this variable frequency
-                frequency_to_synapse_settings[frequency].extend(
+                frequency_to_synapse_config[frequency].extend(
                     model.get_synapse_series(
                         synapse_placement_config,
                         variable_frequency_sim_config,
@@ -132,7 +163,7 @@ def initiate_simulation(
                     for sim_config in sim_id_to_configs[
                         variable_frequency_sim_config.id
                     ]:
-                        frequency_to_synapse_settings[frequency].extend(
+                        frequency_to_synapse_config[frequency].extend(
                             model.get_synapse_series(
                                 synapse_placement_config,
                                 sim_config,
@@ -155,7 +186,7 @@ def initiate_simulation(
                     )
 
                     for sim_config in sim_configs_for_set:
-                        frequency_to_synapse_settings[frequency].extend(
+                        frequency_to_synapse_config[frequency].extend(
                             model.get_synapse_series(
                                 placement_config_for_set,
                                 sim_config,
@@ -165,15 +196,13 @@ def initiate_simulation(
                         )
                         offset += 1
 
-        for frequency in frequency_to_synapse_settings:
+        for frequency in frequency_to_synapse_config:
             logger.debug(
-                f"Constructed {len(frequency_to_synapse_settings[frequency])} synapse series for frequency {frequency}"
+                f"Constructed {len(frequency_to_synapse_config[frequency])} synapse series for frequency {frequency}"
             )
-            log_stats_for_series_in_frequency(frequency_to_synapse_settings[frequency])
+            log_stats_for_series_in_frequency(frequency_to_synapse_config[frequency])
 
     return (
-        me_model_id,
-        serialize_template_params(template_params),
         synapse_generation_config,
-        frequency_to_synapse_settings,
+        frequency_to_synapse_config,
     )
