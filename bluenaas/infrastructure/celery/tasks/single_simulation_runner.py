@@ -39,9 +39,11 @@ def single_simulation_runner(
     # in a serialized format
     model_info: Tuple[str, str, str, str],
     *,
+    # NOTE: this need to be passed to be able to recover it in the celery task definition
+    # and use it to save the simulation result
     org_id: str,
     project_id: str,
-    simulation_resource_self: str | None,
+    resource_self: str | None,
     token: str,
     config: SingleNeuronSimulationConfig,
     amplitude: float,
@@ -186,6 +188,9 @@ def single_simulation_runner(
         cvode=False,
     )
 
+    # NOTE: return result to be able to recover it
+    # 1. when there is no realtime
+    # 2. the user enable autosaving
     if not realtime or autosave:
         voltage = cell.get_voltage_recording(sec, seg)
         time = cell.get_time()

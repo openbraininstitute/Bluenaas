@@ -59,7 +59,6 @@ def convert_to_simulation_response(
         created_by=simulation_resource.createdBy,
         created_at=simulation_resource.createdAt,
         results=distribution and distribution.get("simulation", None),
-        # simulation details
         injection_location=simulation_resource.injectionLocation,
         recording_location=simulation_resource.recordingLocation,
         brain_location={
@@ -67,7 +66,6 @@ def convert_to_simulation_response(
             "brain_region": simulation_resource.brainLocation.get("brainRegion"),
         },
         config=distribution and distribution.get("config", None),
-        # Used model details
         me_model_self=me_model_self,
         synaptome_model_self=synaptome_model_self,
     )

@@ -42,7 +42,7 @@ def get_stimulation_plot_data(
     return plot_data
 
 
-def setup_simulation_resources(
+def prepare_simulation_resources(
     token,
     model_self,
     org_id,

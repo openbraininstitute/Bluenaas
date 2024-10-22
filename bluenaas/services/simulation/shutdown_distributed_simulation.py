@@ -33,7 +33,7 @@ async def do_shutdown_simulation(
             },
             status_code=HTTPStatus.ACCEPTED,
             headers={
-                "x-bnaas-task": job_id,
+                "x-bnaas-job": job_id,
             },
         )
     except Exception as ex:
