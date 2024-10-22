@@ -1,3 +1,20 @@
+"""
+This task is responsible for building the neuron model and configuring the synaptic series.
+
+Overview:
+---------
+- Ensures that the neuron model and any required mechanisms are available.
+- If the model or mechanisms are not present, it will compile or build them as needed.
+- This task must be executed prior to running any simulation to guarantee that the model is fully prepared.
+
+Purpose:
+--------
+By executing this task, the system validates the model's availability and configures the necessary synaptic series,
+which are essential for both current- and frequency-varying simulations. This process is crucial for initializing
+the simulation environment and ensuring that subsequent tasks run efficiently.
+
+"""
+
 from itertools import chain
 import json
 from loguru import logger

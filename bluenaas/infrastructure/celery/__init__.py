@@ -1,6 +1,6 @@
-from datetime import timedelta
 from celery import Celery
-from billiard import context
+from datetime import timedelta
+
 from bluenaas.config.settings import settings
 
 celery_app = Celery(
@@ -31,5 +31,3 @@ celery_app.autodiscover_tasks(
     ],
     force=True,
 )
-# Set the start method to "spawn"
-context._force_start_method("fork")  # Force fork start method

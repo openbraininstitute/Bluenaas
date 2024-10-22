@@ -1,3 +1,13 @@
+"""
+This task is responsible for running a single instance of a neuron simulation based on the type of variation.
+
+Overview:
+---------
+- Executes a single simulation instance, varying either the current or the frequency, depending on the configuration.
+- The recording location is also used to distinguish between different simulation instances.
+
+"""
+
 import json
 from typing import Tuple
 
