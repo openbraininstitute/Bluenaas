@@ -63,7 +63,7 @@ def construct_time_range(
     """
     start_str = start_date.strftime("%Y-%m-%dT%H:%M:%SZ") if start_date else "*"
     end_str = end_date.strftime("%Y-%m-%dT%H:%M:%SZ") if end_date else "*"
-
+    logger.debug(f"Time Range {"{}..{}".format(start_str, end_str)}")
     return "{}..{}".format(start_str, end_str)
 
 
@@ -145,8 +145,8 @@ class Nexus:
         res_types: Sequence[str],
         offset: int,
         size: int,
-        created_at_start: datetime,
-        created_at_end: datetime,
+        created_at_start: Optional[datetime],
+        created_at_end: Optional[datetime],
     ):
         query_params = [("type", res_type) for res_type in res_types]
         query_params.append(("size", str(size)))

@@ -223,11 +223,7 @@ services:
   #     - redis
 
 volumes:
-  nfs_share:
-    driver_opts:
-      type: "nfs"
-      o: "addr=host.docker.internal,rw,nolock,hard,nointr,nfsvers=3"
-      device: ":${NFS_STORAGE}"
+  nfs_share: {}
 
 networks:
   ls:

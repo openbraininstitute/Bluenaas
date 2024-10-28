@@ -1,7 +1,11 @@
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 
+from bluenaas.infrastructure.kc.auth import verify_jwt
+from bluenaas.services.synaptome.get_all_synaptome_models_for_project import (
+    get_all_synaptome_models_for_project,
+)
 
 router = APIRouter(
     prefix="/neuron-model",
@@ -63,8 +67,17 @@ def retrieve_synaptome_models(
     created_at_end: Optional[datetime] = Query(
         None, description="Filter by createdAt date (YYYY-MM-DDTHH:MM:SSZ)"
     ),
+    token: str = Depends(verify_jwt),
 ):
-    pass
+    return get_all_synaptome_models_for_project(
+        token=token,
+        org_id=org_id,
+        project_id=project_id,
+        offset=page_offset,
+        size=page_size,
+        created_at_start=created_at_start,
+        created_at_end=created_at_end,
+    )
 
 
 @router.get(
