@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from loguru import logger
+from urllib.parse import quote_plus
 
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.domains.neuron_model import (
@@ -19,7 +19,7 @@ def get_all_synaptome_models_for_project(
     size: int,
     created_at_start: Optional[datetime],
     created_at_end: Optional[datetime],
-):
+) -> list[SynaptomeModelResponse]:
     nexus_helper = Nexus(
         {"token": token, "model_self_url": ""}
     )  # TODO: Remove model_id as a required field for nexus helper
