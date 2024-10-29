@@ -110,9 +110,9 @@ def run_distributed_simulation(
             }
         )
 
-        output = prep_job.get()
-        # NOTE: used to calculate how many sub-simulation we should spin up
-        (_, _, _, frequency_to_synapse_config) = output
+        model_info = prep_job.get()
+        # NOTE: used to calculate how many sub-simulation we should spin up (for frequency varying)
+        (_, _, _, frequency_to_synapse_config) = model_info
 
         is_current_simulation = is_current_varying_simulation(config)
         resource_self = (
@@ -125,7 +125,7 @@ def run_distributed_simulation(
                 for recording_location in config.record_from:
                     simulation_instances.append(
                         single_simulation_runner.s(
-                            output,
+                            model_info,
                             org_id=org_id,
                             project_id=project_id,
                             resource_self=resource_self,
@@ -155,7 +155,7 @@ def run_distributed_simulation(
                 for recording_location in config.record_from:
                     simulation_instances.append(
                         single_simulation_runner.s(
-                            output,
+                            model_info,
                             org_id=org_id,
                             project_id=project_id,
                             resource_self=resource_self,

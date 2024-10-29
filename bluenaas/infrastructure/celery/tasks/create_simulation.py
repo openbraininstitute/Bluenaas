@@ -20,7 +20,6 @@ from bluenaas.infrastructure.celery import celery_app
     bind=True,
     base=BluenaasTask,
     serializer="json",
-    queue="simulator",
 )
 def create_simulation(
     self,

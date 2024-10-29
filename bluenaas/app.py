@@ -1,6 +1,5 @@
 import uuid
 import sentry_sdk
-from contextlib import asynccontextmanager
 from typing import Awaitable, Callable
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
@@ -17,9 +16,6 @@ from bluenaas.core.exceptions import (
     BlueNaasErrorResponse,
 )
 
-from bluenaas.infrastructure.celery.worker_scalability import (
-    scale_controller,
-)
 
 from bluenaas.routes.morphology import router as morphology_router
 from bluenaas.routes.simulation import router as simulation_router
@@ -37,10 +33,10 @@ sentry_sdk.init(
 )
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    scale_controller()
-    yield
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     scale_controller()
+#     yield
 
 
 app = FastAPI(
@@ -49,7 +45,7 @@ app = FastAPI(
     openapi_url=f"{settings.BASE_PATH}/openapi.json",
     docs_url=f"{settings.BASE_PATH}/docs",
     # NOTE: needed if scaling controller is enabled
-    lifespan=lifespan,
+    # lifespan=lifespan,
 )
 
 app.add_middleware(SentryAsgiMiddleware)
@@ -119,8 +115,6 @@ async def scalar_html():
     return get_scalar_api_reference(
         openapi_url=app.openapi_url,
         title=app.title,
-        # hideDarkModeToggle=False,
-        # theme="modern"
     )
 
 

@@ -40,7 +40,6 @@ from bluenaas.utils.util import diff_list
 @celery_app.task(
     bind=True,
     serializer="json",
-    queue="simulator",
     base=SingleSimulationTask,
 )
 def single_simulation_runner(

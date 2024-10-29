@@ -46,7 +46,6 @@ from bluenaas.utils.util import log_stats_for_series_in_frequency
 @celery_app.task(
     bind=True,
     serializer="json",
-    queue="builder",
 )
 def initiate_simulation(
     self,
