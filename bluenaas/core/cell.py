@@ -185,25 +185,27 @@ class BaseCell:
 
     def start_current_varying_simulation(
         self,
+        realtime: bool,
         config: SingleNeuronSimulationConfig,
         synapse_generation_config: list[SynapseSeries] | None,
         simulation_queue: mp.Queue,
         req_id: str,
-        stop_event: Event
+        stop_event: Event,
     ):
         from bluenaas.core.stimulation import apply_multiple_stimulus
 
         try:
             apply_multiple_stimulus(
+                realtime=realtime,
                 cell=self._cell,
-                current_injection=config.currentInjection,
-                recording_locations=config.recordFrom,
+                current_injection=config.current_injection,
+                recording_locations=config.record_from,
                 experiment_setup=config.conditions,
-                simulation_duration=config.simulationDuration,
+                simulation_duration=config.duration,
                 synapse_generation_config=synapse_generation_config,
                 simulation_queue=simulation_queue,
                 req_id=req_id,
-                stop_event=stop_event
+                stop_event=stop_event,
             )
         except Exception as e:
             logger.exception(
@@ -213,25 +215,27 @@ class BaseCell:
 
     def start_frequency_varying_simulation(
         self,
+        realtime: bool,
         config: SingleNeuronSimulationConfig,
         frequency_to_synapse_series: dict[float, list[SynapseSeries]],
         simulation_queue: mp.Queue,
         req_id: str,
-        stop_event: Event
+        stop_event: Event,
     ):
         from bluenaas.core.stimulation import apply_multiple_frequency
 
         try:
             apply_multiple_frequency(
+                realtime=realtime,
                 cell=self._cell,
-                current_injection=config.currentInjection,
-                recording_locations=config.recordFrom,
+                current_injection=config.current_injection,
+                recording_locations=config.record_from,
                 experiment_setup=config.conditions,
-                simulation_duration=config.simulationDuration,
+                simulation_duration=config.duration,
                 frequency_to_synapse_series=frequency_to_synapse_series,
                 simulation_queue=simulation_queue,
                 req_id=req_id,
-                stop_event=stop_event
+                stop_event=stop_event,
             )
         except Exception as e:
             logger.exception(

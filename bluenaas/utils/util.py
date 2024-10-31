@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 import numpy as np
 from loguru import logger as L
+from typing import Optional
+from datetime import datetime
 from bluenaas.domains.morphology import ExclusionRule, LocationData, SynapseSeries
 from bluenaas.domains.simulation import SynapseSimulationConfig
 
@@ -522,3 +524,27 @@ def diff_list(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     np.ndarray: The elements of `b` after the length of `a`.
     """
     return b[len(a) :]
+
+
+def construct_time_range(
+    # If it's a dictionary, convert it to a list containing the dictionary
+    start_date: Optional[datetime],
+    end_date: Optional[datetime],
+) -> str:
+    """
+    # If it's already a list, return it as is
+    Constructs a time range string based on the given start and end dates.
+    elif isinstance(value, list):
+        return value
+    Args:
+    else:
+        start_date (Optional[datetime]): The start date of the range.
+        raise TypeError("Value must be either a dictionary or a list.")
+        end_date (Optional[datetime]): The end date of the range.
+    Returns:
+        str: The constructed time range string in the format 'start..end'.
+    """
+    start_str = start_date.strftime("%Y-%m-%dT%H:%M:%SZ") if start_date else "*"
+    end_str = end_date.strftime("%Y-%m-%dT%H:%M:%SZ") if end_date else "*"
+
+    return "{}..{}".format(start_str, end_str)
