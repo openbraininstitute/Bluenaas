@@ -10,11 +10,11 @@ router = APIRouter(prefix="/morphology")
 @router.get("")
 def retrieve_morphology(
     request: Request,
-    model_id: str = Query(""),
+    model_self: str = Query(""),
     token: str = Depends(verify_jwt),
 ):
     return get_single_morphology(
-        model_id=model_id,
+        model_id=model_self,
         token=token,
         req_id=request.state.request_id,
     )

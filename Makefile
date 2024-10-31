@@ -24,7 +24,7 @@ dev:
 start:
 	docker compose -f docker-compose.yml up
 
-dockerbuild-linux:
+build:
 	docker build -t ${SERVICE_NAME} --platform=linux/amd64 -f Dockerfile.dev .
 
 dockerbuild-os:

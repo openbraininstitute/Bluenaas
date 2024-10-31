@@ -18,12 +18,12 @@ router = APIRouter(prefix="/graph")
 )
 def retrieve_stimulation_plot(
     request: Request,
-    model_id: str,
+    model_self: str,
     config: StimulationPlotConfig,
     token: str = Depends(verify_jwt),
 ):
     return get_direct_current_plot_data(
-        model_id=model_id,
+        model_id=model_self,
         config=config,
         token=token,
         req_id=request.state.request_id,

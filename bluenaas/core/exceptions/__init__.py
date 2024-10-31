@@ -61,6 +61,12 @@ class SimulationError(Exception):
         return self.message
 
 
+class ResourceDeprecationError(Exception):
+    def __init__(self, message, response_data):
+        super().__init__(message)
+        self.response_data = response_data
+
+
 class ChildSimulationError(Exception):
     def __init__(self, message: str = "Child simulation failed") -> None:
         self.message = message

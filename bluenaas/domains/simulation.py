@@ -1,11 +1,12 @@
 from typing import Annotated, List, Literal, Optional
 from annotated_types import Len
 from pydantic import BaseModel, Field, PositiveFloat, field_validator
+from datetime import datetime
 
 
 class SimulationStimulusConfig(BaseModel):
-    stimulusType: Literal["current_clamp", "voltage_clamp", "conductance"]
-    stimulusProtocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
+    stimulus_type: Literal["current_clamp", "voltage_clamp", "conductance"]
+    stimulus_protocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
     amplitudes: list[float] | float
 
     @field_validator("amplitudes")
@@ -26,7 +27,7 @@ class RecordingLocation(BaseModel):
 
 
 class CurrentInjectionConfig(BaseModel):
-    injectTo: str
+    inject_to: str
     stimulus: SimulationStimulusConfig
 
 
@@ -53,17 +54,23 @@ class SimulationWithSynapseBody(BaseModel):
 
 
 SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
+NexusSimulationType = Literal["SingleNeuronSimulation", "SynaptomeSimulation"]
+
+SIMULATION_TYPE_MAP: dict[NexusSimulationType, SimulationType] = {
+    "SingleNeuronSimulation": "single-neuron-simulation",
+    "SynaptomeSimulation": "synaptome-simulation",
+}
 
 
 class SingleNeuronSimulationConfig(BaseModel):
     synapses: list[SynapseSimulationConfig] | None = None
-    currentInjection: CurrentInjectionConfig
-    recordFrom: list[RecordingLocation]
+    current_injection: CurrentInjectionConfig
+    record_from: list[RecordingLocation]
     conditions: ExperimentSetupConfig
     type: SimulationType
-    simulationDuration: int
+    duration: int
 
-    @field_validator("currentInjection")
+    @field_validator("current_injection")
     @classmethod
     def validate_amplitudes(cls, value, simulation):
         stuff = simulation.data
@@ -89,7 +96,7 @@ class SingleNeuronSimulationConfig(BaseModel):
 
 
 class StimulationPlotConfig(BaseModel):
-    stimulusProtocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
+    stimulus_protocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
     amplitudes: List[float]
 
 
@@ -97,6 +104,28 @@ class SimulationItemResponse(BaseModel):
     t: List[float] = Field(..., description="Time points")
     v: List[float] = Field(..., description="Voltage points")
     name: str = Field(..., description="Name of the stimulus")
+
+
+SimulationStatus = Literal["pending", "started", "success", "failure"]
+
+
+class BackgroundSimulationStatusResponse(BaseModel):
+    id: str
+    status: SimulationStatus | None = None
+    results: Optional[dict]
+
+    type: SimulationType
+    name: str
+    description: str
+    created_by: str
+    created_at: datetime
+    injection_location: str
+    recording_location: list[str] | str
+    brain_location: dict
+    config: Optional[SingleNeuronSimulationConfig]
+
+    me_model_self: str
+    synaptome_model_self: Optional[str]
 
 
 class StimulationItemResponse(BaseModel):

@@ -11,6 +11,7 @@ from bluenaas.utils.util import log_stats_for_series_in_frequency
 from loguru import logger
 from http import HTTPStatus as status
 from fastapi.responses import StreamingResponse
+from typing import Any, Optional
 
 from queue import Empty as QueueEmptyException
 from multiprocessing.synchronize import Event
@@ -36,9 +37,10 @@ def _init_current_varying_simulation(
     model_id: str,
     token: str,
     config: SingleNeuronSimulationConfig,
+    realtime: bool,
     simulation_queue: mp.Queue,
     req_id: str,
-    stop_event: Event
+    stop_event: Event,
 ):
     from bluenaas.core.model import model_factory
 
@@ -83,11 +85,12 @@ def _init_current_varying_simulation(
             synapse_generation_config = list(chain.from_iterable(synapse_settings))
 
         model.CELL.start_current_varying_simulation(
+            realtime=realtime,
             config=config,
             synapse_generation_config=synapse_generation_config,
             simulation_queue=simulation_queue,
             req_id=req_id,
-            stop_event=stop_event
+            stop_event=stop_event,
         )
     except SimulationError as ex:
         simulation_queue.put(ex)
@@ -98,6 +101,7 @@ def _init_current_varying_simulation(
         raise SimulationError from ex
     finally:
         logger.info("Simulation executor ended")
+
 
 def get_constant_frequencies_for_sim_id(
     synapse_set_id: str, constant_frequency_sim_configs: list[SynapseSimulationConfig]
@@ -140,9 +144,10 @@ def _init_frequency_varying_simulation(
     model_id: str,
     token: str,
     config: SingleNeuronSimulationConfig,
+    realtime: bool,
     simulation_queue: mp.Queue,
     req_id: str,
-    stop_event: Event
+    stop_event: Event,
 ):
     from bluenaas.core.model import model_factory
 
@@ -251,7 +256,7 @@ def _init_frequency_varying_simulation(
             frequency_to_synapse_series=frequency_to_synapse_settings,
             simulation_queue=simulation_queue,
             req_id=req_id,
-            stop_event=stop_event
+            stop_event=stop_event,
         )
     except SimulationError as ex:
         logger.exception(f"Simulation executor error: {ex}")
@@ -276,17 +281,21 @@ def is_current_varying_simulation(config: SingleNeuronSimulationConfig) -> bool:
     ]
     if len(synapse_set_with_multiple_frequency) > 0:
         # TODO: This assertion should be at pydantic model level
-        assert not isinstance(config.currentInjection.stimulus.amplitudes, list)
+        assert not isinstance(config.current_injection.stimulus.amplitudes, list)
         return False
 
     return True
 
 
 def execute_single_neuron_simulation(
+    org_id: str,
+    project_id: str,
     model_id: str,
     token: str,
     config: SingleNeuronSimulationConfig,
     req_id: str,
+    realtime: bool,
+    simulation_resource_id: Optional[str] = None,
 ):
     try:
         ctx = mp.get_context("spawn")
@@ -294,6 +303,7 @@ def execute_single_neuron_simulation(
         simulation_queue = ctx.Queue()
 
         is_current_varying = is_current_varying_simulation(config)
+
         _process = ctx.Process(
             target=_init_current_varying_simulation
             if is_current_varying
@@ -302,16 +312,87 @@ def execute_single_neuron_simulation(
                 model_id,
                 token,
                 config,
+                realtime,
                 simulation_queue,
                 req_id,
-                stop_event
+                stop_event,
             ),
             name=f"simulation_processor:{req_id}",
         )
 
         _process.start()
 
-        def queue_streamify():
+        if realtime is True:
+
+            def queue_streamify():
+                while True:
+                    try:
+                        # Simulation_Queue.get() is blocking. If child fails without writing to it,
+                        # the process will hang forever. That's why timeout is added.
+                        record = simulation_queue.get(timeout=1)
+                    except QueueEmptyException:
+                        if _process.is_alive():
+                            continue
+                        else:
+                            logger.warning(
+                                "Process is not alive and simulation queue is empty"
+                            )
+                            raise Exception("Child process died unexpectedly")
+                    if isinstance(record, SimulationError):
+                        yield f"{json.dumps(
+                            {
+                                "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
+                                "message": "Simulation failed",
+                                "details": record.__str__(),
+                            }
+                        )}\n"
+                        logger.debug("Parent stopping because of error")
+                        break
+                    if record == QUEUE_STOP_EVENT:
+                        logger.debug("Parent received queue_stop_event")
+                        break
+
+                    if is_current_varying:
+                        # (stimulus_name, recording_name, amplitude, recording) = record
+
+                        logger.info(
+                            f"[R/S --> {record["label"]}/{record["recording_name"]}]",
+                        )
+                        yield f"{json.dumps(
+                            {
+                                "amplitude": record["amplitude"],
+                                "label": record["label"],
+                                "recording_name": record["recording_name"],
+                                "t": record["time"],
+                                "v": record["voltage"],
+                                "varying_key": record["amplitude"]
+                            }
+                        )}\n"
+                    else:
+                        logger.info(
+                            f"Frequency [R/S --> {record["label"]}/{record["recording_name"]}]",
+                        )
+                        yield f"{json.dumps(
+                            {
+                                "frequency": record["frequency"],
+                                "label": record["label"],
+                                "recording_name": record["recording_name"],
+                                "t": record["time"],
+                                "v": record["voltage"],
+                                "varying_key": record["frequency"]
+                            }
+                        )}\n"
+
+                logger.info(f"Simulation {req_id} completed")
+
+            return StreamingResponseWithCleanup(
+                queue_streamify(),
+                media_type="application/octet-stream",
+                finalizer=lambda: cleanup(stop_event, _process),
+            )
+
+        else:
+            final_result: dict[str, Any] = {}
             while True:
                 try:
                     # Simulation_Queue.get() is blocking. If child fails without writing to it,
@@ -326,13 +407,7 @@ def execute_single_neuron_simulation(
                         )
                         raise Exception("Child process died unexpectedly")
                 if isinstance(record, SimulationError):
-                    yield f"{json.dumps(
-                        {
-                            "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
-                            "message": "Simulation failed",
-                            "details": record.__str__(),
-                        }
-                    )}\n"
+                    # TODO: Update simulation state to error
                     logger.debug("Parent stopping because of error")
                     break
                 if record == QUEUE_STOP_EVENT:
@@ -340,46 +415,48 @@ def execute_single_neuron_simulation(
                     break
 
                 if is_current_varying:
-                    (stimulus_name, recording_name, amplitude, recording) = record
-
+                    # (stimulus_name, recording_name, amplitude, recording) = record
+                    recording_name = record["recording_name"]
                     logger.info(
-                        f"[R/S --> {recording_name}/{stimulus_name}]",
+                        f"[R/S --> {record["label"]}/{recording_name}]",
                     )
-                    yield f"{json.dumps(
+
+                    current_recording_data = (
+                        final_result[recording_name]
+                        if recording_name in final_result
+                        else []
+                    )
+                    current_recording_data.append(
                         {
-                            "amplitude": amplitude,
-                            "stimulus_name": stimulus_name,
-                            "recording_name": recording_name,
-                            "t": list(recording.time),
-                            "v": list(recording.voltage),
-                            "varying_key": amplitude
+                            "x": record["time"],
+                            "y": record["voltage"],
+                            "type": "scatter",
+                            "name": record["label"],
+                            "recording": recording_name,
+                            "amplitude": record["amplitude"],
+                            "frequency": None,
+                            "varying_key": record["amplitude"],
                         }
-                    )}\n"
+                    )
                 else:
-                    (stimulus_name, recording_name, amplitude, frequency, recording) = (
-                        record
-                    )
                     logger.info(
-                        f"[R/S --> {recording_name}/{stimulus_name}]",
+                        f"Frequency [R/S --> {record["label"]}/{record["recording_name"]}]",
                     )
-                    yield f"{json.dumps(
+                    current_recording_data.append(
                         {
-                            "amplitude": amplitude,
-                            "frequency": frequency,
-                            "stimulus_name": stimulus_name,
-                            "recording_name": recording_name,
-                            "t": list(recording.time),
-                            "v": list(recording.voltage),
-                            "varying_key": frequency
+                            "x": record["time"],
+                            "y": record["voltage"],
+                            "type": "scatter",
+                            "name": record["label"],
+                            "recording": recording_name,
+                            "amplitude": None,
+                            "frequency": record["frequency"],
+                            "varying_key": record["frequency"],
                         }
-                    )}\n"
+                    )
 
-            logger.info(f"Simulation {req_id} completed")
+            # TODO: Save final result
 
-
-        return StreamingResponseWithCleanup(
-            queue_streamify(), media_type="application/octet-stream", finalizer=lambda: cleanup(stop_event, _process)
-        )
     except Exception as ex:
         logger.exception(f"running simulation failed {ex}")
         raise BlueNaasError(
