@@ -146,6 +146,7 @@ def _add_single_synapse(
 
 
 def _prepare_stimulation_parameters_by_current(
+    realtime: bool,
     cell,
     current_injection: CurrentInjectionConfig | None,
     recording_locations: list[RecordingLocation],
@@ -164,8 +165,8 @@ def _prepare_stimulation_parameters_by_current(
     task_args = []
 
     injection_section_name = (
-        current_injection.injectTo
-        if current_injection is not None and current_injection.injectTo is not None
+        current_injection.inject_to
+        if current_injection is not None and current_injection.inject_to is not None
         else DEFAULT_INJECTION_LOCATION
     )
 
@@ -188,7 +189,7 @@ def _prepare_stimulation_parameters_by_current(
             )
         ]
 
-    stimulus_name = current_injection.stimulus.stimulusProtocol
+    stimulus_name = current_injection.stimulus.stimulus_protocol
     amplitudes = current_injection.stimulus.amplitudes
     stimulus_name = get_stimulus_name(stimulus_name)
 
@@ -240,6 +241,7 @@ def _prepare_stimulation_parameters_by_current(
 
         task_args.append(
             (
+                realtime,
                 cell.template_params,
                 stimulus,
                 injection_section_name,
@@ -301,6 +303,7 @@ def get_stimulus_from_name(
 
 
 def _prepare_stimulation_parameters_by_frequency(
+    realtime: bool,
     cell,
     current_injection: CurrentInjectionConfig | None,
     recording_locations: list[RecordingLocation],
@@ -319,14 +322,14 @@ def _prepare_stimulation_parameters_by_frequency(
     task_args = []
 
     injection_section_name = (
-        current_injection.injectTo
-        if current_injection is not None and current_injection.injectTo is not None
+        current_injection.inject_to
+        if current_injection is not None and current_injection.inject_to is not None
         else DEFAULT_INJECTION_LOCATION
     )
 
     assert current_injection is not None
 
-    protocol = current_injection.stimulus.stimulusProtocol
+    protocol = current_injection.stimulus.stimulus_protocol
     amplitude = current_injection.stimulus.amplitudes
     stimulus_name = get_stimulus_name(protocol)
 
@@ -345,6 +348,7 @@ def _prepare_stimulation_parameters_by_frequency(
 
         task_args.append(
             (
+                realtime,
                 cell.template_params,
                 stimulus,
                 injection_section_name,
@@ -365,6 +369,7 @@ def _prepare_stimulation_parameters_by_frequency(
 
 
 def _run_current_varying_stimulus(
+    realtime: bool,
     template_params,
     stimulus,
     injection_section_name: str,
@@ -461,51 +466,64 @@ def _run_current_varying_stimulus(
     prev_voltage = {}
     prev_time = {}
 
-    def enqueue_simulation_recordings():
+    def process_simulation_recordings(enable_realtime=True):
         for loc in recording_locations:
             sec, seg = cell.sections[loc.section], loc.offset
             cell_section = f"{loc.section}_{seg}"
-            stim_label = f"{stimulus_name.name}_{amplitude}"
+            label = f"{stimulus_name.name}_{amplitude}"
 
             voltage = cell.get_voltage_recording(sec, seg)
             time = cell.get_time()
 
-            if cell_section not in prev_voltage:
-                prev_voltage[cell_section] = np.array([])
-            if cell_section not in prev_time:
-                prev_time[cell_section] = np.array([])
+            if enable_realtime:
+                if cell_section not in prev_voltage:
+                    prev_voltage[cell_section] = np.array([])
+                if cell_section not in prev_time:
+                    prev_time[cell_section] = np.array([])
 
-            voltage_diff = diff_list(prev_voltage[cell_section], voltage)
-            time_diff = diff_list(prev_time[cell_section], time)
+                voltage_diff = diff_list(prev_voltage[cell_section], voltage)
+                time_diff = diff_list(prev_time[cell_section], time)
 
-            prev_voltage[cell_section] = voltage
-            prev_time[cell_section] = time
+                prev_voltage[cell_section] = voltage
+                prev_time[cell_section] = time
 
-            simulation_queue.put(
-                (
-                    stim_label,
-                    cell_section,
-                    amplitude,
-                    Recording(
-                        current,
-                        voltage_diff,
-                        time_diff,
-                    ),
+                simulation_queue.put(
+                    {
+                        "label": label,
+                        "recording_name": cell_section,
+                        "amplitude": amplitude,
+                        "time": time_diff.tolist(),
+                        "voltage": voltage_diff.tolist(),
+                    }
                 )
-            )
+            else:
+                simulation_queue.put(
+                    {
+                        "label": label,
+                        "recording_name": cell_section,
+                        "amplitude": amplitude,
+                        "time": time.tolist(),
+                        "voltage": voltage.tolist(),
+                    }
+                )
 
     try:
         simulation = Simulation(
             cell,
-            custom_progress_function=enqueue_simulation_recordings,
+            custom_progress_function=process_simulation_recordings
+            if realtime is True
+            else None,
         )
 
         simulation.run(
             maxtime=simulation_duration,
             cvode=False,
             dt=experimental_setup.time_step,
-            show_progress=True,
+            show_progress=True if realtime is True else False,
         )
+
+        if realtime is False:
+            process_simulation_recordings(enable_realtime=False)
     except Exception as ex:
         logger.exception(f"child simulation failed {ex}")
         raise ChildSimulationError from ex
@@ -514,6 +532,7 @@ def _run_current_varying_stimulus(
 
 
 def _run_frequency_varying_stimulus(
+    realtime: bool,
     template_params,
     stimulus,
     injection_section_name: str,
@@ -611,52 +630,72 @@ def _run_frequency_varying_stimulus(
     prev_voltage = {}
     prev_time = {}
 
-    def enqueue_simulation_recordings():
+    def process_simulation_recordings(enable_realtime=True):
+        final_result = {}
+
         for loc in recording_locations:
             sec, seg = cell.sections[loc.section], loc.offset
             cell_section = f"{loc.section}_{seg}"
-            stim_label = f"Frequency_{frequency}"
+            label = f"Frequency_{frequency}"
 
             voltage = cell.get_voltage_recording(sec, seg)
             time = cell.get_time()
 
-            if cell_section not in prev_voltage:
-                prev_voltage[cell_section] = np.array([])
-            if cell_section not in prev_time:
-                prev_time[cell_section] = np.array([])
+            if enable_realtime is True:
+                if cell_section not in prev_voltage:
+                    prev_voltage[cell_section] = np.array([])
+                if cell_section not in prev_time:
+                    prev_time[cell_section] = np.array([])
 
-            voltage_diff = diff_list(prev_voltage[cell_section], voltage)
-            time_diff = diff_list(prev_time[cell_section], time)
+                voltage_diff = diff_list(prev_voltage[cell_section], voltage)
+                time_diff = diff_list(prev_time[cell_section], time)
 
-            prev_voltage[cell_section] = voltage
-            prev_time[cell_section] = time
+                prev_voltage[cell_section] = voltage
+                prev_time[cell_section] = time
 
-            simulation_queue.put(
-                (
-                    stim_label,
-                    cell_section,
-                    amplitude,
-                    frequency,
-                    Recording(
-                        current,
-                        voltage_diff,
-                        time_diff,
-                    ),
+                simulation_queue.put(
+                    (
+                        label,
+                        cell_section,
+                        amplitude,
+                        frequency,
+                        Recording(
+                            current,
+                            voltage_diff,
+                            time_diff,
+                        ),
+                    )
                 )
-            )
+            else:
+                final_result[cell_section] = {
+                    "label": label,
+                    "recording_name": cell_section,
+                    "amplitude": amplitude,
+                    "frequency": frequency,
+                    "time": time.tolist(),
+                    "voltage": voltage.tolist(),
+                    "varying_key": varying_key,
+                }
+
+            return final_result if realtime is False else None
 
     try:
         simulation = Simulation(
             cell,
-            custom_progress_function=enqueue_simulation_recordings,
+            custom_progress_function=process_simulation_recordings
+            if realtime is True
+            else None,
         )
 
         simulation.run(
             maxtime=simulation_duration,
             cvode=False,
             dt=experimental_setup.time_step,
-            show_progress=True,
+            show_progress=True if realtime is True else False,
         )
+
+        if realtime is False:
+            return process_simulation_recordings(enable_realtime=False)
     except Exception as ex:
         logger.exception(f"child simulation failed {ex}")
         raise ChildSimulationError from ex
@@ -665,6 +704,7 @@ def _run_frequency_varying_stimulus(
 
 
 def apply_multiple_stimulus(
+    realtime: bool,
     cell,
     current_injection: CurrentInjectionConfig,
     recording_locations: list[RecordingLocation],
@@ -673,7 +713,7 @@ def apply_multiple_stimulus(
     synapse_generation_config: list[SynapseSeries] | None,
     simulation_queue: mp.Queue,
     req_id: str,
-    stop_event: Event
+    stop_event: Event,
 ):
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
 
@@ -691,6 +731,7 @@ def apply_multiple_stimulus(
         sub_simulation_queue = manager.Queue()
 
         args = _prepare_stimulation_parameters_by_current(
+            realtime=realtime,
             cell=cell,
             current_injection=current_injection,
             recording_locations=recording_locations,
@@ -721,11 +762,13 @@ def apply_multiple_stimulus(
                             break
                 except queue.Empty:
                     continue
-    
+
         # All child processes for simulations are done here.
-        simulation_queue.put(QUEUE_STOP_EVENT)        
+        simulation_queue.put(QUEUE_STOP_EVENT)
+
 
 def apply_multiple_frequency(
+    realtime: bool,
     cell,
     current_injection: CurrentInjectionConfig,
     recording_locations: list[RecordingLocation],
@@ -734,7 +777,7 @@ def apply_multiple_frequency(
     frequency_to_synapse_series: dict[float, list[SynapseSeries]],
     simulation_queue: mp.Queue,
     req_id: str,
-    stop_event: Event
+    stop_event: Event,
 ):
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
 
@@ -752,6 +795,7 @@ def apply_multiple_frequency(
         sub_simulation_queue = manager.Queue()
 
         args = _prepare_stimulation_parameters_by_frequency(
+            realtime=realtime,
             cell=cell,
             current_injection=current_injection,
             recording_locations=recording_locations,
@@ -785,6 +829,6 @@ def apply_multiple_frequency(
                             break
                 except queue.Empty:
                     continue
-            
+
         # All child processes for simulations are done here.
-        simulation_queue.put(QUEUE_STOP_EVENT) 
+        simulation_queue.put(QUEUE_STOP_EVENT)
