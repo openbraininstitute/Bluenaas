@@ -19,7 +19,7 @@ router = APIRouter(prefix="/simulation")
 @router.post(
     "/single-neuron/{org_id}/{project_id}/run",
 )
-def run_simulation(
+async def run_simulation(
     request: Request,
     org_id: str,
     project_id: str,
@@ -42,7 +42,7 @@ def run_simulation(
     used to later query the status (and get result if any) of simulation.
     """
     if realtime is True:
-        return execute_single_neuron_simulation(
+        return await execute_single_neuron_simulation(
             org_id=org_id,
             project_id=project_id,
             model_id=model_self,
