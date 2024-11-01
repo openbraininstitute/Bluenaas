@@ -122,7 +122,7 @@ class SimulationDetailsResponse(BaseModel):
     injection_location: str
     recording_location: list[str] | str
     brain_location: dict
-    config: SingleNeuronSimulationConfig
+    config: Optional[SingleNeuronSimulationConfig]
 
     me_model_self: str
     synaptome_model_self: Optional[str]
@@ -133,3 +133,10 @@ class StimulationItemResponse(BaseModel):
     y: List[float]
     name: str
     amplitude: float
+
+
+class PaginatedSimulationsResponse(BaseModel):
+    page_offset: int
+    page_size: int
+    total: int
+    results: list[SimulationDetailsResponse]

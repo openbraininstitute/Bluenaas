@@ -1,4 +1,3 @@
-from urllib.parse import quote_plus
 from fastapi import BackgroundTasks
 from loguru import logger
 
@@ -52,7 +51,7 @@ def submit_background_simulation(
 
     # Step 3: Return simulation status to user
     return convert_to_simulation_response(
-        simulation_uri=quote_plus(simulation_resource["@id"]),
+        simulation_uri=simulation_resource["@id"],
         simulation_resource=FullNexusSimulationResource.model_validate(
             simulation_resource,
         ),

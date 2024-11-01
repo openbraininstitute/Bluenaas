@@ -145,8 +145,8 @@ class Nexus:
         res_types: Sequence[str],
         offset: int,
         size: int,
-        created_at_start: datetime,
-        created_at_end: datetime,
+        created_at_start: Optional[datetime],
+        created_at_end: Optional[datetime],
     ):
         query_params = [("type", res_type) for res_type in res_types]
         query_params.append(("size", str(size)))
@@ -154,6 +154,9 @@ class Nexus:
         query_params.append(
             ("createdAt", construct_time_range(created_at_start, created_at_end))
         )
+        # Sort resources in descending time of creation (i.e. newest first)
+        query_params.append(("sort", "-_createdAt"))
+        query_params.append(("sort", "-_updatedAt"))
 
         endpoint = f"{settings.NEXUS_ROOT_URI}/resources/{org_label}/{project_label}?{urlencode(query_params)}"
         r = requests.get(
