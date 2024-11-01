@@ -1,8 +1,7 @@
 from typing import Optional
-
+from urllib.parse import quote_plus
 
 from bluenaas.domains.nexus import (
-    BaseNexusSimulationResource,
     NexusBaseResource,
     FullNexusSimulationResource,
 )
@@ -46,12 +45,12 @@ def convert_to_simulation_response(
     simulation_resource: FullNexusSimulationResource,
     me_model_self: str,
     synaptome_model_self: Optional[str],
-    simulation_config: SingleNeuronSimulationConfig,
+    simulation_config: Optional[SingleNeuronSimulationConfig],
     results: Optional[dict],
 ):
     return SimulationDetailsResponse(
         # Main info
-        id=simulation_uri,
+        id=quote_plus(simulation_uri),
         status=simulation_resource.status,
         results=results,
         # Simulation metadata

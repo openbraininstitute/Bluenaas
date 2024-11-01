@@ -330,7 +330,7 @@ def stream_realtime_data(
                 break
 
             logger.info(
-                f"Frequency [R/S --> {record["label"]}/{record["recording_name"]}]",
+                f"[R/S --> {record["label"]}/{record["recording_name"]}]",
             )
             yield f"{json.dumps(queue_record_to_nexus_record(record))}\n"
 
