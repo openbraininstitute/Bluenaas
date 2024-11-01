@@ -1,21 +1,22 @@
 from typing import Optional
-from urllib.parse import unquote
 
 
 from bluenaas.domains.nexus import (
     BaseNexusSimulationResource,
+    NexusBaseResource,
     FullNexusSimulationResource,
 )
 from bluenaas.domains.simulation import (
     SimulationType,
     NexusSimulationType,
-    BackgroundSimulationStatusResponse,
+    SimulationDetailsResponse,
+    SingleNeuronSimulationConfig,
     SIMULATION_TYPE_MAP,
 )
 
 
 def get_simulation_type(
-    simulation_resource: BaseNexusSimulationResource,
+    simulation_resource: NexusBaseResource,
 ) -> SimulationType:
     if isinstance(simulation_resource.type, list):
         nexus_sim_type = [
@@ -45,13 +46,14 @@ def convert_to_simulation_response(
     simulation_resource: FullNexusSimulationResource,
     me_model_self: str,
     synaptome_model_self: Optional[str],
-    distribution: Optional[dict],
+    simulation_config: SingleNeuronSimulationConfig,
+    results: Optional[dict],
 ):
-    return BackgroundSimulationStatusResponse(
+    return SimulationDetailsResponse(
         # Main info
         id=simulation_uri,
         status=simulation_resource.status,
-        results=distribution and distribution.get("simulation", None),
+        results=results,
         # Simulation metadata
         type=get_simulation_type(simulation_resource),
         name=simulation_resource.name,
@@ -64,7 +66,7 @@ def convert_to_simulation_response(
             "@type": simulation_resource.brainLocation.get("@type"),
             "brain_region": simulation_resource.brainLocation.get("brainRegion"),
         },
-        config=distribution and distribution.get("config", None),
+        config=simulation_config,
         # Used model details
         me_model_self=me_model_self,
         synaptome_model_self=synaptome_model_self,
