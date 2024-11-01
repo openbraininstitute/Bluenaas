@@ -4,6 +4,7 @@ from itertools import chain
 from bluenaas.utils.streaming import (
     StreamingResponseWithCleanup,
     cleanup,
+    cleanup_without_wait,
 )
 from bluenaas.utils.util import log_stats_for_series_in_frequency
 from loguru import logger
@@ -342,7 +343,7 @@ def stream_realtime_data(
     )
 
 
-async def save_simulation_result_to_nexus(
+def save_simulation_result_to_nexus(
     simulation_queue: Queue,
     _process: SpawnProcess,
     stop_event: Event,
@@ -414,10 +415,10 @@ async def save_simulation_result_to_nexus(
                 f"Could not update simulation resource {simulation_resource_self} with error message {e}"
             )
     finally:
-        await cleanup(stop_event=stop_event, process=_process)
+        cleanup_without_wait(stop_event=stop_event, process=_process)
 
 
-async def execute_single_neuron_simulation(
+def execute_single_neuron_simulation(
     org_id: str,
     project_id: str,
     model_id: str,
@@ -471,7 +472,7 @@ async def execute_single_neuron_simulation(
             )
         else:
             assert simulation_resource_self is not None
-            await save_simulation_result_to_nexus(
+            save_simulation_result_to_nexus(
                 simulation_queue=simulation_queue,
                 _process=_process,
                 stop_event=stop_event,

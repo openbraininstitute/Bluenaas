@@ -109,7 +109,7 @@ class SimulationItemResponse(BaseModel):
 SimulationStatus = Literal["pending", "started", "success", "failure"]
 
 
-class BackgroundSimulationStatusResponse(BaseModel):
+class SimulationDetailsResponse(BaseModel):
     id: str
     status: SimulationStatus | None = None
     results: Optional[dict]
@@ -122,7 +122,7 @@ class BackgroundSimulationStatusResponse(BaseModel):
     injection_location: str
     recording_location: list[str] | str
     brain_location: dict
-    config: Optional[SingleNeuronSimulationConfig]
+    config: SingleNeuronSimulationConfig
 
     me_model_self: str
     synaptome_model_self: Optional[str]

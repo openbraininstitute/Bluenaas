@@ -44,3 +44,11 @@ async def cleanup(stop_event: Event, process: BaseProcess):
     # Cleanup resources by joining.
     process.join()  # Joining is blocking call. It helps cleanup child processes so that they don't become zombies
     logger.debug(f"Done Cleaning up process {process.pid}")
+
+
+def cleanup_without_wait(stop_event: Event, process: BaseProcess):
+    logger.debug(f"Cleaning up process {process.pid}")
+    stop_event.set()  # Send stop event to children
+
+    process.join()  # Joining is blocking call. It helps cleanup child processes so that they don't become zombies
+    logger.debug(f"Done Cleaning up process {process.pid}")

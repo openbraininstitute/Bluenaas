@@ -58,5 +58,6 @@ def submit_background_simulation(
         ),
         me_model_self=me_model_self,
         synaptome_model_self=synaptome_model_self,
-        distribution=None,
+        simulation_config=config,
+        results=None,
     )
