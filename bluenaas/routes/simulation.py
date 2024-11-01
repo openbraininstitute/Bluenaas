@@ -4,17 +4,18 @@ contains the single neuron simulation endpoint (single neuron, single neuron wit
 """
 
 from fastapi import APIRouter, Depends, Request, BackgroundTasks
-from loguru import logger
 from bluenaas.domains.simulation import (
     SimulationDetailsResponse,
     SingleNeuronSimulationConfig,
 )
+from bluenaas.domains.nexus import DeprecateNexusResponse
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.services.single_neuron_simulation import execute_single_neuron_simulation
 from bluenaas.services.submit_simulaton import submit_background_simulation
 from bluenaas.services.submit_simulaton.fetch_simulation_status_and_results import (
     fetch_simulation_status_and_results,
 )
+from bluenaas.services.submit_simulaton.deprecate_simulation import deprecate_simulation
 
 router = APIRouter(prefix="/simulation")
 
@@ -82,10 +83,25 @@ async def get_simulation(
     simulation_id: str,
     token: str = Depends(verify_jwt),
 ) -> SimulationDetailsResponse:
-    logger.debug(
-        f"_____________________RECEIVED STATUS REQUEST_______________________-"
-    )
     return fetch_simulation_status_and_results(
+        token=token,
+        org_id=org_id,
+        project_id=project_id,
+        simulation_uri=simulation_id,
+    )
+
+
+@router.delete(
+    "/single-neuron/{org_id}/{project_id}/{simulation_id:path}",
+    summary="Delete simulation resource",
+)
+async def delete_simulation(
+    org_id: str,
+    project_id: str,
+    simulation_id: str,
+    token: str = Depends(verify_jwt),
+) -> DeprecateNexusResponse:
+    return deprecate_simulation(
         token=token,
         org_id=org_id,
         project_id=project_id,
