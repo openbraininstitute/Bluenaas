@@ -77,6 +77,7 @@ def setup_simulation_resources(
     try:
         sim_response = nexus_helper.create_simulation_resource(
             simulation_config=config,
+            stimulus_plot_data=stimulus_plot_data,
             status="pending",
             org_id=org_id,
             project_id=project_id,
@@ -102,7 +103,6 @@ def setup_simulation_resources(
             message="Creating nexus resource for simulation failed",
             details=ex.__str__(),
         ) from ex
-
     return (
         me_model_self,
         synaptome_model_self,
