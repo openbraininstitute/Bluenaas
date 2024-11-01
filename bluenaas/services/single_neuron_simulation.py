@@ -1,8 +1,6 @@
-import asyncio
 import json
 import multiprocessing as mp
 from itertools import chain
-import time
 from bluenaas.utils.streaming import (
     StreamingResponseWithCleanup,
     cleanup,
@@ -10,7 +8,6 @@ from bluenaas.utils.streaming import (
 from bluenaas.utils.util import log_stats_for_series_in_frequency
 from loguru import logger
 from http import HTTPStatus as status
-from fastapi.responses import StreamingResponse
 from typing import Any, Optional
 
 from queue import Empty as QueueEmptyException
@@ -31,6 +28,7 @@ from bluenaas.domains.simulation import (
     SynapseSimulationConfig,
 )
 from bluenaas.utils.const import QUEUE_STOP_EVENT
+from bluenaas.external.nexus.nexus import Nexus
 
 
 def _init_current_varying_simulation(
@@ -295,9 +293,19 @@ def execute_single_neuron_simulation(
     config: SingleNeuronSimulationConfig,
     req_id: str,
     realtime: bool,
-    simulation_resource_id: Optional[str] = None,
+    simulation_resource_self: Optional[str] = None,
 ):
     try:
+        if realtime is False and simulation_resource_self is not None:
+            nexus_helper = Nexus({"token": token, "model_self_url": model_id})
+            nexus_helper.update_simulation_status(
+                org_id=org_id,
+                project_id=project_id,
+                resource_self=simulation_resource_self,
+                status="started",
+                is_draft=True,
+            )
+
         ctx = mp.get_context("spawn")
         stop_event = ctx.Event()
         simulation_queue = ctx.Queue()
@@ -353,15 +361,13 @@ def execute_single_neuron_simulation(
                         break
 
                     if is_current_varying:
-                        # (stimulus_name, recording_name, amplitude, recording) = record
-
                         logger.info(
                             f"[R/S --> {record["label"]}/{record["recording_name"]}]",
                         )
                         yield f"{json.dumps(
                             {
-                                "amplitude": record["amplitude"],
                                 "label": record["label"],
+                                "amplitude": record["amplitude"],
                                 "recording_name": record["recording_name"],
                                 "t": record["time"],
                                 "v": record["voltage"],
@@ -392,6 +398,7 @@ def execute_single_neuron_simulation(
             )
 
         else:
+            assert simulation_resource_self is not None
             final_result: dict[str, Any] = {}
             while True:
                 try:
@@ -407,34 +414,40 @@ def execute_single_neuron_simulation(
                         )
                         raise Exception("Child process died unexpectedly")
                 if isinstance(record, SimulationError):
-                    # TODO: Update simulation state to error
+                    nexus_helper.update_simulation_status(
+                        org_id=org_id,
+                        project_id=project_id,
+                        resource_self=simulation_resource_self,
+                        status="failure",
+                        is_draft=True,
+                        err=f"{record}",
+                    )
                     logger.debug("Parent stopping because of error")
                     break
                 if record == QUEUE_STOP_EVENT:
                     logger.debug("Parent received queue_stop_event")
                     break
 
+                recording_name = record["recording_name"]
+                current_recording_data = (
+                    final_result[recording_name]
+                    if recording_name in final_result
+                    else []
+                )
+                final_result[recording_name] = current_recording_data
+
                 if is_current_varying:
                     # (stimulus_name, recording_name, amplitude, recording) = record
-                    recording_name = record["recording_name"]
                     logger.info(
                         f"[R/S --> {record["label"]}/{recording_name}]",
                     )
-
-                    current_recording_data = (
-                        final_result[recording_name]
-                        if recording_name in final_result
-                        else []
-                    )
                     current_recording_data.append(
                         {
-                            "x": record["time"],
-                            "y": record["voltage"],
-                            "type": "scatter",
-                            "name": record["label"],
-                            "recording": recording_name,
+                            "label": record["label"],
                             "amplitude": record["amplitude"],
-                            "frequency": None,
+                            "recording_name": record["recording_name"],
+                            "t": record["time"],
+                            "v": record["voltage"],
                             "varying_key": record["amplitude"],
                         }
                     )
@@ -444,24 +457,44 @@ def execute_single_neuron_simulation(
                     )
                     current_recording_data.append(
                         {
-                            "x": record["time"],
-                            "y": record["voltage"],
-                            "type": "scatter",
-                            "name": record["label"],
-                            "recording": recording_name,
-                            "amplitude": None,
                             "frequency": record["frequency"],
+                            "label": record["label"],
+                            "recording_name": record["recording_name"],
+                            "t": record["time"],
+                            "v": record["voltage"],
                             "varying_key": record["frequency"],
                         }
                     )
 
-            # TODO: Save final result
+            nexus_helper.update_simulation_with_final_results(
+                simulation_resource_self=simulation_resource_self,
+                org_id=org_id,
+                project_id=project_id,
+                status="success",
+                results=final_result,
+            )
 
     except Exception as ex:
-        logger.exception(f"running simulation failed {ex}")
-        raise BlueNaasError(
-            http_status_code=status.INTERNAL_SERVER_ERROR,
-            error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,
-            message="running simulation failed",
-            details=ex.__str__(),
-        ) from ex
+        if realtime is False and simulation_resource_self is not None:
+            try:
+                logger.exception(f"background simulation failed {ex}")
+                nexus_helper.update_simulation_status(
+                    org_id=org_id,
+                    project_id=project_id,
+                    resource_self=simulation_resource_self,
+                    status="failure",
+                    is_draft=True,
+                    err=f"{ex}",
+                )
+            except Exception as e:
+                logger.error(
+                    f"Could not update simulation resource {simulation_resource_self} with error message {e}"
+                )
+        else:
+            logger.exception(f"running simulation failed {ex}")
+            raise BlueNaasError(
+                http_status_code=status.INTERNAL_SERVER_ERROR,
+                error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,
+                message="running simulation failed",
+                details=ex.__str__(),
+            ) from ex

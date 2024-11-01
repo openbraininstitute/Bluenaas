@@ -1,5 +1,6 @@
 from urllib.parse import quote_plus
 from fastapi import BackgroundTasks
+from loguru import logger
 
 from bluenaas.domains.nexus import FullNexusSimulationResource
 from bluenaas.domains.simulation import SingleNeuronSimulationConfig
@@ -33,7 +34,10 @@ def submit_background_simulation(
         config,
     )
 
-    # Step 2: Submit task to celery
+    logger.debug(
+        f"Submitting simulation task for resource {simulation_resource["_self"]}"
+    )
+    # Step 2: Add background task to process simulation
     background_tasks.add_task(
         execute_single_neuron_simulation,
         org_id=org_id,
@@ -43,7 +47,7 @@ def submit_background_simulation(
         config=config,
         req_id=request_id,
         realtime=False,
-        simulation_resource_id=sim_response["@id"],
+        simulation_resource_self=sim_response["_self"],
     )
 
     # Step 3: Return simulation status to user

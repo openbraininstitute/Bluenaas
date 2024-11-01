@@ -52,10 +52,10 @@ def run_simulation(
             realtime=realtime,
         )
     else:
-        submit_background_simulation(
+        return submit_background_simulation(
             org_id=org_id,
             project_id=project_id,
-            model_self=model_id,
+            model_self=model_self,
             config=config,
             token=token,
             background_tasks=background_tasks,
