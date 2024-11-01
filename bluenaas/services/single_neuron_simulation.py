@@ -11,6 +11,8 @@ from http import HTTPStatus as status
 from typing import Any, Optional
 
 from queue import Empty as QueueEmptyException
+from multiprocessing.queues import Queue
+from multiprocessing.context import SpawnProcess
 from multiprocessing.synchronize import Event
 from bluenaas.core.exceptions import (
     BlueNaasError,
@@ -285,7 +287,137 @@ def is_current_varying_simulation(config: SingleNeuronSimulationConfig) -> bool:
     return True
 
 
-def execute_single_neuron_simulation(
+def queue_record_to_nexus_record(record: dict) -> dict:
+    return {
+        "x": record["time"],
+        "y": record["voltage"],
+        "type": "scatter",
+        "name": record["label"],
+        "recording": record["recording_name"],
+        "amplitude": record["amplitude"],
+        "varying_key": record["amplitude"],
+    }
+
+
+def stream_realtime_data(
+    simulation_queue: Queue, _process: SpawnProcess, stop_event: Event, request_id: str
+) -> StreamingResponseWithCleanup:
+    def queue_streamify():
+        while True:
+            try:
+                # Simulation_Queue.get() is blocking. If child fails without writing to it,
+                # the process will hang forever. That's why timeout is added.
+                record = simulation_queue.get(timeout=1)
+            except QueueEmptyException:
+                if _process.is_alive():
+                    continue
+                else:
+                    logger.warning("Process is not alive and simulation queue is empty")
+                    raise Exception("Child process died unexpectedly")
+            if isinstance(record, SimulationError):
+                yield f"{json.dumps(
+                    {
+                        "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
+                        "message": "Simulation failed",
+                        "details": record.__str__(),
+                    }
+                )}\n"
+                logger.debug("Parent stopping because of error")
+                break
+            if record == QUEUE_STOP_EVENT:
+                logger.debug("Parent received queue_stop_event")
+                break
+
+            logger.info(
+                f"Frequency [R/S --> {record["label"]}/{record["recording_name"]}]",
+            )
+            yield f"{json.dumps(queue_record_to_nexus_record(record))}\n"
+
+        logger.info(f"Realtime Simulation {request_id} completed")
+
+    return StreamingResponseWithCleanup(
+        queue_streamify(),
+        media_type="application/octet-stream",
+        finalizer=lambda: cleanup(stop_event, _process),
+    )
+
+
+async def save_simulation_result_to_nexus(
+    simulation_queue: Queue,
+    _process: SpawnProcess,
+    stop_event: Event,
+    nexus_helper: Nexus,
+    org_id: str,
+    project_id: str,
+    simulation_resource_self: str,
+) -> None:
+    try:
+        final_result: dict[str, Any] = {}
+        while True:
+            try:
+                # Simulation_Queue.get() is blocking. If child fails without writing to it,
+                # the process will hang forever. That's why timeout is added.
+                record = simulation_queue.get(timeout=1)
+            except QueueEmptyException:
+                if _process.is_alive():
+                    continue
+                else:
+                    logger.warning("Process is not alive and simulation queue is empty")
+                    raise Exception("Child process died unexpectedly")
+            if isinstance(record, SimulationError):
+                nexus_helper.update_simulation_status(
+                    org_id=org_id,
+                    project_id=project_id,
+                    resource_self=simulation_resource_self,
+                    status="failure",
+                    is_draft=True,
+                    err=f"{record}",
+                )
+                logger.debug("Parent stopping because of error")
+                break
+            if record == QUEUE_STOP_EVENT:
+                logger.debug("Parent received queue_stop_event")
+                break
+
+            recording_name = record["recording_name"]
+            current_recording_data = (
+                final_result[recording_name] if recording_name in final_result else []
+            )
+            final_result[recording_name] = current_recording_data
+
+            current_recording_data.append(queue_record_to_nexus_record(record))
+
+        logger.debug(f"All data received for simulation {simulation_resource_self}")
+        nexus_helper.update_simulation_with_final_results(
+            simulation_resource_self=simulation_resource_self,
+            org_id=org_id,
+            project_id=project_id,
+            status="success",
+            results=final_result,
+        )
+        logger.debug(
+            f"Successfully updated simulation resource {simulation_resource_self}"
+        )
+    except Exception as e:
+        try:
+            logger.exception(f"background simulation failed {e}")
+            nexus_helper.update_simulation_status(
+                org_id=org_id,
+                project_id=project_id,
+                resource_self=simulation_resource_self,
+                status="failure",
+                is_draft=True,
+                err=f"{e}",
+            )
+        except Exception as e:
+            logger.error(
+                f"Could not update simulation resource {simulation_resource_self} with error message {e}"
+            )
+    finally:
+        await cleanup(stop_event=stop_event, process=_process)
+
+
+async def execute_single_neuron_simulation(
     org_id: str,
     project_id: str,
     model_id: str,
@@ -331,170 +463,28 @@ def execute_single_neuron_simulation(
         _process.start()
 
         if realtime is True:
-
-            def queue_streamify():
-                while True:
-                    try:
-                        # Simulation_Queue.get() is blocking. If child fails without writing to it,
-                        # the process will hang forever. That's why timeout is added.
-                        record = simulation_queue.get(timeout=1)
-                    except QueueEmptyException:
-                        if _process.is_alive():
-                            continue
-                        else:
-                            logger.warning(
-                                "Process is not alive and simulation queue is empty"
-                            )
-                            raise Exception("Child process died unexpectedly")
-                    if isinstance(record, SimulationError):
-                        yield f"{json.dumps(
-                            {
-                                "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
-                                "message": "Simulation failed",
-                                "details": record.__str__(),
-                            }
-                        )}\n"
-                        logger.debug("Parent stopping because of error")
-                        break
-                    if record == QUEUE_STOP_EVENT:
-                        logger.debug("Parent received queue_stop_event")
-                        break
-
-                    if is_current_varying:
-                        logger.info(
-                            f"[R/S --> {record["label"]}/{record["recording_name"]}]",
-                        )
-                        yield f"{json.dumps(
-                            {
-                                "label": record["label"],
-                                "amplitude": record["amplitude"],
-                                "recording_name": record["recording_name"],
-                                "t": record["time"],
-                                "v": record["voltage"],
-                                "varying_key": record["amplitude"]
-                            }
-                        )}\n"
-                    else:
-                        logger.info(
-                            f"Frequency [R/S --> {record["label"]}/{record["recording_name"]}]",
-                        )
-                        yield f"{json.dumps(
-                            {
-                                "frequency": record["frequency"],
-                                "label": record["label"],
-                                "recording_name": record["recording_name"],
-                                "t": record["time"],
-                                "v": record["voltage"],
-                                "varying_key": record["frequency"]
-                            }
-                        )}\n"
-
-                logger.info(f"Simulation {req_id} completed")
-
-            return StreamingResponseWithCleanup(
-                queue_streamify(),
-                media_type="application/octet-stream",
-                finalizer=lambda: cleanup(stop_event, _process),
+            return stream_realtime_data(
+                simulation_queue=simulation_queue,
+                _process=_process,
+                stop_event=stop_event,
+                request_id=req_id,
             )
-
         else:
             assert simulation_resource_self is not None
-            final_result: dict[str, Any] = {}
-            while True:
-                try:
-                    # Simulation_Queue.get() is blocking. If child fails without writing to it,
-                    # the process will hang forever. That's why timeout is added.
-                    record = simulation_queue.get(timeout=1)
-                except QueueEmptyException:
-                    if _process.is_alive():
-                        continue
-                    else:
-                        logger.warning(
-                            "Process is not alive and simulation queue is empty"
-                        )
-                        raise Exception("Child process died unexpectedly")
-                if isinstance(record, SimulationError):
-                    nexus_helper.update_simulation_status(
-                        org_id=org_id,
-                        project_id=project_id,
-                        resource_self=simulation_resource_self,
-                        status="failure",
-                        is_draft=True,
-                        err=f"{record}",
-                    )
-                    logger.debug("Parent stopping because of error")
-                    break
-                if record == QUEUE_STOP_EVENT:
-                    logger.debug("Parent received queue_stop_event")
-                    break
-
-                recording_name = record["recording_name"]
-                current_recording_data = (
-                    final_result[recording_name]
-                    if recording_name in final_result
-                    else []
-                )
-                final_result[recording_name] = current_recording_data
-
-                if is_current_varying:
-                    # (stimulus_name, recording_name, amplitude, recording) = record
-                    logger.info(
-                        f"[R/S --> {record["label"]}/{recording_name}]",
-                    )
-                    current_recording_data.append(
-                        {
-                            "label": record["label"],
-                            "amplitude": record["amplitude"],
-                            "recording_name": record["recording_name"],
-                            "t": record["time"],
-                            "v": record["voltage"],
-                            "varying_key": record["amplitude"],
-                        }
-                    )
-                else:
-                    logger.info(
-                        f"Frequency [R/S --> {record["label"]}/{record["recording_name"]}]",
-                    )
-                    current_recording_data.append(
-                        {
-                            "frequency": record["frequency"],
-                            "label": record["label"],
-                            "recording_name": record["recording_name"],
-                            "t": record["time"],
-                            "v": record["voltage"],
-                            "varying_key": record["frequency"],
-                        }
-                    )
-
-            nexus_helper.update_simulation_with_final_results(
-                simulation_resource_self=simulation_resource_self,
+            await save_simulation_result_to_nexus(
+                simulation_queue=simulation_queue,
+                _process=_process,
+                stop_event=stop_event,
+                nexus_helper=nexus_helper,
                 org_id=org_id,
                 project_id=project_id,
-                status="success",
-                results=final_result,
+                simulation_resource_self=simulation_resource_self,
             )
-
     except Exception as ex:
-        if realtime is False and simulation_resource_self is not None:
-            try:
-                logger.exception(f"background simulation failed {ex}")
-                nexus_helper.update_simulation_status(
-                    org_id=org_id,
-                    project_id=project_id,
-                    resource_self=simulation_resource_self,
-                    status="failure",
-                    is_draft=True,
-                    err=f"{ex}",
-                )
-            except Exception as e:
-                logger.error(
-                    f"Could not update simulation resource {simulation_resource_self} with error message {e}"
-                )
-        else:
-            logger.exception(f"running simulation failed {ex}")
-            raise BlueNaasError(
-                http_status_code=status.INTERNAL_SERVER_ERROR,
-                error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,
-                message="running simulation failed",
-                details=ex.__str__(),
-            ) from ex
+        logger.exception(f"running simulation failed {ex}")
+        raise BlueNaasError(
+            http_status_code=status.INTERNAL_SERVER_ERROR,
+            error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,
+            message="running simulation failed",
+            details=ex.__str__(),
+        ) from ex

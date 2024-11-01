@@ -253,7 +253,6 @@ class Nexus:
 
         updated_json = current_distribution | data_to_add
         file_content = json.dumps(updated_json)
-        logger.debug(f"REMOVE. UPDATED JSON FILE {updated_json}")
         # Prepare the files for the PUT request
         files = {"file": (filename, file_content, "application/json")}
         file_headers = self.headers | {
