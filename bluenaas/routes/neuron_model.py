@@ -86,16 +86,16 @@ def retrieve_synaptome_models(
 
 
 @router.get(
-    "/{org_id}/{project_id}/synaptome-models/{model_self:path}",
+    "/{org_id}/{project_id}/synaptome-models/{model_id:path}",
     summary="Retrieve single synaptome model in a specific project",
     response_model=SynaptomeModelResponse,
 )
 def retrieve_synaptome_model(
     org_id: str,
     project_id: str,
-    model_self: str,
+    model_id: str,
     token: str = Depends(verify_jwt),
 ) -> SynaptomeModelResponse:
     return get_synaptome_model_for_project(
-        token=token, org_id=org_id, project_id=project_id, model_self=model_self
+        token=token, org_id=org_id, project_id=project_id, model_self=model_id
     )

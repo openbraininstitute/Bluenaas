@@ -67,8 +67,8 @@ def convert_to_simulation_response(
         },
         config=simulation_config,
         # Used model details
-        me_model_self=me_model_self,
-        synaptome_model_self=synaptome_model_self,
+        me_model_id=me_model_self,
+        synaptome_model_id=synaptome_model_self,
     )
 
 
