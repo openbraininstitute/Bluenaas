@@ -33,7 +33,7 @@ def run_simulation(
     request: Request,
     org_id: str,
     project_id: str,
-    model_self: str,
+    model_id: str,
     config: SingleNeuronSimulationConfig,
     background_tasks: BackgroundTasks,
     token: str = Depends(verify_jwt),
@@ -55,7 +55,7 @@ def run_simulation(
         return execute_single_neuron_simulation(
             org_id=org_id,
             project_id=project_id,
-            model_id=model_self,
+            model_id=model_id,
             token=token,
             config=config,
             req_id=request.state.request_id,
@@ -65,7 +65,7 @@ def run_simulation(
         return submit_background_simulation(
             org_id=org_id,
             project_id=project_id,
-            model_self=model_self,
+            model_self=model_id,
             config=config,
             token=token,
             background_tasks=background_tasks,

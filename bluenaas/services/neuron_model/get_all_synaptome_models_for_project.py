@@ -5,7 +5,7 @@ from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.domains.neuron_model import (
     NexusSynaptomeType,
     SynaptomeModelResponse,
-    UsedMEModel,
+    UsedModel,
 )
 from bluenaas.domains.morphology import SynapseConfig
 
@@ -48,15 +48,15 @@ def get_all_synaptome_models_for_project(
 
         synaptome_models.append(
             SynaptomeModelResponse(
-                self=nexus_model["_self"],
+                id=nexus_model["_self"],
                 name=nexus_model["name"],
                 description=nexus_model.get("description"),
-                model_type="synaptome",
+                type="synaptome",
                 created_by=nexus_model["_createdBy"],
                 created_at=nexus_model["_createdAt"],
-                me_model=UsedMEModel(
-                    model_self=me_model_self,
-                    model_type="me-model",
+                me_model=UsedModel(
+                    id=me_model_self,
+                    type="me-model",
                     name=verbose_model["used"]["name"],
                 ),
                 synapses=[

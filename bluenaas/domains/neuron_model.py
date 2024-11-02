@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Literal
 from datetime import datetime
 
@@ -9,20 +9,20 @@ NexusMEModelType = "MEModel"
 NexusSynaptomeType = "SingleNeuronSynaptome"
 
 
-class UsedMEModel(BaseModel):
-    model_self: str
-    model_type: ModelType
+class UsedModel(BaseModel):
+    id: str
+    type: ModelType
     name: str
 
 
 class SynaptomeModelResponse(BaseModel):
-    self: str
+    id: str
     name: str
     description: Optional[str]
-    model_type: ModelType
+    type: ModelType
     created_by: str
     created_at: datetime
 
-    me_model: UsedMEModel
+    me_model: UsedModel
 
     synapses: list[SynapseConfig]
