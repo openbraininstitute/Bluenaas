@@ -460,7 +460,7 @@ def log_stats_for_series_in_frequency(
 
         for config in configs_for_id:
             sim = config["synapseSimulationConfig"]
-            key = f"WeightScalar: {sim.weightScalar} Duration: {sim.duration} Delay: {sim.delay} frequency {' '.join(map(str, config['frequencies_to_apply']))}"
+            key = f"WeightScalar: {sim.weight_scalar} Duration: {sim.duration} Delay: {sim.delay} frequency {' '.join(map(str, config['frequencies_to_apply']))}"
             if key in sim_stats_to_count:
                 sim_stats_to_count[key] = sim_stats_to_count[key] + 1
             else:
