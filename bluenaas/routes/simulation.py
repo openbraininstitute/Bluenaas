@@ -11,7 +11,7 @@ from bluenaas.domains.simulation import (
     SimulationDetailsResponse,
     SingleNeuronSimulationConfig,
     SimulationType,
-    PaginatedSimulationsResponse,
+    PaginatedResponse,
 )
 from bluenaas.domains.nexus import DeprecateNexusResponse
 from bluenaas.infrastructure.kc.auth import verify_jwt
@@ -99,7 +99,7 @@ async def get_all_simulations_for_project(
         None, description="Filter by createdAt date (YYYY-MM-DDTHH:MM:SSZ)"
     ),
     token: str = Depends(verify_jwt),
-) -> PaginatedSimulationsResponse:
+) -> PaginatedResponse[SimulationDetailsResponse]:
     return fetch_all_simulations_of_project(
         token=token,
         org_id=org_id,

@@ -11,6 +11,7 @@ from bluenaas.domains.simulation import (
     SimulationDetailsResponse,
     SingleNeuronSimulationConfig,
     SIMULATION_TYPE_MAP,
+    BrainRegion,
 )
 
 
@@ -48,6 +49,7 @@ def convert_to_simulation_response(
     simulation_config: Optional[SingleNeuronSimulationConfig],
     results: Optional[dict],
 ):
+    brain_region = simulation_resource.brainLocation.get("brainRegion")
     return SimulationDetailsResponse(
         # Main info
         id=quote_plus(simulation_uri),
@@ -61,10 +63,7 @@ def convert_to_simulation_response(
         created_at=simulation_resource.createdAt,
         injection_location=simulation_resource.injectionLocation,
         recording_location=simulation_resource.recordingLocation,
-        brain_location={
-            "@type": simulation_resource.brainLocation.get("@type"),
-            "brain_region": simulation_resource.brainLocation.get("brainRegion"),
-        },
+        brain_region=BrainRegion(id=brain_region["@id"], label=brain_region["label"]),
         config=simulation_config,
         # Used model details
         me_model_id=me_model_self,

@@ -1,4 +1,4 @@
-from typing import Annotated, List, Literal, Optional
+from typing import Annotated, List, Literal, Optional, TypeVar, Generic
 from pydantic import BaseModel, Field, PositiveFloat, field_validator
 from datetime import datetime
 
@@ -108,6 +108,11 @@ class SimulationItemResponse(BaseModel):
 SimulationStatus = Literal["pending", "started", "success", "failure"]
 
 
+class BrainRegion(BaseModel):
+    id: str
+    label: str
+
+
 class SimulationDetailsResponse(BaseModel):
     id: str
     status: SimulationStatus | None = None
@@ -120,7 +125,7 @@ class SimulationDetailsResponse(BaseModel):
     created_at: datetime
     injection_location: str
     recording_location: list[str] | str
-    brain_location: dict
+    brain_region: BrainRegion
     config: Optional[SingleNeuronSimulationConfig]
 
     me_model_id: str
@@ -134,8 +139,11 @@ class StimulationItemResponse(BaseModel):
     amplitude: float
 
 
-class PaginatedSimulationsResponse(BaseModel):
+T = TypeVar("T")
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
     page_offset: int
     page_size: int
     total: int
-    results: list[SimulationDetailsResponse]
+    results: list[T]

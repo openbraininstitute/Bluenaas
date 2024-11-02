@@ -1,5 +1,4 @@
 from typing import List, Literal, Optional, TypedDict
-from loguru import logger
 from pydantic import BaseModel, field_validator
 import sympy as sp  # type: ignore
 import pandas  # type: ignore
