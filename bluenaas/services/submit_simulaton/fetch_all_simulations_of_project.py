@@ -9,7 +9,7 @@ from bluenaas.domains.simulation import (
     SimulationDetailsResponse,
     SimulationType,
     NexusSimulationType,
-    PaginatedSimulationsResponse,
+    PaginatedResponse,
 )
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.utils.simulation import (
@@ -28,7 +28,7 @@ def fetch_all_simulations_of_project(
     size: int,
     created_at_start: Optional[datetime],
     created_at_end: Optional[datetime],
-) -> PaginatedSimulationsResponse:
+) -> PaginatedResponse[SimulationDetailsResponse]:
     try:
         nexus_sim_types: list[NexusSimulationType] = (
             ["SingleNeuronSimulation", "SynaptomeSimulation"]
@@ -103,7 +103,7 @@ def fetch_all_simulations_of_project(
                     f"Nexus Simulation {nexus_sim["_self"]} could not be converted to a bluenaas compatible simulation {err}"
                 )
 
-        return PaginatedSimulationsResponse(
+        return PaginatedResponse(
             page_offset=offset,
             page_size=len(simulations),
             total=nexus_sim_response["_total"],
