@@ -45,7 +45,7 @@ class SynapseSimulationConfig(BaseModel):
     delay: int
     duration: Annotated[int, Field(le=3000)]
     frequency: PositiveFloat | list[PositiveFloat]
-    weightScalar: PositiveFloat
+    weight_scalar: PositiveFloat
 
 
 class SimulationWithSynapseBody(BaseModel):
@@ -63,7 +63,7 @@ SIMULATION_TYPE_MAP: dict[NexusSimulationType, SimulationType] = {
 
 
 class SingleNeuronSimulationConfig(BaseModel):
-    synapses: list[SynapseSimulationConfig] | None = None
+    synaptome: list[SynapseSimulationConfig] | None = None
     current_injection: CurrentInjectionConfig
     record_from: list[RecordingLocation]
     conditions: ExperimentSetupConfig
@@ -76,14 +76,14 @@ class SingleNeuronSimulationConfig(BaseModel):
         stuff = simulation.data
 
         if isinstance(value.stimulus.amplitudes, list):
-            synapses = stuff.get("synapses") or []
+            synapses = stuff.get("synaptome") or []
             for synapse in synapses:
                 if isinstance(synapse.frequency, list):
                     raise ValueError(
                         "Amplitude should be a constant float if frequency is a list"
                     )
         elif isinstance(value.stimulus.amplitudes, float):
-            synapses = stuff.get("synapses") or []
+            synapses = stuff.get("synaptome") or []
             synapses_with_variable_frequencies = [
                 synapse for synapse in synapses if isinstance(synapse.frequency, list)
             ]
