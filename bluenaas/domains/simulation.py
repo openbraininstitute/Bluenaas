@@ -123,8 +123,8 @@ class SimulationDetailsResponse(BaseModel):
     brain_location: dict
     config: Optional[SingleNeuronSimulationConfig]
 
-    me_model_self: str
-    synaptome_model_self: Optional[str]
+    me_model_id: str
+    synaptome_model_id: Optional[str]
 
 
 class StimulationItemResponse(BaseModel):

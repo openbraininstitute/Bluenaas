@@ -3,7 +3,7 @@ from http import HTTPStatus
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.domains.neuron_model import (
     SynaptomeModelResponse,
-    UsedMEModel,
+    UsedModel,
 )
 from bluenaas.domains.morphology import SynapseConfig
 from bluenaas.core.exceptions import (
@@ -38,15 +38,15 @@ def get_synaptome_model_for_project(
     me_model_self = distribution["meModelSelf"]
 
     synaptome_model = SynaptomeModelResponse(
-        self=nexus_model["_self"],
+        id=nexus_model["_self"],
         name=nexus_model["name"],
         description=nexus_model.get("description"),
-        model_type="synaptome",
+        type="synaptome",
         created_by=nexus_model["_createdBy"],
         created_at=nexus_model["_createdAt"],
-        me_model=UsedMEModel(
-            model_self=me_model_self,
-            model_type="me-model",
+        me_model=UsedModel(
+            id=me_model_self,
+            type="me-model",
             name=nexus_model["used"]["name"],
         ),
         synapses=[SynapseConfig.model_validate(synapse) for synapse in synapses],

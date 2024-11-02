@@ -80,8 +80,6 @@ class SynapseConfig(BaseModel):
     @field_validator("formula", mode="before")
     @classmethod
     def validate_formula_depends_on_distribution(cls, value, info):
-        logger.debug(f"if {info}")
-        logger.debug(f"value {value}")
         if "distribution" in info.data and info.data.get("distribution") == "formula":
             if not value or not isinstance(value, str):
                 raise ValueError(

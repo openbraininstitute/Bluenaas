@@ -39,7 +39,6 @@ def _build_direct_current_plot_data(
             model.threshold_current,
         )
         result_data = stimulus_factory_plot.apply_stim()
-        logger.info(f"result_data: {result_data}")
         queue.put(result_data)
         queue.put(QUEUE_STOP_EVENT)
 
