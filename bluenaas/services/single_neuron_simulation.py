@@ -253,6 +253,7 @@ def _init_frequency_varying_simulation(
             log_stats_for_series_in_frequency(frequency_to_synapse_settings[frequency])
 
         model.CELL.start_frequency_varying_simulation(
+            realtime=realtime,
             config=config,
             frequency_to_synapse_series=frequency_to_synapse_settings,
             simulation_queue=simulation_queue,
@@ -288,7 +289,7 @@ def is_current_varying_simulation(config: SingleNeuronSimulationConfig) -> bool:
     return True
 
 
-def queue_record_to_nexus_record(record: dict) -> dict:
+def queue_record_to_nexus_record(record: dict, is_current_varying: bool) -> dict:
     return {
         "x": record["time"],
         "y": record["voltage"],
@@ -296,12 +297,19 @@ def queue_record_to_nexus_record(record: dict) -> dict:
         "name": record["label"],
         "recording": record["recording_name"],
         "amplitude": record["amplitude"],
-        "varying_key": record["amplitude"],
+        "frequency": record.get("frequency"),
+        "varying_key": record["amplitude"]
+        if is_current_varying is True
+        else record["frequency"],
     }
 
 
 def stream_realtime_data(
-    simulation_queue: Queue, _process: SpawnProcess, stop_event: Event, request_id: str
+    simulation_queue: Queue,
+    _process: SpawnProcess,
+    stop_event: Event,
+    is_current_varying: bool,
+    request_id: str,
 ) -> StreamingResponseWithCleanup:
     def queue_streamify():
         while True:
@@ -332,7 +340,7 @@ def stream_realtime_data(
             logger.info(
                 f"[R/S --> {record["label"]}/{record["recording_name"]}]",
             )
-            yield f"{json.dumps(queue_record_to_nexus_record(record))}\n"
+            yield f"{json.dumps(queue_record_to_nexus_record(record, is_current_varying))}\n"
 
         logger.info(f"Realtime Simulation {request_id} completed")
 
@@ -351,6 +359,7 @@ def save_simulation_result_to_nexus(
     org_id: str,
     project_id: str,
     simulation_resource_self: str,
+    is_current_varying: bool,
 ) -> None:
     try:
         final_result: dict[str, Any] = {}
@@ -386,7 +395,9 @@ def save_simulation_result_to_nexus(
             )
             final_result[recording_name] = current_recording_data
 
-            current_recording_data.append(queue_record_to_nexus_record(record))
+            current_recording_data.append(
+                queue_record_to_nexus_record(record, is_current_varying)
+            )
 
         logger.debug(f"All data received for simulation {simulation_resource_self}")
         nexus_helper.update_simulation_with_final_results(
@@ -468,6 +479,7 @@ def execute_single_neuron_simulation(
                 simulation_queue=simulation_queue,
                 _process=_process,
                 stop_event=stop_event,
+                is_current_varying=is_current_varying,
                 request_id=req_id,
             )
         else:
@@ -480,6 +492,7 @@ def execute_single_neuron_simulation(
                 org_id=org_id,
                 project_id=project_id,
                 simulation_resource_self=simulation_resource_self,
+                is_current_varying=is_current_varying,
             )
     except Exception as ex:
         logger.exception(f"running simulation failed {ex}")
