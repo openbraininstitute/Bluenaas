@@ -49,7 +49,7 @@ def _init_current_varying_simulation(
         me_model_id = model_id
         synapse_generation_config: list[SynapseSeries] = None
 
-        if config.type == "synaptome-simulation" and config.synapses is not None:
+        if config.type == "synaptome-simulation" and config.synaptome is not None:
             # and model.resource.type:
             synaptome_details = fetch_synaptome_model_details(
                 synaptome_self=model_id, bearer_token=token
@@ -62,10 +62,10 @@ def _init_current_varying_simulation(
             bearer_token=token,
         )
 
-        if config.type == "synaptome-simulation" and config.synapses is not None:
+        if config.type == "synaptome-simulation" and config.synaptome is not None:
             # only current injection simulation
             synapse_settings: list[list[SynapseSeries]] = []
-            for index, synapse_sim_config in enumerate(config.synapses):
+            for index, synapse_sim_config in enumerate(config.synaptome):
                 # 3. Get "pandas.Series" for each synapse
                 synapse_placement_config = [
                     config
@@ -164,13 +164,13 @@ def _init_frequency_varying_simulation(
             hyamp=config.conditions.hypamp,
             bearer_token=token,
         )
-        assert config.synapses is not None
+        assert config.synaptome is not None
 
         variable_frequency_sim_configs: list[SynapseSimulationConfig] = []
         constant_frequency_sim_configs: list[SynapseSimulationConfig] = []
 
         # Split all incoming simulation configs into constant frequency or variable frequency sim configs
-        for syn_sim_config in config.synapses:
+        for syn_sim_config in config.synaptome:
             if isinstance(syn_sim_config.frequency, list):
                 variable_frequency_sim_configs.append(syn_sim_config)
             else:
@@ -272,12 +272,12 @@ def _init_frequency_varying_simulation(
 
 
 def is_current_varying_simulation(config: SingleNeuronSimulationConfig) -> bool:
-    if config.type == "single-neuron-simulation" or config.synapses is None:
+    if config.type == "single-neuron-simulation" or config.synaptome is None:
         return True
 
     synapse_set_with_multiple_frequency = [
         synapse_set
-        for synapse_set in config.synapses
+        for synapse_set in config.synaptome
         if isinstance(synapse_set.frequency, list)
     ]
     if len(synapse_set_with_multiple_frequency) > 0:
