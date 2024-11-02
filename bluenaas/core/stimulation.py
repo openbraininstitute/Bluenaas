@@ -475,7 +475,7 @@ def _run_current_varying_stimulus(
             voltage = cell.get_voltage_recording(sec, seg)
             time = cell.get_time()
 
-            if enable_realtime:
+            if enable_realtime is True:
                 if cell_section not in prev_voltage:
                     prev_voltage[cell_section] = np.array([])
                 if cell_section not in prev_time:
@@ -615,7 +615,6 @@ def _run_frequency_varying_stimulus(
     )
     current_vector = neuron.h.Vector()
     current_vector.record(iclamp._ref_i)
-    current = np.array(current_vector.to_python())
     neuron.h.v_init = experimental_setup.vinit
     neuron.h.celsius = experimental_setup.celsius
 
@@ -631,8 +630,6 @@ def _run_frequency_varying_stimulus(
     prev_time = {}
 
     def process_simulation_recordings(enable_realtime=True):
-        final_result = {}
-
         for loc in recording_locations:
             sec, seg = cell.sections[loc.section], loc.offset
             cell_section = f"{loc.section}_{seg}"
@@ -654,30 +651,26 @@ def _run_frequency_varying_stimulus(
                 prev_time[cell_section] = time
 
                 simulation_queue.put(
-                    (
-                        label,
-                        cell_section,
-                        amplitude,
-                        frequency,
-                        Recording(
-                            current,
-                            voltage_diff,
-                            time_diff,
-                        ),
-                    )
+                    {
+                        "label": label,
+                        "recording_name": cell_section,
+                        "amplitude": amplitude,
+                        "frequency": frequency,
+                        "time": time_diff.tolist(),
+                        "voltage": voltage_diff.tolist(),
+                    }
                 )
             else:
-                final_result[cell_section] = {
-                    "label": label,
-                    "recording_name": cell_section,
-                    "amplitude": amplitude,
-                    "frequency": frequency,
-                    "time": time.tolist(),
-                    "voltage": voltage.tolist(),
-                    "varying_key": varying_key,
-                }
-
-            return final_result if realtime is False else None
+                simulation_queue.put(
+                    {
+                        "label": label,
+                        "recording_name": cell_section,
+                        "frequency": frequency,
+                        "amplitude": amplitude,
+                        "time": time.tolist(),
+                        "voltage": voltage.tolist(),
+                    }
+                )
 
     try:
         simulation = Simulation(
@@ -695,7 +688,7 @@ def _run_frequency_varying_stimulus(
         )
 
         if realtime is False:
-            return process_simulation_recordings(enable_realtime=False)
+            process_simulation_recordings(enable_realtime=False)
     except Exception as ex:
         logger.exception(f"child simulation failed {ex}")
         raise ChildSimulationError from ex

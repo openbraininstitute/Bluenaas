@@ -28,9 +28,7 @@ from bluenaas.services.submit_simulaton.fetch_all_simulations_of_project import 
 router = APIRouter(prefix="/simulation")
 
 
-@router.post(
-    "/single-neuron/{org_id}/{project_id}/run",
-)
+@router.post("/single-neuron/{org_id}/{project_id}/run", tags=["simulation"])
 def run_simulation(
     request: Request,
     org_id: str,
@@ -86,6 +84,7 @@ def run_simulation(
         Only nexus simulations that conform with the latest schema are returned.
         """
     ),
+    tags=["simulation"],
 )
 async def get_all_simulations_for_project(
     org_id: str,
@@ -122,6 +121,7 @@ async def get_all_simulations_for_project(
         `simulation_id` should be url encoded.
         """
     ),
+    tags=["simulation"],
 )
 async def get_simulation(
     org_id: str,
@@ -140,6 +140,7 @@ async def get_simulation(
 @router.delete(
     "/single-neuron/{org_id}/{project_id}/{simulation_id:path}",
     summary="Delete simulation resource",
+    tags=["simulation"],
 )
 async def delete_simulation(
     org_id: str,
