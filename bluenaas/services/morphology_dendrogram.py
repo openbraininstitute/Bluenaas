@@ -4,7 +4,6 @@ import signal
 import multiprocessing as mp
 from multiprocessing.synchronize import Event
 from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup
-from fastapi.responses import StreamingResponse
 from loguru import logger
 from http import HTTPStatus as status
 from queue import Empty as QueueEmptyException

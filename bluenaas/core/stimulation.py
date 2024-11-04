@@ -3,7 +3,6 @@
 from __future__ import annotations
 import os
 import queue
-import signal
 from loguru import logger
 import neuron
 import numpy as np
@@ -22,7 +21,6 @@ from bluenaas.utils.util import (
     diff_list,
     generate_pre_spiketrain,
 )
-import sys
 from multiprocessing.synchronize import Event
 
 DEFAULT_INJECTION_LOCATION = "soma[0]"
@@ -451,7 +449,6 @@ def _run_current_varying_stimulus(
     )
     current_vector = neuron.h.Vector()
     current_vector.record(iclamp._ref_i)
-    current = np.array(current_vector.to_python())
     neuron.h.v_init = experimental_setup.vinit
     neuron.h.celsius = experimental_setup.celsius
 

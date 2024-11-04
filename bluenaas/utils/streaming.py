@@ -1,8 +1,6 @@
 import asyncio
 from multiprocessing.process import BaseProcess
-from multiprocessing.queues import Queue as QueueType
 from multiprocessing.synchronize import Event
-from typing import Any, Callable, Generator
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
