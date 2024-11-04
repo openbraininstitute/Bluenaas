@@ -33,7 +33,7 @@ from bluenaas.utils.util import (
     set_vector_length,
 )
 from math import floor, modf
-from random import seed, random, randint, choice
+from random import seed, random, randint
 import numpy as np
 
 SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
