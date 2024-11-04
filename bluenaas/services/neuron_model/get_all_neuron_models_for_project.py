@@ -4,33 +4,39 @@ from typing import Optional
 from datetime import datetime
 
 from bluenaas.external.nexus.nexus import Nexus
-from bluenaas.domains.neuron_model import MEModelResponse, NexusMEModelType
+from bluenaas.domains.neuron_model import (
+    MEModelResponse,
+    ModelType,
+    SynaptomeModelResponse,
+)
 from bluenaas.domains.simulation import PaginatedResponse
 from bluenaas.core.exceptions import (
     BlueNaasError,
     BlueNaasErrorCode,
 )
 from bluenaas.services.neuron_model.nexus_model_conversions import (
-    nexus_me_model_to_bluenaas_me_model,
+    convert_nexus_model,
+    get_nexus_type,
 )
 
 
-def get_all_me_models_for_project(
+def get_all_neuron_models_for_project(
     token: str,
     org_id: str,
     project_id: str,
     offset: int,
     size: int,
+    model_type: Optional[ModelType],
     created_at_start: Optional[datetime],
     created_at_end: Optional[datetime],
-) -> PaginatedResponse[MEModelResponse]:
+) -> PaginatedResponse[MEModelResponse | SynaptomeModelResponse]:
     try:
         nexus_helper = Nexus({"token": token, "model_self_url": ""})
 
         nexus_model_response = nexus_helper.fetch_resources_of_type(
             org_label=None,
             project_label=None,
-            res_types=[NexusMEModelType],
+            res_types=get_nexus_type(model_type=model_type),
             offset=offset,
             size=size,
             created_at_start=created_at_start,
@@ -38,27 +44,26 @@ def get_all_me_models_for_project(
         )
 
         nexus_models = nexus_model_response["_results"]
-        logger.debug(f"REMOVE NEXUS {(len(nexus_models))}")
-        me_models = []
+        neuron_models = []
 
         for nexus_model in nexus_models:
-            verbose_model = nexus_helper.fetch_resource_by_self(
-                resource_self=nexus_model["_self"]
-            )
             try:
-                me_models.append(
-                    nexus_me_model_to_bluenaas_me_model(nexus_model=verbose_model)
-                )
-            except ValueError:
-                logger.debug(
-                    f"Nexus model {nexus_model["_self"]} could not be converted to me_model_response"
+                neuron_models.append(
+                    convert_nexus_model(
+                        nexus_model=nexus_model, nexus_helper=nexus_helper
+                    )
                 )
 
-        return PaginatedResponse[MEModelResponse](
+            except ValueError as e:
+                # Ignore models that cannot be converted
+                logger.exception(
+                    f"Not sending {nexus_model["_self"]} in paginated response due to error {e}"
+                )
+        return PaginatedResponse[MEModelResponse | SynaptomeModelResponse](
             page_offset=offset,
-            page_size=len(me_models),
+            page_size=len(neuron_models),
             total=nexus_model_response["_total"],
-            results=me_models,
+            results=neuron_models,
         )
     except Exception as e:
         logger.exception(f"Error retrieving me models from nexus {e}")

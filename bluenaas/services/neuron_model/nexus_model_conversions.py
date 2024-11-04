@@ -1,4 +1,6 @@
 from loguru import logger
+from typing import Optional
+
 from bluenaas.domains.neuron_model import (
     UsedModel,
     MEModelResponse,
@@ -6,8 +8,54 @@ from bluenaas.domains.neuron_model import (
     NexusEModelType,
     SynaptomeModelResponse,
     SynapseConfig,
+    NexusSynaptomeType,
+    NexusMEModelType,
+    SupportedNexusNeuronModels,
+    ModelType,
 )
 from bluenaas.domains.simulation import BrainRegion
+from bluenaas.utils.ensure_list import ensure_list
+from bluenaas.external.nexus.nexus import Nexus
+
+
+def get_nexus_type(
+    model_type: Optional[ModelType],
+) -> list[SupportedNexusNeuronModels]:
+    if model_type is None:
+        return [NexusMEModelType, NexusSynaptomeType]
+    elif model_type == "me-model":
+        return [NexusMEModelType]
+    elif model_type == "synaptome":
+        return [NexusSynaptomeType]
+    raise ValueError(f"{model_type} is not supported")
+
+
+def convert_nexus_model(
+    nexus_model: dict, nexus_helper: Nexus
+) -> MEModelResponse | SynaptomeModelResponse:
+    try:
+        verbose_model = nexus_helper.fetch_resource_by_self(
+            resource_self=nexus_model["_self"]
+        )
+
+        if NexusSynaptomeType in ensure_list(nexus_model["@type"]):
+            file_url = verbose_model["distribution"]["contentUrl"]
+
+            file_response = nexus_helper.fetch_file_by_url(file_url)
+            distribution = file_response.json()
+            return nexus_synaptome_model_to_bluenaas_synaptome_model(
+                nexus_model=verbose_model, distribution=distribution
+            )
+
+        elif NexusMEModelType in ensure_list(nexus_model["@type"]):
+            return nexus_me_model_to_bluenaas_me_model(nexus_model=verbose_model)
+
+        raise ValueError(f"Received incompatible nexus model {nexus_model}")
+    except ValueError as e:
+        logger.debug(
+            f"Nexus model {nexus_model["_self"]} could not be converted to me_model_response {e}"
+        )
+        raise e
 
 
 def nexus_me_model_to_bluenaas_me_model(nexus_model: dict) -> MEModelResponse:
