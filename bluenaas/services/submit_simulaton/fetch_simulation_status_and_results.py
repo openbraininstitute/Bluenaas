@@ -1,6 +1,5 @@
 from http import HTTPStatus
 
-from pydantic import Field
 from bluenaas.domains.nexus import FullNexusSimulationResource
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.domains.simulation import SimulationDetailsResponse
