@@ -20,13 +20,10 @@ def get_neuron_model_for_project(
         nexus_model = nexus_helper.fetch_resource_by_self(resource_self=model_self)
         return convert_nexus_model(nexus_model=nexus_model, nexus_helper=nexus_helper)
     except ValueError as e:
-        logger.exception(
-            f"Error when converting nexus model {nexus_model} from nexus {e}"
-        )
+        logger.exception(f"Error when converting nexus model from nexus {e}")
         raise BlueNaasError(
-            message="Resource not found.",
+            message="Resource could not be converted to a model response",
             error_code=BlueNaasErrorCode.NEXUS_ERROR,
-            details="Please ensure that the model self is url-encoded.",
             http_status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
         )
     except Exception as e:
