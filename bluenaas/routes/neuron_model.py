@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 from fastapi import APIRouter, Query, Depends
 
 from bluenaas.domains.simulation import PaginatedResponse
@@ -31,7 +31,7 @@ def retrieve_neuron_models(
     project_id: str,
     page_offset: int = 0,
     page_size: int = 20,
-    model_type: Optional[ModelType] = None,
+    model_type: Optional[Literal["me-model", "synaptome"]] = None,
     created_at_start: Optional[datetime] = Query(
         None, description="Filter by createdAt date (YYYY-MM-DDTHH:MM:SSZ)"
     ),
