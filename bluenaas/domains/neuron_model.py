@@ -7,10 +7,11 @@ from bluenaas.domains.simulation import BrainRegion
 
 ModelType = Literal["me-model", "synaptome", "m-model", "e-model"]
 SupportedNexusNeuronModels = Literal[
-    "https://neuroshapes.org/MEModel", "SingleNeuronSynaptome"
+    "https://neuroshapes.org/MEModel", "MEModel", "SingleNeuronSynaptome"
 ]
 
-NexusMEModelType: SupportedNexusNeuronModels = "https://neuroshapes.org/MEModel"
+NexusMEModelType: SupportedNexusNeuronModels = "MEModel"
+NexusMEModelExtendedType: SupportedNexusNeuronModels = "https://neuroshapes.org/MEModel"
 NexusSynaptomeType: SupportedNexusNeuronModels = "SingleNeuronSynaptome"
 
 NexusMModelType = "NeuronMorphology"

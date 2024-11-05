@@ -59,6 +59,10 @@ def get_all_neuron_models_for_project(
                 logger.exception(
                     f"Not sending {nexus_model["_self"]} in paginated response due to error {e}"
                 )
+            except Exception as e:
+                logger.exception(
+                    f"Could not fetch neuron_model {nexus_model["_self"]} from nexus {e}"
+                )
         return PaginatedResponse[MEModelResponse | SynaptomeModelResponse](
             page_offset=offset,
             page_size=len(neuron_models),
@@ -66,9 +70,9 @@ def get_all_neuron_models_for_project(
             results=neuron_models,
         )
     except Exception as e:
-        logger.exception(f"Error retrieving me models from nexus {e}")
+        logger.exception(f"Error retrieving neuron models from nexus {e}")
         raise BlueNaasError(
-            message="Error retrieving me models from nexus.",
+            message="Error retrieving neuron models from nexus.",
             error_code=BlueNaasErrorCode.NEXUS_ERROR,
             http_status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
         )
