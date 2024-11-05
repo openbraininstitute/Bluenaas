@@ -10,6 +10,7 @@ from bluenaas.domains.neuron_model import (
     SynapseConfig,
     NexusSynaptomeType,
     NexusMEModelType,
+    NexusMEModelExtendedType,
     SupportedNexusNeuronModels,
     ModelType,
 )
@@ -22,9 +23,9 @@ def get_nexus_type(
     model_type: Optional[ModelType],
 ) -> list[SupportedNexusNeuronModels]:
     if model_type is None:
-        return [NexusMEModelType, NexusSynaptomeType]
+        return [NexusMEModelType, NexusMEModelExtendedType, NexusSynaptomeType]
     elif model_type == "me-model":
-        return [NexusMEModelType]
+        return [NexusMEModelType, NexusMEModelExtendedType]
     elif model_type == "synaptome":
         return [NexusSynaptomeType]
     raise ValueError(f"{model_type} is not supported")
@@ -47,10 +48,12 @@ def convert_nexus_model(
                 nexus_model=verbose_model, distribution=distribution
             )
 
-        elif NexusMEModelType in ensure_list(nexus_model["@type"]):
+        elif NexusMEModelType in ensure_list(
+            nexus_model["@type"]
+        ) or NexusMEModelExtendedType in ensure_list(nexus_model["@type"]):
             return nexus_me_model_to_bluenaas_me_model(nexus_model=verbose_model)
 
-        raise ValueError(f"Received incompatible nexus model {nexus_model}")
+        raise ValueError(f"Nexus model @type is not supported {nexus_model["@type"]}")
     except ValueError as e:
         logger.debug(
             f"Nexus model {nexus_model["_self"]} could not be converted to me_model_response {e}"
