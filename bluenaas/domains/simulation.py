@@ -117,6 +117,7 @@ class SimulationDetailsResponse(BaseModel):
     id: str
     status: SimulationStatus | None = None
     results: Optional[dict]
+    error: Optional[str]
 
     type: SimulationType
     name: str

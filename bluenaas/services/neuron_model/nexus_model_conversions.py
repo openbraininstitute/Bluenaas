@@ -11,6 +11,7 @@ from bluenaas.domains.neuron_model import (
     NexusSynaptomeType,
     NexusMEModelType,
     NexusMEModelExtendedType,
+    NexusSynaptomeExtendedType,
     SupportedNexusNeuronModels,
     ModelType,
 )
@@ -23,11 +24,16 @@ def get_nexus_type(
     model_type: Optional[ModelType],
 ) -> list[SupportedNexusNeuronModels]:
     if model_type is None:
-        return [NexusMEModelType, NexusMEModelExtendedType, NexusSynaptomeType]
+        return [
+            NexusMEModelType,
+            NexusMEModelExtendedType,
+            NexusSynaptomeType,
+            NexusSynaptomeExtendedType,
+        ]
     elif model_type == "me-model":
         return [NexusMEModelType, NexusMEModelExtendedType]
     elif model_type == "synaptome":
-        return [NexusSynaptomeType]
+        return [NexusSynaptomeType, NexusSynaptomeExtendedType]
     raise ValueError(f"{model_type} is not supported")
 
 
@@ -39,7 +45,11 @@ def convert_nexus_model(
             resource_self=nexus_model["_self"]
         )
 
-        if NexusSynaptomeType in ensure_list(nexus_model["@type"]):
+        nexus_resource_type = ensure_list(nexus_model["@type"])
+        if (
+            NexusSynaptomeType in nexus_resource_type
+            or NexusSynaptomeExtendedType in nexus_resource_type
+        ):
             file_url = verbose_model["distribution"]["contentUrl"]
 
             file_response = nexus_helper.fetch_file_by_url(file_url)
@@ -48,9 +58,10 @@ def convert_nexus_model(
                 nexus_model=verbose_model, distribution=distribution
             )
 
-        elif NexusMEModelType in ensure_list(
-            nexus_model["@type"]
-        ) or NexusMEModelExtendedType in ensure_list(nexus_model["@type"]):
+        elif (
+            NexusMEModelType in nexus_resource_type
+            or NexusMEModelExtendedType in nexus_resource_type
+        ):
             return nexus_me_model_to_bluenaas_me_model(nexus_model=verbose_model)
 
         raise ValueError(f"Nexus model @type is not supported {nexus_model["@type"]}")
