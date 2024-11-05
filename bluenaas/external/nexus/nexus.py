@@ -273,7 +273,7 @@ class Nexus:
             f"{file_url}?rev={file_metadata["_rev"]}",
             headers=file_headers,
             files=files,
-            timeout=HTTP_TIMEOUT,
+            timeout=30,  # The request to write the distribution with simulation results sometimes takes more than 10 seconds.
         )
 
         if not response.ok:

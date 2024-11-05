@@ -55,6 +55,7 @@ def convert_to_simulation_response(
         id=quote_plus(simulation_uri),
         status=simulation_resource.status,
         results=results,
+        error=simulation_resource.error,
         # Simulation metadata
         type=get_simulation_type(simulation_resource),
         name=simulation_resource.name,
