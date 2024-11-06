@@ -29,7 +29,7 @@ router = APIRouter(
 def retrieve_neuron_models(
     org_id: str,
     project_id: str,
-    page_offset: int = 0,
+    offset: int = 0,
     page_size: int = 20,
     model_type: Optional[Literal["me-model", "synaptome"]] = None,
     created_at_start: Optional[datetime] = Query(
@@ -44,7 +44,7 @@ def retrieve_neuron_models(
         token=token,
         org_id=org_id,
         project_id=project_id,
-        offset=page_offset,
+        offset=offset,
         size=page_size,
         model_type=model_type,
         created_at_start=created_at_start,

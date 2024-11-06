@@ -144,7 +144,7 @@ T = TypeVar("T")
 
 
 class PaginatedResponse(BaseModel, Generic[T]):
-    page_offset: int
+    offset: int
     page_size: int
     total: int
     results: list[T]
