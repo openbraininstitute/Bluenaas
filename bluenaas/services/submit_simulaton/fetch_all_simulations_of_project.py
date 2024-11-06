@@ -104,7 +104,7 @@ def fetch_all_simulations_of_project(
                 )
 
         return PaginatedResponse(
-            page_offset=offset,
+            offset=offset,
             page_size=len(simulations),
             total=nexus_sim_response["_total"],
             results=simulations,
