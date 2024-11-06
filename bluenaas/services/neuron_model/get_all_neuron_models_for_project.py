@@ -64,7 +64,7 @@ def get_all_neuron_models_for_project(
                     f"Could not fetch neuron_model {nexus_model["_self"]} from nexus {e}"
                 )
         return PaginatedResponse[MEModelResponse | SynaptomeModelResponse](
-            page_offset=offset,
+            offset=offset,
             page_size=len(neuron_models),
             total=nexus_model_response["_total"],
             results=neuron_models,

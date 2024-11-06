@@ -90,7 +90,7 @@ async def get_all_simulations_for_project(
     org_id: str,
     project_id: str,
     simulation_type: Optional[SimulationType] = None,
-    page_offset: int = 0,
+    offset: int = 0,
     page_size: int = 20,
     created_at_start: Optional[datetime] = Query(
         None, description="Filter by createdAt date (YYYY-MM-DDTHH:MM:SSZ)"
@@ -105,7 +105,7 @@ async def get_all_simulations_for_project(
         org_id=org_id,
         project_id=project_id,
         sim_type=simulation_type,
-        offset=page_offset,
+        offset=offset,
         size=page_size,
         created_at_start=created_at_start,
         created_at_end=created_at_end,
