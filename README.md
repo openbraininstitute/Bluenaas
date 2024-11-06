@@ -20,29 +20,17 @@ From version 2.0 we are using [BlueCelluLab](https://github.com/BlueBrain/BlueCe
 
 To get the code for legacy (neuron) version check out [v1 branch](https://bbpgitlab.epfl.ch/project/sbo/bluenaas-single-cell/-/tree/v1)
 
-## AWS 
-The frontend of this is not used as it is integrated in [SBO core-web-app](https://bbpgitlab.epfl.ch/project/sbo/core-web-app/-/blob/develop/src/components/simulate/single-neuron/visualization/View.tsx?ref_type=heads), here just the backend is used (image is build manually, deployed to dockerhub and automatically picked up by AWS on-demand-svc). Full ticket for [AWS](https://bbpteam.epfl.ch/project/issues/browse/BBPP154-134)
+## Development
 
+1. After cloning or forking the repository, you can use poetry to install the dependencies:
 ```bash
-cd backend
-make docker_build
-
-ORIGINAL_IMG="blue-naas-svc:dev"
-END_IMG="bluebrain/blue-naas-single-cell:latest"
-
-docker tag $ORIGINAL_IMG $END_IMG
-docker push $END_IMG
+poetry install
 ```
 
-## Build frontend/backend dev images
-```bash
-make build
-```
-
+2. To start the backend server run the following command. This starts some docker services and then brings up the fastapi server: 
 ## Run dev frontend/backend
 ```bash
-make run_dev_frontend &
-make run_dev_backend &
+make build
 ```
 
 ## Simulate your own models.
@@ -65,4 +53,5 @@ a research center of the École polytechnique fédérale de Lausanne (EPFL),
 from the Swiss government's ETH Board of the Swiss Federal Institutes of Technology
 and from the Human Brain Project's Specific Grant Agreement 3.
 
-Copyright (c) 2022-2023 Blue Brain Project/EPFL
+Copyright (c) 2022-2024 Blue Brain Project/EPFL
+
