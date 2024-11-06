@@ -51,7 +51,7 @@ class BaseNexusSimulationResource(BaseModel):
     injectionLocation: str
     recordingLocation: list[str] | str
     brainLocation: Any  # TODO Add better type
-    is_draft: bool | None = None
+    isDraft: bool | None = None
     status: str | None = None  # TODO Add better type
 
     class Config:
