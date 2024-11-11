@@ -7,7 +7,6 @@ from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.domains.neuron_model import (
     SynaptomeModelResponse,
     MEModelResponse,
-    ModelType,
 )
 from bluenaas.services.neuron_model.get_all_neuron_models_for_project import (
     get_all_neuron_models_for_project,
@@ -23,11 +22,11 @@ router = APIRouter(
 
 
 @router.get(
-    "/{org_id}/{project_id}/me-models",
+    "/{virtual_lab_id}/{project_id}/me-models",
     summary="Retrieve all me models for a specific project",
 )
 def retrieve_neuron_models(
-    org_id: str,
+    virtual_lab_id: str,
     project_id: str,
     offset: int = 0,
     page_size: int = 20,
@@ -42,7 +41,7 @@ def retrieve_neuron_models(
 ) -> PaginatedResponse[MEModelResponse | SynaptomeModelResponse]:
     return get_all_neuron_models_for_project(
         token=token,
-        org_id=org_id,
+        org_id=virtual_lab_id,
         project_id=project_id,
         offset=offset,
         size=page_size,
@@ -53,15 +52,15 @@ def retrieve_neuron_models(
 
 
 @router.get(
-    "/{org_id}/{project_id}/{model_id:path}",
+    "/{virtual_lab_id}/{project_id}/{model_id:path}",
     summary="Retrieve specific model in a project",
 )
 def retrieve_neuron_model(
-    org_id: str,
+    virtual_lab_id: str,
     project_id: str,
     model_id: str,
     token: str = Depends(verify_jwt),
 ) -> MEModelResponse | SynaptomeModelResponse:
     return get_neuron_model_for_project(
-        token=token, org_id=org_id, project_id=project_id, model_self=model_id
+        token=token, org_id=virtual_lab_id, project_id=project_id, model_self=model_id
     )

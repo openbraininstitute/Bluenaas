@@ -28,10 +28,10 @@ from bluenaas.services.submit_simulaton.fetch_all_simulations_of_project import 
 router = APIRouter(prefix="/simulation")
 
 
-@router.post("/single-neuron/{org_id}/{project_id}/run", tags=["simulation"])
+@router.post("/single-neuron/{virtual_lab_id}/{project_id}/run", tags=["simulation"])
 def run_simulation(
     request: Request,
-    org_id: str,
+    virtual_lab_id: str,
     project_id: str,
     model_id: str,
     config: SingleNeuronSimulationConfig,
@@ -53,7 +53,7 @@ def run_simulation(
     """
     if realtime is True:
         return execute_single_neuron_simulation(
-            org_id=org_id,
+            org_id=virtual_lab_id,
             project_id=project_id,
             model_id=model_id,
             token=token,
@@ -63,7 +63,7 @@ def run_simulation(
         )
     else:
         return submit_background_simulation(
-            org_id=org_id,
+            org_id=virtual_lab_id,
             project_id=project_id,
             model_self=model_id,
             config=config,
@@ -74,7 +74,7 @@ def run_simulation(
 
 
 @router.get(
-    "/single-neuron/{org_id}/{project_id}",
+    "/single-neuron/{virtual_lab_id}/{project_id}",
     description="Get all simulations for a project",
     summary=(
         """
@@ -87,7 +87,7 @@ def run_simulation(
     tags=["simulation"],
 )
 async def get_all_simulations_for_project(
-    org_id: str,
+    virtual_lab_id: str,
     project_id: str,
     simulation_type: Optional[SimulationType] = None,
     offset: int = 0,
@@ -102,7 +102,7 @@ async def get_all_simulations_for_project(
 ) -> PaginatedResponse[SimulationDetailsResponse]:
     return fetch_all_simulations_of_project(
         token=token,
-        org_id=org_id,
+        org_id=virtual_lab_id,
         project_id=project_id,
         sim_type=simulation_type,
         offset=offset,
@@ -113,7 +113,7 @@ async def get_all_simulations_for_project(
 
 
 @router.get(
-    "/single-neuron/{org_id}/{project_id}/{simulation_id:path}",
+    "/single-neuron/{virtual_lab_id}/{project_id}/{simulation_id:path}",
     summary=(
         """
         Get results & status for a previously started simulation. 
@@ -124,33 +124,33 @@ async def get_all_simulations_for_project(
     tags=["simulation"],
 )
 async def get_simulation(
-    org_id: str,
+    virtual_lab_id: str,
     project_id: str,
     simulation_id: str,
     token: str = Depends(verify_jwt),
 ) -> SimulationDetailsResponse:
     return fetch_simulation_status_and_results(
         token=token,
-        org_id=org_id,
+        org_id=virtual_lab_id,
         project_id=project_id,
         simulation_uri=simulation_id,
     )
 
 
 @router.delete(
-    "/single-neuron/{org_id}/{project_id}/{simulation_id:path}",
+    "/single-neuron/{virtual_lab_id}/{project_id}/{simulation_id:path}",
     summary="Delete simulation resource",
     tags=["simulation"],
 )
 async def delete_simulation(
-    org_id: str,
+    virtual_lab_id: str,
     project_id: str,
     simulation_id: str,
     token: str = Depends(verify_jwt),
 ) -> DeprecateNexusResponse:
     return deprecate_simulation(
         token=token,
-        org_id=org_id,
+        org_id=virtual_lab_id,
         project_id=project_id,
         simulation_uri=simulation_id,
     )
