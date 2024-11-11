@@ -15,7 +15,7 @@ celery_app = Celery(
     result_compression="gzip",
     worker_concurrency=1,
     worker_prefetch_multiplier=1,
-    result_expires=timedelta(minutes=0.5),
+    result_expires=timedelta(seconds=0.001),
     result_backend_transport_options={"global_keyprefix": "bnaas_sim_"},
     include=[
         "bluenaas.infrastructure.celery.full_simulation_task_class",

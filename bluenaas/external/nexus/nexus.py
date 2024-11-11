@@ -145,8 +145,8 @@ class Nexus:
         res_types: Sequence[str],
         offset: int,
         size: int,
-        created_at_start: datetime,
-        created_at_end: datetime,
+        created_at_start: Optional[datetime],
+        created_at_end: Optional[datetime],
     ):
         query_params = [("type", res_type) for res_type in res_types]
         query_params.append(("size", str(size)))
@@ -361,7 +361,6 @@ class Nexus:
         mechanisms = []
         for model_resource in model_resources:
             distributions = ensure_list(model_resource["distribution"], dict)
-            logger.info(f'@@-> ds:{model_resource["distribution"]}')
             distribution = list(
                 filter(
                     lambda x: x.get("encodingFormat") == "application/mod"

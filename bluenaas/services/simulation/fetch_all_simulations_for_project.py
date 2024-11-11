@@ -27,8 +27,8 @@ def fetch_all_simulations_of_project(
     sim_type: Optional[SimulationType],
     offset: int,
     size: int,
-    created_at_start: datetime,
-    created_at_end: datetime,
+    created_at_start: Optional[datetime],
+    created_at_end: Optional[datetime],
 ) -> PaginatedSimulationsResponse:
     try:
         nexus_sim_types: list[NexusSimulationType] = (
@@ -95,6 +95,7 @@ def fetch_all_simulations_of_project(
                     me_model_self=me_model_self,
                     synaptome_model_self=synaptome_model_self,
                     distribution=None,
+                    job_id=None,
                 )
                 simulations.append(simulation)
             except Exception as err:

@@ -24,6 +24,8 @@ from bluenaas.core.stimulation.utils import (
 from bluenaas.domains.simulation import (
     RecordingLocation,
     SingleNeuronSimulationConfig,
+    SimulationStreamData,
+    VaryingType,
 )
 
 from bluenaas.infrastructure.celery import celery_app
@@ -63,6 +65,7 @@ def single_simulation_runner(
     add_hypamp=True,
     realtime=False,
     autosave=False,
+    channel_name=str,
 ):
     from celery import current_task
 
@@ -97,6 +100,7 @@ def single_simulation_runner(
     )
 
     from bluecellulab.simulation.simulation import Simulation
+    from bluenaas.infrastructure.redis import redis_client
 
     protocol = cf.current_injection.stimulus.stimulus_protocol
     stimulus_name = get_stimulus_name(protocol)
@@ -129,7 +133,7 @@ def single_simulation_runner(
 
     varying_key = stimulus_name.name if is_current_simulation else "frequency"
     varying_order = amplitude if is_current_simulation else frequency
-    varying_type = "current" if is_current_simulation else "frequency"
+    varying_type: VaryingType = "current" if is_current_simulation else "frequency"
 
     label = "{}_{}".format(
         varying_key,
@@ -140,50 +144,38 @@ def single_simulation_runner(
     prev_time = {}
     final_result = {}
 
-    def track_simulation_progress():
+    def track_simulation_progress() -> None:
+        logger.debug(
+            f"Progress -> Channel {channel_name} Recording {cell_section} Type {varying_type} Order {varying_order} "
+        )
         voltage = cell.get_voltage_recording(sec, seg)
         time = cell.get_time()
 
-        if realtime:
-            if cell_section not in prev_voltage:
-                prev_voltage[cell_section] = np.array([])
-            if cell_section not in prev_time:
-                prev_time[cell_section] = np.array([])
+        if cell_section not in prev_voltage:
+            prev_voltage[cell_section] = np.array([])
+        if cell_section not in prev_time:
+            prev_time[cell_section] = np.array([])
 
-            time_diff = diff_list(prev_time[cell_section], time)
-            voltage_diff = diff_list(prev_voltage[cell_section], voltage)
+        time_diff = diff_list(prev_time[cell_section], time)
+        voltage_diff = diff_list(prev_voltage[cell_section], voltage)
 
-            prev_voltage[cell_section] = voltage
-            prev_time[cell_section] = time
+        prev_voltage[cell_section] = voltage
+        prev_time[cell_section] = time
 
-            current_task.update_state(
-                state="PROGRESS",
-                meta={
-                    "label": label,
-                    "recording": cell_section,
-                    "amplitude": amplitude,
-                    "frequency": frequency,
-                    "varying_key": varying_key,
-                    "varying_type": varying_type,
-                    "varying_order": varying_order,
-                    "t": time_diff.tolist(),
-                    "v": voltage_diff.tolist(),
-                },
-            )
-
-        final_result = {
-            "label": label,
-            "varying_key": varying_key,
-            "varying_type": varying_type,
-            "varying_order": varying_order,
+        partial_result: SimulationStreamData = {
+            "state": "PROGRESS",
+            "name": label,
             "recording": cell_section,
             "amplitude": amplitude,
             "frequency": frequency,
-            "t": time.tolist(),
-            "v": voltage.tolist(),
+            "varying_key": varying_key,
+            "varying_type": varying_type,
+            "varying_order": varying_order,
+            "x": time_diff.tolist(),
+            "y": voltage_diff.tolist(),
         }
 
-        return final_result
+        redis_client.publish(channel_name, json.dumps(partial_result))
 
     simulation = Simulation(
         cell,
@@ -200,7 +192,7 @@ def single_simulation_runner(
     # NOTE: return result to be able to recover it
     # 1. when there is no realtime
     # 2. the user enable autosaving
-    if not realtime or autosave:
+    if not realtime:
         voltage = cell.get_voltage_recording(sec, seg)
         time = cell.get_time()
 
@@ -216,4 +208,8 @@ def single_simulation_runner(
             "varying_order": varying_order,
         }
 
+    if realtime:
+        redis_client.publish(channel_name, json.dumps({"state": "SUCCESS"}))
+
+    logger.debug(f"In the end returning {final_result}")
     return final_result

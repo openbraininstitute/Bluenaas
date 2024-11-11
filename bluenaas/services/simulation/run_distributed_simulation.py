@@ -4,6 +4,7 @@ from urllib.parse import quote_plus
 from celery import states
 from loguru import logger
 from http import HTTPStatus as status
+from uuid import uuid4
 
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.core.stimulation.utils import is_current_varying_simulation
@@ -11,21 +12,24 @@ from bluenaas.domains.nexus import FullNexusSimulationResource
 from bluenaas.domains.simulation import (
     SimulationEvent,
     SingleNeuronSimulationConfig,
+    WORKER_TASK_STATES,
+    SimulationStreamData,
 )
 from bluenaas.infrastructure.celery.tasks.single_simulation_runner import (
     single_simulation_runner,
 )
+from bluenaas.infrastructure.redis import redis_client
 from bluenaas.infrastructure.celery.tasks.initiate_simulation import initiate_simulation
+
 from bluenaas.services.simulation.prepare_simulation_resource import (
     prepare_simulation_resources,
 )
 from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup_worker
 from bluenaas.utils.serializer import deserialize_synapse_series_dict
 from bluenaas.utils.simulation import convert_to_simulation_response
-from bluenaas.utils.hash_obj import get_hash
 
 
-task_state_descriptions = {
+task_state_descriptions: dict[WORKER_TASK_STATES, str] = {
     "INIT": "Simulation is captured by the system",
     "PROGRESS": "Simulation is currently in progress.",
     "PENDING": "Simulation is waiting for execution.",
@@ -41,6 +45,7 @@ def get_event_from_task_state(state) -> SimulationEvent:
     """
     Get the event type based on the task state.
     """
+    event: SimulationEvent = "info"
     if state in (states.PENDING, states.SUCCESS):
         event = "info"
     elif state == "PROGRESS":
@@ -50,18 +55,19 @@ def get_event_from_task_state(state) -> SimulationEvent:
     else:
         event = "info"
 
-    return event.lower()
+    return event
 
 
-def build_stream_obj(task: AsyncResult, job_id: str):
+def build_stream_obj(task_result: SimulationStreamData, job_id: str):
     return f"{json.dumps(
             {
-                "event": get_event_from_task_state(task.state),
-                "description": task_state_descriptions[task.state],
-                "state": task.state.lower(),
-                "task_id": task.id,
+                "event": get_event_from_task_state(task_result['state']),
+                "description": task_state_descriptions[task_result['state']],
+                "state": task_result['state'].lower(),
+                # TODO: Add task id
+                # "task_id": task.id,
                 "job_id": job_id,
-                "data": task.result or None,
+                "data": task_result,
             }
         )}\n"
 
@@ -119,6 +125,8 @@ def run_distributed_simulation(
             simulation_resource["_self"] if simulation_resource is not None else None
         )
 
+        channel_name = f"simulation_{uuid4()}"
+
         # TODO: better handling of this condition/loop to generate simulation tasks list
         if is_current_simulation:
             for amplitude in amplitudes:
@@ -139,6 +147,7 @@ def run_distributed_simulation(
                             add_hypamp=True,
                             realtime=realtime,
                             autosave=autosave,
+                            channel_name=channel_name,
                         )
                     )
 
@@ -174,12 +183,12 @@ def run_distributed_simulation(
 
         grouped_tasks = group(simulation_instances)
         job = grouped_tasks.apply_async()
-
         # NOTE: if both `realtime` and `autosave` are enabled
         # the simulation will be streamed but the autosave will be handled in the celery task definition
         # please check: bluenaas/infrastructure/celery/single_simulation_task_class.py
         if realtime:
-            hash_list = []
+            pubsub = redis_client.pubsub()
+            pubsub.subscribe(channel_name)
 
             def streamify():
                 try:
@@ -195,31 +204,41 @@ def run_distributed_simulation(
                             "data": None,
                         }
                     )}\n"
+                    completed_tasks = 0
 
-                    while not job.ready():
-                        for v in job.results:
-                            # NOTE: celery keep streaming the same state if there is no new state in the backend
-                            # NOTE: to be able to reduce streaming to the client and also protect the client from the overloaded response
-                            # NOTE: we should calculate the hash of different chunks and stream only it not streamed yet
-                            hash = get_hash(v.result)
-                            if hash not in hash_list:
-                                hash_list.append(hash)
-                                yield build_stream_obj(v, job.id)
+                    for message in pubsub.listen():
+                        if message["type"] == "message":
+                            message_data = json.loads(message["data"])
+
+                            if message_data["state"] == "SUCCESS":
+                                completed_tasks = completed_tasks + 1
+                                logger.debug(
+                                    f"Received {completed_tasks} shutdown events for {job.id}"
+                                )
+                                if completed_tasks == len(simulation_instances):
+                                    logger.debug(f"Received all results for {job.id}")
+                                    break
+                            else:
+                                yield build_stream_obj(message_data, job.id)
+                        else:
+                            logger.debug(f"REMOVE ANOTHER KINDA MES {message}")
 
                     status = None
-                    if job.successful():
+                    if completed_tasks == len(simulation_instances):
+                        logger.debug("JOB SUCCESSFUL")
                         status = states.SUCCESS
-                    elif (job.completed_count() > 0) and (
-                        job.completed_count() < len(job.results)
-                    ):
+                    elif completed_tasks < len(simulation_instances):
                         # NOTE: this is new state introduced if we want to be more precise about the quality of the results
+                        logger.debug("JOB PARTIALLY SUCCESSFUL")
                         status = "PARTIAL_SUCCESS"
                     else:
+                        logger.debug(f"JOB FAILED. Completed Tasks {completed_tasks}")
                         status = states.FAILURE
+
                     # TODO: check for the revoked task status
                     description = task_state_descriptions[status]
 
-                    # NOTE: finally stream the latest status of the simulation
+                    # finally stream the latest status of the simulation
                     yield f"{json.dumps(
                         {
                             "event": "info",
@@ -232,8 +251,14 @@ def run_distributed_simulation(
                     )}\n"
 
                 except Exception as ex:
-                    logger.info(f"Exception in task streaming: {ex}")
+                    logger.exception(
+                        f"Exception while running simulation {channel_name} {ex}"
+                    )
                     raise Exception("Trouble while streaming simulation data")
+                finally:
+                    logger.exception(f"Closing channel {channel_name}")
+                    pubsub.unsubscribe(channel_name)
+                    pubsub.close()
 
             return StreamingResponseWithCleanup(
                 streamify(),

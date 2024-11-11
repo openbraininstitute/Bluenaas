@@ -2,24 +2,12 @@ from datetime import datetime
 from typing import Annotated, List, Literal, Optional, TypedDict
 from pydantic import BaseModel, Field, PositiveFloat, field_validator
 
-
 SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
 NexusSimulationType = Literal["SingleNeuronSimulation", "SynaptomeSimulation"]
 
 SimulationStatus = Literal["pending", "started", "success", "failure"]
 SimulationEvent = Literal["init", "info", "data", "error"]
-SimulationStreamData = TypedDict(
-    "SimulationStreamData",
-    {
-        "label": str,
-        "amplitude": str,
-        "frequency": str,
-        "recording": str,
-        "varying_key": str,
-        "t": list[float],
-        "v": list[float],
-    },
-)
+
 
 SIMULATION_TYPE_MAP: dict[NexusSimulationType, SimulationType] = {
     "SingleNeuronSimulation": "single-neuron-simulation",
@@ -185,6 +173,33 @@ class StreamSimulationBodyRequest(BaseModel):
     config: SingleNeuronSimulationConfig
     autosave: Optional[bool] = False
     realtime: Optional[bool] = False
+
+
+WORKER_TASK_STATES = Literal[
+    "INIT",
+    "PROGRESS",
+    "PENDING",
+    "STARTED",
+    "SUCCESS",
+    "FAILURE",
+    "REVOKED",
+    "PARTIAL_SUCCESS",
+]
+
+VaryingType = Literal["current", "frequency"]
+
+
+class SimulationStreamData(TypedDict):
+    state: WORKER_TASK_STATES
+    name: str
+    recording: str
+    amplitude: float
+    frequency: Optional[float]
+    varying_key: str
+    varying_order: float
+    varying_type: VaryingType
+    x: list[float]
+    y: list[float]
 
 
 class StreamSimulationResponse(BaseModel):

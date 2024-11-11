@@ -41,7 +41,7 @@ def get_nexus_simulation_type(sim_type: SimulationType) -> NexusSimulationType:
 
 
 def convert_to_simulation_response(
-    job_id: str,
+    job_id: Optional[str],
     simulation_uri: str,
     simulation_resource: FullNexusSimulationResource,
     me_model_self: str,
