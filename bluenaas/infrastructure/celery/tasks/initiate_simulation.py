@@ -18,7 +18,7 @@ the simulation environment and ensuring that subsequent tasks run efficiently.
 from itertools import chain
 import json
 from loguru import logger
-
+from typing import cast
 
 from bluenaas.core.model import Model, SynaptomeDetails, fetch_synaptome_model_details
 from bluenaas.core.stimulation.utils import (
@@ -28,7 +28,9 @@ from bluenaas.core.stimulation.utils import (
     is_current_varying_simulation,
 )
 from bluenaas.infrastructure.celery import celery_app
-from bluenaas.domains.morphology import SynapseSeries
+from bluenaas.domains.morphology import (
+    SynapseMetadata,
+)
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     SynaptomeSimulationConfig,
@@ -51,7 +53,7 @@ def initiate_simulation(
     self,
     model_self: str,
     token: str,
-    config: SingleNeuronSimulationConfig,
+    config: str,  # str representing the JSON object of type SingleNeuronSimulationConfig
 ):
     logger.info("[initiate simulation]")
     from bluenaas.core.model import model_factory
@@ -91,7 +93,6 @@ def initiate_simulation(
         if frequency_to_synapse_config is not None
         else None,
     )
-    logger.info(f"[INITIATE SIMULATION] {output=}")
 
     return output
 
@@ -100,9 +101,9 @@ def setup_synapses_series(
     cf: SingleNeuronSimulationConfig,
     synaptome_details: SynaptomeDetails | None,
     model: Model,
-) -> tuple[list[SynapseSeries] | None, dict[float, list[SynapseSeries]] | None]:
-    synapse_generation_config: list[SynapseSeries] = None
-    frequency_to_synapse_config: dict[float, list[SynapseSeries]] = {}
+) -> tuple[list[SynapseMetadata] | None, dict[float, list[SynapseMetadata]] | None]:
+    synapse_generation_config: list[SynapseMetadata]
+    frequency_to_synapse_config: dict[float, list[SynapseMetadata]] = {}
 
     if synaptome_details is None:
         return (None, None)
@@ -110,9 +111,8 @@ def setup_synapses_series(
     if is_current_varying_simulation(cf):
         if cf.type == "synaptome-simulation" and cf.synaptome is not None:
             # only current injection simulation
-            synapse_settings: list[list[SynapseSeries]] = []
+            synapse_settings: list[list[SynapseMetadata]] = []
             for index, synapse_sim_config in enumerate(cf.synaptome):
-                # 3. Get "pandas.Series" for each synapse
                 synapse_placement_config = [
                     config
                     for config in synaptome_details.synaptome_placement_config.config
@@ -125,6 +125,7 @@ def setup_synapses_series(
                     synapse_simulation_config=synapse_sim_config,
                     offset=index,
                     frequencies_to_apply=[synapse_sim_config.frequency],
+                    current_injection_config=cf.current_injection,
                 )
 
                 synapse_settings.append(synapses_per_grp)
@@ -142,8 +143,6 @@ def setup_synapses_series(
             else:
                 constant_frequency_sim_configs.append(syn_sim_config)
 
-        frequency_to_synapse_config: dict[float, list[SynapseSeries]] = {}
-
         offset = 0
         for variable_frequency_sim_config in variable_frequency_sim_configs:
             synapse_placement_config = get_synapse_placement_config(
@@ -151,7 +150,7 @@ def setup_synapses_series(
                 synaptome_details.synaptome_placement_config,
             )
 
-            for frequency in variable_frequency_sim_config.frequency:
+            for frequency in cast(list[float], variable_frequency_sim_config.frequency):
                 frequency_to_synapse_config[frequency] = []
 
                 frequencies_to_apply = get_constant_frequencies_for_sim_id(
@@ -166,6 +165,7 @@ def setup_synapses_series(
                         variable_frequency_sim_config,
                         offset,
                         frequencies_to_apply,
+                        cf.current_injection,
                     )
                 )
                 offset += 1
@@ -185,6 +185,7 @@ def setup_synapses_series(
                                 sim_config,
                                 offset,
                                 frequencies_to_apply,
+                                cf.current_injection,
                             )
                         )
                         offset += 1
@@ -208,6 +209,7 @@ def setup_synapses_series(
                                 sim_config,
                                 offset,
                                 constant_frequencies_for_set,
+                                cf.current_injection,
                             )
                         )
                         offset += 1

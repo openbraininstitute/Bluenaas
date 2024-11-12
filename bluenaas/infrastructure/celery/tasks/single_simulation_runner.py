@@ -20,7 +20,7 @@ from bluenaas.core.stimulation.utils import (
     get_stimulus_name,
     is_current_varying_simulation,
 )
-
+from bluenaas.core.exceptions import SimulationError
 from bluenaas.domains.simulation import (
     RecordingLocation,
     SingleNeuronSimulationConfig,
@@ -132,7 +132,6 @@ def perform_simulation_work(
     cf = SingleNeuronSimulationConfig(**json.loads(config))
     rl = RecordingLocation(**json.loads(recording_location))
 
-    logger.debug(f"TYPE {type(thres_perc)} {thres_perc}")
     logger.info(f"""
         [enable_realtime]: {realtime}
         [amplitude]: {amplitude}
@@ -159,31 +158,40 @@ def perform_simulation_work(
         token=token,
         thres_perc=thres_perc,
     )
-
-    protocol = cf.current_injection.stimulus.stimulus_protocol
-    stimulus_name = get_stimulus_name(protocol)
+    logger.debug("Simulation setup done")
 
     is_current_simulation = is_current_varying_simulation(cf)
 
-    if is_current_simulation:
-        if synapse_generation_config is not None:
+    if synapse_generation_config is not None:
+        logger.debug(
+            f"Running synaptome simulation. Current varying {is_current_simulation}"
+        )
+
+        if is_current_simulation:
             sgc = deserialize_synapse_series_list(synapse_generation_config)
             for synapse in sgc:
-                assert isinstance(synapse["synapseSimulationConfig"].frequency, float)
+                assert isinstance(synapse.simulation_config.frequency, float)
+
                 add_single_synapse(
                     cell=cell,
                     synapse=synapse,
                     experimental_setup=cf.conditions,
                 )
-    else:
-        if frequency_to_synapse_config is not None:
+        else:
+            assert frequency_to_synapse_config is not None
             fsc = deserialize_synapse_series_dict(frequency_to_synapse_config)
-            for synapse in fsc:
-                add_single_synapse(
-                    cell=cell,
-                    synapse=synapse,
-                    experimental_setup=cf.conditions,
-                )
+
+            for frequency in fsc:
+                synapses = fsc[frequency]
+                for synapse in synapses:
+                    add_single_synapse(
+                        cell=cell,
+                        synapse=synapse,
+                        experimental_setup=cf.conditions,
+                    )
+
+    protocol = cf.current_injection.stimulus.stimulus_protocol
+    stimulus_name = get_stimulus_name(protocol)
 
     sec, seg = cell.sections[rl.section], rl.offset
 

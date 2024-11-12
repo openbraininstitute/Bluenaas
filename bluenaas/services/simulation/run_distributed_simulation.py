@@ -107,7 +107,7 @@ def run_distributed_simulation(
     try:
         # NOTE: build the model and calculate synapses series (current/frequency)
         # this should be ran before the sub simulation
-        # Reason: to get the frequency synapses series (it required to know how many parallel simulation should be run)
+        # Reason: to get the  synapses series (it required to know how many parallel simulation should be run)
         # chaining tasks is not an option here using (chain from celery or "|")
         prep_job = initiate_simulation.apply_async(
             kwargs={
@@ -118,7 +118,7 @@ def run_distributed_simulation(
         )
 
         model_info = prep_job.get()
-        # NOTE: used to calculate how many sub-simulation we should spin up (for frequency varying)
+        # NOTE: used to calculate how many sub-simulation we should spin up
         (_, _, _, frequency_to_synapse_config) = model_info
 
         is_current_simulation = is_current_varying_simulation(config)

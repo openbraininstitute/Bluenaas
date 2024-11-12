@@ -405,12 +405,14 @@ def setup_basic_simulation_config(
     me_model_id: str | None = None,
     token: str | None = None,
 ):
+    logger.debug(f"REMOVE {me_model_id} {type(token)} {len(token)}")
     # model = model_factory(
     #     model_self=me_model_id,
     #     hyamp=config.conditions.hypamp,
     #     bearer_token=token,
     # )
 
+    logger.debug("1. Importing stuff")
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
     from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
     from bluecellulab.rngsettings import RNGSettings
@@ -420,6 +422,7 @@ def setup_basic_simulation_config(
     from bluecellulab.cell.template import TemplateParams
     from bluecellulab.circuit import EmodelProperties
 
+    logger.debug("2. Cell building")
     json_cell_template = json.loads(template_params)
 
     if "emodel_properties" in json_cell_template:
@@ -429,11 +432,14 @@ def setup_basic_simulation_config(
 
     cell_params = TemplateParams(**json_cell_template)
 
+    logger.debug("3. Neuron Globals")
     neuron_global_params = NeuronGlobals.get_instance().export_params()
     NeuronGlobals.get_instance().load_params(neuron_global_params)
 
+    logger.debug("4. Config injection")
     injection_section_name = config.current_injection.inject_to
 
+    logger.debug("5. RNG")
     rng = RNGSettings(
         base_seed=experimental_setup.seed,
         synapse_seed=experimental_setup.seed,
@@ -443,15 +449,20 @@ def setup_basic_simulation_config(
     rng.set_seeds(
         base_seed=experimental_setup.seed,
     )
+    logger.debug("6. Cell from template")
     cell = Cell.from_template_parameters(template_params=cell_params)
-    injection_section = cell.sections[injection_section_name]
+    logger.debug("7. Cell sections")
 
+    injection_section = cell.sections[injection_section_name]
+    logger.debug("8. Cell sections")
     sec, seg = cell.sections[recording_location.section], recording_location.offset
+    logger.debug("9. V recording")
     cell.add_voltage_recording(
         section=sec,
         segx=seg,
     )
 
+    logger.debug("10. Stimulus")
     protocol = config.current_injection.stimulus.stimulus_protocol
     stimulus_name = get_stimulus_name(protocol)
     stim_factory = StimulusFactory(dt=1.0)
@@ -463,6 +474,7 @@ def setup_basic_simulation_config(
         amplitude,
     )
 
+    logger.debug("11. iclamp injection")
     iclamp, _ = cell.inject_current_waveform(
         stimulus.time,
         stimulus.current,
@@ -470,12 +482,22 @@ def setup_basic_simulation_config(
         segx=injection_segment,
     )
 
+    logger.debug("12. iclamp injection")
     current_vector = neuron.h.Vector()
+    logger.debug("13. iclamp injection")
+
     current_vector.record(iclamp._ref_i)
+    logger.debug("14. iclamp injection")
+
     current = np.array(current_vector.to_python())
+    logger.debug("15. iclamp injection")
+
     neuron.h.v_init = experimental_setup.vinit
+    logger.debug("16. iclamp injection")
+
     neuron.h.celsius = experimental_setup.celsius
 
+    logger.debug("17. iclamp injection")
     if add_hypamp:
         hyp_stim = Hyperpolarizing(
             target="",
@@ -484,4 +506,5 @@ def setup_basic_simulation_config(
         )
         cell.add_replay_hypamp(hyp_stim)
 
+    logger.debug("18. iclamp injection")
     return (current, cell)

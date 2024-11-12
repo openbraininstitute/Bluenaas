@@ -1,11 +1,10 @@
 """Model"""
 
 from enum import Enum
-from typing import List, NamedTuple
+from typing import NamedTuple
 from bluenaas.core.exceptions import SimulationError, SynapseGenerationError
 from filelock import FileLock
 from loguru import logger
-import pandas  # type: ignore
 import requests
 from sympy import symbols, parse_expr  # type: ignore
 import json
@@ -19,10 +18,14 @@ from bluenaas.domains.morphology import (
     SynapsePlacementResponse,
     SynapsePosition,
     SynapseSeries,
+    SynapseMetadata,
     SynapsesPlacementConfig,
 )
 from bluenaas.domains.nexus import NexusBaseResource
-from bluenaas.domains.simulation import SynaptomeSimulationConfig
+from bluenaas.domains.simulation import (
+    SynaptomeSimulationConfig,
+    CurrentInjectionConfig,
+)
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.utils.util import (
     get_sections,
@@ -136,9 +139,11 @@ class Model:
 
     def _calc_synapse_count(
         self, config: SynapseConfig, distance: float, sec_length: float
-    ) -> int | None:
+    ) -> int:
         if config.target == SectionTarget.soma:
+            assert config.soma_synapse_count is not None
             return config.soma_synapse_count
+
         x_symbol, X_symbol = symbols("x X")
         expression = parse_expr(f"{config.formula} * {sec_length}")
         formula_value = expression.subs({x_symbol: distance, X_symbol: distance})
@@ -212,58 +217,15 @@ class Model:
             synapses=synapses,
         )
 
-    def _get_synapse_series_for_section(
-        self,
-        section_info: LocationData,
-        seg_indices_to_include: List[int],
-        placement_config: SynapseConfig,
-        simulation_config: SynaptomeSimulationConfig,
-    ):
-        from bluecellulab.circuit.synapse_properties import SynapseProperty  # type: ignore
-
-        random_index = randint(0, len(seg_indices_to_include) - 1)
-        target_segment = seg_indices_to_include[random_index]
-
-        position = random()
-        # 1. get the seg_x for target segment
-        start = section_info.neuron_segments_offset[target_segment]
-        # 2. get the seg_x for target segment +1
-        end = section_info.neuron_segments_offset[target_segment + 1]
-        diff = end - start
-        offset = position * diff
-        # 3. if the offset is bind to the section id not segment id then
-        # offset = (position * diff) + start
-
-        syn_description = pandas.Series(
-            {
-                SynapseProperty.PRE_GID: 1,
-                SynapseProperty.AXONAL_DELAY: 1.0,
-                SynapseProperty.G_SYNX: simulation_config.weight_scalar,
-                SynapseProperty.TYPE: placement_config.type,
-                SynapseProperty.U_SYN: 0.505514,
-                SynapseProperty.D_SYN: 684.279663,
-                SynapseProperty.F_SYN: 1.937531,
-                SynapseProperty.DTC: 2.983491,
-                # SynapseProperty.NRRP: 2,
-                # "source_population_name": "hippocampus_projections",
-                # "source_popid": 2126,
-                # "target_popid": 378,
-                # SynapseProperty.AFFERENT_SECTION_POS: 0.365956,
-                SynapseProperty.POST_SECTION_ID: section_info.neuron_section_id,
-                SynapseProperty.POST_SEGMENT_ID: target_segment,
-                SynapseProperty.POST_SEGMENT_OFFSET: offset,
-            }
-        )
-        return syn_description
-
     def get_synapse_series(
         self,
         synapse_placement_config: SynapseConfig,
         synapse_simulation_config: SynaptomeSimulationConfig,
         offset: int,
         frequencies_to_apply: list[float],
-    ) -> list[SynapseSeries]:
-        synapse_series: list[SynapseSeries] = []
+        current_injection_config: CurrentInjectionConfig,  # TODO: Remove this unused parameter.
+    ) -> list[SynapseMetadata]:
+        synapse_series: list[SynapseMetadata] = []
         _, section_map = get_sections(self.CELL._cell)
         sections = section_map
 
@@ -307,17 +269,14 @@ class Model:
             for _ in range(synapse_count):
                 synapse_id = int(f"{len(synapse_series)}{offset}")
                 synapse_series.append(
-                    {
-                        "id": synapse_id,
-                        "series": self._get_synapse_series_for_section(
-                            section_info=section_info,
-                            seg_indices_to_include=segment_indices,
-                            placement_config=synapse_placement_config,
-                            simulation_config=synapse_simulation_config,
-                        ),
-                        "synapseSimulationConfig": synapse_simulation_config,
-                        "frequencies_to_apply": frequencies_to_apply,
-                    }
+                    SynapseMetadata(
+                        id=synapse_id,
+                        section_info=section_info,
+                        segment_indices=segment_indices,
+                        simulation_config=synapse_simulation_config,
+                        frequencies_to_apply=frequencies_to_apply,
+                        type=synapse_placement_config.type,
+                    )
                 )
 
         return synapse_series

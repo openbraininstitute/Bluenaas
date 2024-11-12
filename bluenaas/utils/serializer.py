@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import pandas as pd
 
-from bluenaas.domains.morphology import SynapseSeries
+from bluenaas.domains.morphology import SynapseSeries, SynapseMetadata
 from bluenaas.domains.simulation import (
     CurrentInjectionConfig,
     SynaptomeSimulationConfig,
@@ -60,23 +60,22 @@ def serialize_synapse_series(synapse: SynapseSeries) -> dict:
     }
 
 
-def serialize_synapse_series_list(synapse_series_list: list[SynapseSeries]) -> str:
-    return json.dumps(
-        [serialize_synapse_series(synapse) for synapse in synapse_series_list]
-    )
+def serialize_synapse_series_list(synapse_series_list: list[SynapseMetadata]) -> str:
+    return json.dumps([synapse.model_dump_json() for synapse in synapse_series_list])
 
 
 def serialize_synapse_series_dict(
-    synapse_series_dict: dict[float, list[SynapseSeries]],
+    synapse_series_dict: dict[float, list[SynapseMetadata]],
 ) -> str:
     return json.dumps(
         {
-            k: [serialize_synapse_series(synapse) for synapse in v]
+            k: [synapse.model_dump_json() for synapse in v]
             for k, v in synapse_series_dict.items()
         }
     )
 
 
+# TODO: Remove
 def deserialize_synapse_series(data: dict) -> SynapseSeries:
     return {
         "id": data["id"],
@@ -89,15 +88,18 @@ def deserialize_synapse_series(data: dict) -> SynapseSeries:
     }
 
 
-def deserialize_synapse_series_list(serialized_data: str) -> list[SynapseSeries]:
-    return [deserialize_synapse_series(item) for item in json.loads(serialized_data)]
+def deserialize_synapse_series_list(serialized_data: str) -> list[SynapseMetadata]:
+    return [
+        SynapseMetadata.model_validate(json.loads(item))
+        for item in json.loads(serialized_data)
+    ]
 
 
 def deserialize_synapse_series_dict(
     serialized_data: str,
-) -> dict[float, list[SynapseSeries]]:
+) -> dict[float, list[SynapseMetadata]]:
     data = json.loads(serialized_data)
     return {
-        float(k): [deserialize_synapse_series(item) for item in v]
+        float(k): [SynapseMetadata.model_validate(item) for item in v]
         for k, v in data.items()
     }
