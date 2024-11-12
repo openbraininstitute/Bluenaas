@@ -10,9 +10,9 @@ Overview:
 
 import json
 from typing import Tuple
-
 from loguru import logger
 import numpy as np
+from billiard import Process  # type: ignore
 
 from bluenaas.core.stimulation.common import setup_basic_simulation_config
 from bluenaas.core.stimulation.utils import (
@@ -67,11 +67,72 @@ def single_simulation_runner(
     autosave=False,
     channel_name=str,
 ):
-    from celery import current_task
+    try:
+        from celery import current_task  # type: ignore
+
+        """
+        NOTE: The simulation *needs* to run in a child process to allow the neuron simulator to be "reset" correctly.
+        https://www.neuron.yale.edu/phpBB/viewtopic.php?t=4039
+        
+        If we don't run simulation in the child process then the simulator will return results for past simulation that were run in the worker also.
+        """
+        task_id = current_task.request.id
+        process = Process(
+            target=perform_simulation_work,
+            args=(
+                model_info,
+                org_id,
+                project_id,
+                resource_self,
+                token,
+                config,
+                amplitude,
+                frequency,
+                recording_location,
+                injection_segment,
+                thres_perc,
+                add_hypamp,
+                realtime,
+                autosave,
+                channel_name,
+                task_id,
+            ),
+        )
+        process.start()
+        process.join()
+        return "Simulation started in a separate process"
+
+    except Exception as ex:
+        logger.exception(f"running simulation failed in worker {ex}")
+
+
+def perform_simulation_work(
+    model_info: Tuple[str, str, str, str],
+    # NOTE: this need to be passed to be able to recover it in the celery task definition
+    # and use it to save the simulation result
+    org_id: str,
+    project_id: str,
+    resource_self: str | None,
+    token: str,
+    config: str,  # string representing the json object of type SingleNeuronSimulationConfig
+    amplitude: float,
+    frequency: float,
+    recording_location: str,  # string representing the json object of type RecordingLocation
+    injection_segment: float,
+    thres_perc: float | None,
+    add_hypamp: bool,
+    realtime: bool,
+    autosave: bool,
+    channel_name: str,
+    task_id: str,
+):
+    from bluecellulab.simulation.simulation import Simulation  # type: ignore
+    from bluenaas.infrastructure.redis import redis_client
 
     cf = SingleNeuronSimulationConfig(**json.loads(config))
     rl = RecordingLocation(**json.loads(recording_location))
 
+    logger.debug(f"TYPE {type(thres_perc)} {thres_perc}")
     logger.info(f"""
         [enable_realtime]: {realtime}
         [amplitude]: {amplitude}
@@ -87,7 +148,7 @@ def single_simulation_runner(
     ) = model_info
 
     (_, cell) = setup_basic_simulation_config(
-        template_params,
+        template_params=template_params,
         config=cf,
         injection_segment=injection_segment,
         recording_location=rl,
@@ -98,9 +159,6 @@ def single_simulation_runner(
         token=token,
         thres_perc=thres_perc,
     )
-
-    from bluecellulab.simulation.simulation import Simulation
-    from bluenaas.infrastructure.redis import redis_client
 
     protocol = cf.current_injection.stimulus.stimulus_protocol
     stimulus_name = get_stimulus_name(protocol)
@@ -146,8 +204,9 @@ def single_simulation_runner(
 
     def track_simulation_progress() -> None:
         logger.debug(
-            f"Progress -> Channel {channel_name} Recording {cell_section} Type {varying_type} Order {varying_order} "
+            f"Progress -> Task {task_id} Channel {channel_name} Type {varying_type} Order {varying_order} "
         )
+
         voltage = cell.get_voltage_recording(sec, seg)
         time = cell.get_time()
 
@@ -210,6 +269,3 @@ def single_simulation_runner(
 
     if realtime:
         redis_client.publish(channel_name, json.dumps({"state": "SUCCESS"}))
-
-    logger.debug(f"In the end returning {final_result}")
-    return final_result

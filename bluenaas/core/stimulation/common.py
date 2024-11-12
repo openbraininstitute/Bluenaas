@@ -5,6 +5,7 @@ from loguru import logger
 from collections import namedtuple
 import numpy as np
 from typing import Literal
+import json
 from bluenaas.core.exceptions import ChildSimulationError
 from bluenaas.core.model import model_factory
 from bluenaas.domains.morphology import SynapseSeries
@@ -400,21 +401,33 @@ def setup_basic_simulation_config(
     experimental_setup: ExperimentSetupConfig,
     amplitude: float,
     add_hypamp: bool = True,
-    thres_perc: float = None,
-    me_model_id: str = None,
+    thres_perc: float | None = None,
+    me_model_id: str | None = None,
     token: str | None = None,
 ):
-    model = model_factory(
-        model_self=me_model_id,
-        hyamp=config.conditions.hypamp,
-        bearer_token=token,
-    )
+    # model = model_factory(
+    #     model_self=me_model_id,
+    #     hyamp=config.conditions.hypamp,
+    #     bearer_token=token,
+    # )
 
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
     from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
     from bluecellulab.rngsettings import RNGSettings
     from bluecellulab.stimulus.factory import StimulusFactory
     from bluecellulab.importer import neuron
+    from bluecellulab.cell.core import Cell
+    from bluecellulab.cell.template import TemplateParams
+    from bluecellulab.circuit import EmodelProperties
+
+    json_cell_template = json.loads(template_params)
+
+    if "emodel_properties" in json_cell_template:
+        json_cell_template["emodel_properties"] = EmodelProperties(
+            **json_cell_template["emodel_properties"]
+        )
+
+    cell_params = TemplateParams(**json_cell_template)
 
     neuron_global_params = NeuronGlobals.get_instance().export_params()
     NeuronGlobals.get_instance().load_params(neuron_global_params)
@@ -430,12 +443,10 @@ def setup_basic_simulation_config(
     rng.set_seeds(
         base_seed=experimental_setup.seed,
     )
-    # from bluecellulab.importer import neuron
-    cell = model.CELL._cell
+    cell = Cell.from_template_parameters(template_params=cell_params)
     injection_section = cell.sections[injection_section_name]
 
     sec, seg = cell.sections[recording_location.section], recording_location.offset
-
     cell.add_voltage_recording(
         section=sec,
         segx=seg,

@@ -27,7 +27,7 @@ def create_simulation(
     org_id: str,
     project_id: str,
     model_self: str,
-    config: dict,
+    config: str,
     token: str,
     simulation_resource: Optional[dict[str, Any]] = None,
     stimulus_plot_data: Optional[list[dict[str, Any]]] = None,
