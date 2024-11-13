@@ -5,7 +5,7 @@ from loguru import logger
 from http import HTTPStatus as status
 from uuid import uuid4
 from typing import Any
-
+import time
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.core.stimulation.utils import is_current_varying_simulation
 from bluenaas.domains.nexus import FullNexusSimulationResource
@@ -215,8 +215,11 @@ def run_distributed_simulation(
 
                     completed_tasks = 0
 
-                    for message in pubsub.listen():
-                        if message["type"] == "message":
+                    while True:
+                        message = pubsub.get_message(
+                            ignore_subscribe_messages=True, timeout=1.0
+                        )
+                        if message is not None:
                             message_data = json.loads(message["data"])
 
                             if message_data["state"] == "SUCCESS":
@@ -249,8 +252,7 @@ def run_distributed_simulation(
                                 break
                             else:
                                 yield build_stream_obj(message_data, job.id)
-                        else:
-                            logger.debug(f"REMOVE ANOTHER KINDA MES {message}")
+                        time.sleep(0.1)  # Yield control to attend to other requests
 
                     status = None
                     if completed_tasks == len(simulation_instances):
