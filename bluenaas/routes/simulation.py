@@ -43,7 +43,7 @@ router = APIRouter(
     summary="Run neuron simulation distributed per worker",
 )
 def distributed_simulation(
-    model_self: str,
+    model_id: str,
     org_id: str,
     project_id: str,
     request: StreamSimulationBodyRequest,
@@ -110,7 +110,7 @@ def distributed_simulation(
         org_id=org_id,
         token=token,
         project_id=project_id,
-        model_self=model_self,
+        model_self=model_id,
         config=request.config,
         autosave=request.autosave,
         realtime=request.realtime,

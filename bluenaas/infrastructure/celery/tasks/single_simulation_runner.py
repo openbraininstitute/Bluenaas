@@ -35,6 +35,7 @@ from bluenaas.utils.serializer import (
     deserialize_synapse_series_list,
 )
 from bluenaas.utils.util import diff_list
+import billiard
 
 
 @celery_app.task(
@@ -48,6 +49,48 @@ def single_simulation_runner(
     # in a serialized format
     model_info: Tuple[str, str, str, str],
     *,
+    # NOTE: this need to be passed to be able to recover it in the celery task definition
+    # and use it to save the simulation result
+    org_id: str,
+    project_id: str,
+    resource_self: str | None,
+    token: str,
+    config: SingleNeuronSimulationConfig,
+    amplitude: float,
+    frequency: float,
+    recording_location: RecordingLocation,
+    injection_segment: float = 0.5,
+    thres_perc=None,
+    add_hypamp=True,
+    realtime=False,
+    autosave=False,
+):
+    process = billiard.Process(
+        target=perform_sim,
+        args=(
+            model_info,
+            org_id,
+            project_id,
+            resource_self,
+            token,
+            config,
+            amplitude,
+            frequency,
+            recording_location,
+            injection_segment,
+            thres_perc,
+            add_hypamp,
+            realtime,
+            autosave,
+        ),
+    )
+
+    process.start()
+    process.join()
+
+
+def perform_sim(
+    model_info: Tuple[str, str, str, str],
     # NOTE: this need to be passed to be able to recover it in the celery task definition
     # and use it to save the simulation result
     org_id: str,
@@ -141,6 +184,9 @@ def single_simulation_runner(
     final_result = {}
 
     def track_simulation_progress():
+        logger.debug(
+            f"PROGRESS. KEY {varying_key} TYPE {varying_type} ORDER {varying_order}"
+        )
         voltage = cell.get_voltage_recording(sec, seg)
         time = cell.get_time()
 
@@ -159,28 +205,30 @@ def single_simulation_runner(
             current_task.update_state(
                 state="PROGRESS",
                 meta={
-                    "label": label,
+                    "state": "PROGRESS",
+                    "name": label,
                     "recording": cell_section,
                     "amplitude": amplitude,
                     "frequency": frequency,
                     "varying_key": varying_key,
                     "varying_type": varying_type,
                     "varying_order": varying_order,
-                    "t": time_diff.tolist(),
-                    "v": voltage_diff.tolist(),
+                    "x": time_diff.tolist(),
+                    "y": voltage_diff.tolist(),
                 },
             )
 
         final_result = {
-            "label": label,
-            "varying_key": varying_key,
-            "varying_type": varying_type,
-            "varying_order": varying_order,
+            "state": "PROGRESS",
+            "name": label,
             "recording": cell_section,
             "amplitude": amplitude,
             "frequency": frequency,
-            "t": time.tolist(),
-            "v": voltage.tolist(),
+            "varying_key": varying_key,
+            "varying_type": varying_type,
+            "varying_order": varying_order,
+            "x": time_diff.tolist(),
+            "y": voltage_diff.tolist(),
         }
 
         return final_result
@@ -205,15 +253,16 @@ def single_simulation_runner(
         time = cell.get_time()
 
         final_result = {
-            "label": label,
+            "state": "PROGRESS",
+            "name": label,
             "recording": cell_section,
             "amplitude": amplitude,
             "frequency": frequency,
-            "t": time.tolist(),
-            "v": voltage.tolist(),
             "varying_key": varying_key,
             "varying_type": varying_type,
             "varying_order": varying_order,
+            "x": time.tolist(),
+            "y": voltage.tolist(),
         }
 
     return final_result
