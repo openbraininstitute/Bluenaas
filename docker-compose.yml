@@ -61,8 +61,8 @@ services:
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     healthcheck:
       test: "celery -A bluenaas.infrastructure.celery status || exit 1"
-      interval: 12s
-      timeout: 10s
+      interval: 12s # The status check interval shouldn't be too low. Otherwise the worker gets busy replying to status checks & simulation performance goes down.
+      timeout: 10s # Status checks take ~7 seconds
       retries: 5
     volumes:
       - ${PWD}/bluenaas:/app/bluenaas
@@ -96,8 +96,8 @@ services:
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     healthcheck:
       test: "celery -A bluenaas.infrastructure.celery status || exit 1"
-      interval: 12s
-      timeout: 10s
+      interval: 12s # The status check interval shouldn't be too low. Otherwise the worker gets busy replying to status checks & simulation performance goes down.
+      timeout: 10s # Status checks take ~7 seconds
       retries: 5
     volumes:
       - ${PWD}/bluenaas:/app/bluenaas
@@ -132,8 +132,8 @@ services:
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     healthcheck:
       test: "celery -A bluenaas.infrastructure.celery status || exit 1"
-      interval: 12s
-      timeout: 10s
+      interval: 12s # The status check interval shouldn't be too low. Otherwise the worker gets busy replying to status checks & simulation performance goes down.
+      timeout: 10s # Status checks take ~7 seconds
       retries: 5
     volumes:
       - ${PWD}/bluenaas:/app/bluenaas
@@ -167,8 +167,8 @@ services:
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     healthcheck:
       test: "celery -A bluenaas.infrastructure.celery status || exit 1"
-      interval: 12s
-      timeout: 10s
+      interval: 12s # The status check interval shouldn't be too low. Otherwise the worker gets busy replying to status checks & simulation performance goes down.
+      timeout: 10s # Status checks take ~7 seconds
       retries: 5
     volumes:
       - ${PWD}/bluenaas:/app/bluenaas
@@ -202,8 +202,8 @@ services:
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     healthcheck:
       test: "celery -A bluenaas.infrastructure.celery status || exit 1"
-      interval: 12s
-      timeout: 10s
+      interval: 12s # The status check interval shouldn't be too low. Otherwise the worker gets busy replying to status checks & simulation performance goes down.
+      timeout: 10s # Status checks take ~7 seconds
       retries: 5
     volumes:
       - ${PWD}/bluenaas:/app/bluenaas

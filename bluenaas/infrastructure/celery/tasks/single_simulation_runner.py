@@ -166,8 +166,7 @@ def perform_sim(
 
         is_current_simulation = is_current_varying_simulation(cf)
         if synapses is not None:
-            deserialized_synapses = synapses
-            # deserialized_synapses = deserialize_synapse_series_list(synapses)
+            deserialized_synapses = deserialize_synapse_series_list(synapses)
             logger.debug(
                 f"Running synaptome simulation with {len(deserialized_synapses)} synapses. Current varying {is_current_simulation}"
             )
@@ -264,6 +263,7 @@ def perform_sim(
                 "x": time.tolist(),
                 "y": voltage.tolist(),
             }
+            logger.debug(f"TODO: Handle this for background simulations {final_result}")
 
         if realtime:
             redis_client.publish(channel_name, json.dumps({"state": "SUCCESS"}))
