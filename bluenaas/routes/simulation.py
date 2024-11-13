@@ -13,7 +13,7 @@ from bluenaas.domains.simulation import (
     SimulationResultItemResponse,
     SimulationType,
     PaginatedSimulationsResponse,
-    StreamSimulationBodyRequest,
+    SingleNeuronSimulationConfig,
 )
 from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.services.simulation.run_distributed_simulation import (
@@ -46,8 +46,10 @@ def distributed_simulation(
     model_id: str,
     org_id: str,
     project_id: str,
-    request: StreamSimulationBodyRequest,
+    config: SingleNeuronSimulationConfig,
     token: str = Depends(verify_jwt),
+    realtime: bool = True,
+    autosave: bool = False,
 ):
     """
     Run a distributed neuron simulation across multiple instances, either in autosave or real-time mode.
@@ -58,27 +60,20 @@ def distributed_simulation(
         The organization ID associated with the simulation.
     `project_id : str`
         The project ID associated with the simulation.
-    `model_self : str`
+    `model_id : str`
         The URI or identifier for the neuron model being simulated.
-
-    `request : StreamSimulationBodyRequest`
-        The request body containing the simulation configuration, and optional flags for autosave and real-time streaming.
-
-    The `StreamSimulationBodyRequest` consists of:
-
-        - `config : SingleNeuronSimulationConfig`
-            The detailed configuration of the neuron simulation, including current injection parameters, recording locations, etc.
-        - `autosave : Optional[bool]`
-            Flag to indicate whether the simulation should automatically save the results. Defaults to `False`.
-        - `realtime : Optional[bool]`
-            Flag to enable real-time streaming of simulation results. Defaults to `False`.
-
+    `realtime`: bool
+        If realtime is true, simulation results are streamed in chunks. Response type is StreamingResponseWithCleanup.
+        If realtime is false, simulation is started in the background and a HTTP JSON Response (of type BackgroundSimulationStatusResponse) or error is returned.
+    `autosave`: bool
+        If autosave is true, the results of simulations are automatically saved in the database. The response contains the resourceId that can be used to fetch these results.
+        Please note, realtime=False and autosave=False is an invalid configuration.
 
     Returns:
     --------
-    StreamingResponseWithCleanup or dict
+    StreamingResponseWithCleanup or BackgroundSimulationStatusResponse
         If `realtime` is True, the response is a `StreamingResponseWithCleanup` that streams simulation state to the client.
-        If `autosave` is True, the response is a dictionary with simulation job details and resources.
+        If `autosave` is True, the response is a BackgroundSimulationStatusResponse with simulation job details and resources.
 
     Raises:
     -------
@@ -111,9 +106,9 @@ def distributed_simulation(
         token=token,
         project_id=project_id,
         model_self=model_id,
-        config=request.config,
-        autosave=request.autosave,
-        realtime=request.realtime,
+        config=config,
+        autosave=autosave,
+        realtime=realtime,
     )
 
 

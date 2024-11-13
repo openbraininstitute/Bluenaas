@@ -13,6 +13,7 @@ from typing import Tuple
 
 from loguru import logger
 import numpy as np
+import billiard
 
 from bluenaas.core.stimulation.common import setup_basic_simulation_config
 from bluenaas.core.stimulation.utils import (
@@ -24,6 +25,7 @@ from bluenaas.core.stimulation.utils import (
 from bluenaas.domains.simulation import (
     RecordingLocation,
     SingleNeuronSimulationConfig,
+    SimulationStreamData,
 )
 
 from bluenaas.infrastructure.celery import celery_app
@@ -35,7 +37,7 @@ from bluenaas.utils.serializer import (
     deserialize_synapse_series_list,
 )
 from bluenaas.utils.util import diff_list
-import billiard
+from bluenaas.infrastructure.redis import redis_client
 
 
 @celery_app.task(
@@ -64,6 +66,7 @@ def single_simulation_runner(
     add_hypamp=True,
     realtime=False,
     autosave=False,
+    channel_name: str,
 ):
     process = billiard.Process(
         target=perform_sim,
@@ -82,6 +85,7 @@ def single_simulation_runner(
             add_hypamp,
             realtime,
             autosave,
+            channel_name,
         ),
     )
 
@@ -97,18 +101,17 @@ def perform_sim(
     project_id: str,
     resource_self: str | None,
     token: str,
-    config: SingleNeuronSimulationConfig,
+    config: str,  # string representing the json object of type SingleNeuronSimulationConfig
     amplitude: float,
     frequency: float,
-    recording_location: RecordingLocation,
-    injection_segment: float = 0.5,
-    thres_perc=None,
-    add_hypamp=True,
-    realtime=False,
-    autosave=False,
+    recording_location: str,  # string representing the json object of type RecordingLocation
+    injection_segment: float,
+    thres_perc: float | None,
+    add_hypamp: bool,
+    realtime: bool,
+    autosave: bool,
+    channel_name: str,
 ):
-    from celery import current_task
-
     cf = SingleNeuronSimulationConfig(**json.loads(config))
     rl = RecordingLocation(**json.loads(recording_location))
 
@@ -183,7 +186,7 @@ def perform_sim(
     prev_time = {}
     final_result = {}
 
-    def track_simulation_progress():
+    def track_simulation_progress() -> None:
         logger.debug(
             f"PROGRESS. KEY {varying_key} TYPE {varying_type} ORDER {varying_order}"
         )
@@ -202,21 +205,19 @@ def perform_sim(
             prev_voltage[cell_section] = voltage
             prev_time[cell_section] = time
 
-            current_task.update_state(
-                state="PROGRESS",
-                meta={
-                    "state": "PROGRESS",
-                    "name": label,
-                    "recording": cell_section,
-                    "amplitude": amplitude,
-                    "frequency": frequency,
-                    "varying_key": varying_key,
-                    "varying_type": varying_type,
-                    "varying_order": varying_order,
-                    "x": time_diff.tolist(),
-                    "y": voltage_diff.tolist(),
-                },
-            )
+            partial_result: SimulationStreamData = {
+                "state": "PROGRESS",
+                "name": label,
+                "recording": cell_section,
+                "amplitude": amplitude,
+                "frequency": frequency,
+                "varying_key": varying_key,
+                "varying_type": varying_type,
+                "varying_order": varying_order,
+                "x": time_diff.tolist(),
+                "y": voltage_diff.tolist(),
+            }
+            redis_client.publish(channel_name, json.dumps(partial_result))
 
         final_result = {
             "state": "PROGRESS",
@@ -231,7 +232,7 @@ def perform_sim(
             "y": voltage_diff.tolist(),
         }
 
-        return final_result
+        return None
 
     simulation = Simulation(
         cell,
@@ -265,4 +266,5 @@ def perform_sim(
             "y": voltage.tolist(),
         }
 
-    return final_result
+    if realtime:
+        redis_client.publish(channel_name, json.dumps({"state": "SUCCESS"}))
