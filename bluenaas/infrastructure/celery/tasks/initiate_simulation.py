@@ -28,7 +28,7 @@ from bluenaas.core.stimulation.utils import (
     is_current_varying_simulation,
 )
 from bluenaas.infrastructure.celery import celery_app
-from bluenaas.domains.morphology import SynapseSeries
+from bluenaas.domains.morphology import SynapseSeries, SynapseMetadata
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     SynaptomeSimulationConfig,
@@ -83,7 +83,7 @@ def initiate_simulation(
 
     output = (
         me_model_id,
-        serialize_template_params(template_params),
+        serialize_template_params(template_params),  # TODO: Remove
         serialize_synapse_series_list(synapse_generation_config)
         if synapse_generation_config is not None
         else None,
@@ -91,18 +91,21 @@ def initiate_simulation(
         if frequency_to_synapse_config is not None
         else None,
     )
-    logger.info(f"[INITIATE SIMULATION] {output=}")
 
     return output
+
+
+CurrentSynapses = list[SynapseMetadata] | None
+FrequencySynapses = dict[float, list[SynapseMetadata]] | None
 
 
 def setup_synapses_series(
     cf: SingleNeuronSimulationConfig,
     synaptome_details: SynaptomeDetails | None,
     model: Model,
-) -> tuple[list[SynapseSeries] | None, dict[float, list[SynapseSeries]] | None]:
-    synapse_generation_config: list[SynapseSeries] = None
-    frequency_to_synapse_config: dict[float, list[SynapseSeries]] = {}
+) -> tuple[CurrentSynapses, FrequencySynapses]:
+    synapse_generation_config: CurrentSynapses = None
+    frequency_to_synapse_config: FrequencySynapses = None
 
     if synaptome_details is None:
         return (None, None)
@@ -110,7 +113,7 @@ def setup_synapses_series(
     if is_current_varying_simulation(cf):
         if cf.type == "synaptome-simulation" and cf.synaptome is not None:
             # only current injection simulation
-            synapse_settings: list[list[SynapseSeries]] = []
+            synapse_settings: list[list[SynapseMetadata]] = []
             for index, synapse_sim_config in enumerate(cf.synaptome):
                 # 3. Get "pandas.Series" for each synapse
                 synapse_placement_config = [
@@ -142,7 +145,7 @@ def setup_synapses_series(
             else:
                 constant_frequency_sim_configs.append(syn_sim_config)
 
-        frequency_to_synapse_config: dict[float, list[SynapseSeries]] = {}
+        frequency_to_synapse_config = {}
 
         offset = 0
         for variable_frequency_sim_config in variable_frequency_sim_configs:
@@ -162,10 +165,10 @@ def setup_synapses_series(
                 # First, add synapse_series for sim_config with this variable frequency
                 frequency_to_synapse_config[frequency].extend(
                     model.get_synapse_series(
-                        synapse_placement_config,
-                        variable_frequency_sim_config,
-                        offset,
-                        frequencies_to_apply,
+                        synapse_placement_config=synapse_placement_config,
+                        synapse_simulation_config=variable_frequency_sim_config,
+                        offset=offset,
+                        frequencies_to_apply=frequencies_to_apply,
                     )
                 )
                 offset += 1
@@ -181,10 +184,10 @@ def setup_synapses_series(
                     ]:
                         frequency_to_synapse_config[frequency].extend(
                             model.get_synapse_series(
-                                synapse_placement_config,
-                                sim_config,
-                                offset,
-                                frequencies_to_apply,
+                                synapse_placement_config=synapse_placement_config,
+                                synapse_simulation_config=sim_config,
+                                offset=offset,
+                                frequencies_to_apply=frequencies_to_apply,
                             )
                         )
                         offset += 1
@@ -204,10 +207,10 @@ def setup_synapses_series(
                     for sim_config in sim_configs_for_set:
                         frequency_to_synapse_config[frequency].extend(
                             model.get_synapse_series(
-                                placement_config_for_set,
-                                sim_config,
-                                offset,
-                                constant_frequencies_for_set,
+                                synapse_placement_config=placement_config_for_set,
+                                synapse_simulation_config=sim_config,
+                                offset=offset,
+                                frequencies_to_apply=constant_frequencies_for_set,
                             )
                         )
                         offset += 1

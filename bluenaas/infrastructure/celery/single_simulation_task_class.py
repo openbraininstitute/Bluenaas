@@ -26,7 +26,7 @@ class SingleSimulationTask(Task):
         )
 
     def on_success(self, retval, task_id, args, kwargs):
-        logger.info(f"[TASK_SUCCESS] {(task_id)} {kwargs} {retval}")
+        logger.info(f"[TASK_SUCCESS] {(task_id)}")
         # NOTE: sub simulation should be saved in the same simulation resource
         # NOTE: lock nexus call is required to not have race condition
         resource_self = kwargs["resource_self"]

@@ -140,3 +140,12 @@ SynapseSeries = TypedDict(
         "frequencies_to_apply": list[float],
     },
 )
+
+
+class SynapseMetadata(BaseModel):
+    id: int
+    section_info: LocationData
+    segment_indices: list[int]
+    type: int  # Inhibitory or exhibitory
+    simulation_config: SynaptomeSimulationConfig
+    frequencies_to_apply: list[float]

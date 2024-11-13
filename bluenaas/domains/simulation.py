@@ -65,14 +65,12 @@ class SimulationWithSynapseBody(BaseModel):
 
 
 class SingleNeuronSimulationConfig(BaseModel):
-    synaptome: list[SynaptomeSimulationConfig] | None = Field(
-        alias="synaptome", default=None
-    )
+    synaptome: list[SynaptomeSimulationConfig] | None
     current_injection: CurrentInjectionConfig
     record_from: list[RecordingLocation]
     conditions: ExperimentSetupConfig
-    type: SimulationType = None
-    duration: int = None
+    type: SimulationType
+    duration: int
 
     @field_validator("current_injection")
     @classmethod
@@ -87,7 +85,7 @@ class SingleNeuronSimulationConfig(BaseModel):
                         "Amplitude should be a constant float if frequency is a list"
                     )
         elif isinstance(value.stimulus.amplitudes, float):
-            synapses = config.get("synapses") or []
+            synapses = config.get("synaptome") or []
             synapses_with_variable_frequencies = [
                 synapse for synapse in synapses if isinstance(synapse.frequency, list)
             ]

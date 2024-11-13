@@ -23,9 +23,11 @@ from bluenaas.services.simulation.prepare_simulation_resource import (
     prepare_simulation_resources,
 )
 from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup_worker
-from bluenaas.utils.serializer import deserialize_synapse_series_dict
+from bluenaas.utils.serializer import (
+    deserialize_synapse_series_dict,
+    serialize_synapse_series_list,
+)
 from bluenaas.utils.simulation import convert_to_simulation_response
-from bluenaas.utils.hash_obj import get_hash
 from bluenaas.infrastructure.redis import redis_client
 
 task_state_descriptions: dict[WORKER_TASK_STATES, str] = {
@@ -117,7 +119,9 @@ def run_distributed_simulation(
 
         model_info = prep_job.get()
         # NOTE: used to calculate how many sub-simulation we should spin up
-        (_, _, _, frequency_to_synapse_config) = model_info
+        (me_model_id, template_params, current_synapses, frequency_synapses) = (
+            model_info
+        )
 
         is_current_simulation = is_current_varying_simulation(config)
         resource_self = (
@@ -132,7 +136,8 @@ def run_distributed_simulation(
                 for recording_location in config.record_from:
                     simulation_instances.append(
                         single_simulation_runner.s(
-                            model_info,
+                            me_model_id=me_model_id,
+                            synapses=current_synapses,
                             org_id=org_id,
                             project_id=project_id,
                             resource_self=resource_self,
@@ -151,9 +156,8 @@ def run_distributed_simulation(
                     )
 
         else:
-            for frequency in deserialize_synapse_series_dict(
-                frequency_to_synapse_config
-            ):
+            synapses_by_frequency = deserialize_synapse_series_dict(frequency_synapses)
+            for frequency in synapses_by_frequency:
                 amplitudes = config.current_injection.stimulus.amplitudes
 
                 # NOTE: frequency simulation should have only one amplitude (for the moment)
@@ -163,7 +167,10 @@ def run_distributed_simulation(
                 for recording_location in config.record_from:
                     simulation_instances.append(
                         single_simulation_runner.s(
-                            model_info,
+                            me_model_id=me_model_id,
+                            synapses=serialize_synapse_series_list(
+                                synapses_by_frequency[frequency]
+                            ),
                             org_id=org_id,
                             project_id=project_id,
                             resource_self=resource_self,
@@ -283,6 +290,7 @@ def run_distributed_simulation(
             )
 
     except Exception as ex:
+        logger.exception(f"Error while running simulation {ex}")
         raise BlueNaasError(
             http_status_code=status.INTERNAL_SERVER_ERROR,
             error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,

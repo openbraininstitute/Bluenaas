@@ -9,7 +9,6 @@ Overview:
 """
 
 import json
-from typing import Tuple
 
 from loguru import logger
 import numpy as np
@@ -33,7 +32,6 @@ from bluenaas.infrastructure.celery.single_simulation_task_class import (
     SingleSimulationTask,
 )
 from bluenaas.utils.serializer import (
-    deserialize_synapse_series_dict,
     deserialize_synapse_series_list,
 )
 from bluenaas.utils.util import diff_list
@@ -47,10 +45,9 @@ from bluenaas.infrastructure.redis import redis_client
 )
 def single_simulation_runner(
     self,
-    # NOTE: this tuple contains [me_model_i, template_params, synapse_generation_config, frequency_to_synapse_config]
-    # in a serialized format
-    model_info: Tuple[str, str, str, str],
     *,
+    me_model_id: str,
+    synapses: str | None,  # Serialized list of synapses
     # NOTE: this need to be passed to be able to recover it in the celery task definition
     # and use it to save the simulation result
     org_id: str,
@@ -71,7 +68,8 @@ def single_simulation_runner(
     process = billiard.Process(
         target=perform_sim,
         args=(
-            model_info,
+            me_model_id,
+            synapses,
             org_id,
             project_id,
             resource_self,
@@ -94,7 +92,8 @@ def single_simulation_runner(
 
 
 def perform_sim(
-    model_info: Tuple[str, str, str, str],
+    me_model_id: str,
+    synapses: str | None,  # Serialized list of synapses
     # NOTE: this need to be passed to be able to recover it in the celery task definition
     # and use it to save the simulation result
     org_id: str,
@@ -122,15 +121,7 @@ def perform_sim(
         [simulation recording_location]: {recording_location}
     """)
 
-    (
-        me_model_id,
-        template_params,
-        synapse_generation_config,
-        frequency_to_synapse_config,
-    ) = model_info
-
     (_, cell) = setup_basic_simulation_config(
-        template_params,
         config=cf,
         injection_segment=injection_segment,
         recording_location=rl,
@@ -144,30 +135,22 @@ def perform_sim(
 
     from bluecellulab.simulation.simulation import Simulation
 
-    protocol = cf.current_injection.stimulus.stimulus_protocol
-    stimulus_name = get_stimulus_name(protocol)
-
     is_current_simulation = is_current_varying_simulation(cf)
 
-    if is_current_simulation:
-        if synapse_generation_config is not None:
-            sgc = deserialize_synapse_series_list(synapse_generation_config)
-            for synapse in sgc:
-                assert isinstance(synapse["synapseSimulationConfig"].frequency, float)
-                add_single_synapse(
-                    cell=cell,
-                    synapse=synapse,
-                    experimental_setup=cf.conditions,
-                )
-    else:
-        if frequency_to_synapse_config is not None:
-            fsc = deserialize_synapse_series_dict(frequency_to_synapse_config)
-            for synapse in fsc:
-                add_single_synapse(
-                    cell=cell,
-                    synapse=synapse,
-                    experimental_setup=cf.conditions,
-                )
+    if synapses is not None:
+        deserialized_synapses = deserialize_synapse_series_list(synapses)
+        logger.debug(
+            f"Running synaptome simulation. Current varying {is_current_simulation}"
+        )
+        for synapse in deserialized_synapses:
+            add_single_synapse(
+                cell=cell,
+                synapse=synapse,
+                experimental_setup=cf.conditions,
+            )
+
+    protocol = cf.current_injection.stimulus.stimulus_protocol
+    stimulus_name = get_stimulus_name(protocol)
 
     sec, seg = cell.sections[rl.section], rl.offset
 
