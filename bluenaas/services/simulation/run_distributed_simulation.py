@@ -287,6 +287,10 @@ def run_distributed_simulation(
                 except Exception as ex:
                     logger.info(f"Exception in task streaming: {ex}")
                     raise Exception("Trouble while streaming simulation data")
+                finally:
+                    logger.exception(f"Closing channel {channel_name}")
+                    pubsub.unsubscribe(channel_name)
+                    pubsub.close()
 
             return StreamingResponseWithCleanup(
                 streamify(),
