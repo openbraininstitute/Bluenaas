@@ -136,12 +136,12 @@ def perform_sim(
     from bluecellulab.simulation.simulation import Simulation
 
     is_current_simulation = is_current_varying_simulation(cf)
-
     if synapses is not None:
         deserialized_synapses = deserialize_synapse_series_list(synapses)
         logger.debug(
-            f"Running synaptome simulation. Current varying {is_current_simulation}"
+            f"Running synaptome simulation with {len(deserialized_synapses)} synapses. Current varying {is_current_simulation}"
         )
+
         for synapse in deserialized_synapses:
             add_single_synapse(
                 cell=cell,

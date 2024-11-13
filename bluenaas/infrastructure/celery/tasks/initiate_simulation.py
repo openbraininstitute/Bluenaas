@@ -161,7 +161,7 @@ def setup_synapses_series(
                     variable_frequency_sim_config.id, constant_frequency_sim_configs
                 )
                 frequencies_to_apply.append(frequency)
-
+                logger.debug(f"FREQUENCIES TO APPLY {frequencies_to_apply}")
                 # First, add synapse_series for sim_config with this variable frequency
                 frequency_to_synapse_config[frequency].extend(
                     model.get_synapse_series(
