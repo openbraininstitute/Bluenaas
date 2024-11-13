@@ -73,7 +73,7 @@ class SingleSimulationTask(Task):
         )
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
-        logger.info(f"[TASK_FAILED] {(exc, task_id, args, kwargs, einfo)}")
+        logger.info(f"[TASK_FAILED] {(exc, task_id, einfo)}")
 
         # NOTE: sub simulation should be saved in on same simulation resource
         # NOTE: lock nexus call is required

@@ -227,6 +227,26 @@ def run_distributed_simulation(
                                 if completed_tasks == len(simulation_instances):
                                     logger.debug(f"Received all results for {job.id}")
                                     break
+                            elif message_data["state"] == "FAILURE":
+                                logger.debug(
+                                    f"RECEIVED A FAILURE MESSAGE {message_data}"
+                                )
+
+                                yield f"{json.dumps(
+                                    {
+                                        "event": "error",
+                                        "description": task_state_descriptions["FAILURE"],
+                                        "state": "captured",
+                                        "job_id": job.id,
+                                        "resource_self": resource_self, 
+                                        "data": {                          
+                                            "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
+                                            "message": "Simulation failed",
+                                            "details": message_data["error"] if "error" in message_data else "Unknown simulation error",
+                                        }
+                                    }
+                                )}\n"
+                                break
                             else:
                                 yield build_stream_obj(message_data, job.id)
                         else:
@@ -236,7 +256,10 @@ def run_distributed_simulation(
                     if completed_tasks == len(simulation_instances):
                         logger.debug("JOB SUCCESSFUL")
                         status = states.SUCCESS
-                    elif completed_tasks < len(simulation_instances):
+                    elif (
+                        completed_tasks < len(simulation_instances)
+                        and completed_tasks > 0
+                    ):
                         # NOTE: this is new state introduced if we want to be more precise about the quality of the results
                         logger.debug("JOB PARTIALLY SUCCESSFUL")
                         status = "PARTIAL_SUCCESS"
