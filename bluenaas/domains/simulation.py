@@ -200,6 +200,11 @@ class SimulationStreamData(TypedDict):
     y: list[float]
 
 
+class SimulationErrorMessage(TypedDict):
+    state: WORKER_TASK_STATES
+    error: str
+
+
 class StreamSimulationResponse(BaseModel):
     event: SimulationEvent
     state: SimulationStatus
