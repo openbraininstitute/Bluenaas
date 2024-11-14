@@ -51,6 +51,7 @@ class BaseNexusSimulationResource(BaseModel):
     brainLocation: Any  # TODO Add better type
     isDraft: bool | None = None
     status: str | None = None  # TODO Add better type
+    total_tasks: int
 
     class Config:
         populate_by_name = True
@@ -64,8 +65,9 @@ class FullNexusSimulationResource(NexusBaseResource):
     injectionLocation: str
     recordingLocation: list[str] | str
     brainLocation: Any  # TODO Add better type
-    isDraft: bool | None = None
-    status: SimulationStatus | None = None  # TODO Add better type
+    is_draft: bool | None = None
+    status: SimulationStatus | None = None
+    error: str | None = None
 
     class Config:
         populate_by_name = True

@@ -56,7 +56,7 @@ def single_simulation_runner(
     # and use it to save the simulation result
     org_id: str,
     project_id: str,
-    resource_self: str | None,
+    sim_resource_self: str | None,
     token: str,
     config: SingleNeuronSimulationConfig,
     amplitude: float,
@@ -84,7 +84,7 @@ def single_simulation_runner(
             synapses,
             org_id,
             project_id,
-            resource_self,
+            sim_resource_self,
             token,
             config,
             amplitude,
