@@ -1,10 +1,9 @@
 import json
 from urllib.parse import quote_plus
-from celery import states
+from celery import states  # type: ignore
 from loguru import logger
 from http import HTTPStatus as status
 from uuid import uuid4
-from typing import Any
 import time
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.core.stimulation.utils import is_current_varying_simulation
@@ -13,7 +12,12 @@ from bluenaas.domains.simulation import (
     SimulationEvent,
     SingleNeuronSimulationConfig,
     SimulationStreamData,
-    WORKER_TASK_STATES,
+    SimulationErrorMessage,
+)
+from bluenaas.services.simulation.constants import (
+    task_state_descriptions,
+    MESSAGE_WAIT_TIME_SECONDS,
+    POLLING_INTERVAL_SECONDS,
 )
 from bluenaas.infrastructure.celery.tasks.single_simulation_runner import (
     single_simulation_runner,
@@ -29,17 +33,6 @@ from bluenaas.utils.serializer import (
 )
 from bluenaas.utils.simulation import convert_to_simulation_response
 from bluenaas.infrastructure.redis import redis_client
-
-task_state_descriptions: dict[WORKER_TASK_STATES, str] = {
-    "INIT": "Simulation is captured by the system",
-    "PROGRESS": "Simulation is currently in progress.",
-    "PENDING": "Simulation is waiting for execution.",
-    "STARTED": "Simulation has started executing.",
-    "SUCCESS": "The simulation completed successfully.",
-    "FAILURE": "The simulation has failed.",
-    "REVOKED": "The simulation has been canceled.",
-    "PARTIAL_SUCCESS": "The simulation has been completed but not fully successful.",
-}
 
 
 def get_event_from_task_state(state) -> SimulationEvent:
@@ -70,6 +63,28 @@ def build_stream_obj(task_result: SimulationStreamData, job_id: str):
                 "job_id": job_id,
                 "data": task_result,
             }
+        )}\n"
+
+
+def build_stream_error(error_result: SimulationErrorMessage | None, job_id: str):
+    error_details = (
+        error_result["error"]
+        if error_result is not None and "error" in error_result
+        else "Unknown simulation error"
+    )
+
+    return f"{json.dumps(
+        {
+            "event": "error",
+            "description": task_state_descriptions["FAILURE"],
+            "state": "captured",
+            "job_id": job_id, 
+            "data": {                          
+                "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
+                "message": "Simulation failed",
+                "details": error_details
+            }
+        }
         )}\n"
 
 
@@ -132,6 +147,7 @@ def run_distributed_simulation(
 
         # TODO: better handling of this condition/loop to generate simulation tasks list
         if is_current_simulation:
+            assert isinstance(amplitudes, list)
             for amplitude in amplitudes:
                 for recording_location in config.record_from:
                     simulation_instances.append(
@@ -213,60 +229,67 @@ def run_distributed_simulation(
                         }
                     )}\n"
 
-                    completed_tasks = 0
+                    # successful_message_count might not always be equal to the count of celery tasks that have successfully finished
+                    # because there might be a time difference between when we receive the successful message from redis queue and when celery succesfully registers
+                    # the task as complete.
+                    successful_message_count = 0
 
                     while True:
                         message = pubsub.get_message(
-                            ignore_subscribe_messages=True, timeout=1.0
+                            ignore_subscribe_messages=True,
+                            timeout=MESSAGE_WAIT_TIME_SECONDS,
                         )
+                        if job.failed():
+                            logger.debug(
+                                f"Job {job.id} failed without publishing result for {MESSAGE_WAIT_TIME_SECONDS} seconds"
+                            )
+                            yield build_stream_error(None, job.id)
+                            break
+
                         if message is not None:
                             message_data = json.loads(message["data"])
 
                             if message_data["state"] == "SUCCESS":
-                                completed_tasks = completed_tasks + 1
+                                successful_message_count = successful_message_count + 1
                                 logger.debug(
-                                    f"Received {completed_tasks} shutdown events for {job.id}"
+                                    f"Received {successful_message_count} shutdown events for {job.id}"
                                 )
-                                if completed_tasks == len(simulation_instances):
+                                if successful_message_count == len(
+                                    simulation_instances
+                                ):
                                     logger.debug(f"Received all results for {job.id}")
                                     break
+
                             elif message_data["state"] == "FAILURE":
                                 logger.debug(
-                                    f"RECEIVED A FAILURE MESSAGE {message_data}"
+                                    f"Received failure message for job {job.id} {message_data}"
                                 )
-
-                                yield f"{json.dumps(
-                                    {
-                                        "event": "error",
-                                        "description": task_state_descriptions["FAILURE"],
-                                        "state": "captured",
-                                        "job_id": job.id,
-                                        "resource_self": resource_self, 
-                                        "data": {                          
-                                            "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
-                                            "message": "Simulation failed",
-                                            "details": message_data["error"] if "error" in message_data else "Unknown simulation error",
-                                        }
-                                    }
-                                )}\n"
+                                yield build_stream_error(message_data, job.id)
                                 break
+
                             else:
                                 yield build_stream_obj(message_data, job.id)
-                        time.sleep(0.1)  # Yield control to attend to other requests
+                        time.sleep(
+                            POLLING_INTERVAL_SECONDS
+                        )  # Do not continuously poll the queue to allow server to attend to other tasks.
 
                     status = None
-                    if completed_tasks == len(simulation_instances):
+                    if successful_message_count == len(simulation_instances):
                         logger.debug("JOB SUCCESSFUL")
                         status = states.SUCCESS
                     elif (
-                        completed_tasks < len(simulation_instances)
-                        and completed_tasks > 0
+                        successful_message_count < len(simulation_instances)
+                        and successful_message_count > 0
                     ):
                         # NOTE: this is new state introduced if we want to be more precise about the quality of the results
-                        logger.debug("JOB PARTIALLY SUCCESSFUL")
+                        logger.debug(
+                            f"Job partially successful. {successful_message_count} / {len(simulation_instances)} completed"
+                        )
                         status = "PARTIAL_SUCCESS"
                     else:
-                        logger.debug(f"JOB FAILED. Completed Tasks {completed_tasks}")
+                        logger.debug(
+                            f"JOB FAILED. Completed Tasks {successful_message_count}"
+                        )
                         status = states.FAILURE
 
                     # TODO: check for the revoked task status

@@ -37,8 +37,8 @@ from bluenaas.utils.serializer import (
 )
 from bluenaas.utils.util import diff_list
 from bluenaas.infrastructure.redis import redis_client
+from bluenaas.services.simulation.constants import SIMULATION_TIMEOUT_SECONDS
 
-SIMULATION_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
 ERROR_STATE: WORKER_TASK_STATES = "FAILURE"
 
 
@@ -103,7 +103,7 @@ def single_simulation_runner(
 
     try:
         task_result = queue.get(
-            timeout=15 * 60
+            timeout=SIMULATION_TIMEOUT_SECONDS
         )  # If simulation process does not return in 15 minutes, abort the simulation.
         if task_result["state"] == ERROR_STATE:
             raise SimulationError(task_result["data"])
