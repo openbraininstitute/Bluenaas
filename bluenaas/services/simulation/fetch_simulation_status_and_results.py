@@ -3,7 +3,7 @@ from http import HTTPStatus
 from pydantic import Field
 from bluenaas.domains.nexus import FullNexusSimulationResource
 from bluenaas.external.nexus.nexus import Nexus
-from bluenaas.domains.simulation import SimulationResultItemResponse
+from bluenaas.domains.simulation import SimulationDetailsResponse
 from urllib.parse import unquote
 from loguru import logger
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
@@ -18,7 +18,7 @@ def fetch_simulation_status_and_results(
     org_id: str,
     project_id: str,
     simulation_uri: str = Field(..., description="URL-encoded simulation URI"),
-) -> SimulationResultItemResponse:
+) -> SimulationDetailsResponse:
     try:
         simulation_id = unquote(simulation_uri)
         nexus_helper = Nexus(

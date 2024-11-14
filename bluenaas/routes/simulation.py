@@ -10,7 +10,7 @@ from typing import Optional
 
 from bluenaas.domains.nexus import DeprecateNexusResponse
 from bluenaas.domains.simulation import (
-    SimulationResultItemResponse,
+    SimulationDetailsResponse,
     SimulationType,
     PaginatedSimulationsResponse,
     SingleNeuronSimulationConfig,
@@ -125,7 +125,7 @@ async def shutdown_simulation(
     project_id: str,
     job_id: str,
     token: str = Depends(verify_jwt),
-) -> StopSimulationResponse:
+) -> SimulationDetailsResponse:
     """
     Shutdown a running simulation identified by the given job ID (grouped simulations)
     """
@@ -195,7 +195,7 @@ async def get_simulation(
         ..., description="URL-encoded simulation URI (resource ID in nexus context)"
     ),
     token: str = Depends(verify_jwt),
-) -> SimulationResultItemResponse:
+) -> SimulationDetailsResponse:
     """
     Retrieves the results, status and metadata of a previously completed simulation.
 

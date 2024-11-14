@@ -136,11 +136,17 @@ class PlotDataEntry(BaseModel):
     frequency: Optional[float]
 
 
-class SimulationResultItemResponse(BaseModel):
+class BrainRegion(BaseModel):
     id: str
-    self_uri: str
+    label: str
+
+
+class SimulationDetailsResponse(BaseModel):
+    id: str
+    job_id: str | None = None
     status: SimulationStatus | None = None
     results: Optional[dict]
+    error: Optional[str]
 
     type: SimulationType
     name: str
@@ -149,22 +155,18 @@ class SimulationResultItemResponse(BaseModel):
     created_at: datetime
     injection_location: str
     recording_location: list[str] | str
-    brain_location: dict
+    brain_region: BrainRegion
     config: Optional[SingleNeuronSimulationConfig]
 
-    me_model_self: str
-    synaptome_model_self: Optional[str]
-    job_id: Optional[str] = None
-
-    def __getitem__(self, key):
-        return getattr(self, key)
+    me_model_id: str
+    synaptome_model_id: Optional[str]
 
 
 class PaginatedSimulationsResponse(BaseModel):
     page_offset: int
     page_size: int
     total: int
-    results: list[SimulationResultItemResponse]
+    results: list[SimulationDetailsResponse]
 
 
 class StreamSimulationBodyRequest(BaseModel):

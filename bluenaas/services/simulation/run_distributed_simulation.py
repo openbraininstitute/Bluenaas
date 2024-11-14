@@ -1,10 +1,12 @@
 import json
-from urllib.parse import quote_plus
 from celery import states  # type: ignore
 from loguru import logger
 from http import HTTPStatus as status
 from uuid import uuid4
 import time
+from typing import NamedTuple
+from celery import group
+
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.core.stimulation.utils import is_current_varying_simulation
 from bluenaas.domains.nexus import FullNexusSimulationResource
@@ -22,9 +24,11 @@ from bluenaas.services.simulation.constants import (
 from bluenaas.infrastructure.celery.tasks.single_simulation_runner import (
     single_simulation_runner,
 )
-from bluenaas.infrastructure.celery.tasks.initiate_simulation import initiate_simulation
-from bluenaas.services.simulation.prepare_simulation_resource import (
-    prepare_simulation_resources,
+from bluenaas.infrastructure.celery.tasks.initiate_simulation import (
+    initiate_simulation,
+)
+from bluenaas.services.simulation.setup_simulation_resource import (
+    setup_simulation_resources,
 )
 from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup_worker
 from bluenaas.utils.serializer import (
@@ -88,6 +92,133 @@ def build_stream_error(error_result: SimulationErrorMessage | None, job_id: str)
         )}\n"
 
 
+class SerializedSimulationTaskArgs(NamedTuple):
+    me_model_id: str
+    synapses: str | None
+    org_id: str
+    project_id: str
+    token: str
+    config: str
+    amplitude: float
+    frequency: float | None
+    recording_location: str
+    injection_segment: float
+    thres_perc: float | None
+    add_hypamp: bool
+    realtime: bool
+    autosave: bool
+    channel_name: str | None
+    sim_resource_self: str | None
+
+
+def get_base_task_arguments(
+    sim_config: SingleNeuronSimulationConfig,
+    serialized_current_synapses: str | None,
+    serialized_frequency_synapses: str | None,
+    me_model_id: str,
+    token: str,
+    org_id: str,
+    project_id: str,
+    realtime: bool,
+    autosave: bool,
+) -> list[SerializedSimulationTaskArgs]:
+    is_current_simulation = is_current_varying_simulation(sim_config)
+    task_args: list[SerializedSimulationTaskArgs] = []
+    amplitudes = sim_config.current_injection.stimulus.amplitudes
+
+    # TODO: better handling of this condition/loop to generate simulation tasks list
+    if is_current_simulation:
+        assert isinstance(amplitudes, list)
+        for amplitude in amplitudes:
+            for recording_location in sim_config.record_from:
+                task_args.append(
+                    SerializedSimulationTaskArgs(
+                        me_model_id=me_model_id,
+                        synapses=serialized_current_synapses,
+                        org_id=org_id,
+                        project_id=project_id,
+                        sim_resource_self=None,
+                        token=token,
+                        config=sim_config.model_dump_json(),
+                        amplitude=amplitude,
+                        frequency=None,
+                        recording_location=recording_location.model_dump_json(),
+                        injection_segment=0.5,
+                        thres_perc=None,
+                        add_hypamp=True,
+                        realtime=realtime,
+                        autosave=autosave,
+                        channel_name=None,
+                    )
+                )
+    else:
+        assert serialized_frequency_synapses is not None
+        synapses_by_frequency = deserialize_synapse_series_dict(
+            serialized_frequency_synapses
+        )
+        for frequency in synapses_by_frequency:
+            # NOTE: frequency simulation should have only one amplitude (for the moment)
+            assert isinstance(amplitudes, float)
+
+            for recording_location in sim_config.record_from:
+                task_args.append(
+                    SerializedSimulationTaskArgs(
+                        me_model_id=me_model_id,
+                        synapses=serialize_synapse_series_list(
+                            synapses_by_frequency[frequency]
+                        ),
+                        org_id=org_id,
+                        project_id=project_id,
+                        sim_resource_self=None,
+                        token=token,
+                        config=sim_config.model_dump_json(),
+                        amplitude=amplitudes,
+                        frequency=frequency,
+                        recording_location=recording_location.model_dump_json(),
+                        injection_segment=0.5,
+                        thres_perc=None,
+                        add_hypamp=True,
+                        realtime=realtime,
+                        autosave=autosave,
+                        channel_name=None,
+                    )
+                )
+    return task_args
+
+
+def prepare_tasks_for_job(
+    task_args: list[SerializedSimulationTaskArgs],
+    channel_name: str,
+    sim_resource_self: str | None,
+):
+    tasks = []
+
+    for task_arg in task_args:
+        if task_arg.autosave is True:
+            assert sim_resource_self is not None
+        tasks.append(
+            single_simulation_runner.s(
+                me_model_id=task_arg.me_model_id,
+                synapses=task_arg.synapses,
+                org_id=task_arg.org_id,
+                project_id=task_arg.project_id,
+                sim_resource_self=sim_resource_self,
+                token=task_arg.token,
+                config=task_arg.config,
+                amplitude=task_arg.amplitude,
+                frequency=task_arg.frequency,
+                recording_location=task_arg.recording_location,
+                injection_segment=task_arg.injection_segment,
+                thres_perc=task_arg.thres_perc,
+                add_hypamp=task_arg.add_hypamp,
+                realtime=task_arg.realtime,
+                autosave=task_arg.autosave,
+                channel_name=channel_name if task_arg.realtime is True else None,
+            )
+        )
+    return tasks
+
+
 def run_distributed_simulation(
     org_id: str,
     project_id: str,
@@ -97,33 +228,15 @@ def run_distributed_simulation(
     autosave: bool = False,
     realtime: bool = False,
 ):
-    from celery import group
-
-    amplitudes = config.current_injection.stimulus.amplitudes
-    simulation_instances = []
-    simulation_resource = None
-
-    if autosave:
-        (
-            me_model_self,
-            synaptome_model_self,
-            _,
-            _,
-            simulation_resource,
-        ) = prepare_simulation_resources(
-            token,
-            model_self,
-            org_id,
-            project_id,
-            SingleNeuronSimulationConfig.model_validate(config),
-            status="started",
+    if autosave is False and realtime is False:
+        raise BlueNaasError(
+            http_status_code=status.UNPROCESSABLE_ENTITY,
+            error_code=BlueNaasErrorCode.SIMULATION_ERROR,
+            message="Disabling autosave is not allowed for non-realtime simulations.",
         )
 
     try:
-        # NOTE: build the model and calculate synapses series (current/frequency)
-        # this should be ran before the sub simulation
-        # Reason: to get the synapses series (it required to know how many parallel simulation should be run)
-        # chaining tasks is not an option here using (chain from celery or "|")
+        # Get synapse metadata for cell. This is later used to determine the number of sub-simulation tasks needed
         prep_job = initiate_simulation.apply_async(
             kwargs={
                 "model_self": model_self,
@@ -131,85 +244,54 @@ def run_distributed_simulation(
                 "config": config.model_dump_json(),
             }
         )
-
-        model_info = prep_job.get()
-        # NOTE: used to calculate how many sub-simulation we should spin up
+        prep_job_result = prep_job.get()
         (me_model_id, template_params, current_synapses, frequency_synapses) = (
-            model_info
+            prep_job_result
         )
 
-        is_current_simulation = is_current_varying_simulation(config)
-        resource_self = (
+        task_args = get_base_task_arguments(
+            sim_config=config,
+            serialized_current_synapses=current_synapses,
+            serialized_frequency_synapses=frequency_synapses,
+            me_model_id=me_model_id,
+            token=token,
+            org_id=org_id,
+            project_id=project_id,
+            realtime=realtime,
+            autosave=autosave,
+        )
+
+        simulation_resource = None
+        if autosave:
+            (
+                me_model_self,
+                synaptome_model_self,
+                _,
+                simulation_resource,
+            ) = setup_simulation_resources(
+                token=token,
+                model_self=model_self,
+                org_id=org_id,
+                project_id=project_id,
+                config=config,
+                total_tasks=len(task_args),
+            )
+
+        sim_resource_self = (
             simulation_resource["_self"] if simulation_resource is not None else None
         )
-
         channel_name = f"simulation_{uuid4()}"
 
-        # TODO: better handling of this condition/loop to generate simulation tasks list
-        if is_current_simulation:
-            assert isinstance(amplitudes, list)
-            for amplitude in amplitudes:
-                for recording_location in config.record_from:
-                    simulation_instances.append(
-                        single_simulation_runner.s(
-                            me_model_id=me_model_id,
-                            synapses=current_synapses,
-                            org_id=org_id,
-                            project_id=project_id,
-                            resource_self=resource_self,
-                            token=token,
-                            config=config.model_dump_json(),
-                            amplitude=amplitude,
-                            frequency=None,
-                            recording_location=recording_location.model_dump_json(),
-                            injection_segment=0.5,
-                            thres_perc=None,
-                            add_hypamp=True,
-                            realtime=realtime,
-                            autosave=autosave,
-                            channel_name=channel_name,
-                        )
-                    )
+        tasks = prepare_tasks_for_job(
+            task_args=task_args,
+            channel_name=channel_name,
+            sim_resource_self=sim_resource_self,
+        )
+        assert len(task_args) == len(tasks)
 
-        else:
-            synapses_by_frequency = deserialize_synapse_series_dict(frequency_synapses)
-            for frequency in synapses_by_frequency:
-                amplitudes = config.current_injection.stimulus.amplitudes
-
-                # NOTE: frequency simulation should have only one amplitude (for the moment)
-                # TODO: capture the assertion exception
-                assert isinstance(amplitudes, float)
-
-                for recording_location in config.record_from:
-                    simulation_instances.append(
-                        single_simulation_runner.s(
-                            me_model_id=me_model_id,
-                            synapses=serialize_synapse_series_list(
-                                synapses_by_frequency[frequency]
-                            ),
-                            org_id=org_id,
-                            project_id=project_id,
-                            resource_self=resource_self,
-                            token=token,
-                            config=config.model_dump_json(),
-                            amplitude=amplitudes,
-                            frequency=frequency,
-                            recording_location=recording_location.model_dump_json(),
-                            injection_segment=0.5,
-                            thres_perc=None,
-                            add_hypamp=True,
-                            realtime=realtime,
-                            autosave=autosave,
-                            channel_name=channel_name,
-                        )
-                    )
-
-        grouped_tasks = group(simulation_instances)
+        grouped_tasks = group(tasks)
         job = grouped_tasks.apply_async()
 
-        # NOTE: if both `realtime` and `autosave` are enabled
-        # the simulation will be streamed but the autosave will be handled in the celery task definition
-        # please check: bluenaas/infrastructure/celery/single_simulation_task_class.py
         if realtime:
             pubsub = redis_client.pubsub()
             pubsub.subscribe(channel_name)
@@ -224,7 +306,7 @@ def run_distributed_simulation(
                             "description": task_state_descriptions["INIT"],
                             "state": "captured",
                             "job_id": job.id,
-                            "resource_self": resource_self, 
+                            "resource_self": sim_resource_self, 
                             "data": None,
                         }
                     )}\n"
@@ -254,9 +336,7 @@ def run_distributed_simulation(
                                 logger.debug(
                                     f"Received {successful_message_count} shutdown events for {job.id}"
                                 )
-                                if successful_message_count == len(
-                                    simulation_instances
-                                ):
+                                if successful_message_count == len(tasks):
                                     logger.debug(f"Received all results for {job.id}")
                                     break
 
@@ -274,16 +354,16 @@ def run_distributed_simulation(
                         )  # Do not continuously poll the queue to allow server to attend to other tasks.
 
                     status = None
-                    if successful_message_count == len(simulation_instances):
+                    if successful_message_count == len(tasks):
                         logger.debug("JOB SUCCESSFUL")
                         status = states.SUCCESS
                     elif (
-                        successful_message_count < len(simulation_instances)
+                        successful_message_count < len(tasks)
                         and successful_message_count > 0
                     ):
                         # NOTE: this is new state introduced if we want to be more precise about the quality of the results
                         logger.debug(
-                            f"Job partially successful. {successful_message_count} / {len(simulation_instances)} completed"
+                            f"Job partially successful. {successful_message_count} / {len(tasks)} completed"
                         )
                         status = "PARTIAL_SUCCESS"
                     else:
@@ -302,7 +382,7 @@ def run_distributed_simulation(
                             "description":description,
                             "state": status,
                             "job_id": job.id,
-                            "resource_self": resource_self, 
+                            "resource_self": sim_resource_self, 
                             "data": None,
                         }
                     )}\n"
@@ -326,19 +406,18 @@ def run_distributed_simulation(
                 },
             )
 
-        elif autosave:
-            # NOTE: if autosave simulation is enabled then return the simulation with
-            # 1- job_id to be able to shutdown the simulation
-            # 2- query nexus for the simulation (status and result) at any time
+        else:
+            assert simulation_resource is not None
             return convert_to_simulation_response(
                 job_id=job.id,
-                simulation_uri=quote_plus(simulation_resource["@id"]),
+                simulation_uri=simulation_resource["@id"],
                 simulation_resource=FullNexusSimulationResource.model_validate(
                     simulation_resource,
                 ),
                 me_model_self=me_model_self,
                 synaptome_model_self=synaptome_model_self,
-                distribution=None,
+                simulation_config=config,
+                results=None,
             )
 
     except Exception as ex:
