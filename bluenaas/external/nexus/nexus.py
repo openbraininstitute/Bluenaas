@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import quote_plus, unquote, urlencode
 from loguru import logger
 import requests
+import json
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     StimulationItemResponse,
@@ -22,7 +23,6 @@ from bluenaas.utils.generate_id import generate_id
 from bluenaas.utils.util import get_model_path
 from bluenaas.core.exceptions import ResourceDeprecationError, SimulationError
 from typing import Any, Optional, Sequence
-import json
 
 HTTP_TIMEOUT = 10  # seconds
 
@@ -284,7 +284,7 @@ class Nexus:
         workflow_resource = self.fetch_resource_by_id(workflow_id)
 
         configuration = None
-        workflow_resource_list = ensure_list(workflow_resource["hasPart"], dict)
+        workflow_resource_list = ensure_list(workflow_resource["hasPart"])
         for part in workflow_resource_list:
             if part["@type"] == "EModelConfiguration":
                 configuration = part
@@ -303,7 +303,7 @@ class Nexus:
         morphology_resource = self.fetch_resource_by_id(morph_id)
 
         swc = None
-        distributions = ensure_list(morphology_resource["distribution"], dict)
+        distributions = ensure_list(morphology_resource["distribution"])
         for distribution in distributions:
             if distribution["encodingFormat"] == "application/swc":
                 swc = distribution
@@ -329,7 +329,7 @@ class Nexus:
 
     def get_memodel_morphology(self, memodel_resource):
         morphology_id = None
-        for haspart in ensure_list(memodel_resource["hasPart"], dict):
+        for haspart in ensure_list(memodel_resource["hasPart"]):
             if haspart.get("@type") == "NeuronMorphology":
                 morphology_id = haspart.get("@id")
         if morphology_id is None:
@@ -340,7 +340,7 @@ class Nexus:
     def get_mechanisms(self, configuration):
         # fetch only SubCellularModelScripts. Morphologies will be fetched later
         scripts = []
-        for config in ensure_list(configuration["uses"], dict):
+        for config in ensure_list(configuration["uses"]):
             if config.get("@type") != "NeuronMorphology":
                 scripts.append(config)
 
@@ -360,7 +360,7 @@ class Nexus:
         # logger.info(f'@@-> {model_resources=}')
         mechanisms = []
         for model_resource in model_resources:
-            distributions = ensure_list(model_resource["distribution"], dict)
+            distributions = ensure_list(model_resource["distribution"])
             logger.info(f'@@-> ds:{model_resource["distribution"]}')
             distribution = list(
                 filter(
@@ -380,7 +380,7 @@ class Nexus:
         workflow_resource = self.fetch_resource_by_id(workflow_id)
 
         script = None
-        for generated in ensure_list(workflow_resource["generates"], dict):
+        for generated in ensure_list(workflow_resource["generates"]):
             if generated["@type"] == "EModelScript":
                 script = generated
                 break
@@ -535,9 +535,11 @@ class Nexus:
     def create_simulation_resource(
         self,
         simulation_config: SingleNeuronSimulationConfig,
+        stimulus_plot_data: list[StimulationItemResponse],
         status: SimulationStatus,
         org_id: str,
         project_id: str,
+        total_tasks: int,
     ) -> dict:
         # Step 1: Get me_model
         try:
@@ -545,20 +547,31 @@ class Nexus:
         except Exception:
             raise SimulationError(f"No me_model with self {self.model_id} found")
 
-        # Step 2: Create simulation resource with status = "PENDING"
+        # Step 2: Create distribution resource
+        distribution = self.create_simulation_distribution(
+            model_self=self.model_id,
+            config=simulation_config,
+            stimulus_plot_data=stimulus_plot_data,
+            org_id=org_id,
+            project_id=project_id,
+            results=None,
+        )
+        # Step 3: Create simulation resource with status = "started"
         try:
             sim_name = (
                 "single-neuron-simulation-{}".format(generate_id(10))
                 if simulation_config.type == "single-neuron-simulation"
                 else "synaptome-simulation-{}".format(generate_id(10))
             )
-            description = "simulation"
+            description = "background simulation created by bluenaas api"
             simulation_resource = self.prepare_nexus_simulation(
                 sim_name=sim_name,
                 description=description,
                 config=simulation_config,
                 model=model,
                 status=status,
+                total_tasks=total_tasks,
+                distribution=distribution,
             )
             simulation_resource_url = f"{settings.NEXUS_ROOT_URI}/resources/{org_id}/{project_id}?indexing=sync"
             simulation_response = requests.post(
@@ -677,10 +690,13 @@ class Nexus:
         config: SingleNeuronSimulationConfig,
         model: dict,
         status: str,
+        total_tasks: int,
+        distribution: dict[str, Any],
     ):
         record_locations = [
-            f"{r.section}_{r.offset}" for r in ensure_list(config.record_from, str)
+            f"{r.section}_{r.offset}" for r in ensure_list(config.record_from)
         ]
+
         return BaseNexusSimulationResource(
             type=["Entity", "SingleNeuronSimulation"]
             if config.type == "single-neuron-simulation"
@@ -688,35 +704,51 @@ class Nexus:
             name=sim_name,
             description=description,
             context="https://bbp.neuroshapes.org",
-            distribution=[],
+            distribution=distribution,
             injectionLocation=config.current_injection.inject_to,
-            recordingLocation=ensure_list(record_locations, str),
+            recordingLocation=ensure_list(record_locations),
             brainLocation=model["brainLocation"],
             # Model can be MEModel or SingleNeuronSynaptome
             used={"@type": model["@type"], "@id": model["@id"]},
             isDraft=True,
             status=status,
+            total_tasks=total_tasks,
         )
 
     def create_simulation_distribution(
         self,
+        model_self: str,
         config: SingleNeuronSimulationConfig,
-        stimulus: list[StimulationItemResponse],
+        stimulus_plot_data: list[StimulationItemResponse],
         org_id: str,
         project_id: str,
-    ):
-        distribution_payload = NexusSimulationPayload(
-            config=config, simulation=None, stimulus=stimulus
-        )
-        distribution_name = (
-            "simulation-config-single-neuron.json"
-            if config.type == "single-neuron-simulation"
-            else "simulation-config-synaptome.json"
-        )
-        distribution_resource = self.create_nexus_distribution(
-            payload=distribution_payload.model_dump(by_alias=True),
-            filename=distribution_name,
-            org_id=org_id,
-            project_id=project_id,
-        )
-        return distribution_resource
+        results: Optional[dict],
+    ) -> dict[str, Any]:
+        # Step 1: Create a distribution file to save results.
+        try:
+            simulation_config = SingleNeuronSimulationConfig.model_validate(config)
+            distribution_payload = NexusSimulationPayload(
+                config=simulation_config,
+                simulation=results,
+                stimulus=stimulus_plot_data,
+            )
+            distribution_name = (
+                "simulation-config-single-neuron.json"
+                if simulation_config.type == "single-neuron-simulation"
+                else "simulation-config-synaptome.json"
+            )
+            distribution_resource = self.create_nexus_distribution(
+                payload=distribution_payload.model_dump(by_alias=True),
+                filename=distribution_name,
+                org_id=org_id,
+                project_id=project_id,
+            )
+            return distribution_resource
+        except Exception as e:
+            dist_id = f"ORG {org_id} PROJECT {project_id} MODEL {model_self}"
+            logger.exception(
+                f"Could not create distribution with simulation results for resource {dist_id}. Exception {e}"
+            )
+            raise SimulationError(
+                f"Could not create distribution with simulation results for resource {dist_id}"
+            )

@@ -7,7 +7,7 @@ from loguru import logger
 from bluenaas.domains.nexus import FullNexusSimulationResource
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.domains.simulation import (
-    SimulationResultItemResponse,
+    SimulationDetailsResponse,
     SimulationType,
     NexusSimulationType,
     PaginatedSimulationsResponse,
@@ -52,7 +52,7 @@ def fetch_all_simulations_of_project(
         )
         nexus_simulations = nexus_sim_response["_results"]
 
-        simulations: list[SimulationResultItemResponse] = []
+        simulations: list[SimulationDetailsResponse] = []
 
         for nexus_sim in nexus_simulations:
             try:

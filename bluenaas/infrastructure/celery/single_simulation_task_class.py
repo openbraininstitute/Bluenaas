@@ -29,7 +29,7 @@ class SingleSimulationTask(Task):
         logger.info(f"[TASK_SUCCESS] {(task_id)}")
         # NOTE: sub simulation should be saved in the same simulation resource
         # NOTE: lock nexus call is required to not have race condition
-        resource_self = kwargs["resource_self"]
+        resource_self = kwargs["sim_resource_self"]
         autosave = kwargs["autosave"]
         if resource_self is not None and autosave:
             # NOTE: saving into nexus concurrently may lead to race condition
@@ -77,7 +77,7 @@ class SingleSimulationTask(Task):
 
         # NOTE: sub simulation should be saved in on same simulation resource
         # NOTE: lock nexus call is required
-        resource_self = kwargs["resource_self"]
+        resource_self = kwargs["sim_resource_self"]
         autosave = kwargs["autosave"]
         if resource_self is not None and autosave:
             # NOTE: saving into nexus concurrently may lead to race condition
