@@ -228,7 +228,7 @@ class Nexus:
             project_id=project_id,
         )
 
-        distribution_url = f"{settings.NEXUS_ROOT_URI}/files/{org_id}/{project_id}/{quote_plus(saved_file["@id"])}?rev={saved_file["_rev"]}"
+        distribution_url = f"{settings.NEXUS_ROOT_URI}/files/{org_id}/{project_id}/{quote_plus(saved_file["@id"])}"
         distribution = {
             "@type": "DataDownload",
             "name": saved_file["_filename"],
@@ -244,34 +244,6 @@ class Nexus:
             },
         }
         return distribution
-
-    # Note: This function doesn't seem to work for distributions uploaded on s3. See discussion here - https://bluebrainproject.slack.com/archives/G013PKBUHT2/p1728567806810799
-    def update_nexus_distribution(
-        self, file_url: str, filename: str, content_type: str, data_to_add: dict
-    ):
-        current_distribution = self.fetch_file_by_url(file_url=file_url).json()
-
-        updated_json = current_distribution | data_to_add
-
-        # Prepare the files for the PUT request
-        files = {"file": (filename, json.dumps(updated_json), content_type)}
-        file_headers = self.headers | {
-            # mandatory to upload to a S3 storage (AWS)
-            "x-nxs-file-content-length": str(len(updated_json))
-        }
-
-        response = requests.put(
-            file_url,
-            headers=file_headers,
-            files=files,
-            timeout=HTTP_TIMEOUT,
-        )
-
-        if not response.ok:
-            raise Exception(
-                f"Error updating distribution: {response.status_code}", response.json()
-            )
-        return response.json()
 
     def compose_url(self, url):
         return self.nexus_base + quote_plus(url, safe=":")
@@ -532,6 +504,36 @@ class Nexus:
     def get_model_uuid(self):
         return self.model_uuid
 
+    def prepare_nexus_simulation(
+        self,
+        sim_name: str,
+        description: str,
+        config: SingleNeuronSimulationConfig,
+        model: dict,
+        status: str,
+        distribution: dict[str, Any],
+    ):
+        record_locations = [
+            f"{r.section}_{r.offset}" for r in ensure_list(config.record_from)
+        ]
+
+        return BaseNexusSimulationResource(
+            type=["Entity", "SingleNeuronSimulation"]
+            if config.type == "single-neuron-simulation"
+            else ["Entity", "SynaptomeSimulation"],
+            name=sim_name,
+            description=description,
+            context="https://bbp.neuroshapes.org",
+            distribution=distribution,
+            injectionLocation=config.current_injection.inject_to,
+            recordingLocation=ensure_list(record_locations),
+            brainLocation=model["brainLocation"],
+            # Model can be MEModel or SingleNeuronSynaptome
+            used={"@type": model["@type"], "@id": model["@id"]},
+            isDraft=True,
+            status=status,
+        )
+
     def create_simulation_resource(
         self,
         simulation_config: SingleNeuronSimulationConfig,
@@ -539,7 +541,6 @@ class Nexus:
         status: SimulationStatus,
         org_id: str,
         project_id: str,
-        total_tasks: int,
     ) -> dict:
         # Step 1: Get me_model
         try:
@@ -556,7 +557,7 @@ class Nexus:
             project_id=project_id,
             results=None,
         )
-        # Step 3: Create simulation resource with status = "started"
+        # Step 3: Create simulation resource with status = "PENDING"
         try:
             sim_name = (
                 "single-neuron-simulation-{}".format(generate_id(10))
@@ -570,7 +571,6 @@ class Nexus:
                 config=simulation_config,
                 model=model,
                 status=status,
-                total_tasks=total_tasks,
                 distribution=distribution,
             )
             simulation_resource_url = f"{settings.NEXUS_ROOT_URI}/resources/{org_id}/{project_id}?indexing=sync"
@@ -683,38 +683,6 @@ class Nexus:
                 f"Could not update simulation resource {resource_self} with status {status}"
             )
 
-    def prepare_nexus_simulation(
-        self,
-        sim_name: str,
-        description: str,
-        config: SingleNeuronSimulationConfig,
-        model: dict,
-        status: str,
-        total_tasks: int,
-        distribution: dict[str, Any],
-    ):
-        record_locations = [
-            f"{r.section}_{r.offset}" for r in ensure_list(config.record_from)
-        ]
-
-        return BaseNexusSimulationResource(
-            type=["Entity", "SingleNeuronSimulation"]
-            if config.type == "single-neuron-simulation"
-            else ["Entity", "SynaptomeSimulation"],
-            name=sim_name,
-            description=description,
-            context="https://bbp.neuroshapes.org",
-            distribution=distribution,
-            injectionLocation=config.current_injection.inject_to,
-            recordingLocation=ensure_list(record_locations),
-            brainLocation=model["brainLocation"],
-            # Model can be MEModel or SingleNeuronSynaptome
-            used={"@type": model["@type"], "@id": model["@id"]},
-            isDraft=True,
-            status=status,
-            total_tasks=total_tasks,
-        )
-
     def create_simulation_distribution(
         self,
         model_self: str,
@@ -751,4 +719,84 @@ class Nexus:
             )
             raise SimulationError(
                 f"Could not create distribution with simulation results for resource {dist_id}"
+            )
+
+    def update_json_nexus_distribution(
+        self, file_url: str, filename: str, data_to_add: dict
+    ):
+        file_metadata = self.fetch_file_metadata(file_url=file_url).json()
+        current_distribution = self.fetch_file_by_url(file_url=file_url).json()
+
+        updated_json = current_distribution | data_to_add
+        file_content = json.dumps(updated_json)
+        # Prepare the files for the PUT request
+        files = {"file": (filename, file_content, "application/json")}
+        file_headers = self.headers | {
+            # mandatory in order to upload to a S3 storage (AWS)
+            "x-nxs-file-content-length": str(len(file_content))
+        }
+
+        logger.debug(f"REMOVE. ENGPOINT: {file_url}?rev={file_metadata["_rev"]}")
+        response = requests.put(
+            f"{file_url}?rev={file_metadata["_rev"]}",
+            headers=file_headers,
+            files=files,
+            timeout=30,  # The request to write the distribution with simulation results sometimes takes more than 10 seconds.
+        )
+
+        if not response.ok:
+            raise Exception(
+                f"Error updating distribution: {response.status_code}", response.json()
+            )
+        return response.json()
+
+    def update_simulation_with_final_results(
+        self,
+        simulation_resource_self: str,
+        org_id: str,
+        project_id: str,
+        status: SimulationStatus,
+        results: dict,
+    ):
+        """
+        Called when simulation finished successfully.
+        This function updates simulation status to success and adds the final simulation result to the distribution.
+        """
+        # Step 1: Update the distribution file with results
+        try:
+            simulation_resource = self.fetch_resource_by_self(
+                resource_self=simulation_resource_self
+            )
+
+            distribution = ensure_list(simulation_resource["distribution"])[0]
+            distribution_url = distribution["contentUrl"]
+
+            self.update_json_nexus_distribution(
+                file_url=distribution_url,
+                filename=distribution["name"],
+                data_to_add={"simulation": results},
+            )
+        except Exception as e:
+            logger.exception(
+                f"Could not update distribution with simulation results for resource {simulation_resource['_self']}. Exception {e}"
+            )
+            raise SimulationError(
+                f"Could not update distribution with simulation results for resource {simulation_resource['_self']}"
+            )
+
+        # Step 2: Update status of simulation resource to success
+        try:
+            return self.update_simulation_status(
+                org_id=org_id,
+                project_id=project_id,
+                resource_self=simulation_resource["_self"],
+                status=status,
+                is_draft=True,
+            )
+        except Exception as e:
+            logger.exception(
+                f"Could not update simulation resource {simulation_resource['_self']} with status {status}. Exception {e}"
+            )
+            raise SimulationError(
+                f"Could not update simulation resource {simulation_resource['_self']} with status {status}"
             )

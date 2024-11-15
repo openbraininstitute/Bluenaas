@@ -51,7 +51,6 @@ class BaseNexusSimulationResource(BaseModel):
     brainLocation: Any  # TODO Add better type
     isDraft: bool | None = None
     status: str | None = None  # TODO Add better type
-    total_tasks: int
 
     class Config:
         populate_by_name = True
