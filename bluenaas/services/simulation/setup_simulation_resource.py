@@ -55,7 +55,6 @@ def setup_simulation_resources(
     org_id: str,
     project_id: str,
     config: SingleNeuronSimulationConfig,
-    total_tasks: int,
 ) -> NexusSimulationDetails:
     nexus_helper = Nexus({"token": token, "model_self_url": model_self})
     # Step 1: Generate stimulus data to be saved in nexus resource in step 1
@@ -91,7 +90,6 @@ def setup_simulation_resources(
             status="started",
             org_id=org_id,
             project_id=project_id,
-            total_tasks=total_tasks,
         )
         simulation_resource = nexus_helper.fetch_resource_for_org_project(
             org_label=org_id,

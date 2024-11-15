@@ -4,7 +4,7 @@ contains the single neuron simulation endpoint (single neuron, single neuron wit
 """
 
 from datetime import datetime
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, BackgroundTasks
 from typing import Optional
 
 
@@ -20,7 +20,6 @@ from bluenaas.services.simulation.run_distributed_simulation import (
     run_distributed_simulation,
 )
 from bluenaas.services.simulation.shutdown_distributed_simulation import (
-    StopSimulationResponse,
     do_shutdown_simulation,
 )
 
@@ -47,9 +46,10 @@ def distributed_simulation(
     org_id: str,
     project_id: str,
     config: SingleNeuronSimulationConfig,
+    background_tasks: BackgroundTasks,
     token: str = Depends(verify_jwt),
     realtime: bool = True,
-    autosave: bool = False,
+    autosave: bool = True,
 ):
     """
     Run a distributed neuron simulation across multiple instances, either in autosave or real-time mode.
@@ -109,6 +109,7 @@ def distributed_simulation(
         config=config,
         autosave=autosave,
         realtime=realtime,
+        background_tasks=background_tasks,
     )
 
 
