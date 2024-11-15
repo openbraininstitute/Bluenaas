@@ -1,12 +1,15 @@
 import json
 from celery import states  # type: ignore
+from celery.result import GroupResult  # type: ignore
 from loguru import logger
 from http import HTTPStatus as status
 from uuid import uuid4
 import time
-from typing import NamedTuple
+from typing import NamedTuple, cast
 from celery import group
+from fastapi import BackgroundTasks
 
+from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.core.stimulation.utils import is_current_varying_simulation
 from bluenaas.domains.nexus import FullNexusSimulationResource
@@ -20,6 +23,7 @@ from bluenaas.services.simulation.constants import (
     task_state_descriptions,
     MESSAGE_WAIT_TIME_SECONDS,
     POLLING_INTERVAL_SECONDS,
+    SIMULATION_TIMEOUT_SECONDS,
 )
 from bluenaas.infrastructure.celery.tasks.single_simulation_runner import (
     single_simulation_runner,
@@ -225,6 +229,7 @@ def run_distributed_simulation(
     model_self: str,
     token: str,
     config: SingleNeuronSimulationConfig,
+    background_tasks: BackgroundTasks,
     autosave: bool = False,
     realtime: bool = False,
 ):
@@ -274,7 +279,6 @@ def run_distributed_simulation(
                 org_id=org_id,
                 project_id=project_id,
                 config=config,
-                total_tasks=len(task_args),
             )
 
         sim_resource_self = (
@@ -331,7 +335,7 @@ def run_distributed_simulation(
                         if message is not None:
                             message_data = json.loads(message["data"])
 
-                            if message_data["state"] == "SUCCESS":
+                            if message_data["state"] == "PARTIAL_SUCCESS":
                                 successful_message_count = successful_message_count + 1
                                 logger.debug(
                                     f"Received {successful_message_count} shutdown events for {job.id}"
@@ -408,6 +412,14 @@ def run_distributed_simulation(
 
         else:
             assert simulation_resource is not None
+            background_tasks.add_task(
+                bg_task_process_simulation_results,
+                celery_job=job,
+                token=token,
+                org_id=org_id,
+                project_id=project_id,
+                simulation_resource_self=simulation_resource["_self"],
+            )
             return convert_to_simulation_response(
                 job_id=job.id,
                 simulation_uri=simulation_resource["@id"],
@@ -428,3 +440,50 @@ def run_distributed_simulation(
             message="Error while running simulation",
             details=ex.__str__(),
         ) from ex
+
+
+def bg_task_process_simulation_results(
+    celery_job: GroupResult,
+    token: str,
+    org_id: str,
+    project_id: str,
+    simulation_resource_self: str,
+):
+    try:
+        # Collect results from celery worker
+        logger.debug(f"Bg task started for simulation {simulation_resource_self}")
+        task_results = celery_job.join_native(
+            timeout=SIMULATION_TIMEOUT_SECONDS,
+            interval=1,
+            propagate=False,  # If one of the tasks failed, allow processing other tasks.
+        )
+        logger.debug(
+            f"{len(task_results)} task Results gathered for simulation {simulation_resource_self}"
+        )
+
+        # Transform result into a dictionary
+        final_result: dict[str, list[SimulationStreamData]] = {}
+        for task_result in cast(list[SimulationStreamData], task_results):
+            recording_name = task_result["recording"]
+
+            final_result[recording_name] = (
+                final_result[recording_name] if recording_name in final_result else []
+            )
+
+            final_result[recording_name].append(task_result)
+
+        # Save result into nexus
+        nexus_helper = Nexus({"token": token, "model_self_url": "model_id"})
+        nexus_helper.update_simulation_with_final_results(
+            simulation_resource_self=simulation_resource_self,
+            org_id=org_id,
+            project_id=project_id,
+            status="success",
+            results=final_result,
+        )
+
+        logger.debug(f"Simulation result saved for {simulation_resource_self}")
+    except Exception as ex:
+        logger.exception(f"Exception in non-realtime simulation {ex}")
+    finally:
+        logger.debug(f"Bg task completed for simulation {simulation_resource_self}")

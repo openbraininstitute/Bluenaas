@@ -40,6 +40,7 @@ from bluenaas.infrastructure.redis import redis_client
 from bluenaas.services.simulation.constants import SIMULATION_TIMEOUT_SECONDS
 
 ERROR_STATE: WORKER_TASK_STATES = "FAILURE"
+SIMULATION_SUCCESS: WORKER_TASK_STATES = "PARTIAL_SUCCESS"
 
 
 @celery_app.task(
@@ -107,10 +108,14 @@ def single_simulation_runner(
         )  # If simulation process does not return in 15 minutes, abort the simulation.
         if task_result["state"] == ERROR_STATE:
             raise SimulationError(task_result["data"])
+        if task_result["state"] == SIMULATION_SUCCESS:
+            return task_result["data"]
     except SimulationError as ex:
         raise ex
     except Exception as ex:
-        logger.exception(f"Exception in worker process {ex}")
+        logger.exception(
+            f"Exception in worker process for sim_resource {sim_resource_self} {ex}"
+        )
         raise SimulationError from ex
     finally:
         logger.debug("Cleaning up the worker process")
@@ -247,12 +252,12 @@ def perform_sim(
         # NOTE: return result to be able to recover it
         # 1. when there is no realtime
         # 2. the user enable autosaving
-        if not realtime or autosave:
+        if not realtime or autosave is True:
             voltage = cell.get_voltage_recording(sec, seg)
             time = cell.get_time()
 
             final_result = {
-                "state": "PROGRESS",
+                "state": "PARTIAL_SUCCESS",
                 "name": label,
                 "recording": cell_section,
                 "amplitude": amplitude,
@@ -263,11 +268,13 @@ def perform_sim(
                 "x": time.tolist(),
                 "y": voltage.tolist(),
             }
-            logger.debug(f"TODO: Handle this for background simulations {final_result}")
+            queue.put({"state": SIMULATION_SUCCESS, "data": final_result})
 
         if realtime:
-            redis_client.publish(channel_name, json.dumps({"state": "SUCCESS"}))
-        queue.put({"state": "SUCCESS", "data": "Worker task done for simulation"})
+            redis_client.publish(
+                channel_name, json.dumps({"state": SIMULATION_SUCCESS})
+            )
+
     except Exception as ex:
         redis_client.publish(
             channel_name, json.dumps({"state": "FAILURE", "error": f"{ex}"})
