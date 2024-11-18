@@ -12,7 +12,7 @@ from bluenaas.domains.nexus import DeprecateNexusResponse
 from bluenaas.domains.simulation import (
     SimulationDetailsResponse,
     SimulationType,
-    PaginatedSimulationsResponse,
+    PaginatedResponse,
     SingleNeuronSimulationConfig,
 )
 from bluenaas.infrastructure.kc.auth import verify_jwt
@@ -138,17 +138,22 @@ def distributed_simulation(
 
 @router.get(
     "/single-neuron/{org_id}/{project_id}",
+    description="Get all simulations for a project",
     summary=(
         """
-        Get all neuron simulations per project
+        Returns all simulations in the provided project. 
+        Please note, the data for simulations does not contain simulation results (x, y points) 
+        or simulation config to not bloat the response.
+        Only nexus simulations that conform with the latest schema are returned.
         """
     ),
+    tags=["simulation"],
 )
 async def get_all_simulations_for_project(
     org_id: str,
     project_id: str,
     simulation_type: Optional[SimulationType] = None,
-    page_offset: int = 0,
+    offset: int = 0,
     page_size: int = 20,
     created_at_start: Optional[datetime] = Query(
         None, description="Filter by createdAt date (YYYY-MM-DDTHH:MM:SSZ)"
@@ -157,24 +162,13 @@ async def get_all_simulations_for_project(
         None, description="Filter by createdAt date (YYYY-MM-DDTHH:MM:SSZ)"
     ),
     token: str = Depends(verify_jwt),
-) -> PaginatedSimulationsResponse:
-    """
-    Retrieves all simulations associated with a specific project.
-
-    This endpoint allows users to fetch all simulations for a given project,
-    identified by the organization ID and project ID. The results are paginated,
-    and users can filter the simulations based on their creation dates and simulation type.
-
-    > **Note**:
-    Simulation results (x, y points) are not included in the response to avoid
-    excessive data transfer.
-    """
+) -> PaginatedResponse[SimulationDetailsResponse]:
     return fetch_all_simulations_of_project(
         token=token,
         org_id=org_id,
         project_id=project_id,
         sim_type=simulation_type,
-        offset=page_offset,
+        offset=offset,
         size=page_size,
         created_at_start=created_at_start,
         created_at_end=created_at_end,
@@ -207,27 +201,19 @@ async def get_simulation(
 
 
 @router.delete(
-    "/single-neuron/{org_id}/{project_id}/{simulation_uri}",
-    summary="Delete simulation",
+    "/single-neuron/{org_id}/{project_id}/{simulation_id:path}",
+    summary="Delete simulation resource",
+    tags=["simulation"],
 )
 async def delete_simulation(
     org_id: str,
     project_id: str,
-    simulation_uri: str = Path(
-        ..., description="URL-encoded simulation URI (resource ID in nexus context)"
-    ),
+    simulation_id: str,
     token: str = Depends(verify_jwt),
 ) -> DeprecateNexusResponse:
-    """
-    Deletes a simulation resource identified by its URI (resource ID in nexus context)
-
-    This endpoint allows  to delete a specific simulation resource
-    based on the provided organization ID, project ID, and simulation URI.
-    Once deleted, the simulation resource will no longer be accessible.
-    """
     return deprecate_simulation(
         token=token,
         org_id=org_id,
         project_id=project_id,
-        simulation_uri=simulation_uri,
+        simulation_uri=simulation_id,
     )
