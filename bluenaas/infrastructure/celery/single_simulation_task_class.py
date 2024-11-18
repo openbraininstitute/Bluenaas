@@ -2,7 +2,6 @@ from celery import Task
 from loguru import logger
 
 from bluenaas.infrastructure.celery.worker_scalability import EcsTaskProtection
-from bluenaas.infrastructure.celery.broker_manager import Lock
 from bluenaas.utils.run_on_env import run_on_env
 
 
@@ -11,7 +10,6 @@ class SingleSimulationTask(Task):
 
     def __init__(self):
         self.task_protection = EcsTaskProtection()
-        self.locker = Lock("nexus_group")
         super().__init__()
 
     def before_start(self, task_id, args, kwargs):
