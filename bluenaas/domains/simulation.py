@@ -6,7 +6,9 @@ from pydantic import BaseModel, Field, PositiveFloat, field_validator
 SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
 NexusSimulationType = Literal["SingleNeuronSimulation", "SynaptomeSimulation"]
 
-SimulationStatus = Literal["pending", "started", "success", "failure"]
+SimulationStatus = Literal[
+    "pending", "started", "success", "failure", "partial_success"
+]
 SimulationEvent = Literal["init", "info", "data", "error"]
 
 SIMULATION_TYPE_MAP: dict[NexusSimulationType, SimulationType] = {
@@ -65,7 +67,7 @@ class SimulationWithSynapseBody(BaseModel):
 
 
 class SingleNeuronSimulationConfig(BaseModel):
-    synaptome: list[SynaptomeSimulationConfig] | None
+    synaptome: list[SynaptomeSimulationConfig] | None = None
     current_injection: CurrentInjectionConfig
     record_from: list[RecordingLocation]
     conditions: ExperimentSetupConfig

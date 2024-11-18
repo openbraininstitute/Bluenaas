@@ -108,6 +108,7 @@ def single_simulation_runner(
             timeout=SIMULATION_TIMEOUT_SECONDS
         )  # If simulation process does not return in 15 minutes, abort the simulation.
         if task_result["state"] == ERROR_STATE:
+            logger.debug(f"Received error state {task_result}")
             raise SimulationError(task_result["data"])
         if task_result["state"] == SIMULATION_SUCCESS:
             if not realtime or autosave is True:
@@ -150,7 +151,7 @@ def perform_sim(
     add_hypamp: bool,
     realtime: bool,
     autosave: bool,
-    channel_name: str,
+    channel_name: str | None,
 ):
     try:
         cf = SingleNeuronSimulationConfig(**json.loads(config))
@@ -258,6 +259,7 @@ def perform_sim(
         )
 
         if realtime:
+            assert channel_name is not None
             redis_client.publish(
                 channel_name, json.dumps({"state": SIMULATION_SUCCESS})
             )
@@ -283,7 +285,18 @@ def perform_sim(
         queue.put({"state": SIMULATION_SUCCESS, "data": final_result})
 
     except Exception as ex:
-        redis_client.publish(
-            channel_name, json.dumps({"state": "FAILURE", "error": f"{ex}"})
+        logger.exception(
+            f"Simulation error in celery worker {ex}. Channel name {channel_name}"
         )
+        if realtime is True:
+            assert channel_name is not None
+            redis_client.publish(
+                channel_name,
+                json.dumps(
+                    {
+                        "state": "FAILURE",
+                        "error": f"{ex}",
+                    }
+                ),
+            )
         queue.put({"state": ERROR_STATE, "data": f"{ex}"})

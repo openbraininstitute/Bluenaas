@@ -756,6 +756,7 @@ class Nexus:
         project_id: str,
         status: SimulationStatus,
         results: dict,
+        error_message: str | None,
     ):
         """
         Called when simulation finished successfully.
@@ -791,6 +792,7 @@ class Nexus:
                 resource_self=simulation_resource["_self"],
                 status=status,
                 is_draft=True,
+                err=error_message,
             )
         except Exception as e:
             logger.exception(

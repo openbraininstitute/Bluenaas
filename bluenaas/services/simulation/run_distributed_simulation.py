@@ -16,6 +16,7 @@ from bluenaas.domains.nexus import FullNexusSimulationResource
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     SimulationStreamData,
+    SimulationStatus,
 )
 from bluenaas.services.simulation.constants import (
     task_state_descriptions,
@@ -413,7 +414,13 @@ def bg_task_process_simulation_results(
 
         # Transform result into a dictionary
         final_result: dict[str, list[SimulationStreamData]] = {}
+        failed_results = 0
+        error_message = None
         for task_result in cast(list[SimulationStreamData], task_results):
+            if isinstance(task_result, Exception):
+                failed_results = failed_results + 1
+                error_message = f"{task_result}"
+                continue
             recording_name = task_result["recording"]
 
             final_result[recording_name] = (
@@ -425,12 +432,22 @@ def bg_task_process_simulation_results(
 
         # Save result into nexus
         nexus_helper = Nexus({"token": token, "model_self_url": "model_id"})
+
+        simulation_state: SimulationStatus
+        if failed_results == 0:
+            simulation_state = "success"
+        elif failed_results == len(task_results):
+            simulation_state = "failure"
+        else:
+            simulation_state = "partial_success"
+
         nexus_helper.update_simulation_with_final_results(
             simulation_resource_self=simulation_resource_self,
             org_id=org_id,
             project_id=project_id,
-            status="success",
+            status=simulation_state,
             results=final_result,
+            error_message=error_message,
         )
 
         logger.debug(f"Simulation result saved for {simulation_resource_self}")
