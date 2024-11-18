@@ -4,7 +4,7 @@ contains the single neuron simulation endpoint (single neuron, single neuron wit
 """
 
 from datetime import datetime
-from fastapi import APIRouter, Depends, Path, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, Query, BackgroundTasks
 from typing import Optional
 
 
@@ -147,7 +147,6 @@ def distributed_simulation(
         Only nexus simulations that conform with the latest schema are returned.
         """
     ),
-    tags=["simulation"],
 )
 async def get_all_simulations_for_project(
     org_id: str,
@@ -184,7 +183,6 @@ async def get_all_simulations_for_project(
         `simulation_id` should be url encoded.
         """
     ),
-    tags=["simulation"],
 )
 async def get_simulation(
     org_id: str,
@@ -203,7 +201,6 @@ async def get_simulation(
 @router.delete(
     "/single-neuron/{org_id}/{project_id}/{simulation_id:path}",
     summary="Delete simulation resource",
-    tags=["simulation"],
 )
 async def delete_simulation(
     org_id: str,
