@@ -153,7 +153,7 @@ def build_stream_error(error_result: SimulationErrorMessage | None, job_id: str)
         {
             "event": "error",
             "description": task_state_descriptions["FAILURE"],
-            "state": "captured",
+            "state": "failure",
             "job_id": job_id, 
             "data": {                          
                 "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
