@@ -113,27 +113,27 @@ def distributed_simulation(
     )
 
 
-@router.post(
-    "/single-neuron/{org_id}/{project_id}/{task_id}/shutdown",
-    summary=(
-        """
-        Stop neuron distributed simulation
-        """
-    ),
-)
-async def shutdown_simulation(
-    org_id: str,
-    project_id: str,
-    job_id: str,
-    token: str = Depends(verify_jwt),
-) -> SimulationDetailsResponse:
-    """
-    Shutdown a running simulation identified by the given job ID (grouped simulations)
-    """
-    return await do_shutdown_simulation(
-        token=token,
-        task_id=job_id,
-    )
+# @router.post(
+#     "/single-neuron/{org_id}/{project_id}/{task_id}/shutdown",
+#     summary=(
+#         """
+#         Stop neuron distributed simulation
+#         """
+#     ),
+# )
+# async def shutdown_simulation(
+#     org_id: str,
+#     project_id: str,
+#     job_id: str,
+#     token: str = Depends(verify_jwt),
+# ) -> SimulationDetailsResponse:
+#     """
+#     Shutdown a running simulation identified by the given job ID (grouped simulations)
+#     """
+#     return await do_shutdown_simulation(
+#         token=token,
+#         task_id=job_id,
+#     )
 
 
 @router.get(
@@ -182,34 +182,27 @@ async def get_all_simulations_for_project(
 
 
 @router.get(
-    "/single-neuron/{org_id}/{project_id}/{simulation_uri}",
+    "/single-neuron/{org_id}/{project_id}/{simulation_id:path}",
     summary=(
         """
-        Get simulation data
+        Get results & status for a previously started simulation. 
+        If simulation is not complete the results are null.
+        `simulation_id` should be url encoded.
         """
     ),
+    tags=["simulation"],
 )
 async def get_simulation(
     org_id: str,
     project_id: str,
-    simulation_uri: str = Path(
-        ..., description="URL-encoded simulation URI (resource ID in nexus context)"
-    ),
+    simulation_id: str,
     token: str = Depends(verify_jwt),
 ) -> SimulationDetailsResponse:
-    """
-    Retrieves the results, status and metadata of a previously completed simulation.
-
-    This endpoint allows to fetch the results and current status of a simulation
-    identified by its URI. If the simulation is still in progress, the results will be
-    returned as null. The organization ID and project ID are required to locate the
-    specific simulation context.
-    """
     return fetch_simulation_status_and_results(
         token=token,
         org_id=org_id,
         project_id=project_id,
-        simulation_uri=simulation_uri,
+        simulation_uri=simulation_id,
     )
 
 

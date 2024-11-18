@@ -13,6 +13,7 @@ import json
 from loguru import logger
 import numpy as np
 import billiard  # type: ignore
+from billiard.queues import Empty as QueueEmptyException  # type: ignore
 
 from bluenaas.core.stimulation.common import setup_basic_simulation_config
 from bluenaas.core.stimulation.utils import (
@@ -40,7 +41,7 @@ from bluenaas.infrastructure.redis import redis_client
 from bluenaas.services.simulation.constants import SIMULATION_TIMEOUT_SECONDS
 
 ERROR_STATE: WORKER_TASK_STATES = "FAILURE"
-SIMULATION_SUCCESS: WORKER_TASK_STATES = "PARTIAL_SUCCESS"
+SIMULATION_SUCCESS: WORKER_TASK_STATES = "SUCCESS"
 
 
 @celery_app.task(
@@ -109,7 +110,14 @@ def single_simulation_runner(
         if task_result["state"] == ERROR_STATE:
             raise SimulationError(task_result["data"])
         if task_result["state"] == SIMULATION_SUCCESS:
-            return task_result["data"]
+            if not realtime or autosave is True:
+                return task_result["data"]
+            else:
+                return None
+    except QueueEmptyException:
+        raise SimulationError(
+            f"Received no message from child process in worker for {SIMULATION_TIMEOUT_SECONDS} seconds. simultion_resource: {sim_resource_self} channel_name: {channel_name}"
+        )
     except SimulationError as ex:
         raise ex
     except Exception as ex:
@@ -249,31 +257,30 @@ def perform_sim(
             cvode=False,
         )
 
-        # NOTE: return result to be able to recover it
-        # 1. when there is no realtime
-        # 2. the user enable autosaving
-        if not realtime or autosave is True:
-            voltage = cell.get_voltage_recording(sec, seg)
-            time = cell.get_time()
-
-            final_result = {
-                "state": "PARTIAL_SUCCESS",
-                "name": label,
-                "recording": cell_section,
-                "amplitude": amplitude,
-                "frequency": frequency,
-                "varying_key": varying_key,
-                "varying_type": varying_type,
-                "varying_order": varying_order,
-                "x": time.tolist(),
-                "y": voltage.tolist(),
-            }
-            queue.put({"state": SIMULATION_SUCCESS, "data": final_result})
-
         if realtime:
             redis_client.publish(
                 channel_name, json.dumps({"state": SIMULATION_SUCCESS})
             )
+
+        # NOTE: return result to be able to recover it
+        # 1. when there is no realtime
+        # 2. the user enable autosaving
+        voltage = cell.get_voltage_recording(sec, seg)
+        time = cell.get_time()
+
+        final_result = {
+            "state": SIMULATION_SUCCESS,
+            "name": label,
+            "recording": cell_section,
+            "amplitude": amplitude,
+            "frequency": frequency,
+            "varying_key": varying_key,
+            "varying_type": varying_type,
+            "varying_order": varying_order,
+            "x": time.tolist(),
+            "y": voltage.tolist(),
+        }
+        queue.put({"state": SIMULATION_SUCCESS, "data": final_result})
 
     except Exception as ex:
         redis_client.publish(

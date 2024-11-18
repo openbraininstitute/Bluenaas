@@ -736,7 +736,6 @@ class Nexus:
             "x-nxs-file-content-length": str(len(file_content))
         }
 
-        logger.debug(f"REMOVE. ENGPOINT: {file_url}?rev={file_metadata["_rev"]}")
         response = requests.put(
             f"{file_url}?rev={file_metadata["_rev"]}",
             headers=file_headers,
