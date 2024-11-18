@@ -140,13 +140,13 @@ class Nexus:
 
     def fetch_resources_of_type(
         self,
-        org_label: str,
-        project_label: str,
+        org_label: Optional[str],
+        project_label: Optional[str],
         res_types: Sequence[str],
         offset: int,
         size: int,
-        created_at_start: datetime,
-        created_at_end: datetime,
+        created_at_start: Optional[datetime],
+        created_at_end: Optional[datetime],
     ):
         query_params = [("type", res_type) for res_type in res_types]
         query_params.append(("size", str(size)))
@@ -154,8 +154,17 @@ class Nexus:
         query_params.append(
             ("createdAt", construct_time_range(created_at_start, created_at_end))
         )
+        query_params.append(("deprecated", "false"))
 
-        endpoint = f"{settings.NEXUS_ROOT_URI}/resources/{org_label}/{project_label}?{urlencode(query_params)}"
+        # Sort resources in descending time of creation (i.e. newest first)
+        query_params.append(("sort", "-_createdAt"))
+        query_params.append(("sort", "-_updatedAt"))
+
+        if org_label is None and project_label is None:
+            endpoint = f"{settings.NEXUS_ROOT_URI}/resources?{urlencode(query_params)}"
+        else:
+            endpoint = f"{settings.NEXUS_ROOT_URI}/resources/{org_label}/{project_label}?{urlencode(query_params)}"
+
         r = requests.get(
             endpoint,
             headers=self.headers,
