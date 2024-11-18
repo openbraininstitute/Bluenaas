@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, List, Literal, Optional, TypedDict
+from typing import Annotated, List, Literal, Optional, TypeVar, Generic, TypedDict
 from pydantic import BaseModel, Field, PositiveFloat, field_validator
 
 
@@ -164,11 +164,14 @@ class SimulationDetailsResponse(BaseModel):
     synaptome_model_id: Optional[str]
 
 
-class PaginatedSimulationsResponse(BaseModel):
-    page_offset: int
+T = TypeVar("T")
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    offset: int
     page_size: int
     total: int
-    results: list[SimulationDetailsResponse]
+    results: list[T]
 
 
 class StreamSimulationBodyRequest(BaseModel):
