@@ -14,10 +14,8 @@ from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.core.stimulation.utils import is_current_varying_simulation
 from bluenaas.domains.nexus import FullNexusSimulationResource
 from bluenaas.domains.simulation import (
-    SimulationEvent,
     SingleNeuronSimulationConfig,
     SimulationStreamData,
-    SimulationErrorMessage,
 )
 from bluenaas.services.simulation.constants import (
     task_state_descriptions,
@@ -39,61 +37,13 @@ from bluenaas.utils.serializer import (
     deserialize_synapse_series_dict,
     serialize_synapse_series_list,
 )
-from bluenaas.utils.simulation import convert_to_simulation_response
+from bluenaas.utils.simulation import (
+    convert_to_simulation_response,
+    build_stream_obj,
+    build_stream_error,
+    celery_result_to_nexus_distribution_result,
+)
 from bluenaas.infrastructure.redis import redis_client
-
-
-def get_event_from_task_state(state) -> SimulationEvent:
-    """
-    Get the event type based on the task state.
-    """
-    event: SimulationEvent = "info"
-    if state in (states.PENDING, states.SUCCESS):
-        event = "info"
-    elif state == "PROGRESS":
-        event = "data"
-    elif state == states.FAILURE:
-        event = "error"
-    else:
-        event = "info"
-
-    return event
-
-
-def build_stream_obj(task_result: SimulationStreamData, job_id: str):
-    return f"{json.dumps(
-            {
-                "event": get_event_from_task_state(task_result['state']),
-                "description": task_state_descriptions[task_result['state']],
-                "state": task_result['state'].lower(),
-                # TODO: Add task id
-                # "task_id": task.id,
-                "job_id": job_id,
-                "data": task_result,
-            }
-        )}\n"
-
-
-def build_stream_error(error_result: SimulationErrorMessage | None, job_id: str):
-    error_details = (
-        error_result["error"]
-        if error_result is not None and "error" in error_result
-        else "Unknown simulation error"
-    )
-
-    return f"{json.dumps(
-        {
-            "event": "error",
-            "description": task_state_descriptions["FAILURE"],
-            "state": "captured",
-            "job_id": job_id, 
-            "data": {                          
-                "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
-                "message": "Simulation failed",
-                "details": error_details
-            }
-        }
-        )}\n"
 
 
 class SerializedSimulationTaskArgs(NamedTuple):
@@ -335,7 +285,7 @@ def run_distributed_simulation(
                         if message is not None:
                             message_data = json.loads(message["data"])
 
-                            if message_data["state"] == "PARTIAL_SUCCESS":
+                            if message_data["state"] == "SUCCESS":
                                 successful_message_count = successful_message_count + 1
                                 logger.debug(
                                     f"Received {successful_message_count} shutdown events for {job.id}"
@@ -469,8 +419,9 @@ def bg_task_process_simulation_results(
             final_result[recording_name] = (
                 final_result[recording_name] if recording_name in final_result else []
             )
-
-            final_result[recording_name].append(task_result)
+            final_result[recording_name].append(
+                celery_result_to_nexus_distribution_result(task_result)
+            )
 
         # Save result into nexus
         nexus_helper = Nexus({"token": token, "model_self_url": "model_id"})

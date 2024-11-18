@@ -1,13 +1,22 @@
 from typing import Optional, cast
 from urllib.parse import quote_plus
+from celery import states  # type: ignore
+import json
+from loguru import logger
 
-
+from bluenaas.core.exceptions import BlueNaasErrorCode
+from bluenaas.services.simulation.constants import (
+    task_state_descriptions,
+)
 from bluenaas.domains.nexus import (
     FullNexusSimulationResource,
     NexusBaseResource,
 )
 from bluenaas.domains.simulation import (
     SimulationType,
+    SimulationEvent,
+    SimulationStreamData,
+    SimulationErrorMessage,
     NexusSimulationType,
     SimulationDetailsResponse,
     SIMULATION_TYPE_MAP,
@@ -100,3 +109,77 @@ def get_simulations_by_recoding_name(simulations: list) -> dict[str, list]:
             )
 
     return record_location_to_simulation_result
+
+
+def get_event_from_task_state(state) -> SimulationEvent:
+    """
+    Get the event type based on the task state.
+    """
+    event: SimulationEvent = "info"
+    if state in (states.PENDING, states.SUCCESS):
+        event = "info"
+    elif state == "PROGRESS":
+        event = "data"
+    elif state == states.FAILURE:
+        event = "error"
+    else:
+        event = "info"
+
+    return event
+
+
+def build_stream_obj(task_result: SimulationStreamData, job_id: str):
+    return f"{json.dumps(
+            {
+                "event": get_event_from_task_state(task_result['state']),
+                "description": task_state_descriptions[task_result['state']],
+                "state": task_result['state'].lower(),
+                # TODO: Add task id
+                # "task_id": task.id,
+                "job_id": job_id,
+                "data": task_result,
+            }
+        )}\n"
+
+
+def build_stream_error(error_result: SimulationErrorMessage | None, job_id: str):
+    error_details = (
+        error_result["error"]
+        if error_result is not None and "error" in error_result
+        else "Unknown simulation error"
+    )
+
+    return f"{json.dumps(
+        {
+            "event": "error",
+            "description": task_state_descriptions["FAILURE"],
+            "state": "captured",
+            "job_id": job_id, 
+            "data": {                          
+                "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
+                "message": "Simulation failed",
+                "details": error_details
+            }
+        }
+        )}\n"
+
+
+def celery_result_to_nexus_distribution_result(celery_result: SimulationStreamData):
+    try:
+        return {
+            "name": celery_result["name"],
+            "recording": celery_result["recording"],
+            "amplitude": celery_result["amplitude"],
+            "frequency": celery_result["frequency"]
+            if "frequency" in celery_result
+            else None,
+            "varying_key": celery_result["varying_key"],
+            "varying_order": celery_result["varying_order"],
+            "varying_type": celery_result["varying_type"],
+            "x": celery_result["x"],
+            "y": celery_result["y"],
+        }
+    except Exception as ex:
+        logger.exception(
+            f"Error while converting celery task result to nexus distribution item {ex}"
+        )
