@@ -198,12 +198,17 @@ def run_distributed_simulation(
                 "model_self": model_self,
                 "token": token,
                 "config": config.model_dump_json(),
+                "stimulation_config": config.current_injection.stimulus.model_dump_json(),
             }
         )
         prep_job_result = prep_job.get()
-        (me_model_id, template_params, current_synapses, frequency_synapses) = (
-            prep_job_result
-        )
+        (
+            me_model_id,
+            template_params,
+            current_synapses,
+            frequency_synapses,
+            stimulus_plot_data,
+        ) = prep_job_result
 
         task_args = get_base_task_arguments(
             sim_config=config,
@@ -219,6 +224,7 @@ def run_distributed_simulation(
 
         simulation_resource = None
         if autosave:
+            assert stimulus_plot_data is not None
             (
                 me_model_self,
                 synaptome_model_self,
@@ -230,6 +236,7 @@ def run_distributed_simulation(
                 org_id=org_id,
                 project_id=project_id,
                 config=config,
+                stimulus_plot_data=json.loads(stimulus_plot_data),
             )
 
         sim_resource_self = (

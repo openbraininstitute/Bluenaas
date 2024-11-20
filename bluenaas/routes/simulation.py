@@ -19,9 +19,6 @@ from bluenaas.infrastructure.kc.auth import verify_jwt
 from bluenaas.services.simulation.run_distributed_simulation import (
     run_distributed_simulation,
 )
-from bluenaas.services.simulation.shutdown_distributed_simulation import (
-    do_shutdown_simulation,
-)
 
 from bluenaas.services.simulation.fetch_simulation_status_and_results import (
     fetch_simulation_status_and_results,
