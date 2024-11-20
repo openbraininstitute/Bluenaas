@@ -26,7 +26,9 @@ def build_morphology_dendrogram(
         morphology_dendrogram = model.CELL.get_dendrogram()
         return json.dumps(morphology_dendrogram)
     except Exception as e:
-        logger.exception(f"Exception in celery worker during morphology building {e}")
+        logger.exception(
+            f"Exception in celery worker during morphology dendogram building {e}"
+        )
         raise MorphologyGenerationError(message=f"Morphology generation failed {e}")
     finally:
         logger.debug(f"Completed building morphology dendogram for model {model_self}")

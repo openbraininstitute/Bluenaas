@@ -2,7 +2,7 @@ import json
 from loguru import logger
 
 from bluenaas.infrastructure.celery import celery_app
-from bluenaas.core.exceptions import MorphologyGenerationError
+from bluenaas.core.exceptions import StimulationPlotGenerationError
 from bluenaas.domains.simulation import StimulationPlotConfig
 
 
@@ -41,6 +41,6 @@ def build_stimulation_graph(
         logger.exception(
             f"Exception in celery worker during stimulation graph building {e}"
         )
-        raise MorphologyGenerationError(
+        raise StimulationPlotGenerationError(
             message=f"Exception in celery worker during stimulation graph building {e}"
         )
