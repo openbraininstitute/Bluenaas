@@ -18,14 +18,12 @@ from bluenaas.domains.morphology import (
     SynapsePlacementBody,
     SynapsePlacementResponse,
     SynapsePosition,
-    SynapseSeries,
     SynapsesPlacementConfig,
     SynapseMetadata,
 )
 from bluenaas.domains.nexus import NexusBaseResource
 from bluenaas.domains.simulation import (
     SynaptomeSimulationConfig,
-    CurrentInjectionConfig,
 )
 from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.utils.util import (
