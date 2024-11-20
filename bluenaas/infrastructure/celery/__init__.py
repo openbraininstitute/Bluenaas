@@ -33,6 +33,9 @@ celery_app.conf.task_routes = {
     "bluenaas.infrastructure.celery.tasks.build_stimulation_graph.build_stimulation_graph": {
         "queue": settings.CELERY_FAST_TASKS_QUEUE,
     },
+    "bluenaas.infrastructure.celery.tasks.place_synapses.place_synapses": {
+        "queue": settings.CELERY_FAST_TASKS_QUEUE,
+    },
 }
 
 
@@ -44,6 +47,7 @@ celery_app.autodiscover_tasks(
         "bluenaas.infrastructure.celery.tasks.build_morphology",
         "bluenaas.infrastructure.celery.tasks.build_morphology_dendogram",
         "bluenaas.infrastructure.celery.tasks.build_stimulation_graph",
+        "bluenaas.infrastructure.celery.tasks.place_synapses",
     ],
     force=True,
 )
