@@ -28,6 +28,7 @@ class NexusSimulationDetails(NamedTuple):
 def get_stimulation_plot_data(
     token: str, me_model_self: str, stimulus: SimulationStimulusConfig
 ) -> list[StimulationItemResponse]:
+    logger.debug(f"REMOVE Stimulation plot data")
     model = model_factory(
         model_self=me_model_self,
         hyamp=None,
@@ -55,6 +56,7 @@ def setup_simulation_resources(
     org_id: str,
     project_id: str,
     config: SingleNeuronSimulationConfig,
+    stimulus_plot_data: list[StimulationItemResponse],
 ) -> NexusSimulationDetails:
     nexus_helper = Nexus({"token": token, "model_self_url": model_self})
     # Step 1: Generate stimulus data to be saved in nexus resource in step 1
@@ -68,11 +70,6 @@ def setup_simulation_resources(
             me_model = nexus_helper.fetch_resource_by_id(me_model_id)
             me_model_self = me_model["_self"]
 
-        stimulus_plot_data = get_stimulation_plot_data(
-            token=token,
-            me_model_self=me_model_self,
-            stimulus=config.current_injection.stimulus,
-        )
     except Exception as ex:
         logger.exception(f"Generation of stimulus data failed {ex}")
         raise BlueNaasError(

@@ -45,7 +45,7 @@ def get_single_morphology_dendrogram(
             chunks: list[str] = re.findall(r".{1,100000}", built_morphology_str)
 
             for index, chunk in enumerate(chunks):
-                logger.debug(f"Queueing chunk {index} for morphology...")
+                logger.debug(f"Queueing chunk {index} for morphology dendogram...")
                 yield chunk
 
         return StreamingResponseWithCleanup(
