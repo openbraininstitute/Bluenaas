@@ -28,10 +28,12 @@ from bluenaas.core.stimulation.utils import (
     is_current_varying_simulation,
 )
 from bluenaas.infrastructure.celery import celery_app
-from bluenaas.domains.morphology import SynapseSeries, SynapseMetadata
+from bluenaas.domains.morphology import SynapseMetadata
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     SynaptomeSimulationConfig,
+    SimulationStimulusConfig,
+    StimulationPlotConfig,
 )
 from bluenaas.utils.serializer import (
     serialize_synapse_series_dict,
@@ -51,12 +53,20 @@ def initiate_simulation(
     self,
     model_self: str,
     token: str,
-    config: SingleNeuronSimulationConfig,
+    config: str,  # Json str representing SingleNeuronSimulationConfig
+    stimulation_config: str | None,  # Json str representing SimulationStimulusConfig
 ):
     logger.info("[initiate simulation]")
     from bluenaas.core.model import model_factory
+    from bluenaas.core.simulation_factory_plot import StimulusFactoryPlot
 
     cf = SingleNeuronSimulationConfig(**json.loads(config))
+    stim_config = (
+        SimulationStimulusConfig(**json.loads(stimulation_config))
+        if stimulation_config is not None
+        else None
+    )
+
     me_model_id = model_self
     synaptome_details = None
 
@@ -75,6 +85,19 @@ def initiate_simulation(
     cell = model.CELL._cell
     template_params = cell.template_params
 
+    if stim_config is not None:
+        stimulus_config = StimulationPlotConfig(
+            stimulus_protocol=stim_config.stimulus_protocol,
+            amplitudes=stim_config.amplitudes
+            if isinstance(stim_config.amplitudes, list)
+            else [stim_config.amplitudes],
+        )
+        stimulus_factory_plot = StimulusFactoryPlot(
+            stimulus_config,
+            model.threshold_current,
+        )
+        stim_plot_data = stimulus_factory_plot.apply_stim()
+
     (synapse_generation_config, frequency_to_synapse_config) = setup_synapses_series(
         cf,
         synaptome_details,
@@ -90,6 +113,7 @@ def initiate_simulation(
         serialize_synapse_series_dict(frequency_to_synapse_config)
         if frequency_to_synapse_config is not None
         else None,
+        json.dumps(stim_plot_data),
     )
 
     return output
@@ -153,6 +177,7 @@ def setup_synapses_series(
                 variable_frequency_sim_config.id,
                 synaptome_details.synaptome_placement_config,
             )
+            assert isinstance(variable_frequency_sim_config.frequency, list)
 
             for frequency in variable_frequency_sim_config.frequency:
                 frequency_to_synapse_config[frequency] = []

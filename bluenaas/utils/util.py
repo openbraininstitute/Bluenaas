@@ -10,7 +10,6 @@ from loguru import logger as L
 from bluenaas.domains.morphology import (
     ExclusionRule,
     LocationData,
-    SynapseSeries,
     SynapseMetadata,
 )
 
