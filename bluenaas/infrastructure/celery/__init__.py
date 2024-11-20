@@ -1,4 +1,5 @@
-from celery import Celery
+from celery import Celery  # type: ignore
+from kombu import Queue  # type: ignore
 from datetime import timedelta
 
 from bluenaas.config.settings import settings
@@ -23,11 +24,22 @@ celery_app = Celery(
     ],
 )
 
+celery_app.conf.task_routes = {
+    "bluenaas.infrastructure.celery.tasks.build_morphology.build_morphology": {
+        "queue": settings.CELERY_FAST_TASKS_QUEUE,
+    },
+    "bluenaas.infrastructure.celery.tasks.build_stimulation_graph.build_stimulation_graph": {
+        "queue": settings.CELERY_FAST_TASKS_QUEUE,
+    },
+}
+
+
 celery_app.autodiscover_tasks(
     [
         "bluenaas.infrastructure.celery.tasks.single_simulation_runner",
         "bluenaas.infrastructure.celery.tasks.create_simulation",
         "bluenaas.infrastructure.celery.tasks.initiate_simulation",
+        "bluenaas.infrastructure.celery.tasks.build_morphology",
     ],
     force=True,
 )
