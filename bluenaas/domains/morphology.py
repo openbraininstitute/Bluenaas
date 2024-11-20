@@ -58,7 +58,7 @@ class SynapseConfig(BaseModel):
     name: str
     target: SectionTarget | None = None
     type: int
-    distribution: Literal["exponential", "linear", "formula"]
+    distribution: Literal["exponential", "linear", "formula"] | None = None
     formula: Optional[str | None] = None
     soma_synapse_count: int | None = None
     seed: int
