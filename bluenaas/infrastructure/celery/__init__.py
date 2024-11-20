@@ -40,6 +40,7 @@ celery_app.autodiscover_tasks(
         "bluenaas.infrastructure.celery.tasks.create_simulation",
         "bluenaas.infrastructure.celery.tasks.initiate_simulation",
         "bluenaas.infrastructure.celery.tasks.build_morphology",
+        "bluenaas.infrastructure.celery.tasks.build_stimulation_graph",
     ],
     force=True,
 )
