@@ -6,7 +6,7 @@ from billiard.queues import Empty as QueueEmptyException  # type: ignore
 from bluenaas.infrastructure.celery import celery_app
 from bluenaas.core.exceptions import MorphologyGenerationError
 
-MORPHOLOGY_BUILD_TIMEOUT_SECONDS: int = 5 * 60
+MORPHOLOGY_BUILD_TIMEOUT_SECONDS = 5 * 60
 
 
 @celery_app.task(
