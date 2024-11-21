@@ -48,6 +48,7 @@ def get_single_morphology(
             for index, chunk in enumerate(chunks):
                 logger.debug(f"Queueing chunk {index} for morphology...")
                 yield chunk
+            logger.debug("Done streaming all chunks for morphology")
 
         return StreamingResponseWithCleanup(
             stream_morphology_chunks(),
