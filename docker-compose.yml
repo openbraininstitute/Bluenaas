@@ -261,42 +261,42 @@ services:
           cpus: "1.0"
           memory: 1024M
 
-  # fasttaskworker2:
-  #   image: bluenaas-single-cell-svc
-  #   container_name: fasttaskworker2
-  #   env_file: "./.env.local"
-  #   build:
-  #     dockerfile: ./Dockerfile.dev
-  #   command: ["./celery.sh"]
-  #   environment:
-  #     - WORKER_NAME=fasttaskworker2
-  #     - PYTHONUNBUFFERED=1
-  #     - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-  #     - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-  #     - QUEUE_NAME=${CELERY_FAST_TASKS_QUEUE}
-  #   healthcheck:
-  #     test: "celery -A bluenaas.infrastructure.celery status || exit 1"
-  #     interval: 12s # The status check interval shouldn't be too low. Otherwise the worker gets busy replying to status checks & simulation performance goes down.
-  #     timeout: 10s # Status checks take ~7 seconds
-  #     retries: 5
-  #   volumes:
-  #     - ${PWD}/bluenaas:/app/bluenaas
-  #     # - ${PWD}/celert/start.sh:/app/bluenaas/celery.sh
-  #     - type: volume
-  #       source: nfs_share
-  #       target: /opt
-  #       volume:
-  #         nocopy: true
-  #   depends_on:
-  #     - redis
-  #     - bluenaas
-  #   networks:
-  #     - ls
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: "1.0"
-  #         memory: 1024M
+  fasttaskworker2:
+    image: bluenaas-single-cell-svc
+    container_name: fasttaskworker2
+    env_file: "./.env.local"
+    build:
+      dockerfile: ./Dockerfile.dev
+    command: ["./celery.sh"]
+    environment:
+      - WORKER_NAME=fasttaskworker2
+      - PYTHONUNBUFFERED=1
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - QUEUE_NAME=${CELERY_FAST_TASKS_QUEUE}
+    healthcheck:
+      test: "celery -A bluenaas.infrastructure.celery status || exit 1"
+      interval: 12s # The status check interval shouldn't be too low. Otherwise the worker gets busy replying to status checks & simulation performance goes down.
+      timeout: 10s # Status checks take ~7 seconds
+      retries: 5
+    volumes:
+      - ${PWD}/bluenaas:/app/bluenaas
+      # - ${PWD}/celert/start.sh:/app/bluenaas/celery.sh
+      - type: volume
+        source: nfs_share
+        target: /opt
+        volume:
+          nocopy: true
+    depends_on:
+      - redis
+      - bluenaas
+    networks:
+      - ls
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
 
   flower:
     image: mher/flower
