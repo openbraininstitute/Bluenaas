@@ -18,8 +18,10 @@ the simulation environment and ensuring that subsequent tasks run efficiently.
 from itertools import chain
 import json
 from loguru import logger
+import billiard  # type: ignore
+from billiard.queues import Empty as QueueEmptyException  # type: ignore
 
-
+from bluenaas.core.exceptions import SimulationError
 from bluenaas.core.model import Model, SynaptomeDetails, fetch_synaptome_model_details
 from bluenaas.core.stimulation.utils import (
     get_constant_frequencies_for_sim_id,
@@ -42,9 +44,9 @@ from bluenaas.utils.serializer import (
 )
 from bluenaas.utils.util import log_stats_for_series_in_frequency
 
+SIMULATION_INITIALIZATION_TIMEOUT_SECONDS = 6 * 60
 
-# NOTE: this is separation for worker queue is just for testing
-# TODO: please remove it later
+
 @celery_app.task(
     bind=True,
     serializer="json",
@@ -56,67 +58,109 @@ def initiate_simulation(
     config: str,  # Json str representing SingleNeuronSimulationConfig
     stimulation_config: str | None,  # Json str representing SimulationStimulusConfig
 ):
-    logger.info("[initiate simulation]")
-    from bluenaas.core.model import model_factory
-    from bluenaas.core.simulation_factory_plot import StimulusFactoryPlot
-
-    cf = SingleNeuronSimulationConfig(**json.loads(config))
-    stim_config = (
-        SimulationStimulusConfig(**json.loads(stimulation_config))
-        if stimulation_config is not None
-        else None
+    queue = billiard.Queue()
+    process = billiard.Process(
+        target=_initiate_simulation_subprocess,
+        args=(queue, model_self, token, config, stimulation_config),
     )
+    process.start()
+    try:
+        result = queue.get(timeout=SIMULATION_INITIALIZATION_TIMEOUT_SECONDS)
+        if isinstance(result, Exception):
+            raise result
 
-    me_model_id = model_self
-    synaptome_details = None
-
-    if cf.type == "synaptome-simulation" and cf.synaptome is not None:
-        synaptome_details = fetch_synaptome_model_details(
-            synaptome_self=model_self, bearer_token=token
+        return result
+    except QueueEmptyException:
+        raise SimulationError(
+            f"Could not initialize simulation in {SIMULATION_INITIALIZATION_TIMEOUT_SECONDS} seconds"
         )
-        me_model_id = synaptome_details.base_model_self
+    except Exception as e:
+        raise e
+    finally:
+        logger.debug("Cleaning up the worker process")
+        process.join()
+        logger.debug("Cleaning done")
 
-    model = model_factory(
-        model_self=me_model_id,
-        hyamp=cf.conditions.hypamp,
-        bearer_token=token,
-    )
 
-    cell = model.CELL._cell
-    template_params = cell.template_params
+def _initiate_simulation_subprocess(
+    queue: billiard.Queue,
+    model_self: str,
+    token: str,
+    config: str,
+    stimulation_config: str,
+) -> None:
+    try:
+        logger.info("[initiate simulation]")
+        from bluenaas.core.model import model_factory
+        from bluenaas.core.simulation_factory_plot import StimulusFactoryPlot
 
-    if stim_config is not None:
-        stimulus_config = StimulationPlotConfig(
-            stimulus_protocol=stim_config.stimulus_protocol,
-            amplitudes=stim_config.amplitudes
-            if isinstance(stim_config.amplitudes, list)
-            else [stim_config.amplitudes],
+        cf = SingleNeuronSimulationConfig(**json.loads(config))
+        stim_config = (
+            SimulationStimulusConfig(**json.loads(stimulation_config))
+            if stimulation_config is not None
+            else None
         )
-        stimulus_factory_plot = StimulusFactoryPlot(
-            stimulus_config,
-            model.threshold_current,
+
+        me_model_id = model_self
+        synaptome_details = None
+
+        if cf.type == "synaptome-simulation" and cf.synaptome is not None:
+            synaptome_details = fetch_synaptome_model_details(
+                synaptome_self=model_self, bearer_token=token
+            )
+            me_model_id = synaptome_details.base_model_self
+
+        model = model_factory(
+            model_self=me_model_id,
+            hyamp=cf.conditions.hypamp,
+            bearer_token=token,
         )
-        stim_plot_data = stimulus_factory_plot.apply_stim()
 
-    (synapse_generation_config, frequency_to_synapse_config) = setup_synapses_series(
-        cf,
-        synaptome_details,
-        model,
-    )
+        cell = model.CELL._cell
+        template_params = cell.template_params
 
-    output = (
-        me_model_id,
-        serialize_template_params(template_params),  # TODO: Remove
-        serialize_synapse_series_list(synapse_generation_config)
-        if synapse_generation_config is not None
-        else None,
-        serialize_synapse_series_dict(frequency_to_synapse_config)
-        if frequency_to_synapse_config is not None
-        else None,
-        json.dumps(stim_plot_data),
-    )
+        if stim_config is not None:
+            stimulus_config = StimulationPlotConfig(
+                stimulus_protocol=stim_config.stimulus_protocol,
+                amplitudes=stim_config.amplitudes
+                if isinstance(stim_config.amplitudes, list)
+                else [stim_config.amplitudes],
+            )
+            stimulus_factory_plot = StimulusFactoryPlot(
+                stimulus_config,
+                model.threshold_current,
+            )
+            stim_plot_data = stimulus_factory_plot.apply_stim()
 
-    return output
+        (synapse_generation_config, frequency_to_synapse_config) = (
+            setup_synapses_series(
+                cf,
+                synaptome_details,
+                model,
+            )
+        )
+
+        output = (
+            me_model_id,
+            serialize_template_params(template_params),  # TODO: Remove
+            serialize_synapse_series_list(synapse_generation_config)
+            if synapse_generation_config is not None
+            else None,
+            serialize_synapse_series_dict(frequency_to_synapse_config)
+            if frequency_to_synapse_config is not None
+            else None,
+            json.dumps(stim_plot_data),
+        )
+
+        queue.put(output)
+    except Exception as e:
+        logger.exception(
+            f"Exception in celery worker during simulation initialization {e}"
+        )
+        queue.put(SimulationError(message=f"Simulation initialization failed {e}"))
+    finally:
+        logger.debug("Initialization of simulation done")
+        return
 
 
 CurrentSynapses = list[SynapseMetadata] | None
