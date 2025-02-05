@@ -23,6 +23,7 @@ pandas = "^2.2.2"
 annotated-types = "^0.7.0"
 sentry-sdk = {version = "^2.13.0", extras = ["fastapi"]}
 filelock = "^3.16.0"
+obp-accounting-sdk = "^0.1.2"
 
 [tool.poetry.group.types.dependencies]
 types-requests = "^2.32.0.20240712"
