@@ -1,5 +1,5 @@
 from typing import Annotated, List, Literal, Optional, TypeVar, Generic
-from pydantic import BaseModel, Field, PositiveFloat, field_validator
+from pydantic import BaseModel, Field, PositiveFloat, field_validator, computed_field
 from datetime import datetime
 
 
@@ -92,6 +92,28 @@ class SingleNeuronSimulationConfig(BaseModel):
                 )
 
         return value
+
+    @computed_field(
+        description="Total number of simulation executions required by the configuration given all parameter combinations"
+    )
+    @property
+    def n_execs(self) -> int:
+        # Get current injection (patch clamp) dimensions
+        current_injection_dimensions = (
+            len(self.current_injection.stimulus.amplitudes)
+            if isinstance(self.current_injection.stimulus.amplitudes, list)
+            else 1
+        )
+
+        # Get synaptome dimensions
+        synaptome_dimensions = 1
+        if self.synaptome:
+            for synapse in self.synaptome:
+                synaptome_dimensions *= (
+                    len(synapse.frequency) if isinstance(synapse.frequency, list) else 1
+                )
+
+        return current_injection_dimensions * synaptome_dimensions
 
 
 class StimulationPlotConfig(BaseModel):

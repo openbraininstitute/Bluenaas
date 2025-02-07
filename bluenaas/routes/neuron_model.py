@@ -3,7 +3,7 @@ from typing import Optional, Literal
 from fastapi import APIRouter, Query, Depends
 
 from bluenaas.domains.simulation import PaginatedResponse
-from bluenaas.infrastructure.kc.auth import verify_jwt
+from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
 from bluenaas.domains.neuron_model import (
     SynaptomeModelResponse,
     MEModelResponse,
@@ -37,10 +37,10 @@ def retrieve_neuron_models(
     created_at_end: Optional[datetime] = Query(
         None, description="Filter by createdAt date (YYYY-MM-DDTHH:MM:SSZ)"
     ),
-    token: str = Depends(verify_jwt),
+    auth: Auth = Depends(verify_jwt),
 ) -> PaginatedResponse[MEModelResponse | SynaptomeModelResponse]:
     return get_all_neuron_models_for_project(
-        token=token,
+        token=auth.token,
         org_id=virtual_lab_id,
         project_id=project_id,
         offset=offset,
@@ -59,8 +59,11 @@ def retrieve_neuron_model(
     virtual_lab_id: str,
     project_id: str,
     model_id: str,
-    token: str = Depends(verify_jwt),
+    auth: Auth = Depends(verify_jwt),
 ) -> MEModelResponse | SynaptomeModelResponse:
     return get_neuron_model_for_project(
-        token=token, org_id=virtual_lab_id, project_id=project_id, model_self=model_id
+        token=auth.token,
+        org_id=virtual_lab_id,
+        project_id=project_id,
+        model_self=model_id,
     )

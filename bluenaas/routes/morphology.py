@@ -2,7 +2,7 @@ from bluenaas.services.morphology import get_single_morphology
 from bluenaas.services.morphology_dendrogram import get_single_morphology_dendrogram
 from fastapi import APIRouter, Depends, Query, Request
 
-from bluenaas.infrastructure.kc.auth import verify_jwt
+from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
 
 router = APIRouter(prefix="/morphology")
 
@@ -11,11 +11,11 @@ router = APIRouter(prefix="/morphology")
 def retrieve_morphology(
     request: Request,
     model_self: str = Query(""),
-    token: str = Depends(verify_jwt),
+    auth: Auth = Depends(verify_jwt),
 ):
     return get_single_morphology(
         model_id=model_self,
-        token=token,
+        token=auth.token,
         req_id=request.state.request_id,
     )
 
@@ -24,10 +24,10 @@ def retrieve_morphology(
 def retrieve_morphology_dendrogram(
     request: Request,
     model_id: str = Query(""),
-    token: str = Depends(verify_jwt),
+    auth: Auth = Depends(verify_jwt),
 ):
     return get_single_morphology_dendrogram(
         model_id=model_id,
-        token=token,
+        token=auth.token,
         req_id=request.state.request_id,
     )
