@@ -1,7 +1,7 @@
 from http import HTTPStatus as status
 from loguru import logger
 
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 from fastapi import Depends
 from fastapi.security import (
@@ -29,7 +29,7 @@ class DecodedKeycloakToken(BaseModel):
         description="URL of the authentication server that issued the token"
     )
     sub: str = Field(description="Unique identifier for the user")
-    aud: List[str] = Field(description="Intended recipient of the token")
+    aud: List[str] | str = Field(description="Intended recipient of the token")
 
     # OIDC Standard Fields
     typ: str = Field(description="Token type, usually 'Bearer'")
@@ -48,7 +48,9 @@ class DecodedKeycloakToken(BaseModel):
 
     # Keycloak-Specific Fields
     auth_time: int = Field(description="Timestamp of the original authentication")
-    session_state: str = Field(description="Keycloak's session identifier")
+    session_state: Optional[str] = Field(
+        description="Keycloak's session identifier", default=None
+    )
     acr: str = Field(description="Authentication Context Class Reference")
     sid: str = Field(description="Keycloak session ID")
     # * Add realm_access and resource_access fields if necessary.
