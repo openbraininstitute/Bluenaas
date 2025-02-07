@@ -1,0 +1,3 @@
+from obp_accounting_sdk import AccountingSessionFactory
+
+accounting_session_factory = AccountingSessionFactory()

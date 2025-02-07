@@ -111,9 +111,10 @@ def get_single_morphology(
                 yield q_result
 
         return StreamingResponseWithCleanup(
-            queue_streamify(que=morpho_queue, stop_event=stop_event), media_type="application/x-ndjson", finalizer=lambda: cleanup(stop_event, process)
+            queue_streamify(que=morpho_queue, stop_event=stop_event),
+            media_type="application/x-ndjson",
+            finalizer=lambda: cleanup(stop_event, process),
         )
-        
 
     except Exception as ex:
         logger.exception(f"retrieving morphology data failed {ex}")

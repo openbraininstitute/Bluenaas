@@ -3,7 +3,7 @@ services:
     image: bluenaas-single-cell-svc
     container_name: blue-naas-single-cell-http-svc
     env_file: "./.env.local"
-    build: 
+    build:
       context: bluenaas
       dockerfile: ./Dockerfile.dev
     command:
@@ -16,6 +16,7 @@ services:
       ]
     environment:
       DEBUG: True
+      ACCOUNTING_DISABLED: 1
     volumes:
       - ${PWD}/bluenaas:/app/bluenaas
     ports:

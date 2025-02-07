@@ -8,7 +8,7 @@ from bluenaas.domains.morphology import (
     SynapsePlacementBody,
     SynapsePlacementResponse,
 )
-from bluenaas.infrastructure.kc.auth import verify_jwt
+from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
 from bluenaas.services.synapses_placement import generate_synapses_placement
 
 
@@ -23,11 +23,11 @@ def place_synapses(
     request: Request,
     params: SynapsePlacementBody,
     model_id: str = Query(),
-    token: str = Depends(verify_jwt),
+    auth: Auth = Depends(verify_jwt),
 ) -> SynapsePlacementResponse:
     return generate_synapses_placement(
         model_id=model_id,
-        token=token,
+        token=auth.token,
         params=params,
         req_id=request.state.request_id,
     )

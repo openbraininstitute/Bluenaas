@@ -1,7 +1,8 @@
 from os import getenv
-from typing import Literal, TypeGuard, get_args
+from typing import Literal, Self, TypeGuard, get_args
 
 from dotenv import load_dotenv
+from pydantic import model_validator
 from pydantic_core import Url
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -39,6 +40,17 @@ class Settings(BaseSettings):
     SENTRY_DSN: str | None = None
     SENTRY_TRACES_SAMPLE_RATE: float = 1.0
     SENTRY_PROFILES_SAMPLE_RATE: float = 1.0
+
+    ACCOUNTING_BASE_URL: Url | None = None
+    ACCOUNTING_DISABLED: str | None = None
+
+    @model_validator(mode="after")
+    def validate_accounting_config(self) -> Self:
+        if not self.ACCOUNTING_DISABLED and not self.ACCOUNTING_BASE_URL:
+            raise ValueError(
+                "ACCOUNTING_BASE_URL must be set if not explicitly disabled with ACCOUNTING_DISABLED"
+            )
+        return self
 
 
 settings = Settings()
