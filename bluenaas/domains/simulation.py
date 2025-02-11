@@ -1,6 +1,7 @@
-from typing import Annotated, List, Literal, Optional, TypeVar, Generic
-from pydantic import BaseModel, Field, PositiveFloat, field_validator, computed_field
 from datetime import datetime
+from typing import Annotated, Generic, List, Literal, Optional, TypeVar
+
+from pydantic import BaseModel, Field, PositiveFloat, computed_field, field_validator
 
 
 class SimulationStimulusConfig(BaseModel):
@@ -39,11 +40,14 @@ class ExperimentSetupConfig(BaseModel):
     seed: int
 
 
+NonNegativeFloat = Annotated[float, Field(ge=0)]
+
+
 class SynapseSimulationConfig(BaseModel):
     id: str
     delay: int
     duration: Annotated[int, Field(le=3000)]
-    frequency: PositiveFloat | list[PositiveFloat]
+    frequency: NonNegativeFloat | list[NonNegativeFloat]
     weight_scalar: PositiveFloat
 
 

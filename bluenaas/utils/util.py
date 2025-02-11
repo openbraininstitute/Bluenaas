@@ -1,14 +1,16 @@
 """Util."""
 
 import json
-from random import randint
 import re
 import subprocess
+from datetime import datetime
 from pathlib import Path
+from random import randint
+from typing import Optional
+
 import numpy as np
 from loguru import logger as L
-from typing import Optional
-from datetime import datetime
+
 from bluenaas.domains.morphology import ExclusionRule, LocationData, SynapseSeries
 
 PADDING = 2.0
@@ -416,6 +418,9 @@ def project_vector(v1: np.ndarray, v2: np.ndarray) -> np.ndarray:
 def generate_pre_spiketrain(
     duration: float, delay: float, frequencies: list[float]
 ) -> np.array:
+    if len(frequencies) == 1 and frequencies[0] == 0:
+        return np.array([])
+
     all_spike_times = []
 
     for frequency in frequencies:
