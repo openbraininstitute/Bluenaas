@@ -1,27 +1,30 @@
 # TODO: IMPORTANT: This methods is replicated from BlueCellab and any changes from the library should be updated here too
 
 from __future__ import annotations
+
+import multiprocessing as mp
 import os
 import queue
-from loguru import logger
+from enum import Enum, auto
+from multiprocessing.synchronize import Event
+from typing import Dict, NamedTuple
+
 import neuron
 import numpy as np
-import multiprocessing as mp
-from typing import Dict, NamedTuple
-from enum import Enum, auto
+from loguru import logger
+
 from bluenaas.core.exceptions import ChildSimulationError
 from bluenaas.domains.morphology import SynapseSeries
 from bluenaas.domains.simulation import (
     CurrentInjectionConfig,
-    RecordingLocation,
     ExperimentSetupConfig,
+    RecordingLocation,
 )
 from bluenaas.utils.const import QUEUE_STOP_EVENT, SUB_PROCESS_STOP_EVENT
 from bluenaas.utils.util import (
     diff_list,
     generate_pre_spiketrain,
 )
-from multiprocessing.synchronize import Event
 
 DEFAULT_INJECTION_LOCATION = "soma[0]"
 
@@ -99,16 +102,16 @@ def _add_single_synapse(
     synapse: SynapseSeries,
     experimental_setup: ExperimentSetupConfig,
 ):
+    from bluecellulab import Connection
     from bluecellulab.circuit.config.sections import Conditions  # type: ignore
     from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
-    from bluecellulab import Connection
 
     condition_parameters = Conditions(
         celsius=experimental_setup.celsius,
         v_init=experimental_setup.vinit,
         randomize_gaba_rise_time=True,
     )
-    synid = SynapseID(f"{synapse["id"]}", synapse["id"])
+    synid = SynapseID(f"{synapse['id']}", synapse["id"])
     # A tuple containing source and target popids used by the random number generation.
     # Should correspond to source_popid and target_popid
     popids = (2126, 378)
@@ -134,7 +137,7 @@ def _add_single_synapse(
     spike_threshold = -900.0  # TODO: Synapse - How to get spike threshold
     connection = Connection(
         cell_synapse,
-        pre_spiketrain=spike_train,
+        pre_spiketrain=None if len(spike_train) == 0 else spike_train,
         pre_cell=None,
         stim_dt=cell.record_dt,
         spike_threshold=spike_threshold,
@@ -399,9 +402,9 @@ def _run_current_varying_stimulus(
     """
 
     from bluecellulab.cell.core import Cell
+    from bluecellulab.rngsettings import RNGSettings
     from bluecellulab.simulation.simulation import Simulation
     from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
-    from bluecellulab.rngsettings import RNGSettings
 
     rng = RNGSettings(
         base_seed=experimental_setup.seed,
@@ -564,9 +567,9 @@ def _run_frequency_varying_stimulus(
     logger.info(f"Starting simulation for frequency {frequency}")
 
     from bluecellulab.cell.core import Cell
+    from bluecellulab.rngsettings import RNGSettings
     from bluecellulab.simulation.simulation import Simulation
     from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
-    from bluecellulab.rngsettings import RNGSettings
 
     rng = RNGSettings(
         base_seed=experimental_setup.seed,
