@@ -1,22 +1,22 @@
 from bluenaas.core.stimulation import SynapseRecording
 from bluenaas.domains.morphology import SynapseSeries
-from bluenaas.domains.simulation import RecordingLocation, ExperimentSetupConfig
+from bluenaas.domains.simulation import ExperimentSetupConfig, RecordingLocation
 from bluenaas.utils.util import generate_pre_spiketrain
 
 
 def _add_single_synapse(
     cell, synapse: SynapseSeries, conditions: ExperimentSetupConfig
 ):
+    from bluecellulab import Connection
     from bluecellulab.circuit.config.sections import Conditions  # type: ignore
     from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
-    from bluecellulab import Connection
 
     condition_parameters = Conditions(
         celsius=conditions.celsius,
         v_init=conditions.vinit,
         randomize_gaba_rise_time=True,
     )
-    synid = SynapseID(f"{synapse["id"]}", synapse["id"])
+    synid = SynapseID(f"{synapse['id']}", synapse["id"])
     # A tuple containing source and target popids used by the random number generation.
     # Should correspond to source_popid and target_popid
     popids = (2126, 378)
@@ -42,7 +42,7 @@ def _add_single_synapse(
     spike_threshold = -900.0  # TODO: Synapse - How to get spike threshold
     connection = Connection(
         cell_synapse,
-        pre_spiketrain=spike_train,
+        pre_spiketrain=None if len(spike_train) == 0 else spike_train,
         pre_cell=None,
         stim_dt=cell.record_dt,
         spike_threshold=spike_threshold,
