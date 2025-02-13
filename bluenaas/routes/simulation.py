@@ -5,8 +5,12 @@ contains the single neuron simulation endpoint (single neuron, single neuron wit
 
 from fastapi import APIRouter, Depends, Request, Query, BackgroundTasks
 from typing import Optional
+from loguru import logger
 from datetime import datetime
+from obp_accounting_sdk.errors import InsufficientFundsError, BaseAccountingError
+from http import HTTPStatus as status
 
+from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.domains.simulation import (
     SimulationDetailsResponse,
     SingleNeuronSimulationConfig,
@@ -52,34 +56,50 @@ def run_simulation(
     If realtime is False - `BackgroundSimulationStatusResponse` is returned with simulation `id`. This `id` can be url-encoded and
     used to later query the status (and get result if any) of simulation.
     """
-    with accounting_session_factory.oneshot_session(
-        # TODO: add conditional usage of synaptome type, after the support is added to accounting service
-        # TODO: add error handling related to accounting service
-        subtype="single-cell-sim",
-        proj_id=project_id,
-        user_id=auth.decoded_token.sub,
-        count=config.n_execs,
-    ):
-        if realtime is True:
-            return execute_single_neuron_simulation(
-                org_id=virtual_lab_id,
-                project_id=project_id,
-                model_id=model_id,
-                token=auth.token,
-                config=config,
-                req_id=request.state.request_id,
-                realtime=realtime,
-            )
-        else:
-            return submit_background_simulation(
-                org_id=virtual_lab_id,
-                project_id=project_id,
-                model_self=model_id,
-                config=config,
-                token=auth.token,
-                background_tasks=background_tasks,
-                request_id=request.state.request_id,
-            )
+    try:
+        with accounting_session_factory.oneshot_session(
+            # TODO: add conditional usage of synaptome type, after the support is added to accounting service
+            subtype="single-cell-sim",
+            proj_id=project_id,
+            user_id=auth.decoded_token.sub,
+            count=config.n_execs,
+        ):
+            if realtime is True:
+                return execute_single_neuron_simulation(
+                    org_id=virtual_lab_id,
+                    project_id=project_id,
+                    model_id=model_id,
+                    token=auth.token,
+                    config=config,
+                    req_id=request.state.request_id,
+                    realtime=realtime,
+                )
+            else:
+                return submit_background_simulation(
+                    org_id=virtual_lab_id,
+                    project_id=project_id,
+                    model_self=model_id,
+                    config=config,
+                    token=auth.token,
+                    background_tasks=background_tasks,
+                    request_id=request.state.request_id,
+                )
+    except InsufficientFundsError as ex:
+        logger.exception(f"Insufficient funds: {ex}")
+        raise BlueNaasError(
+            http_status_code=status.FORBIDDEN,
+            error_code=BlueNaasErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
+            message="The project does not have enough funds to run the simulation",
+            details=ex.__str__(),
+        ) from ex
+    except BaseAccountingError as ex:
+        logger.exception(f"Accounting service error: {ex}")
+        raise BlueNaasError(
+            http_status_code=status.BAD_GATEWAY,
+            error_code=BlueNaasErrorCode.ACCOUNTING_GENERIC_ERROR,
+            message="Accounting service error",
+            details=ex.__str__(),
+        ) from ex
 
 
 @router.get(
