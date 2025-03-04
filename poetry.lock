@@ -1586,14 +1586,14 @@ files = [
 
 [[package]]
 name = "obp-accounting-sdk"
-version = "0.1.4"
+version = "0.1.5"
 description = "Python SDK for the OBP Accounting Service."
 optional = false
 python-versions = ">=3.11"
 groups = ["main"]
 files = [
-    {file = "obp_accounting_sdk-0.1.4-py3-none-any.whl", hash = "sha256:ba934dc4b777cf91ce064eb792cb5ab0060f77bd995f514c17abcbe4ebdc11dd"},
-    {file = "obp_accounting_sdk-0.1.4.tar.gz", hash = "sha256:0089549d8edb921ba09f1a5ac48a57113543a8107337dea8ffc522a2833bebb0"},
+    {file = "obp_accounting_sdk-0.1.5-py3-none-any.whl", hash = "sha256:56c5d6c51f36d9dfb76adc933380d20c792c5237df03a8924b13d8b768bbca75"},
+    {file = "obp_accounting_sdk-0.1.5.tar.gz", hash = "sha256:ee27a8da43ab304c4f64228651c7be8cb2004af92792f106a7dfe8e2ced6b48b"},
 ]
 
 [package.dependencies]
@@ -2910,4 +2910,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "fa998f5820c2a498d6180cebcf1d17a767227597bcedef8402c1f85c443097f3"
+content-hash = "c23ea55533a1319152546a70e6949cabb6594845b794e95b38ce539cae32a5b7"

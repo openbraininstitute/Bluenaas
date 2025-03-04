@@ -8,6 +8,7 @@ from typing import Optional
 from loguru import logger
 from datetime import datetime
 from obp_accounting_sdk.errors import InsufficientFundsError, BaseAccountingError
+from obp_accounting_sdk.constants import ServiceSubtype
 from http import HTTPStatus as status
 
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
@@ -56,10 +57,15 @@ def run_simulation(
     If realtime is False - `BackgroundSimulationStatusResponse` is returned with simulation `id`. This `id` can be url-encoded and
     used to later query the status (and get result if any) of simulation.
     """
+    accounting_subtype = (
+        ServiceSubtype.SYNAPTOME_SIM
+        if config.synaptome
+        else ServiceSubtype.SINGLE_CELL_SIM
+    )
+
     try:
         with accounting_session_factory.oneshot_session(
-            # TODO: add conditional usage of synaptome type, after the support is added to accounting service
-            subtype="single-cell-sim",
+            subtype=accounting_subtype,
             proj_id=project_id,
             user_id=auth.decoded_token.sub,
             count=config.n_execs,
