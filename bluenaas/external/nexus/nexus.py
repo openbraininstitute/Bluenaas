@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from urllib.parse import quote_plus, unquote, urlencode
 from loguru import logger
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
@@ -80,8 +81,12 @@ class Nexus:
         # join all except the last part (id)
         self.nexus_base = f'{"/".join(base_and_id[:-1])}/'
         self.headers.update({"Authorization": params["token"]})
+        self.fetch_cache = {}
 
     def fetch_resource_by_id(self, resource_id):
+        if resource_id in self.fetch_cache:
+            return self.fetch_cache[resource_id]
+
         org, project = extract_org_project_from_id(self.nexus_base).values()
         if org is None or project is None:
             raise Exception("org or project are missing")
@@ -90,7 +95,11 @@ class Nexus:
         r = requests.get(endpoint, headers=self.headers, timeout=HTTP_TIMEOUT)
         if not r.ok:
             raise Exception("Error fetching resource", r.json())
-        return r.json()
+
+        resource = r.json()
+        self.fetch_cache[resource_id] = resource
+
+        return resource
 
     def update_resource_by_id(
         self, org_label, project_label, resource_id, previous_rev, payload
@@ -353,22 +362,14 @@ class Nexus:
             if config.get("@type") != "NeuronMorphology":
                 scripts.append(config)
 
-        model_resources = []
-        for script in scripts:
-            script_resource = self.fetch_resource_by_id(script["@id"])
-            model_resources.append(script_resource)
-
+        # model_resources = []
         # TODO: Add these configuration to the model
         extra_mechanisms = [
             f"{settings.NEXUS_ROOT_URI}/resources/bbp/mmb-point-neuron-framework-model/_/https:%2F%2Fbbp.epfl.ch%2Fneurosciencegraph%2Fdata%2Fsynapticphysiologymodels%2Fe3c32384-5cb1-4dd3-a8c9-f6c23bea6b27",
             f"{settings.NEXUS_ROOT_URI}/resources/bbp/mmb-point-neuron-framework-model/_/https:%2F%2Fbbp.epfl.ch%2Fneurosciencegraph%2Fdata%2Fsynapticphysiologymodels%2F3965bc40-ca30-475b-98be-cfa3e22057b5",
         ]
-        for extra_mech in extra_mechanisms:
-            mech = self.fetch_resource_by_self(extra_mech)
-            model_resources.append(mech)
 
-        mechanisms = []
-        for model_resource in model_resources:
+        def fetch_mechanism(model_resource):
             distributions = ensure_list(model_resource["distribution"])
             distribution = list(
                 filter(
@@ -379,7 +380,29 @@ class Nexus:
             )[0]
 
             file = self.fetch_file_by_url(distribution["contentUrl"])
-            mechanisms.append({"name": distribution["name"], "content": file.text})
+            return {"name": distribution["name"], "content": file.text}
+
+        def fetch_mechanism_from_script(script):
+            script_resource = self.fetch_resource_by_id(script["@id"])
+            return fetch_mechanism(script_resource)
+
+        def fetch_extra_mechanism(extra_mech_self):
+            mechanism_resource = self.fetch_resource_by_self(extra_mech_self)
+            return fetch_mechanism(mechanism_resource)
+
+        mechanisms = []
+
+        with ThreadPoolExecutor() as executor:
+            script_mech_futures = [
+                executor.submit(fetch_mechanism_from_script, script)
+                for script in scripts
+            ]
+            extra_mech_futures = [
+                executor.submit(fetch_extra_mechanism, extra_mech)
+                for extra_mech in extra_mechanisms
+            ]
+            for future in as_completed(script_mech_futures + extra_mech_futures):
+                mechanisms.append(future.result())
 
         return mechanisms
 
@@ -483,21 +506,27 @@ class Nexus:
     def download_model(self):
         resource = self.fetch_resource_by_id(self.model_id)
         # could be E-Model or ME-Model
+
         emodel_resource = self.get_emodel_resource(resource)
         logger.debug("E-Model resource fetched")
+
         configuration = self.get_emodel_configuration(emodel_resource)
         logger.debug("E-Model configuration fetched")
-        mechanisms = self.get_mechanisms(configuration)
-        logger.debug("E-Model mechanisms fetched")
-        hoc_file = self.get_hoc_file(emodel_resource)
-        logger.debug("E-Model hoc file fetched")
-        if "MEModel" in resource["@type"]:
-            logger.debug("Fetching Morphology from ME-Model")
-            morphology_obj = self.get_memodel_morphology(resource)
-        else:
-            logger.debug("Fetching Morphology from E-Model")
-            morphology_obj = self.get_emodel_morphology(configuration)
-        logger.debug("Morphology fetched")
+
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                # HOC file
+                executor.submit(self.get_hoc_file, emodel_resource),
+                # Morphology
+                executor.submit(self.get_memodel_morphology, resource)
+                if "MEModel" in resource["@type"]
+                else executor.submit(self.get_emodel_morphology, configuration),
+                # Mechanisms
+                executor.submit(self.get_mechanisms, configuration),
+            ]
+
+            hoc_file, morphology_obj, mechanisms = [f.result() for f in futures]
+
         self.create_model_folder(hoc_file, morphology_obj, mechanisms)
         logger.debug("E-Model folder created")
 

@@ -337,9 +337,6 @@ def stream_realtime_data(
                 logger.debug("Parent received queue_stop_event")
                 break
 
-            logger.info(
-                f"[R/S --> {record["label"]}/{record["recording_name"]}]",
-            )
             yield f"{json.dumps(queue_record_to_nexus_record(record, is_current_varying))}\n"
 
         logger.info(f"Realtime Simulation {request_id} completed")
