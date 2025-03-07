@@ -12,6 +12,7 @@ class BlueNaasErrorCode(StrEnum):
     AUTHORIZATION_ERROR = "AUTHORIZATION_ERROR"
     INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR"
     UNKNOWN_BLUENAAS_ERROR = "UNKNOWN_BLUENAAS_ERROR"
+    MODEL_INIT_ERROR = "MODEL_INIT_ERROR"
     SYNAPSE_PLACEMENT_ERROR = "SYNAPSE_PLACEMENT_ERROR"
     SIMULATION_ERROR = "SIMULATION_ERROR"
     MORPHOLOGY_GENERATION_ERROR = "MORPHOLOGY_GENERATION_ERROR"
@@ -90,6 +91,15 @@ class SynapseGenerationError(Exception):
 
 class MorphologyGenerationError(Exception):
     def __init__(self, message: str = "Morphology generation failed") -> None:
+        self.message = message
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        return self.message
+
+
+class ModelInitError(Exception):
+    def __init__(self, message: str = "Model init failed") -> None:
         self.message = message
         super().__init__(self.message)
 

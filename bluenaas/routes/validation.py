@@ -7,6 +7,9 @@ from fastapi import APIRouter, Body, Depends, Request
 from bluenaas.domains.morphology import (
     SynapsePlacementResponse,
 )
+from bluenaas.services.validate_model import (
+    validate_model_draft as exec_model_validation,
+)
 from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
 from bluenaas.services.validate_synapse_formula import (
     validate_synapse_generation_formula,
@@ -26,3 +29,16 @@ def place_synapses(
     auth: Auth = Depends(verify_jwt),
 ) -> SynapsePlacementResponse:
     return validate_synapse_generation_formula(formula=formula)
+
+
+@router.post("/model-draft")
+def validate_model(
+    request: Request,
+    me_model_draft: dict = Body(),
+    auth: Auth = Depends(verify_jwt),
+):
+    return exec_model_validation(
+        model_draft=me_model_draft,
+        token=auth.token,
+        req_id=request.state.request_id,
+    )

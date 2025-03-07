@@ -74,14 +74,30 @@ class Nexus:
     # pylint: disable=missing-function-docstring
     def __init__(self, params):
         self.headers = {}
-        self.model_self_url = params["model_self_url"]
+
+        if params["model_resource"] is not None:
+            self.model_resource = params["model_resource"]
+            self.model_self_url = self.model_resource[
+                "_self"
+            ]  # TODO: validate if the property is correct
+        else:
+            self.model_self_url = params["model_self_url"]
+
         base_and_id = self.model_self_url.split("/")
+
         self.model_id = unquote(base_and_id[-1])
         self.model_uuid = self.model_id.split("/")[-1]
         # join all except the last part (id)
         self.nexus_base = f'{"/".join(base_and_id[:-1])}/'
         self.headers.update({"Authorization": params["token"]})
         self.fetch_cache = {}
+
+    def get_model_resource(self):
+        if self.model_resource is not None:
+            return self.model_resource
+
+        self.model_resource = self.fetch_resource_by_id(self.model_id)
+        return self.model_resource
 
     def fetch_resource_by_id(self, resource_id):
         if resource_id in self.fetch_cache:
@@ -465,8 +481,14 @@ class Nexus:
         ) as dst:
             dst.write(src.read())
 
-    def create_model_folder(self, hoc_file, morphology_obj, mechanisms):
-        output_dir = get_model_path(self.model_uuid)
+    def create_model_folder(
+        self, hoc_file, morphology_obj, mechanisms, destination_dir: Path | None
+    ):
+        output_dir = (
+            destination_dir
+            if destination_dir is not None
+            else get_model_path(self.model_uuid)
+        )
 
         self.create_file(output_dir / "cell.hoc", hoc_file)
 
@@ -503,8 +525,8 @@ class Nexus:
             emodel_resource = resource
         return emodel_resource
 
-    def download_model(self):
-        resource = self.fetch_resource_by_id(self.model_id)
+    def download_model(self, destination_dir: Path | None):
+        resource = self.get_model_resource()
         # could be E-Model or ME-Model
 
         emodel_resource = self.get_emodel_resource(resource)
@@ -527,11 +549,11 @@ class Nexus:
 
             hoc_file, morphology_obj, mechanisms = [f.result() for f in futures]
 
-        self.create_model_folder(hoc_file, morphology_obj, mechanisms)
+        self.create_model_folder(hoc_file, morphology_obj, mechanisms, destination_dir)
         logger.debug("E-Model folder created")
 
     def get_currents(self):
-        resource = self.fetch_resource_by_id(self.model_id)
+        resource = self.get_model_resource()
         # TODO: this should be the right way to do it when analysis is ready
         # With the changes to ME-model shape
         # if (
@@ -579,7 +601,7 @@ class Nexus:
     ) -> dict:
         # Step 1: Get me_model
         try:
-            model = self.fetch_resource_by_id(self.model_id)
+            model = self.get_model_resource()
         except Exception:
             raise SimulationError(f"No me_model with self {self.model_id} found")
 

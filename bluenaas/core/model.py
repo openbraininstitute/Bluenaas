@@ -1,10 +1,12 @@
 """Model"""
 
 from enum import Enum
+from pathlib import Path
 from typing import List, NamedTuple
 from bluenaas.core.exceptions import SimulationError, SynapseGenerationError
 from filelock import FileLock
 from loguru import logger
+from tempfile import TemporaryDirectory
 import pandas  # type: ignore
 import requests
 from sympy import symbols, parse_expr  # type: ignore
@@ -44,8 +46,10 @@ MAXIMUM_ALLOWED_SYNAPSES = 20_000
 
 
 class Model:
-    def __init__(self, *, model_id: str, hyamp: float | None, token: str):
-        self.model_id: str = model_id
+    def __init__(
+        self, *, model_id: str | None = None, hyamp: float | None = None, token: str
+    ):
+        self.model_id: str | None = model_id
         self.token: str = token
         self.CELL: HocCell = None
         self.threshold_current: int = 1
@@ -86,6 +90,40 @@ class Model:
                     if self.holding_current is not None
                     else holding_current,
                 )
+
+    @classmethod
+    def validate(cls, model_resource: object, token: str):
+        """Validate model."""
+        if model_resource is None:
+            raise Exception("Missing model_resource")
+
+        model = cls(token=token)
+
+        model._validate_model(model_resource)
+
+    def _validate_model(self, model_resource):
+        """Validate model."""
+        if model_resource is None:
+            raise Exception("Missing model_resource")
+
+        nexus_helper = Nexus({"token": self.token, "model_resource": model_resource})
+
+        [holding_current, threshold_current] = nexus_helper.get_currents()
+        self.threshold_current = threshold_current
+        model_uuid = nexus_helper.get_model_uuid()
+
+        with TemporaryDirectory() as tmp_dir_name:
+            temp_dir = Path(tmp_dir_name)
+
+            nexus_helper.download_model(temp_dir)
+            self.CELL = HocCell(
+                model_uuid=model_uuid,
+                threshold_current=threshold_current,
+                holding_current=self.holding_current
+                if self.holding_current is not None
+                else holding_current,
+                custom_model_path=temp_dir,
+            )
 
     def _generate_synapse(
         self, section_info: LocationData, seg_indices_to_include: list[int]
@@ -336,6 +374,19 @@ def model_factory(
     model.build_model()
 
     return model
+
+
+def model_validation_factory(
+    model_resource: dict,
+    hyamp: float | None,
+    bearer_token: str,
+):
+    model = Model(
+        hyamp=hyamp,
+        token=bearer_token,
+    )
+
+    model.validate_model
 
 
 class SynaptomeDetails(NamedTuple):

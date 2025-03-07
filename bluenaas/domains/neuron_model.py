@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional, Literal
+from pydantic import BaseModel, Field
+from typing import Annotated, Optional, Literal
 from datetime import datetime
 
 from bluenaas.domains.morphology import SynapseConfig

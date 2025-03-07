@@ -49,13 +49,8 @@ class BaseCell:
             self._topology_children(child_sec, child_topology)
         return topology
 
-    def _load_by_model_uuid(self, model_uuid, threshold_current, holding_current):
+    def _load(self, model_path, threshold_current, holding_current):
         # pylint: disable=too-many-statements
-        os.chdir("/opt/blue-naas")
-
-        model_path = locate_model(model_uuid)
-        if model_path is None:
-            raise Exception(f"Model path was not found for {model_uuid}")
 
         compile_mechanisms(model_path)
 
@@ -247,8 +242,15 @@ class BaseCell:
 class HocCell(BaseCell):
     """Cell model with hoc."""
 
-    def __init__(self, model_uuid, threshold_current=0, holding_current=0):
+    def __init__(
+        self, model_uuid, threshold_current=0, holding_current=0, custom_model_path=None
+    ):
         super().__init__(model_uuid)
 
         logger.info(f"hoccell init: {model_uuid, threshold_current, holding_current}")
-        self._load_by_model_uuid(model_uuid, threshold_current, holding_current)
+        model_path = (
+            custom_model_path
+            if custom_model_path is not None
+            else locate_model(model_uuid)
+        )
+        self._load(model_path, threshold_current, holding_current)
