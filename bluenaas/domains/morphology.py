@@ -53,27 +53,34 @@ class ExclusionRule(BaseModel):
 class SynapseConfig(BaseModel):
     id: str
     name: str
-    target: SectionTarget | None = None
+    target: list[SectionTarget]  # Supports multiple target types
     type: int
     distribution: Literal["exponential", "linear", "formula"]
     formula: Optional[str | None] = None
-    soma_synapse_count: int | None = None
+    synapse_count: int | None = None
     seed: int
     exclusion_rules: list[ExclusionRule] | None = None
 
-    @field_validator("soma_synapse_count")
+    @field_validator("synapse_count")
     @classmethod
-    def validate_soma_synapse_count(cls, value, info):
-        if "target" in info.data and info.data.get("target") == SectionTarget.soma:
-            if not value:
-                raise ValueError(
-                    "soma_section_count should be provided if target is soma"
-                )
+    def validate_synapse_count(cls, value, info):
+        target = info.data.get("target")
 
-            if value < 0 or value > 1000:
-                raise ValueError(
-                    "soma_section_count should be greater than 0 and less than or equal to 1000"
-                )
+        # If the target is the soma, synapse_count is REQUIRED
+        if target == SectionTarget.soma and value is None:
+            raise ValueError("synapse_count must be provided if target is soma")
+
+        # If synapse_count is given, validate its value
+        if value is not None:
+            if not isinstance(value, int):
+                raise ValueError("synapse_count must be an integer")
+            if value <= 0:
+                raise ValueError("synapse_count must be greater than 0")
+            if value > 1_000 and target == SectionTarget.soma:  # Limit soma synapses
+                raise ValueError("synapse_count for soma cannot exceed 1,000")
+            if value > 20_000:  # Global max limit
+                raise ValueError("synapse_count cannot exceed 20,000 for a single set")
+
         return value
 
     @field_validator("formula", mode="before")
