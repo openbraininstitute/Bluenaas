@@ -34,6 +34,13 @@ HOC_FORMAT = ["application/x-neuron-hoc", "application/hoc"]
 
 RWX_TO_ALL = 0o777
 
+ENCODING_FORMAT_MAP = {
+    "h5": "application/x-hdf5",
+    "hdf5": "application/x-hdf5",
+    "asc": "application/asc",
+    "swc": "application/swc",
+}
+
 
 def opener(path, flags):
     return os.open(path, flags, RWX_TO_ALL)
@@ -317,24 +324,50 @@ class Nexus:
         configuration_id = self.get_configuration_id(emodel_resource)
         return self.fetch_resource_by_id(configuration_id)
 
-    def get_morphology(self, morph_id):
+    def get_emodel_morph_format(self, emodel_configuration_resource):
+        configuration_distribution = ensure_list(
+            emodel_configuration_resource["distribution"]
+        )
+        configuration = self.fetch_file_by_url(
+            configuration_distribution[0]["contentUrl"]
+        ).json()
+        emodel_morph_format = configuration.get("morphology", {}).get("format", None)
+
+        return emodel_morph_format
+
+    def find_distrbution_by_encoding_format(self, resource, encoding_format):
+        distributions = ensure_list(resource["distribution"])
+        for distribution in distributions:
+            if distribution["encodingFormat"] == encoding_format:
+                return distribution
+        return None
+
+    def get_morphology(self, morph_id, morph_format="asc"):
         morphology_resource = self.fetch_resource_by_id(morph_id)
 
-        swc = None
-        distributions = ensure_list(morphology_resource["distribution"])
-        for distribution in distributions:
-            if distribution["encodingFormat"] == "application/swc":
-                swc = distribution
-                break
+        encoding_format = ENCODING_FORMAT_MAP.get(morph_format)
+        assert encoding_format, f"Morphology format {morph_format} not supported"
 
-        if swc is None:
-            raise Exception("SWC format not found in NeuronMorphology distribution")
+        morph_distribution = self.find_distrbution_by_encoding_format(
+            morphology_resource, encoding_format
+        )
 
-        file = self.fetch_file_by_url(swc["contentUrl"])
+        if morph_distribution is None:
+            secondary_morph_format = "swc" if morph_format == "asc" else "asc"
+            morph_distribution = self.find_distrbution_by_encoding_format(
+                morphology_resource, ENCODING_FORMAT_MAP.get(secondary_morph_format)
+            )
 
-        return {"name": swc["name"], "content": file.text}
+        if morph_distribution is None:
+            raise Exception(
+                f"{morph_format.upper()} or {secondary_morph_format.upper()} format not found in NeuronMorphology distribution"
+            )
 
-    def get_emodel_morphology(self, configuration):
+        file = self.fetch_file_by_url(morph_distribution["contentUrl"])
+
+        return {"name": morph_distribution["name"], "content": file.text}
+
+    def get_emodel_morphology(self, configuration, morph_format):
         morphology = None
         for item in configuration["uses"]:
             if item["@type"] == "NeuronMorphology":
@@ -343,9 +376,9 @@ class Nexus:
         if morphology is None:
             raise Exception("NeuronMorphology not found")
 
-        return self.get_morphology(morphology["@id"])
+        return self.get_morphology(morphology["@id"], morph_format)
 
-    def get_memodel_morphology(self, memodel_resource):
+    def get_memodel_morphology(self, memodel_resource, morph_format):
         morphology_id = None
         for haspart in ensure_list(memodel_resource["hasPart"]):
             if haspart.get("@type") == "NeuronMorphology":
@@ -353,7 +386,7 @@ class Nexus:
         if morphology_id is None:
             raise Exception("No Morphology found in ME-Model")
 
-        return self.get_morphology(morphology_id)
+        return self.get_morphology(morphology_id, morph_format)
 
     def get_mechanisms(self, configuration):
         # fetch only SubCellularModelScripts. Morphologies will be fetched later
@@ -510,19 +543,28 @@ class Nexus:
         emodel_resource = self.get_emodel_resource(resource)
         logger.debug("E-Model resource fetched")
 
-        configuration = self.get_emodel_configuration(emodel_resource)
+        configuration_resource = self.get_emodel_configuration(emodel_resource)
         logger.debug("E-Model configuration fetched")
+
+        emodel_morph_format = self.get_emodel_morph_format(configuration_resource)
+        logger.debug("E-Model morph format fetched")
 
         with ThreadPoolExecutor() as executor:
             futures = [
                 # HOC file
                 executor.submit(self.get_hoc_file, emodel_resource),
                 # Morphology
-                executor.submit(self.get_memodel_morphology, resource)
+                executor.submit(
+                    self.get_memodel_morphology, resource, emodel_morph_format
+                )
                 if "MEModel" in resource["@type"]
-                else executor.submit(self.get_emodel_morphology, configuration),
+                else executor.submit(
+                    self.get_emodel_morphology,
+                    configuration_resource,
+                    emodel_morph_format,
+                ),
                 # Mechanisms
-                executor.submit(self.get_mechanisms, configuration),
+                executor.submit(self.get_mechanisms, configuration_resource),
             ]
 
             hoc_file, morphology_obj, mechanisms = [f.result() for f in futures]
