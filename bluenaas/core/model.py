@@ -136,8 +136,6 @@ class Model:
     def _calc_synapse_count(
         self, config: SynapseConfig, distance: float, sec_length: float
     ) -> int | None:
-        if config.target == SectionTarget.soma:
-            return config.soma_synapse_count
         x_symbol, X_symbol = symbols("x X")
         expression = parse_expr(f"{config.formula} * {sec_length}")
         formula_value = expression.subs({x_symbol: distance, X_symbol: distance})
@@ -148,53 +146,100 @@ class Model:
 
         return floor(formula_value) + 1
 
-    def _should_place_synapse_on_section_based_on_target(
-        self, section_name: str, config: SynapseConfig
-    ) -> bool:
-        if config.target is not None:
-            return section_name.startswith(config.target.value)
-
+    def _should_place_synapse_on_section_based_on_target(self, section_name: str, config: SynapseConfig) -> bool:
+        """Checks if a section matches any of the selected target types."""
         supported_sections = SectionTarget.list()
-        target = list(filter(lambda s: section_name.startswith(s), supported_sections))
-        return len(target) > 0
 
-    def add_synapses(self, params: SynapsePlacementBody) -> SynapsePlacementResponse:
+        if isinstance(config.target, list):
+            valid_targets = [target for target in config.target if target.value in supported_sections]
+            return any(section_name.startswith(target.value) for target in valid_targets)
+
+        return section_name.startswith(config.target.value) and config.target.value in supported_sections
+
+    def _get_valid_sections(self, config: SynapseConfig) -> list[tuple]:
+        """Returns a list of sections that pass validation and exclusion rules."""
+        valid_sections = []
         _, section_map = get_sections(self.CELL._cell)
-        config = params.config
-        synapses: list[SectionSynapses] = []
-        sections = section_map
-        seed(params.config.seed, version=2)
 
-        for section_key, section_value in sections.items():
+        for section_key, section_value in section_map.items():
             try:
-                section_info = LocationData.model_validate(
-                    section_value,
-                )
+                section_info = LocationData.model_validate(section_value)
             except Exception:
-                continue
+                continue  # Skip invalid sections
 
-            if not self._should_place_synapse_on_section_based_on_target(
-                section_key, params.config
-            ):
-                continue
+            if not self._should_place_synapse_on_section_based_on_target(section_key, config):
+                continue  # Skip sections that do not match the target
 
             segment_indices = get_segments_satisfying_all_exclusion_rules(
-                params.config.exclusion_rules,
+                config.exclusion_rules,
                 section_info.segment_distance_from_soma,
                 section_info,
             )
 
-            if segment_indices is None:
-                continue
+            if not segment_indices:
+                continue  # Skip sections that do not pass exclusion rules
 
-            synapse_count = self._calc_synapse_count(
-                config, section_info.distance_from_soma, section_info.sec_length
-            )
-            total_synapses = len(synapses) + (synapse_count or 0)
-            if total_synapses > MAXIMUM_ALLOWED_SYNAPSES:
+            valid_sections.append((section_key, section_info, segment_indices))
+
+        return valid_sections
+
+
+    def _distribute_total_synapses(self, total_synapses: int, valid_sections: list[tuple]) -> dict:
+        """Assigns `total_synapses` randomly across `valid_sections` while ensuring correct placement."""
+        num_valid_sections = len(valid_sections)
+        if num_valid_sections == 0 or total_synapses <= 0:
+            return {}
+
+        section_keys = [section_key for section_key, _, _ in valid_sections]  # Extract section keys
+        synapse_counts = {section_key: 0 for section_key in section_keys}  # Initialize counts
+
+        # Assign each synapse randomly while ensuring total matches
+        for _ in range(total_synapses):
+            random_section = random.choice(section_keys)  # Pick a section randomly
+            synapse_counts[random_section] += 1  # Assign a synapse to that section
+
+        return synapse_counts  # {section_key: assigned_synapse_count}
+
+    def add_synapses(self, params: SynapsePlacementBody) -> SynapsePlacementResponse:
+        """Assigns synapses randomly across sections if total_synapses is set."""
+
+        seed(params.config.seed, version=2)
+
+        # Get valid sections
+        valid_sections = self._get_valid_sections(params.config)
+
+        if not valid_sections:
+            return SynapsePlacementResponse(synapses=[])
+
+        # Compute synapse counts based on total_synapses or density
+        total_synapses = params.config.synapse_count
+        synapse_distribution = None
+
+        if total_synapses and total_synapses > 0:
+            # Distribute synapses randomly across ALL selected target sections
+            synapse_distribution = self._distribute_total_synapses(total_synapses, valid_sections)
+        else:
+            synapse_distribution = None  # Formula-based synapse calculation will be used
+
+        # Assign synapses per section
+        synapses = []
+        for section_key, section_info, segment_indices in valid_sections:
+            if synapse_distribution is None:
+                # Use formula-based synapse density
+                synapse_count_per_section = self._calc_synapse_count(
+                    params.config, section_info.distance_from_soma, section_info.sec_length
+                )
+            else:
+                # Lookup precomputed synapse count (default to 0 if not assigned)
+                synapse_count_per_section = synapse_distribution.get(section_key, 0)
+
+            # Ensure we do not exceed the max allowed synapses
+            if len(synapses) + synapse_count_per_section > MAXIMUM_ALLOWED_SYNAPSES:
                 raise SynapseGenerationError(
                     f"Cannot generate more than {MAXIMUM_ALLOWED_SYNAPSES} synapses per synapse set. Please revise your formula."
                 )
+
+            # Generate synapse objects
             synapse = SectionSynapses(
                 section_id=section_key,
                 synapses=[
@@ -202,14 +247,12 @@ class Model:
                         section_info=section_info,
                         seg_indices_to_include=segment_indices,
                     )
-                    for i in range(synapse_count)
+                    for _ in range(synapse_count_per_section)
                 ],
             )
             synapses.append(synapse)
 
-        return SynapsePlacementResponse(
-            synapses=synapses,
-        )
+        return SynapsePlacementResponse(synapses=synapses)
 
     def _get_synapse_series_for_section(
         self,
@@ -262,47 +305,46 @@ class Model:
         offset: int,
         frequencies_to_apply: list[float],
     ) -> list[SynapseSeries]:
-        synapse_series: list[SynapseSeries] = []
-        _, section_map = get_sections(self.CELL._cell)
-        sections = section_map
 
         seed(synapse_placement_config.seed, version=2)
 
-        for section_key, section_value in sections.items():
-            try:
-                section_info = LocationData.model_validate(
-                    section_value,
+        # Get valid sections
+        valid_sections = self._get_valid_sections(synapse_placement_config)
+
+        if not valid_sections:
+            return []
+
+        # Compute synapse counts based on total_synapses or formula
+        total_synapses = synapse_placement_config.synapse_count
+        synapse_distribution = None
+
+        if total_synapses and total_synapses > 0:
+            # Distribute synapses randomly across ALL selected target sections
+            synapse_distribution = self._distribute_total_synapses(total_synapses, valid_sections)
+        else:
+            synapse_distribution = None  # Formula-based synapse calculation will be used
+
+        # Assign synapses per section
+        synapse_series = []
+        for section_key, section_info, segment_indices in valid_sections:
+            if synapse_distribution is None:
+                # Use formula-based synapse density
+                synapse_count = self._calc_synapse_count(
+                    synapse_placement_config,
+                    section_info.distance_from_soma,
+                    section_info.sec_length,
                 )
+            else:
+                # Lookup precomputed synapse count using `section_key`
+                synapse_count = synapse_distribution.get(section_key, 0)
 
-            except Exception:
-                continue
-
-            if not self._should_place_synapse_on_section_based_on_target(
-                section_key, synapse_placement_config
-            ):
-                continue
-
-            segment_indices = get_segments_satisfying_all_exclusion_rules(
-                synapse_placement_config.exclusion_rules,
-                section_info.segment_distance_from_soma,
-                section_info,
-            )
-
-            if segment_indices is None:
-                continue
-
-            synapse_count = self._calc_synapse_count(
-                synapse_placement_config,
-                section_info.distance_from_soma,
-                section_info.sec_length,
-            )
-
-            total_synapses = len(synapse_series) + (synapse_count or 0)
-            if total_synapses > MAXIMUM_ALLOWED_SYNAPSES:
+            # Ensure we do not exceed the max allowed synapses
+            if len(synapse_series) + synapse_count > MAXIMUM_ALLOWED_SYNAPSES:
                 raise SimulationError(
                     f"Simulation cannot have more than {MAXIMUM_ALLOWED_SYNAPSES} synapses per synapse set."
                 )
 
+            # Generate synapse series entries
             for _ in range(synapse_count):
                 synapse_id = int(f"{len(synapse_series)}{offset}")
                 synapse_series.append(
