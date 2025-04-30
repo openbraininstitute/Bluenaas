@@ -44,3 +44,6 @@ lint-check:
 	
 type-check:
 	poetry run mypy bluenaas/app.py --strict
+
+generate-entitycore-schemas:
+	curl -o openapi.json https://staging.openbraininstitute.org/api/entitycore/openapi.json & poetry run datamodel-codegen --input openapi.json --input-file-type openapi --output bluenaas/core/entitycore.py --output-model-type typing.TypedDict 
