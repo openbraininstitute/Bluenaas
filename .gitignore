@@ -308,3 +308,5 @@ code-workspace.json
 # Ignore all local history of files
 .history
 .ionide
+
+.python-version

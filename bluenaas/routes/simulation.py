@@ -10,6 +10,7 @@ from datetime import datetime
 from obp_accounting_sdk.errors import InsufficientFundsError, BaseAccountingError
 from obp_accounting_sdk.constants import ServiceSubtype
 from http import HTTPStatus as status
+from uuid import UUID
 
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.domains.simulation import (
@@ -39,7 +40,7 @@ def run_simulation(
     request: Request,
     virtual_lab_id: str,
     project_id: str,
-    model_id: str,
+    model_id: UUID,
     config: SingleNeuronSimulationConfig,
     background_tasks: BackgroundTasks,
     auth: Auth = Depends(verify_jwt),

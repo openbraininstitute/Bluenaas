@@ -1,4 +1,5 @@
 import json
+from uuid import UUID
 import multiprocessing as mp
 from itertools import chain
 from bluenaas.utils.streaming import (
@@ -35,7 +36,7 @@ from bluenaas.external.nexus.nexus import Nexus
 
 
 def _init_current_varying_simulation(
-    model_id: str,
+    model_id: UUID,
     token: str,
     config: SingleNeuronSimulationConfig,
     realtime: bool,
@@ -429,7 +430,7 @@ def save_simulation_result_to_nexus(
 def execute_single_neuron_simulation(
     org_id: str,
     project_id: str,
-    model_id: str,
+    model_id: UUID,
     token: str,
     config: SingleNeuronSimulationConfig,
     req_id: str,
