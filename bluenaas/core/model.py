@@ -42,7 +42,6 @@ from random import seed, random, randint
 import numpy as np
 from bluenaas.external.entitycore.service import (
     fetch_one,
-    download_asset,
     fetch_hoc_file,
     fetch_morphology,
     fetch_mechanisms,
@@ -98,7 +97,6 @@ class Model:
         if not hoc_file_id:
             raise ValueError(f"hoc_file not found for emodel {emodel.id}")
 
-        nexus_helper = Nexus({"token": self.token, "model_self_url": self.model_id})
         self.threshold_current = me_model.threshold_current
 
         model_path = Path("/opt/blue-naas/models") / str(self.model_id)
@@ -120,8 +118,7 @@ class Model:
                 hoc_file = fetch_hoc_file(emodel, token=self.token)
                 morphology = fetch_morphology(me_model.morphology.id, self.token)
                 mechanisms = fetch_mechanisms(emodel, self.token)
-
-                nexus_helper.download_model()
+                self.create_model_folder(model_path, hoc_file, morphology, mechanisms)
                 done_file.touch()
 
     def create_model_folder(
