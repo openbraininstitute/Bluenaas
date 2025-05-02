@@ -10,6 +10,7 @@ from loguru import logger
 import pandas  # type: ignore
 import requests
 from sympy import symbols, parse_expr  # type: ignore
+
 import json
 from bluenaas.core.cell import HocCell
 from bluenaas.domains.morphology import (
@@ -33,6 +34,8 @@ from bluenaas.utils.util import (
     perpendicular_vector,
     point_between_vectors,
     set_vector_length,
+    create_file,
+    copy_file_content,
 )
 from math import floor, modf
 from random import seed, random, randint
@@ -41,6 +44,8 @@ from bluenaas.external.entitycore.service import (
     fetch_one,
     download_asset,
     fetch_hoc_file,
+    fetch_morphology,
+    fetch_mechanisms,
 )
 from bluenaas.external.entitycore.schemas import (
     MEModelRead,
@@ -112,12 +117,31 @@ class Model:
 
         if not done_file.exists():
             with lock.acquire(timeout=2 * 60):
-                hoc_file = fetch_hoc_file(me_model.emodel.id, token=self.token)
-
-                morphology = download_asset()
+                hoc_file = fetch_hoc_file(emodel, token=self.token)
+                morphology = fetch_morphology(me_model.morphology.id, self.token)
+                mechanisms = fetch_mechanisms(emodel, self.token)
 
                 nexus_helper.download_model()
                 done_file.touch()
+
+    def create_model_folder(
+        self,
+        output_dir: Path,
+        hoc_file: str,
+        morphology: str,
+        mechanisms: list[str],
+    ):
+        create_file(output_dir / "cell.hoc", hoc_file)
+
+        create_file(output_dir / "morphology", morphology)
+
+        for mechanism in mechanisms:
+            create_file(output_dir / "mechanisms", mechanism)
+
+        copy_file_content(
+            Path("/app/bluenaas/config/VecStim.mod"),
+            output_dir / "mechanisms" / "VecStim.mod",
+        )
 
     def _generate_synapse(
         self, section_info: LocationData, seg_indices_to_include: list[int]

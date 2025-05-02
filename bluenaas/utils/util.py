@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from random import randint
 from typing import Optional
+import os
 
 import numpy as np
 from loguru import logger as L
@@ -552,3 +553,21 @@ def construct_time_range(
     end_str = end_date.strftime("%Y-%m-%dT%H:%M:%SZ") if end_date else "*"
 
     return "{}..{}".format(start_str, end_str)
+
+
+RWX_TO_ALL = 0o777
+
+
+def opener(path, flags):
+    return os.open(path, flags, RWX_TO_ALL)
+
+
+def create_file(path: Path, content: str):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8", opener=opener) as f:
+        f.write(content)
+
+
+def copy_file_content(source_file: Path, target_file: Path):
+    with open(source_file, "r") as src, open(target_file, "w", opener=opener) as dst:
+        dst.write(src.read())

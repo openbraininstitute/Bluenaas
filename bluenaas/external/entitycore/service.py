@@ -1,8 +1,14 @@
 from uuid import UUID
 import requests
 from bluenaas.config.settings import settings
-from bluenaas.external.entitycore.schemas import EntityRoute, EModelReadExpanded
+from bluenaas.external.entitycore.schemas import (
+    EntityRoute,
+    EModelReadExpanded,
+    ReconstructionMorphologyRead,
+    AssetRead,
+)
 from pydantic import BaseModel
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def fetch_one[T: BaseModel](
@@ -44,14 +50,7 @@ def download_asset(
     return res.text
 
 
-def fetch_hoc_file(emodel_id: UUID, token: str):
-    emodel = fetch_one(
-        emodel_id,
-        EntityRoute.emodel,
-        token=token,
-        response_class=EModelReadExpanded,
-    )
-
+def fetch_hoc_file(emodel: EModelReadExpanded, token: str):
     e_model_assets = emodel.assets or []
 
     hoc_file_id = next(
@@ -66,5 +65,41 @@ def fetch_hoc_file(emodel_id: UUID, token: str):
 
 def fetch_morphology(id: UUID, token: str):
     morphology = fetch_one(
-        
+        id, EntityRoute.reconstruction_morphology, token, ReconstructionMorphologyRead
     )
+
+    assets_by_type: dict[str, AssetRead] = {}
+
+    asset: AssetRead | None = None
+
+    for asset in morphology.assets or []:
+        if asset.path.endswith("swc"):
+            assets_by_type["swc"] = asset
+
+        if asset.path.endswith("asc"):
+            assets_by_type["asc"] = asset
+
+    asset = assets_by_type.get("asc") or assets_by_type.get("swc")
+
+    if not asset:
+        raise ValueError(f"No morphology files found for morphology {id}")
+
+    return download_asset(
+        asset.id, id, EntityRoute.reconstruction_morphology, token=token
+    )
+
+
+def fetch_mechanisms(emodel: EModelReadExpanded, token: str):
+    icms = emodel.ion_channel_models
+
+    with ThreadPoolExecutor() as executor:
+        futures = [
+            executor.submit(
+                download_asset, asset.id, icm.id, EntityRoute.ion_channel_model, token
+            )
+            for icm in icms
+            for asset in icm.assets or []
+            if asset.path.endswith("mod")
+        ]
+
+    return [f.result() for f in futures]
