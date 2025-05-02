@@ -68,7 +68,7 @@ def run_simulation(
         with accounting_session_factory.oneshot_session(
             subtype=accounting_subtype,
             proj_id=project_id,
-            user_id=auth.decoded_token.sub,
+            user_id='',
             count=config.n_execs,
         ):
             if realtime is True:

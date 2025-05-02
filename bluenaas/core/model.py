@@ -1,6 +1,8 @@
 """Model"""
 
 from enum import Enum
+from pathlib import Path
+from uuid import UUID
 from typing import List, NamedTuple
 from bluenaas.core.exceptions import SimulationError, SynapseGenerationError
 from filelock import FileLock
@@ -35,6 +37,12 @@ from bluenaas.utils.util import (
 from math import floor, modf
 from random import seed, random, randint
 import numpy as np
+from bluenaas.external.entitycore.service import fetch_one
+from bluenaas.external.entitycore.schemas import (
+    MEModelRead,
+    EntityRoute,
+    EModelReadExpanded,
+)
 
 SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
 
@@ -44,48 +52,57 @@ MAXIMUM_ALLOWED_SYNAPSES = 20_000
 
 
 class Model:
-    def __init__(self, *, model_id: str, hyamp: float | None, token: str):
-        self.model_id: str = model_id
+    def __init__(self, *, model_id: UUID, hyamp: float | None, token: str):
+        self.model_id: UUID = model_id
         self.token: str = token
-        self.CELL: HocCell = None
-        self.threshold_current: int = 1
+        self.CELL: HocCell | None = None
+        self.threshold_current: float = 1
         self.holding_current: float | None = hyamp
-        self.resource: NexusBaseResource = None
+        self.resource: NexusBaseResource | None = None
+        self.model: MEModelRead | None = None
 
     def build_model(self):
         """Prepare model."""
         if self.model_id is None:
             raise Exception("Missing model _self url")
 
+        me_model = fetch_one(
+            self.model_id,
+            EntityRoute.memodel,
+            token=self.token,
+            response_class=MEModelRead,
+        )
+
+        emodel = fetch_one(
+            me_model.emodel.id,
+            EntityRoute.emodel,
+            token=self.token,
+            response_class=EModelReadExpanded,
+        )
+
+        print("\n\n", emodel)
+
         nexus_helper = Nexus({"token": self.token, "model_self_url": self.model_id})
-        [holding_current, threshold_current] = nexus_helper.get_currents()
-        self.threshold_current = threshold_current
+        self.threshold_current = me_model.threshold_current
 
-        model_uuid = nexus_helper.get_model_uuid()
+        model_path = Path("/opt/blue-naas/models") / str(self.model_id)
 
-        model_path = get_model_path(model_uuid)
+        self.CELL = HocCell(
+            model_uuid=self.model_id,
+            threshold_current=me_model.threshold_current,
+            holding_current=self.holding_current
+            if self.holding_current is not None
+            else me_model.holding_current,
+        )
+
         lock = FileLock(f"{model_path/'dir.lock'}")
 
-        with lock.acquire(timeout=2 * 60):
-            done_file = model_path / "done"
-            if not done_file.exists():
+        done_file = model_path / "done"
+
+        if not done_file.exists():
+            with lock.acquire(timeout=2 * 60):
                 nexus_helper.download_model()
                 done_file.touch()
-                self.CELL = HocCell(
-                    model_uuid=model_uuid,
-                    threshold_current=threshold_current,
-                    holding_current=self.holding_current
-                    if self.holding_current is not None
-                    else holding_current,
-                )
-            else:
-                self.CELL = HocCell(
-                    model_uuid=model_uuid,
-                    threshold_current=threshold_current,
-                    holding_current=self.holding_current
-                    if self.holding_current is not None
-                    else holding_current,
-                )
 
     def _generate_synapse(
         self, section_info: LocationData, seg_indices_to_include: list[int]

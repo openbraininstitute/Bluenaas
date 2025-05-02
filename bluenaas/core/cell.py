@@ -1,6 +1,7 @@
 """Cell module."""
 
 # pylint: disable=import-outside-toplevel
+from uuid import UUID
 import multiprocessing as mp
 import os
 import re
@@ -22,7 +23,7 @@ from bluenaas.utils.util import (
 class BaseCell:
     """Neuron model."""
 
-    def __init__(self, model_uuid):
+    def __init__(self, model_uuid: UUID):
         self._model_uuid = model_uuid
         self._template_name = None
         self._all_sec_array = []
@@ -247,7 +248,9 @@ class BaseCell:
 class HocCell(BaseCell):
     """Cell model with hoc."""
 
-    def __init__(self, model_uuid, threshold_current=0, holding_current=0):
+    def __init__(
+        self, model_uuid: UUID, threshold_current: float = 0, holding_current: float = 0
+    ):
         super().__init__(model_uuid)
 
         logger.info(f"hoccell init: {model_uuid, threshold_current, holding_current}")
