@@ -1,4 +1,5 @@
 import json
+import importlib
 from uuid import UUID
 import multiprocessing as mp
 from itertools import chain
@@ -48,7 +49,7 @@ def _init_current_varying_simulation(
 
     try:
         me_model_id = model_id
-        synapse_generation_config: list[SynapseSeries] = None
+        synapse_generation_config: list[SynapseSeries] | None = None
 
         if config.type == "synaptome-simulation" and config.synaptome is not None:
             # and model.resource.type:
@@ -85,6 +86,9 @@ def _init_current_varying_simulation(
                 synapse_settings.append(synapses_per_grp)
 
             synapse_generation_config = list(chain.from_iterable(synapse_settings))
+
+        if not model.CELL:
+            raise RuntimeError("Model not initialized")
 
         model.CELL.start_current_varying_simulation(
             realtime=realtime,
@@ -143,7 +147,7 @@ def get_sim_configs_by_synapse_id(
 
 
 def _init_frequency_varying_simulation(
-    model_id: str,
+    model_id: UUID,
     token: str,
     config: SingleNeuronSimulationConfig,
     realtime: bool,

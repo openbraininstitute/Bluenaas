@@ -26,11 +26,9 @@ from bluenaas.domains.morphology import (
 )
 from bluenaas.domains.nexus import NexusBaseResource
 from bluenaas.domains.simulation import SynapseSimulationConfig
-from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.utils.util import (
     get_sections,
     get_segments_satisfying_all_exclusion_rules,
-    get_model_path,
     perpendicular_vector,
     point_between_vectors,
     set_vector_length,
@@ -376,7 +374,7 @@ class Model:
 
 
 def model_factory(
-    model_id: str,
+    model_id: UUID,
     hyamp: float | None,
     bearer_token: str,
 ):
