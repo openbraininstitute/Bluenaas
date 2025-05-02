@@ -37,7 +37,11 @@ from bluenaas.utils.util import (
 from math import floor, modf
 from random import seed, random, randint
 import numpy as np
-from bluenaas.external.entitycore.service import fetch_one
+from bluenaas.external.entitycore.service import (
+    fetch_one,
+    download_asset,
+    fetch_hoc_file,
+)
 from bluenaas.external.entitycore.schemas import (
     MEModelRead,
     EntityRoute,
@@ -80,7 +84,14 @@ class Model:
             response_class=EModelReadExpanded,
         )
 
-        print("\n\n", emodel)
+        e_model_assets = emodel.assets or []
+
+        hoc_file_id = next(
+            (asset.id for asset in e_model_assets if asset.path == "model.hoc"), None
+        )
+
+        if not hoc_file_id:
+            raise ValueError(f"hoc_file not found for emodel {emodel.id}")
 
         nexus_helper = Nexus({"token": self.token, "model_self_url": self.model_id})
         self.threshold_current = me_model.threshold_current
@@ -101,6 +112,10 @@ class Model:
 
         if not done_file.exists():
             with lock.acquire(timeout=2 * 60):
+                hoc_file = fetch_hoc_file(me_model.emodel.id, token=self.token)
+
+                morphology = download_asset()
+
                 nexus_helper.download_model()
                 done_file.touch()
 
