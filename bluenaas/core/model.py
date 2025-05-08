@@ -58,85 +58,48 @@ MAXIMUM_ALLOWED_SYNAPSES = 20_000
 
 
 class Model:
-    def __init__(self, *, model_id: UUID, hyamp: float | None, token: str):
-        self.model_id: UUID = model_id
+    def __init__(self, *, model_id: str, hyamp: float | None, token: str):
+        self.model_id: str = model_id
         self.token: str = token
-        self.CELL: HocCell | None = None
-        self.threshold_current: float = 1
+        self.CELL: HocCell = None
+        self.threshold_current: int = 1
         self.holding_current: float | None = hyamp
-        self.resource: NexusBaseResource | None = None
-        self.model: MEModelRead | None = None
+        self.resource: NexusBaseResource = None
 
     def build_model(self):
         """Prepare model."""
         if self.model_id is None:
             raise Exception("Missing model _self url")
 
-        me_model = fetch_one(
-            self.model_id,
-            EntityRoute.memodel,
-            token=self.token,
-            response_class=MEModelRead,
-        )
+        nexus_helper = Nexus({"token": self.token, "model_self_url": self.model_id})
+        [holding_current, threshold_current] = nexus_helper.get_currents()
+        self.threshold_current = threshold_current
 
-        emodel = fetch_one(
-            me_model.emodel.id,
-            EntityRoute.emodel,
-            token=self.token,
-            response_class=EModelReadExpanded,
-        )
+        model_uuid = nexus_helper.get_model_uuid()
 
-        e_model_assets = emodel.assets or []
-
-        hoc_file_id = next(
-            (asset.id for asset in e_model_assets if asset.path == "model.hoc"), None
-        )
-
-        if not hoc_file_id:
-            raise ValueError(f"hoc_file not found for emodel {emodel.id}")
-
-        self.threshold_current = me_model.threshold_current
-
-        model_path = Path("/opt/blue-naas/models") / str(self.model_id)
-
-        self.CELL = HocCell(
-            model_uuid=self.model_id,
-            threshold_current=me_model.threshold_current,
-            holding_current=self.holding_current
-            if self.holding_current is not None
-            else me_model.holding_current,
-        )
-
+        model_path = get_model_path(model_uuid)
         lock = FileLock(f"{model_path/'dir.lock'}")
 
-        done_file = model_path / "done"
-
-        if not done_file.exists():
-            with lock.acquire(timeout=2 * 60):
-                hoc_file = fetch_hoc_file(emodel, token=self.token)
-                morphology = fetch_morphology(me_model.morphology.id, self.token)
-                mechanisms = fetch_mechanisms(emodel, self.token)
-                self.create_model_folder(model_path, hoc_file, morphology, mechanisms)
+        with lock.acquire(timeout=2 * 60):
+            done_file = model_path / "done"
+            if not done_file.exists():
+                nexus_helper.download_model()
                 done_file.touch()
-
-    def create_model_folder(
-        self,
-        output_dir: Path,
-        hoc_file: str,
-        morphology: str,
-        mechanisms: list[str],
-    ):
-        create_file(output_dir / "cell.hoc", hoc_file)
-
-        create_file(output_dir / "morphology", morphology)
-
-        for mechanism in mechanisms:
-            create_file(output_dir / "mechanisms", mechanism)
-
-        copy_file_content(
-            Path("/app/bluenaas/config/VecStim.mod"),
-            output_dir / "mechanisms" / "VecStim.mod",
-        )
+                self.CELL = HocCell(
+                    model_uuid=model_uuid,
+                    threshold_current=threshold_current,
+                    holding_current=self.holding_current
+                    if self.holding_current is not None
+                    else holding_current,
+                )
+            else:
+                self.CELL = HocCell(
+                    model_uuid=model_uuid,
+                    threshold_current=threshold_current,
+                    holding_current=self.holding_current
+                    if self.holding_current is not None
+                    else holding_current,
+                )
 
     def _generate_synapse(
         self, section_info: LocationData, seg_indices_to_include: list[int]
@@ -373,13 +336,97 @@ class Model:
         return synapse_series
 
 
+class EntityCoreModel(Model):
+    def __init__(self, *, model_id: UUID, hyamp: float | None, token: str):
+        self.model_id: UUID = model_id
+        self.token: str = token
+        self.CELL: HocCell | None = None
+        self.threshold_current: float = 1
+        self.holding_current: float | None = hyamp
+        self.resource: NexusBaseResource | None = None
+        self.model: MEModelRead | None = None
+
+    def build_model(self):
+        """Prepare model."""
+        if self.model_id is None:
+            raise Exception("Missing model _self url")
+
+        me_model = fetch_one(
+            self.model_id,
+            EntityRoute.memodel,
+            token=self.token,
+            response_class=MEModelRead,
+        )
+
+        emodel = fetch_one(
+            me_model.emodel.id,
+            EntityRoute.emodel,
+            token=self.token,
+            response_class=EModelReadExpanded,
+        )
+
+        e_model_assets = emodel.assets or []
+
+        hoc_file_id = next(
+            (asset.id for asset in e_model_assets if asset.path == "model.hoc"), None
+        )
+
+        if not hoc_file_id:
+            raise ValueError(f"hoc_file not found for emodel {emodel.id}")
+
+        self.threshold_current = me_model.threshold_current
+
+        model_path = Path("/opt/blue-naas/models") / str(self.model_id)
+
+        self.CELL = HocCell(
+            model_uuid=self.model_id,
+            threshold_current=me_model.threshold_current,
+            holding_current=self.holding_current
+            if self.holding_current is not None
+            else me_model.holding_current,
+        )
+
+        lock = FileLock(f"{model_path/'dir.lock'}")
+
+        done_file = model_path / "done"
+
+        if not done_file.exists():
+            with lock.acquire(timeout=2 * 60):
+                hoc_file = fetch_hoc_file(emodel, token=self.token)
+                morphology = fetch_morphology(me_model.morphology.id, self.token)
+                mechanisms = fetch_mechanisms(emodel, self.token)
+                self.create_model_folder(model_path, hoc_file, morphology, mechanisms)
+                done_file.touch()
+
+    def create_model_folder(
+        self,
+        output_dir: Path,
+        hoc_file: str,
+        morphology: str,
+        mechanisms: list[str],
+    ):
+        create_file(output_dir / "cell.hoc", hoc_file)
+
+        create_file(output_dir / "morphology", morphology)
+
+        for mechanism in mechanisms:
+            create_file(output_dir / "mechanisms", mechanism)
+
+        copy_file_content(
+            Path("/app/bluenaas/config/VecStim.mod"),
+            output_dir / "mechanisms" / "VecStim.mod",
+        )
+
+
 def model_factory(
-    model_id: UUID,
+    model_id: UUID | str,
     hyamp: float | None,
     bearer_token: str,
 ):
-    model = Model(
-        model_id=model_id,
+    model_cls = EntityCoreModel if isinstance(model_id, UUID) else Model
+
+    model = model_cls(
+        model_id=model_id,  # type: ignore
         hyamp=hyamp,
         token=bearer_token,
     )

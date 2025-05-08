@@ -1,3 +1,4 @@
+from uuid import UUID
 from typing import Annotated
 from bluenaas.services.morphology import get_single_morphology
 from bluenaas.services.morphology_dendrogram import get_single_morphology_dendrogram
@@ -12,10 +13,10 @@ router = APIRouter(prefix="/morphology")
 def retrieve_morphology(
     request: Request,
     auth: Annotated[Auth, Depends(verify_jwt)],
-    model_id: str = "",
+    model_id: UUID
 ):
     return get_single_morphology(
-        model_id=model_self,
+        model_id=model_id,
         token=auth.token,
         req_id=request.state.request_id,
     )

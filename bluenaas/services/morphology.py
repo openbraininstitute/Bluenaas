@@ -1,3 +1,4 @@
+from uuid import UUID
 import json
 import re
 import signal
@@ -17,7 +18,7 @@ from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
 def _build_morphology(
-    model_id: str,
+    model_id: str | UUID,
     token: str,
     queue: mp.Queue,
     stop_event: Event,
@@ -54,7 +55,7 @@ def _build_morphology(
 
 
 def get_single_morphology(
-    model_id: str,
+    model_id: str | UUID,
     token: str,
     req_id: str,
 ):
