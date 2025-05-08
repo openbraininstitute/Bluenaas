@@ -132,7 +132,7 @@ SynapseSeries = TypedDict(
     {
         "id": int,
         "series": pandas.Series,
-        "directCurrentConfig": CurrentInjectionConfig,
+        "directCurrentConfig": CurrentInjectionConfig | None,
         "synapseSimulationConfig": SynapseSimulationConfig,
         "frequencies_to_apply": list[float],
     },

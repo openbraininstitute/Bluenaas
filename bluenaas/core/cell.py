@@ -23,7 +23,7 @@ from bluenaas.utils.util import (
 class BaseCell:
     """Neuron model."""
 
-    def __init__(self, model_uuid: UUID):
+    def __init__(self, model_uuid: UUID | str):
         self._model_uuid = model_uuid
         self._template_name = None
         self._all_sec_array = []
@@ -249,7 +249,7 @@ class HocCell(BaseCell):
     """Cell model with hoc."""
 
     def __init__(
-        self, model_uuid: UUID, threshold_current: float = 0, holding_current: float = 0
+        self, model_uuid: UUID | str, threshold_current: float = 0, holding_current: float = 0
     ):
         super().__init__(model_uuid)
 
