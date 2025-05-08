@@ -45,6 +45,7 @@ from bluenaas.external.entitycore.service import (
     fetch_hoc_file,
     fetch_morphology,
     fetch_mechanisms,
+    EntityCore,
 )
 from bluenaas.external.entitycore.schemas import (
     MEModelRead,
@@ -60,24 +61,37 @@ MAXIMUM_ALLOWED_SYNAPSES = 20_000
 
 
 class Model:
-    def __init__(self, *, model_id: str | UUID, hyamp: float | None, token: str):
+    def __init__(
+        self,
+        *,
+        model_id: str,
+        hyamp: float | None,
+        token: str,
+        entitycore: bool = False,
+    ):
         self.model_id = model_id
         self.token: str = token
         self.CELL: HocCell | None = None
-        self.threshold_current: int = 1
+        self.threshold_current: float = 1
         self.holding_current: float | None = hyamp
         self.resource: NexusBaseResource | None = None
+        self.entitycore = entitycore
 
     def build_model(self):
         """Prepare model."""
         if self.model_id is None:
             raise Exception("Missing model _self url")
 
-        nexus_helper = Nexus({"token": self.token, "model_self_url": self.model_id})
-        [holding_current, threshold_current] = nexus_helper.get_currents()
+        helper = (
+            Nexus({"token": self.token, "model_self_url": self.model_id})
+            if not self.entitycore
+            else EntityCore(token=self.token, model_id=UUID(self.model_id))
+        )
+
+        [holding_current, threshold_current] = helper.get_currents()
         self.threshold_current = threshold_current
 
-        model_uuid = nexus_helper.get_model_uuid()
+        model_uuid = helper.get_model_uuid()
 
         model_path = get_model_path(model_uuid)
         lock = FileLock(f"{model_path/'dir.lock'}")
@@ -85,7 +99,7 @@ class Model:
         with lock.acquire(timeout=2 * 60):
             done_file = model_path / "done"
             if not done_file.exists():
-                nexus_helper.download_model()
+                helper.download_model()
                 done_file.touch()
                 self.CELL = HocCell(
                     model_uuid=UUID(model_uuid),

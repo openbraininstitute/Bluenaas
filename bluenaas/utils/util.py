@@ -32,7 +32,7 @@ def is_spine(sec_name):
     return "spine" in sec_name
 
 
-def get_model_path(model_uuid) -> Path:
+def get_model_path(model_uuid: str) -> Path:
     """Get model path."""
     return Path("/opt/blue-naas/models") / model_uuid[0] / model_uuid[1] / model_uuid
 

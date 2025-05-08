@@ -1,6 +1,7 @@
 """Nexus module."""
 
 from datetime import datetime
+from typing import TypedDict
 import zipfile
 import os
 from pathlib import Path
@@ -42,6 +43,11 @@ ENCODING_FORMAT_MAP = {
 }
 
 
+class FileObj(TypedDict):
+    name: str
+    content: str
+
+
 def opener(path, flags):
     return os.open(path, flags, RWX_TO_ALL)
 
@@ -76,7 +82,7 @@ def construct_time_range(
 
 
 class Nexus:
-    """Nexus class to help downloading the emodel files needed for simulation."""
+    """Nexus class to help download the emodel files needed for simulation."""
 
     # pylint: disable=missing-function-docstring
     def __init__(self, params):
@@ -498,7 +504,9 @@ class Nexus:
         ) as dst:
             dst.write(src.read())
 
-    def create_model_folder(self, hoc_file, morphology_obj, mechanisms):
+    def create_model_folder(
+        self, hoc_file: str, morphology_obj: FileObj, mechanisms: list[FileObj]
+    ):
         output_dir = get_model_path(self.model_uuid)
 
         self.create_file(output_dir / "cell.hoc", hoc_file)
@@ -572,7 +580,7 @@ class Nexus:
         self.create_model_folder(hoc_file, morphology_obj, mechanisms)
         logger.debug("E-Model folder created")
 
-    def get_currents(self):
+    def get_currents(self) -> list[float]:
         resource = self.fetch_resource_by_id(self.model_id)
         # TODO: this should be the right way to do it when analysis is ready
         # With the changes to ME-model shape

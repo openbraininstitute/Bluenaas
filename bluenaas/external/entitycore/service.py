@@ -4,11 +4,14 @@ from bluenaas.config.settings import settings
 from bluenaas.external.entitycore.schemas import (
     EntityRoute,
     EModelReadExpanded,
+    MEModelRead,
     ReconstructionMorphologyRead,
     AssetRead,
 )
 from pydantic import BaseModel
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
+from bluenaas.external.nexus.nexus import Nexus
+from loguru import logger
 
 
 def fetch_one[T: BaseModel](
@@ -103,3 +106,56 @@ def fetch_mechanisms(emodel: EModelReadExpanded, token: str):
         ]
 
     return [f.result() for f in futures]
+
+
+class EntityCore(Nexus):
+    def __init__(self, token: str, model_id: UUID):
+        self.token = token
+        self.model_id = model_id
+        self.model: MEModelRead | None = None
+
+    def get_currents(self):
+        if not self.model:
+            self.model = fetch_one(
+                self.model_id,
+                EntityRoute.memodel,
+                token=self.token,
+                response_class=MEModelRead,
+            )
+
+        return [self.model.holding_current, self.model.threshold_current]
+
+    def get_model_uuid(self):
+        return str(self.model_id)
+
+    def download_model(self):
+        if not self.model:
+            self.model = fetch_one(
+                self.model_id,
+                EntityRoute.memodel,
+                token=self.token,
+                response_class=MEModelRead,
+            )
+
+        emodel = fetch_one(
+            self.model.emodel.id,
+            EntityRoute.emodel,
+            token=self.token,
+            response_class=EModelReadExpanded,
+        )
+
+        e_model_assets = emodel.assets or []
+
+        hoc_file_id = next(
+            (asset.id for asset in e_model_assets if asset.path == "model.hoc"), None
+        )
+
+        if not hoc_file_id:
+            raise ValueError(f"hoc_file not found for emodel {emodel.id}")
+
+        hoc_file = fetch_hoc_file(emodel, token=self.token)
+        morphology = fetch_morphology(self.model.morphology.id, self.token)
+        mechanisms = fetch_mechanisms(emodel, self.token)
+
+        self.create_model_folder(hoc_file, morphology, mechanisms)
+        logger.debug("E-Model folder created")
