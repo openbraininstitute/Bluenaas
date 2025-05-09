@@ -97,17 +97,28 @@ def fetch_morphology(id: UUID, token: str):
 def fetch_mechanisms(emodel: EModelReadExpanded, token: str):
     icms = emodel.ion_channel_models
 
-    with ThreadPoolExecutor() as executor:
-        futures = [
-            executor.submit(
-                download_asset, asset.id, icm.id, EntityRoute.ion_channel_model, token
-            )
-            for icm in icms
-            for asset in icm.assets or []
-            if asset.path.endswith("mod")
-        ]
+    mechanisms: list[FileObj] = []
 
-    return [f.result() for f in futures]
+    with ThreadPoolExecutor() as executor:
+        for icm in icms:
+            for asset in icm.assets or []:
+                if asset.path.endswith("mod"):
+                    future = executor.submit(
+                        download_asset,
+                        asset.id,
+                        icm.id,
+                        EntityRoute.ion_channel_model,
+                        token,
+                    )
+
+                    mechanisms.append(
+                        FileObj(
+                            name=asset.path,
+                            content=future.result(),
+                        )
+                    )
+
+    return mechanisms
 
 
 class EntityCore(Nexus):
