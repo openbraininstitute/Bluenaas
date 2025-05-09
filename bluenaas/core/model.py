@@ -1,7 +1,6 @@
 """Model"""
 
 from enum import Enum
-from pathlib import Path
 from uuid import UUID
 from typing import List, NamedTuple
 from bluenaas.core.exceptions import SimulationError, SynapseGenerationError
@@ -33,25 +32,15 @@ from bluenaas.utils.util import (
     perpendicular_vector,
     point_between_vectors,
     set_vector_length,
-    create_file,
-    copy_file_content,
     get_model_path,
 )
 from math import floor, modf
 from random import seed, random, randint
 import numpy as np
 from bluenaas.external.entitycore.service import (
-    fetch_one,
-    fetch_hoc_file,
-    fetch_morphology,
-    fetch_mechanisms,
     EntityCore,
 )
-from bluenaas.external.entitycore.schemas import (
-    MEModelRead,
-    EntityRoute,
-    EModelReadExpanded,
-)
+
 
 SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
 
@@ -359,99 +348,17 @@ class Model:
         return synapse_series
 
 
-class EntityCoreModel(Model):
-    def __init__(self, *, model_id: UUID, hyamp: float | None, token: str):
-        self.model_id: UUID = model_id
-        self.token: str = token
-        self.CELL: HocCell | None = None
-        self.threshold_current: float = 1
-        self.holding_current: float | None = hyamp
-        self.resource: NexusBaseResource | None = None
-        self.model: MEModelRead | None = None
-
-    def build_model(self):
-        """Prepare model."""
-        if self.model_id is None:
-            raise Exception("Missing model _self url")
-
-        me_model = fetch_one(
-            self.model_id,
-            EntityRoute.memodel,
-            token=self.token,
-            response_class=MEModelRead,
-        )
-
-        emodel = fetch_one(
-            me_model.emodel.id,
-            EntityRoute.emodel,
-            token=self.token,
-            response_class=EModelReadExpanded,
-        )
-
-        e_model_assets = emodel.assets or []
-
-        hoc_file_id = next(
-            (asset.id for asset in e_model_assets if asset.path == "model.hoc"), None
-        )
-
-        if not hoc_file_id:
-            raise ValueError(f"hoc_file not found for emodel {emodel.id}")
-
-        self.threshold_current = me_model.threshold_current
-
-        model_path = Path("/opt/blue-naas/models") / str(self.model_id)
-
-        self.CELL = HocCell(
-            model_uuid=self.model_id,
-            threshold_current=me_model.threshold_current,
-            holding_current=self.holding_current
-            if self.holding_current is not None
-            else me_model.holding_current,
-        )
-
-        lock = FileLock(f"{model_path/'dir.lock'}")
-
-        done_file = model_path / "done"
-
-        if not done_file.exists():
-            with lock.acquire(timeout=2 * 60):
-                hoc_file = fetch_hoc_file(emodel, token=self.token)
-                morphology = fetch_morphology(me_model.morphology.id, self.token)
-                mechanisms = fetch_mechanisms(emodel, self.token)
-                self.create_model_folder(model_path, hoc_file, morphology, mechanisms)
-                done_file.touch()
-
-    def create_model_folder(
-        self,
-        output_dir: Path,
-        hoc_file: str,
-        morphology: str,
-        mechanisms: list[str],
-    ):
-        create_file(output_dir / "cell.hoc", hoc_file)
-
-        create_file(output_dir / "morphology", morphology)
-
-        for mechanism in mechanisms:
-            create_file(output_dir / "mechanisms", mechanism)
-
-        copy_file_content(
-            Path("/app/bluenaas/config/VecStim.mod"),
-            output_dir / "mechanisms" / "VecStim.mod",
-        )
-
-
 def model_factory(
-    model_id: UUID | str,
+    model_id: str,
     hyamp: float | None,
     bearer_token: str,
+    entitycore: bool = False,
 ):
-    model_cls = EntityCoreModel if isinstance(model_id, UUID) else Model
-
-    model = model_cls(
-        model_id=model_id,  # type: ignore
+    model = Model(
+        model_id=model_id,
         hyamp=hyamp,
         token=bearer_token,
+        entitycore=entitycore,
     )
 
     model.build_model()

@@ -18,12 +18,13 @@ from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
 def _build_morphology(
-    model_id: str | UUID,
+    model_id: str,
     token: str,
     queue: mp.Queue,
     stop_event: Event,
+    entity_core: bool = False,
 ):
-    def stop_process():
+    def stop_process(signum: int, frame) -> None:
         stop_event.set()
 
     signal.signal(signal.SIGTERM, stop_process)
@@ -33,8 +34,13 @@ def _build_morphology(
         model = model_factory(
             model_id=model_id,
             hyamp=None,
+            entitycore=entity_core,
             bearer_token=token,
         )
+
+        if not model.CELL:
+            raise RuntimeError(f"Model hasn't been initialized: {model_id}")
+
         morphology = model.CELL.get_cell_morph()
         morph_str = json.dumps(morphology)
         chunks: list[str] = re.findall(r".{1,100000}", morph_str)
@@ -58,6 +64,7 @@ def get_single_morphology(
     model_id: str | UUID,
     token: str,
     req_id: str,
+    entity_core: bool = False,
 ):
     try:
         ctx = mp.get_context("spawn")
@@ -67,12 +74,7 @@ def get_single_morphology(
 
         process = ctx.Process(
             target=_build_morphology,
-            args=(
-                model_id,
-                token,
-                morpho_queue,
-                stop_event,
-            ),
+            args=(model_id, token, morpho_queue, stop_event, entity_core),
             name=f"morphology_processor:{req_id}",
         )
         process.daemon = True
