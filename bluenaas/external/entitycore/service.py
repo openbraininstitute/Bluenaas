@@ -8,8 +8,10 @@ from bluenaas.external.entitycore.schemas import (
     ReconstructionMorphologyRead,
     AssetRead,
 )
+from bluenaas.core.exceptions import SimulationError
 from pydantic import BaseModel
 from concurrent.futures import ThreadPoolExecutor
+from bluenaas.core.types import FileObj
 from bluenaas.external.nexus.nexus import Nexus
 from loguru import logger
 
@@ -71,24 +73,24 @@ def fetch_morphology(id: UUID, token: str):
         id, EntityRoute.reconstruction_morphology, token, ReconstructionMorphologyRead
     )
 
-    assets_by_type: dict[str, AssetRead] = {}
+    if not morphology.assets:
+        raise SimulationError(f"No morphology files found for morphology {id}")
 
-    asset: AssetRead | None = None
+    formats = ["asc", "swc", "h5"]
 
-    for asset in morphology.assets or []:
-        if asset.path.endswith("swc"):
-            assets_by_type["swc"] = asset
+    for asset in morphology.assets:
+        if asset.path.split(".")[-1] in formats:
+            break
+    else:
+        raise SimulationError(
+            f"Morphology {id} does not have a valid file format. Valid formats are {','.join(formats)}"
+        )
 
-        if asset.path.endswith("asc"):
-            assets_by_type["asc"] = asset
-
-    asset = assets_by_type.get("asc") or assets_by_type.get("swc")
-
-    if not asset:
-        raise ValueError(f"No morphology files found for morphology {id}")
-
-    return download_asset(
-        asset.id, id, EntityRoute.reconstruction_morphology, token=token
+    return FileObj(
+        name=morphology.name,
+        content=download_asset(
+            asset.id, id, EntityRoute.reconstruction_morphology, token
+        ),
     )
 
 

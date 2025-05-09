@@ -1,7 +1,7 @@
 """Nexus module."""
 
 from datetime import datetime
-from typing import TypedDict
+
 import zipfile
 import os
 from pathlib import Path
@@ -19,6 +19,7 @@ from bluenaas.domains.nexus import (
     BaseNexusSimulationResource,
 )
 from bluenaas.config.settings import settings
+from bluenaas.core.types import FileObj
 from bluenaas.utils.ensure_list import ensure_list
 from bluenaas.utils.generate_id import generate_id
 from bluenaas.utils.util import get_model_path
@@ -41,11 +42,6 @@ ENCODING_FORMAT_MAP = {
     "asc": "application/asc",
     "swc": "application/swc",
 }
-
-
-class FileObj(TypedDict):
-    name: str
-    content: str
 
 
 def opener(path, flags):
