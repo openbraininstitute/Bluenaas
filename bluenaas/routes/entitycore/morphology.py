@@ -14,7 +14,7 @@ def retrieve_morphology(
     request: Request, auth: Annotated[Auth, Depends(verify_jwt)], model_id: UUID
 ):
     return get_single_morphology(
-        model_id=model_id,
+        model_id=str(model_id),
         token=auth.token,
         req_id=request.state.request_id,
         entity_core=True,

@@ -61,7 +61,7 @@ def _build_morphology(
 
 
 def get_single_morphology(
-    model_id: str | UUID,
+    model_id: str,
     token: str,
     req_id: str,
     entity_core: bool = False,

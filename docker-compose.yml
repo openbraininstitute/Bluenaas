@@ -4,7 +4,6 @@ services:
     container_name: blue-naas-single-cell-http-svc
     env_file: "./.env.local"
     build:
-      context: bluenaas
       dockerfile: ./Dockerfile.dev
     command:
       [
@@ -23,3 +22,4 @@ services:
       - "8001:8000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    platform: linux/amd64

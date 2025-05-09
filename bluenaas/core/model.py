@@ -74,8 +74,12 @@ class Model:
         helper = (
             Nexus({"token": self.token, "model_self_url": self.model_id})
             if not self.entitycore
-            else EntityCore(token=self.token, model_id=UUID(self.model_id))
+            else EntityCore(token=self.token, model_id=self.model_id)
         )
+
+        import loguru
+
+        loguru.logger.debug("Getting currents")
 
         [holding_current, threshold_current] = helper.get_currents()
         self.threshold_current = threshold_current
@@ -87,11 +91,12 @@ class Model:
 
         with lock.acquire(timeout=2 * 60):
             done_file = model_path / "done"
+
             if not done_file.exists():
                 helper.download_model()
                 done_file.touch()
                 self.CELL = HocCell(
-                    model_uuid=UUID(model_uuid),
+                    model_uuid=model_uuid,
                     threshold_current=threshold_current,
                     holding_current=self.holding_current
                     if self.holding_current is not None
@@ -99,7 +104,7 @@ class Model:
                 )
             else:
                 self.CELL = HocCell(
-                    model_uuid=UUID(model_uuid),
+                    model_uuid=model_uuid,
                     threshold_current=threshold_current,
                     holding_current=self.holding_current
                     if self.holding_current is not None

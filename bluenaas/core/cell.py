@@ -55,6 +55,11 @@ class BaseCell:
         os.chdir("/opt/blue-naas")
 
         model_path = locate_model(model_uuid)
+
+        import loguru
+
+        loguru.logger.debug(f"model_path: {model_path}")
+
         if model_path is None:
             raise Exception(f"Model path was not found for {model_uuid}")
 
@@ -249,7 +254,7 @@ class HocCell(BaseCell):
     """Cell model with hoc."""
 
     def __init__(
-        self, model_uuid: UUID | str, threshold_current: float = 0, holding_current: float = 0
+        self, model_uuid: str, threshold_current: float = 0, holding_current: float = 0
     ):
         super().__init__(model_uuid)
 

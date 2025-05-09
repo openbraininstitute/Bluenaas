@@ -47,7 +47,12 @@ def download_asset(
     # project_id: UUID
 ):
     res = requests.get(
-        f"{settings.ENTITYCORE_URI}{entity_route.value}/{entity_id}/assets/{id}/download"
+        f"{settings.ENTITYCORE_URI}{entity_route.value}/{entity_id}/assets/{id}/download",
+        headers={
+            # "virtual_lab_id": str(virtual_lab_id),
+            # "project_id": str(project_id),
+            "Authorization": token
+        },
     )
 
     res.raise_for_status()
@@ -122,15 +127,19 @@ def fetch_mechanisms(emodel: EModelReadExpanded, token: str):
 
 
 class EntityCore(Nexus):
-    def __init__(self, token: str, model_id: UUID):
+    def __init__(self, token: str, model_id: str):
         self.token = token
         self.model_id = model_id
         self.model: MEModelRead | None = None
 
+    @property
+    def model_uuid(self):
+        return self.model_id
+
     def get_currents(self):
         if not self.model:
             self.model = fetch_one(
-                self.model_id,
+                UUID(self.model_id),
                 EntityRoute.memodel,
                 token=self.token,
                 response_class=MEModelRead,
@@ -144,7 +153,7 @@ class EntityCore(Nexus):
     def download_model(self):
         if not self.model:
             self.model = fetch_one(
-                self.model_id,
+                UUID(self.model_id),
                 EntityRoute.memodel,
                 token=self.token,
                 response_class=MEModelRead,
@@ -170,5 +179,6 @@ class EntityCore(Nexus):
         morphology = fetch_morphology(self.model.morphology.id, self.token)
         mechanisms = fetch_mechanisms(emodel, self.token)
 
+        logger.debug("\n\n\nCreating model folder")
         self.create_model_folder(hoc_file, morphology, mechanisms)
         logger.debug("E-Model folder created")
