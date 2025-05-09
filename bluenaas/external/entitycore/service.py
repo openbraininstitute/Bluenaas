@@ -83,19 +83,19 @@ def fetch_morphology(id: UUID, token: str):
 
     formats = ["asc", "swc", "h5"]
 
-    for asset in morphology.assets:
-        if asset.path.split(".")[-1] in formats:
-            break
-    else:
-        raise SimulationError(
-            f"Morphology {id} does not have a valid file format. Valid formats are {','.join(formats)}"
-        )
+    for format in formats:
+        for asset in morphology.assets:
+            asset_format = asset.path.split(".")[-1].lower()
+            if asset_format == format:
+                return FileObj(
+                    name=asset.path,
+                    content=download_asset(
+                        asset.id, id, EntityRoute.reconstruction_morphology, token
+                    ),
+                )
 
-    return FileObj(
-        name=morphology.name,
-        content=download_asset(
-            asset.id, id, EntityRoute.reconstruction_morphology, token
-        ),
+    raise SimulationError(
+        f"Morphology {id} does not have a valid file format. Valid formats are {', '.join(formats)}"
     )
 
 
