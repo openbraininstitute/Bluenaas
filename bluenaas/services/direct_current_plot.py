@@ -21,8 +21,9 @@ def _build_direct_current_plot_data(
     token: str,
     queue: mp.Queue,
     stop_event: Event,
+    entitycore: bool = False,
 ):
-    def stop_process():
+    def stop_process(signum: int, frame) -> None:
         stop_event.set()
 
     signal.signal(signal.SIGTERM, stop_process)
@@ -33,10 +34,11 @@ def _build_direct_current_plot_data(
             model_id=model_id,
             hyamp=None,
             bearer_token=token,
+            entitycore=entitycore,
         )
         stimulus_factory_plot = StimulusFactoryPlot(
             config,
-            model.threshold_current,
+            int(model.threshold_current),
         )
         result_data = stimulus_factory_plot.apply_stim()
         queue.put(result_data)
@@ -55,6 +57,7 @@ def get_direct_current_plot_data(
     config: StimulationPlotConfig,
     token: str,
     req_id: str,
+    entitycore: bool = False,
 ):
     try:
         ctx = mp.get_context("spawn")
@@ -64,13 +67,7 @@ def get_direct_current_plot_data(
 
         process = ctx.Process(
             target=_build_direct_current_plot_data,
-            args=(
-                model_id,
-                config,
-                token,
-                plot_queue,
-                stop_event,
-            ),
+            args=(model_id, config, token, plot_queue, stop_event, entitycore),
             name=f"direct_current_plot_processor:{req_id}",
         )
         process.daemon = True

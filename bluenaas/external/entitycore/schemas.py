@@ -1093,7 +1093,7 @@ class MEModelRead(BaseModel):
     morphology: ReconstructionMorphologyRead
     emodel: EModelRead
     holding_current: float = 0
-    threshold_current: float = 0
+    threshold_current: float = 1
 
 
 class MeasurementAnnotationCreate(BaseModel):

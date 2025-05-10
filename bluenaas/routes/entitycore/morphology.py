@@ -21,14 +21,14 @@ def retrieve_morphology(
     )
 
 
-@router.get("/dendrogram")
-def retrieve_morphology_dendrogram(
-    request: Request,
-    model_id: str = Query(""),
-    auth: Auth = Depends(verify_jwt),
-):
-    return get_single_morphology_dendrogram(
-        model_id=model_id,
-        token=auth.token,
-        req_id=request.state.request_id,
-    )
+# @router.get("/dendrogram")
+# def retrieve_morphology_dendrogram(
+#     request: Request,
+#     model_id: str = Query(""),
+#     auth: Auth = Depends(verify_jwt),
+# ):
+#     return get_single_morphology_dendrogram(
+#         model_id=model_id,
+#         token=auth.token,
+#         req_id=request.state.request_id,
+#     )

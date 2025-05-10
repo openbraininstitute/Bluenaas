@@ -13,12 +13,12 @@ from bluenaas.core.exceptions import (
     BlueNaasErrorResponse,
 )
 from bluenaas.routes.morphology import router as morphology_router
-from bluenaas.routes.entitycore.morphology import router as entitycore_morphology_router
 from bluenaas.routes.simulation import router as simulation_router
 from bluenaas.routes.graph_data import router as graph_router
 from bluenaas.routes.synaptome import router as synaptome_router
 from bluenaas.routes.validation import router as validation_router
 from bluenaas.routes.neuron_model import router as neuron_model_router
+from bluenaas.routes.entitycore import entitycore_router
 from starlette.middleware.cors import CORSMiddleware
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 
@@ -87,7 +87,6 @@ async def bluenaas_exception_handler(
 
 
 base_router = APIRouter(prefix=settings.BASE_PATH)
-entitycore_router = APIRouter(prefix=settings.BASE_PATH + "/entitycore")
 
 
 @base_router.get("/")
@@ -108,7 +107,6 @@ base_router.include_router(graph_router)
 base_router.include_router(validation_router)
 base_router.include_router(neuron_model_router)
 
-entitycore_router.include_router(entitycore_morphology_router)
 
 app.include_router(base_router)
 app.include_router(entitycore_router)
