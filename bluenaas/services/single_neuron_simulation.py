@@ -37,13 +37,14 @@ from bluenaas.external.nexus.nexus import Nexus
 
 
 def _init_current_varying_simulation(
-    model_id: UUID,
+    model_id: str,
     token: str,
     config: SingleNeuronSimulationConfig,
     realtime: bool,
     simulation_queue: mp.Queue,
     req_id: str,
     stop_event: Event,
+    entitycore: bool = False,
 ):
     from bluenaas.core.model import model_factory
 
@@ -62,6 +63,7 @@ def _init_current_varying_simulation(
             model_id=me_model_id,
             hyamp=config.conditions.hypamp,
             bearer_token=token,
+            entitycore=entitycore,
         )
 
         if config.type == "synaptome-simulation" and config.synaptome is not None:
@@ -89,6 +91,10 @@ def _init_current_varying_simulation(
 
         if not model.CELL:
             raise RuntimeError("Model not initialized")
+
+        import loguru
+
+        loguru.logger.debug(f"Starting simulation")
 
         model.CELL.start_current_varying_simulation(
             realtime=realtime,
@@ -434,12 +440,13 @@ def save_simulation_result_to_nexus(
 def execute_single_neuron_simulation(
     org_id: str,
     project_id: str,
-    model_id: UUID,
+    model_id: str,
     token: str,
     config: SingleNeuronSimulationConfig,
     req_id: str,
     realtime: bool,
     simulation_resource_self: Optional[str] = None,
+    entitycore: bool = False,
 ):
     try:
         if realtime is False and simulation_resource_self is not None:
@@ -470,6 +477,7 @@ def execute_single_neuron_simulation(
                 simulation_queue,
                 req_id,
                 stop_event,
+                entitycore,
             ),
             name=f"simulation_processor:{req_id}",
         )

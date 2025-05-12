@@ -77,10 +77,6 @@ class Model:
             else EntityCore(token=self.token, model_id=self.model_id)
         )
 
-        import loguru
-
-        loguru.logger.debug("Getting currents")
-
         [holding_current, threshold_current] = helper.get_currents()
         self.threshold_current = threshold_current
 

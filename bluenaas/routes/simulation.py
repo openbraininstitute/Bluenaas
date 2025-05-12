@@ -40,11 +40,12 @@ def run_simulation(
     request: Request,
     virtual_lab_id: str,
     project_id: str,
-    model_id: UUID,
+    model_id: str,
     config: SingleNeuronSimulationConfig,
     background_tasks: BackgroundTasks,
     auth: Auth = Depends(verify_jwt),
     realtime: bool = True,
+    entitycore: bool = False,
 ):
     """
     Run a neuron simulation and optionally get results in realtime.
@@ -68,7 +69,7 @@ def run_simulation(
         with accounting_session_factory.oneshot_session(
             subtype=accounting_subtype,
             proj_id=project_id,
-            user_id='',
+            user_id="",
             count=config.n_execs,
         ):
             if realtime is True:
@@ -80,6 +81,7 @@ def run_simulation(
                     config=config,
                     req_id=request.state.request_id,
                     realtime=realtime,
+                    entitycore=entitycore,
                 )
             else:
                 return submit_background_simulation(
