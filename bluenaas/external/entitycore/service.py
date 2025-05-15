@@ -162,7 +162,7 @@ class EntityCore(Nexus):
     def model_uuid(self):
         return self.model_id
 
-    def get_currents(self):
+    def get_currents(self) -> list[float]:
         if not self.model:
             self.model = fetch_one(
                 UUID(self.model_id),
@@ -173,7 +173,7 @@ class EntityCore(Nexus):
                 project_id=self.project_id,
             )
 
-        return [self.model.holding_current, self.model.threshold_current]
+        return [self.model.holding_current or 0, self.model.threshold_current or 0.1]
 
     def get_model_uuid(self):
         return str(self.model_id)

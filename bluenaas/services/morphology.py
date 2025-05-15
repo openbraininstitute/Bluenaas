@@ -23,6 +23,8 @@ def _build_morphology(
     queue: mp.Queue,
     stop_event: Event,
     entity_core: bool = False,
+    virtual_lab_id: UUID | None = None,
+    project_id: UUID | None = None,
 ):
     def stop_process(signum: int, frame) -> None:
         stop_event.set()
@@ -36,6 +38,8 @@ def _build_morphology(
             hyamp=None,
             entitycore=entity_core,
             bearer_token=token,
+            virtual_lab_id=virtual_lab_id,
+            project_id=project_id,
         )
 
         if not model.CELL:
@@ -65,6 +69,8 @@ def get_single_morphology(
     token: str,
     req_id: str,
     entity_core: bool = False,
+    virtual_lab_id: UUID | None = None,
+    project_id: UUID | None = None,
 ):
     try:
         ctx = mp.get_context("spawn")
@@ -74,7 +80,15 @@ def get_single_morphology(
 
         process = ctx.Process(
             target=_build_morphology,
-            args=(model_id, token, morpho_queue, stop_event, entity_core),
+            args=(
+                model_id,
+                token,
+                morpho_queue,
+                stop_event,
+                entity_core,
+                virtual_lab_id,
+                project_id,
+            ),
             name=f"morphology_processor:{req_id}",
         )
         process.daemon = True

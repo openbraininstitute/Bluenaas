@@ -45,6 +45,8 @@ def _init_current_varying_simulation(
     req_id: str,
     stop_event: Event,
     entitycore: bool = False,
+    virtual_lab_id: UUID | None = None,
+    project_id: UUID | None = None,
 ):
     from bluenaas.core.model import model_factory
 
@@ -64,6 +66,8 @@ def _init_current_varying_simulation(
             hyamp=config.conditions.hypamp,
             bearer_token=token,
             entitycore=entitycore,
+            virtual_lab_id=virtual_lab_id,
+            project_id=project_id,
         )
 
         if config.type == "synaptome-simulation" and config.synaptome is not None:
@@ -91,10 +95,6 @@ def _init_current_varying_simulation(
 
         if not model.CELL:
             raise RuntimeError("Model not initialized")
-
-        import loguru
-
-        loguru.logger.debug(f"Starting simulation")
 
         model.CELL.start_current_varying_simulation(
             realtime=realtime,

@@ -1092,8 +1092,8 @@ class MEModelRead(BaseModel):
     etypes: Optional[List[Annotation]] = Field(..., title="Etypes")
     morphology: ReconstructionMorphologyRead
     emodel: EModelRead
-    holding_current: float = 0
-    threshold_current: float = 1
+    holding_current: float | None
+    threshold_current: float | None
 
 
 class MeasurementAnnotationCreate(BaseModel):

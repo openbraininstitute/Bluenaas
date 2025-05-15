@@ -1,3 +1,4 @@
+from uuid import UUID
 import signal
 import multiprocessing as mp
 from loguru import logger
@@ -22,6 +23,8 @@ def _build_direct_current_plot_data(
     queue: mp.Queue,
     stop_event: Event,
     entitycore: bool = False,
+    virtual_lab_id: UUID | None = None,
+    project_id: UUID | None = None,
 ):
     def stop_process(signum: int, frame) -> None:
         stop_event.set()
@@ -35,6 +38,8 @@ def _build_direct_current_plot_data(
             hyamp=None,
             bearer_token=token,
             entitycore=entitycore,
+            virtual_lab_id=virtual_lab_id,
+            project_id=project_id,
         )
         stimulus_factory_plot = StimulusFactoryPlot(
             config,
@@ -58,6 +63,8 @@ def get_direct_current_plot_data(
     token: str,
     req_id: str,
     entitycore: bool = False,
+    virtual_lab_id: UUID | None = None,
+    project_id: UUID | None = None,
 ):
     try:
         ctx = mp.get_context("spawn")
@@ -67,7 +74,16 @@ def get_direct_current_plot_data(
 
         process = ctx.Process(
             target=_build_direct_current_plot_data,
-            args=(model_id, config, token, plot_queue, stop_event, entitycore),
+            args=(
+                model_id,
+                config,
+                token,
+                plot_queue,
+                stop_event,
+                entitycore,
+                virtual_lab_id,
+                project_id,
+            ),
             name=f"direct_current_plot_processor:{req_id}",
         )
         process.daemon = True

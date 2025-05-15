@@ -56,6 +56,8 @@ class Model:
         model_id: str,
         hyamp: float | None,
         token: str,
+        virtual_lab_id: UUID | None = None,
+        project_id: UUID | None = None,
         entitycore: bool = False,
     ):
         self.model_id = model_id
@@ -65,16 +67,26 @@ class Model:
         self.holding_current: float | None = hyamp
         self.resource: NexusBaseResource | None = None
         self.entitycore = entitycore
+        self.virtual_lab_id = virtual_lab_id
+        self.project_id = project_id
 
     def build_model(self):
         """Prepare model."""
         if self.model_id is None:
             raise Exception("Missing model _self url")
 
+        if self.entitycore and (self.virtual_lab_id is None or self.project_id is None):
+            raise ValueError("Missing virtual lab id or project id")
+
         helper = (
             Nexus({"token": self.token, "model_self_url": self.model_id})
             if not self.entitycore
-            else EntityCore(token=self.token, model_id=self.model_id)
+            else EntityCore(
+                token=self.token,
+                model_id=self.model_id,
+                virtual_lab_id=self.virtual_lab_id,  # type: ignore
+                project_id=self.project_id,  # type: ignore
+            )
         )
 
         [holding_current, threshold_current] = helper.get_currents()
@@ -354,12 +366,16 @@ def model_factory(
     hyamp: float | None,
     bearer_token: str,
     entitycore: bool = False,
+    virtual_lab_id: UUID | None = None,
+    project_id: UUID | None = None,
 ):
     model = Model(
         model_id=model_id,
         hyamp=hyamp,
         token=bearer_token,
         entitycore=entitycore,
+        virtual_lab_id=virtual_lab_id,
+        project_id=project_id,
     )
 
     model.build_model()
