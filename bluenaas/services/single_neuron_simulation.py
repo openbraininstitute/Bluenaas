@@ -444,12 +444,13 @@ def save_simulation_result_to_nexus(
 
 
 def execute_single_neuron_simulation(
+    org_id: str,
+    project_id: str,
     model_id: str,
     token: str,
     config: SingleNeuronSimulationConfig,
     req_id: str,
     realtime: bool,
-    project_context: ProjectContext,
     simulation_resource_self: Optional[str] = None,
     entitycore: bool = False,
 ):
@@ -457,8 +458,8 @@ def execute_single_neuron_simulation(
         if realtime is False and simulation_resource_self is not None:
             nexus_helper = Nexus({"token": token, "model_self_url": model_id})
             nexus_helper.update_simulation_status(
-                org_id=str(project_context.virtual_lab_id),
-                project_id=str(project_context.project_id),
+                org_id=org_id,
+                project_id=project_id,
                 resource_self=simulation_resource_self,
                 status="started",
                 is_draft=True,
@@ -469,6 +470,14 @@ def execute_single_neuron_simulation(
         simulation_queue = ctx.Queue()
 
         is_current_varying = is_current_varying_simulation(config)
+
+        project_context = None
+
+        if entitycore:
+            project_context = ProjectContext(
+                virtual_lab_id=UUID(org_id),
+                project_id=UUID(project_id),
+            )
 
         _process = ctx.Process(
             target=_init_current_varying_simulation

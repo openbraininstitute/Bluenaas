@@ -62,8 +62,9 @@ def run_simulation(
     used to later query the status (and get result if any) of simulation.
     """
     return run_simulation_service(
+        virtual_lab_id=virtual_lab_id,
+        project_id=project_id,
         request=request,
-        project_context=ProjectContext,
         model_id=model_id,
         config=config,
         background_tasks=background_tasks,
