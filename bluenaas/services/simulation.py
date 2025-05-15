@@ -1,31 +1,17 @@
-from fastapi import APIRouter, Depends, Request, Query, BackgroundTasks
-from typing import Optional
+from fastapi import Request, BackgroundTasks
 from loguru import logger
-from datetime import datetime
 from obp_accounting_sdk.errors import InsufficientFundsError, BaseAccountingError
 from obp_accounting_sdk.constants import ServiceSubtype
 from http import HTTPStatus as status
-from uuid import UUID
 
 from bluenaas.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from bluenaas.domains.simulation import (
-    SimulationDetailsResponse,
     SingleNeuronSimulationConfig,
-    SimulationType,
-    PaginatedResponse,
 )
 from bluenaas.infrastructure.accounting.session import accounting_session_factory
-from bluenaas.domains.nexus import DeprecateNexusResponse
-from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
+from bluenaas.infrastructure.kc.auth import Auth
 from bluenaas.services.single_neuron_simulation import execute_single_neuron_simulation
 from bluenaas.services.submit_simulaton import submit_background_simulation
-from bluenaas.services.submit_simulaton.fetch_simulation_status_and_results import (
-    fetch_simulation_status_and_results,
-)
-from bluenaas.services.submit_simulaton.deprecate_simulation import deprecate_simulation
-from bluenaas.services.submit_simulaton.fetch_all_simulations_of_project import (
-    fetch_all_simulations_of_project,
-)
 
 
 def run_simulation(
@@ -67,7 +53,7 @@ def run_simulation(
         ):
             if realtime is True:
                 return execute_single_neuron_simulation(
-                    org_id=project_id,
+                    org_id=virtual_lab_id,
                     project_id=project_id,
                     model_id=model_id,
                     token=auth.token,

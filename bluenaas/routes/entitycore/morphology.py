@@ -1,8 +1,7 @@
 from uuid import UUID
 from typing import Annotated
 from bluenaas.services.morphology import get_single_morphology
-from bluenaas.services.morphology_dendrogram import get_single_morphology_dendrogram
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Request
 
 from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
 from bluenaas.external.entitycore.service import ProjectContextDep

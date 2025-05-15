@@ -1,7 +1,6 @@
 """Model"""
 
 from enum import Enum
-from uuid import UUID
 from typing import List, NamedTuple
 from bluenaas.core.exceptions import SimulationError, SynapseGenerationError
 from filelock import FileLock

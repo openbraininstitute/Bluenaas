@@ -1,5 +1,4 @@
 import json
-import importlib
 from uuid import UUID
 import multiprocessing as mp
 from itertools import chain
@@ -514,7 +513,7 @@ def execute_single_neuron_simulation(
                 _process=_process,
                 stop_event=stop_event,
                 nexus_helper=nexus_helper,
-                org_id=virtual_lab_id,
+                org_id=org_id,
                 project_id=project_id,
                 simulation_resource_self=simulation_resource_self,
                 is_current_varying=is_current_varying,

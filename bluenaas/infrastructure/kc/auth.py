@@ -88,8 +88,8 @@ def verify_jwt(
 ) -> Auth:
     try:
         token = header.credentials
-        #decoded_token_dict = kc_auth.decode_token(token=token, validate=True)
-        #decoded_token = DecodedKeycloakToken.model_validate(decoded_token_dict)
+        # decoded_token_dict = kc_auth.decode_token(token=token, validate=True)
+        # decoded_token = DecodedKeycloakToken.model_validate(decoded_token_dict)
         return Auth(
             token=token_to_bearer(token),
             # decoded_token=decoded_token,
