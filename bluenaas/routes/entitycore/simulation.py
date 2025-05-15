@@ -31,7 +31,9 @@ from bluenaas.services.submit_simulaton.deprecate_simulation import deprecate_si
 from bluenaas.services.submit_simulaton.fetch_all_simulations_of_project import (
     fetch_all_simulations_of_project,
 )
-from bluenaas.routes import simulation
+from bluenaas.external.entitycore.service import ProjectContextDep
+from bluenaas.services.simulation import run_simulation as run_simulation_service
+
 
 router = APIRouter(prefix="/simulation")
 
@@ -39,17 +41,16 @@ router = APIRouter(prefix="/simulation")
 @router.post("/single-neuron/{virtual_lab_id}/{project_id}/run", tags=["simulation"])
 def run_simulation(
     request: Request,
-    virtual_lab_id: str,
-    project_id: str,
     model_id: UUID,
     config: SingleNeuronSimulationConfig,
     background_tasks: BackgroundTasks,
+    project_context: ProjectContextDep,
     auth: Auth = Depends(verify_jwt),
 ):
-    return simulation.run_simulation(
+    return run_simulation_service(
         request=request,
-        virtual_lab_id=virtual_lab_id,
-        project_id=project_id,
+        virtual_lab_id=str(project_context.virtual_lab_id),
+        project_id=str(project_context.project_id),
         model_id=str(model_id),
         config=config,
         background_tasks=background_tasks,

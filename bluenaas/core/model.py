@@ -10,6 +10,7 @@ import pandas  # type: ignore
 import requests
 from sympy import symbols, parse_expr  # type: ignore
 from bluenaas.external.nexus.nexus import Nexus
+from bluenaas.external.entitycore.service import ProjectContext
 
 import json
 from bluenaas.core.cell import HocCell
@@ -56,9 +57,8 @@ class Model:
         model_id: str,
         hyamp: float | None,
         token: str,
-        virtual_lab_id: UUID | None = None,
-        project_id: UUID | None = None,
         entitycore: bool = False,
+        project_context: ProjectContext | None = None,
     ):
         self.model_id = model_id
         self.token: str = token
@@ -67,27 +67,27 @@ class Model:
         self.holding_current: float | None = hyamp
         self.resource: NexusBaseResource | None = None
         self.entitycore = entitycore
-        self.virtual_lab_id = virtual_lab_id
-        self.project_id = project_id
+        self.project_context = project_context
 
     def build_model(self):
         """Prepare model."""
         if self.model_id is None:
             raise Exception("Missing model _self url")
 
-        if self.entitycore and (self.virtual_lab_id is None or self.project_id is None):
-            raise ValueError("Missing virtual lab id or project id")
+        helper = None
 
-        helper = (
-            Nexus({"token": self.token, "model_self_url": self.model_id})
-            if not self.entitycore
-            else EntityCore(
+        if not self.entitycore:
+            helper = Nexus({"token": self.token, "model_self_url": self.model_id})
+
+        elif self.entitycore and self.project_context:
+            helper = EntityCore(
                 token=self.token,
                 model_id=self.model_id,
-                virtual_lab_id=self.virtual_lab_id,  # type: ignore
-                project_id=self.project_id,  # type: ignore
+                project_Context=self.project_context,
             )
-        )
+
+        if not helper:
+            raise ValueError("Missing project context")
 
         [holding_current, threshold_current] = helper.get_currents()
         self.threshold_current = threshold_current
@@ -366,16 +366,14 @@ def model_factory(
     hyamp: float | None,
     bearer_token: str,
     entitycore: bool = False,
-    virtual_lab_id: UUID | None = None,
-    project_id: UUID | None = None,
+    project_contect: ProjectContext | None = None,
 ):
     model = Model(
         model_id=model_id,
         hyamp=hyamp,
         token=bearer_token,
         entitycore=entitycore,
-        virtual_lab_id=virtual_lab_id,
-        project_id=project_id,
+        project_context=project_contect,
     )
 
     model.build_model()

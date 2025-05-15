@@ -34,6 +34,7 @@ from bluenaas.domains.simulation import (
 )
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 from bluenaas.external.nexus.nexus import Nexus
+from bluenaas.external.entitycore.service import ProjectContext
 
 
 def _init_current_varying_simulation(
@@ -45,8 +46,7 @@ def _init_current_varying_simulation(
     req_id: str,
     stop_event: Event,
     entitycore: bool = False,
-    virtual_lab_id: UUID | None = None,
-    project_id: UUID | None = None,
+    project_context: ProjectContext | None = None,
 ):
     from bluenaas.core.model import model_factory
 
@@ -66,8 +66,7 @@ def _init_current_varying_simulation(
             hyamp=config.conditions.hypamp,
             bearer_token=token,
             entitycore=entitycore,
-            virtual_lab_id=virtual_lab_id,
-            project_id=project_id,
+            project_contect=project_context,
         )
 
         if config.type == "synaptome-simulation" and config.synaptome is not None:
@@ -161,8 +160,7 @@ def _init_frequency_varying_simulation(
     req_id: str,
     stop_event: Event,
     entitycore: bool = False,
-    virtual_lab_id: UUID | None = None,
-    project_id: UUID | None = None,
+    project_context: ProjectContext | None = None,
 ):
     from bluenaas.core.model import model_factory
 
@@ -177,6 +175,8 @@ def _init_frequency_varying_simulation(
             model_id=me_model_id,
             hyamp=config.conditions.hypamp,
             bearer_token=token,
+            entitycore=entitycore,
+            project_contect=project_context,
         )
         assert config.synaptome is not None
 
@@ -444,13 +444,12 @@ def save_simulation_result_to_nexus(
 
 
 def execute_single_neuron_simulation(
-    virtual_lab_id: str,
-    project_id: str,
     model_id: str,
     token: str,
     config: SingleNeuronSimulationConfig,
     req_id: str,
     realtime: bool,
+    project_context: ProjectContext,
     simulation_resource_self: Optional[str] = None,
     entitycore: bool = False,
 ):
@@ -458,8 +457,8 @@ def execute_single_neuron_simulation(
         if realtime is False and simulation_resource_self is not None:
             nexus_helper = Nexus({"token": token, "model_self_url": model_id})
             nexus_helper.update_simulation_status(
-                org_id=virtual_lab_id,
-                project_id=project_id,
+                org_id=str(project_context.virtual_lab_id),
+                project_id=str(project_context.project_id),
                 resource_self=simulation_resource_self,
                 status="started",
                 is_draft=True,
@@ -484,8 +483,7 @@ def execute_single_neuron_simulation(
                 req_id,
                 stop_event,
                 entitycore,
-                virtual_lab_id,
-                project_id,
+                project_context,
             ),
             name=f"simulation_processor:{req_id}",
         )

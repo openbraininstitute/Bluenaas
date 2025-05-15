@@ -1,4 +1,6 @@
 from uuid import UUID
+from typing import Annotated
+from fastapi import Header
 import requests
 from bluenaas.config.settings import settings
 from bluenaas.external.entitycore.schemas import (
@@ -15,19 +17,26 @@ from bluenaas.external.nexus.nexus import Nexus
 from loguru import logger
 
 
+class ProjectContext(BaseModel):
+    virtual_lab_id: UUID
+    project_id: UUID
+
+
+ProjectContextDep = Annotated[ProjectContext, Header()]
+
+
 def fetch_one[T: BaseModel](
     id: UUID,
     route: EntityRoute,
     token: str,
     response_class: type[T],
-    virtual_lab_id: UUID,
-    project_id: UUID,
+    project_context: ProjectContext,
 ) -> T:
     res = requests.get(
         f"{settings.ENTITYCORE_URI}{route.value}/{id}",
         headers={
-            "virtual-lab-id": str(virtual_lab_id),
-            "project-id": str(project_id),
+            "virtual-lab-id": str(project_context.virtual_lab_id),
+            "project-id": str(project_context.project_id),
             "Authorization": token,
         },
     )
@@ -42,14 +51,13 @@ def download_asset(
     entity_id: UUID,
     entity_route: EntityRoute,
     token: str,
-    virtual_lab_id: UUID,
-    project_id: UUID,
+    project_context: ProjectContext,
 ):
     res = requests.get(
         f"{settings.ENTITYCORE_URI}{entity_route.value}/{entity_id}/assets/{id}/download",
         headers={
-            "virtual-lab-id": str(virtual_lab_id),
-            "project-id": str(project_id),
+            "virtual-lab-id": str(project_context.virtual_lab_id),
+            "project-id": str(project_context.project_id),
             "Authorization": token,
         },
     )
@@ -60,7 +68,7 @@ def download_asset(
 
 
 def fetch_hoc_file(
-    emodel: EModelReadExpanded, token: str, virtual_lab_id: UUID, project_id: UUID
+    emodel: EModelReadExpanded, token: str, project_context: ProjectContext
 ):
     e_model_assets = emodel.assets or []
 
@@ -76,19 +84,17 @@ def fetch_hoc_file(
         emodel.id,
         EntityRoute.emodel,
         token=token,
-        virtual_lab_id=virtual_lab_id,
-        project_id=project_id,
+        project_context=project_context,
     )
 
 
-def fetch_morphology(id: UUID, token: str, virtual_lab_id: UUID, project_id: UUID):
+def fetch_morphology(id: UUID, token: str, project_context: ProjectContext):
     morphology = fetch_one(
         id,
         EntityRoute.reconstruction_morphology,
         token,
         ReconstructionMorphologyRead,
-        virtual_lab_id=virtual_lab_id,
-        project_id=project_id,
+        project_context=project_context,
     )
 
     if not morphology.assets:
@@ -107,8 +113,7 @@ def fetch_morphology(id: UUID, token: str, virtual_lab_id: UUID, project_id: UUI
                         id,
                         EntityRoute.reconstruction_morphology,
                         token,
-                        virtual_lab_id=virtual_lab_id,
-                        project_id=project_id,
+                        project_context=project_context,
                     ),
                 )
 
@@ -118,7 +123,7 @@ def fetch_morphology(id: UUID, token: str, virtual_lab_id: UUID, project_id: UUI
 
 
 def fetch_mechanisms(
-    emodel: EModelReadExpanded, token: str, virtual_lab_id: UUID, project_id: UUID
+    emodel: EModelReadExpanded, token: str, project_context: ProjectContext
 ):
     icms = emodel.ion_channel_models
 
@@ -134,8 +139,7 @@ def fetch_mechanisms(
                         icm.id,
                         EntityRoute.ion_channel_model,
                         token,
-                        virtual_lab_id=virtual_lab_id,
-                        project_id=project_id,
+                        project_context=project_context,
                     )
 
                     mechanisms.append(
@@ -150,13 +154,12 @@ def fetch_mechanisms(
 
 class EntityCore(Nexus):
     def __init__(
-        self, token: str, model_id: str, virtual_lab_id: UUID, project_id: UUID
+        self, token: str, model_id: str, project_Context: ProjectContext
     ):
         self.token = token
         self.model_id = model_id
         self.model: MEModelRead | None = None
-        self.virtual_lab_id = virtual_lab_id
-        self.project_id = project_id
+        self.project_context = project_Context
 
     @property
     def model_uuid(self):
@@ -169,8 +172,7 @@ class EntityCore(Nexus):
                 EntityRoute.memodel,
                 token=self.token,
                 response_class=MEModelRead,
-                virtual_lab_id=self.virtual_lab_id,
-                project_id=self.project_id,
+                project_context=self.project_context,
             )
 
         return [self.model.holding_current or 0, self.model.threshold_current or 0.1]
@@ -185,8 +187,7 @@ class EntityCore(Nexus):
                 EntityRoute.memodel,
                 token=self.token,
                 response_class=MEModelRead,
-                virtual_lab_id=self.virtual_lab_id,
-                project_id=self.project_id,
+                project_context=self.project_context,
             )
 
         emodel = fetch_one(
@@ -194,8 +195,7 @@ class EntityCore(Nexus):
             EntityRoute.emodel,
             token=self.token,
             response_class=EModelReadExpanded,
-            virtual_lab_id=self.virtual_lab_id,
-            project_id=self.project_id,
+            project_context=self.project_context,
         )
 
         e_model_assets = emodel.assets or []
@@ -210,14 +210,13 @@ class EntityCore(Nexus):
         hoc_file = fetch_hoc_file(
             emodel,
             self.token,
-            self.virtual_lab_id,
-            self.project_id,
+            project_context=self.project_context,
         )
         morphology = fetch_morphology(
-            self.model.morphology.id, self.token, self.virtual_lab_id, self.project_id
+            self.model.morphology.id, self.token, project_context=self.project_context
         )
         mechanisms = fetch_mechanisms(
-            emodel, self.token, self.virtual_lab_id, self.project_id
+            emodel, self.token, project_context=self.project_context
         )
 
         logger.debug("\n\n\nCreating model folder")

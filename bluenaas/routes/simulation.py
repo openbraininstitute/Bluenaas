@@ -31,7 +31,7 @@ from bluenaas.services.submit_simulaton.deprecate_simulation import deprecate_si
 from bluenaas.services.submit_simulaton.fetch_all_simulations_of_project import (
     fetch_all_simulations_of_project,
 )
-
+from bluenaas.external.entitycore.service import ProjectContext
 from bluenaas.services.simulation import run_simulation as run_simulation_service
 
 router = APIRouter(prefix="/simulation")
@@ -63,8 +63,7 @@ def run_simulation(
     """
     return run_simulation_service(
         request=request,
-        virtual_lab_id=virtual_lab_id,
-        project_id=project_id,
+        project_context=ProjectContext,
         model_id=model_id,
         config=config,
         background_tasks=background_tasks,

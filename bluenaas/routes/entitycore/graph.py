@@ -8,6 +8,7 @@ from bluenaas.domains.simulation import (
     StimulationItemResponse,
     StimulationPlotConfig,
 )
+from bluenaas.external.entitycore.service import ProjectContextDep
 
 
 router = APIRouter(prefix="/graph")
@@ -21,6 +22,7 @@ def retrieve_stimulation_plot(
     request: Request,
     model_id: UUID,
     config: StimulationPlotConfig,
+    project_context: ProjectContextDep,
     auth: Auth = Depends(verify_jwt),
 ):
     return get_direct_current_plot_data(
@@ -29,4 +31,5 @@ def retrieve_stimulation_plot(
         token=auth.token,
         req_id=request.state.request_id,
         entitycore=True,
+        project_context=project_context,
     )

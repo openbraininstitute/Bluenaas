@@ -26,16 +26,16 @@ from bluenaas.services.submit_simulaton.deprecate_simulation import deprecate_si
 from bluenaas.services.submit_simulaton.fetch_all_simulations_of_project import (
     fetch_all_simulations_of_project,
 )
+from bluenaas.external.entitycore.service import ProjectContext
 
 
 def run_simulation(
     request: Request,
-    virtual_lab_id: str,
-    project_id: str,
     model_id: str,
     config: SingleNeuronSimulationConfig,
     background_tasks: BackgroundTasks,
     auth: Auth,
+    project_context: ProjectContext,
     realtime: bool = True,
     entitycore: bool = False,
 ):
@@ -61,14 +61,13 @@ def run_simulation(
     try:
         with accounting_session_factory.oneshot_session(
             subtype=accounting_subtype,
-            proj_id=project_id,
+            proj_id=str(project_context.project_id),
             user_id="",
             count=config.n_execs,
         ):
             if realtime is True:
                 return execute_single_neuron_simulation(
-                    virtual_lab_id=virtual_lab_id,
-                    project_id=project_id,
+                    project_context=project_context,
                     model_id=model_id,
                     token=auth.token,
                     config=config,
@@ -78,8 +77,8 @@ def run_simulation(
                 )
             else:
                 return submit_background_simulation(
-                    org_id=virtual_lab_id,
-                    project_id=project_id,
+                    org_id=str(project_context.virtual_lab_id),
+                    project_id=str(project_context.project_id),
                     model_self=model_id,
                     config=config,
                     token=auth.token,
