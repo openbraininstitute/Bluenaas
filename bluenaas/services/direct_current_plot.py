@@ -41,7 +41,7 @@ def _build_direct_current_plot_data(
         )
         stimulus_factory_plot = StimulusFactoryPlot(
             config,
-            int(model.threshold_current),
+            model.threshold_current,
         )
         result_data = stimulus_factory_plot.apply_stim()
         queue.put(result_data)

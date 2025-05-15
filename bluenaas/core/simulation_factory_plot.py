@@ -8,7 +8,7 @@ from bluenaas.domains.simulation import StimulationPlotConfig
 class StimulusFactoryPlot:
     """Generates stimuli preview plot data."""
 
-    def __init__(self, params: StimulationPlotConfig, threshold_current: int):
+    def __init__(self, params: StimulationPlotConfig, threshold_current: float):
         from bluecellulab.stimulus.factory import (
             StimulusFactory,  # pylint: disable=import-outside-toplevel
         )
