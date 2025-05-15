@@ -32,6 +32,8 @@ from bluenaas.services.submit_simulaton.fetch_all_simulations_of_project import 
     fetch_all_simulations_of_project,
 )
 
+from bluenaas.services.simulation import run_simulation as run_simulation_service
+
 router = APIRouter(prefix="/simulation")
 
 
@@ -59,56 +61,17 @@ def run_simulation(
     If realtime is False - `BackgroundSimulationStatusResponse` is returned with simulation `id`. This `id` can be url-encoded and
     used to later query the status (and get result if any) of simulation.
     """
-    accounting_subtype = (
-        ServiceSubtype.SYNAPTOME_SIM
-        if config.synaptome
-        else ServiceSubtype.SINGLE_CELL_SIM
+    return run_simulation_service(
+        request=request,
+        virtual_lab_id=virtual_lab_id,
+        project_id=project_id,
+        model_id=model_id,
+        config=config,
+        background_tasks=background_tasks,
+        auth=auth,
+        realtime=realtime,
+        entitycore=entitycore,
     )
-
-    try:
-        with accounting_session_factory.oneshot_session(
-            subtype=accounting_subtype,
-            proj_id=project_id,
-            user_id="",
-            count=config.n_execs,
-        ):
-            if realtime is True:
-                return execute_single_neuron_simulation(
-                    org_id=virtual_lab_id,
-                    project_id=project_id,
-                    model_id=model_id,
-                    token=auth.token,
-                    config=config,
-                    req_id=request.state.request_id,
-                    realtime=realtime,
-                    entitycore=entitycore,
-                )
-            else:
-                return submit_background_simulation(
-                    org_id=virtual_lab_id,
-                    project_id=project_id,
-                    model_self=model_id,
-                    config=config,
-                    token=auth.token,
-                    background_tasks=background_tasks,
-                    request_id=request.state.request_id,
-                )
-    except InsufficientFundsError as ex:
-        logger.exception(f"Insufficient funds: {ex}")
-        raise BlueNaasError(
-            http_status_code=status.FORBIDDEN,
-            error_code=BlueNaasErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
-            message="The project does not have enough funds to run the simulation",
-            details=ex.__str__(),
-        ) from ex
-    except BaseAccountingError as ex:
-        logger.exception(f"Accounting service error: {ex}")
-        raise BlueNaasError(
-            http_status_code=status.BAD_GATEWAY,
-            error_code=BlueNaasErrorCode.ACCOUNTING_GENERIC_ERROR,
-            message="Accounting service error",
-            details=ex.__str__(),
-        ) from ex
 
 
 @router.get(

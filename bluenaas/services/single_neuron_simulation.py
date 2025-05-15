@@ -153,13 +153,16 @@ def get_sim_configs_by_synapse_id(
 
 
 def _init_frequency_varying_simulation(
-    model_id: UUID,
+    model_id: str,
     token: str,
     config: SingleNeuronSimulationConfig,
     realtime: bool,
     simulation_queue: mp.Queue,
     req_id: str,
     stop_event: Event,
+    entitycore: bool = False,
+    virtual_lab_id: UUID | None = None,
+    project_id: UUID | None = None,
 ):
     from bluenaas.core.model import model_factory
 
@@ -262,6 +265,9 @@ def _init_frequency_varying_simulation(
                 f"Constructed {len(frequency_to_synapse_settings[frequency])} synapse series for frequency {frequency}"
             )
             log_stats_for_series_in_frequency(frequency_to_synapse_settings[frequency])
+
+        if not model.CELL:
+            raise RuntimeError("Model not initialized")
 
         model.CELL.start_frequency_varying_simulation(
             realtime=realtime,
@@ -438,7 +444,7 @@ def save_simulation_result_to_nexus(
 
 
 def execute_single_neuron_simulation(
-    org_id: str,
+    virtual_lab_id: str,
     project_id: str,
     model_id: str,
     token: str,
@@ -452,7 +458,7 @@ def execute_single_neuron_simulation(
         if realtime is False and simulation_resource_self is not None:
             nexus_helper = Nexus({"token": token, "model_self_url": model_id})
             nexus_helper.update_simulation_status(
-                org_id=org_id,
+                org_id=virtual_lab_id,
                 project_id=project_id,
                 resource_self=simulation_resource_self,
                 status="started",
@@ -478,6 +484,8 @@ def execute_single_neuron_simulation(
                 req_id,
                 stop_event,
                 entitycore,
+                virtual_lab_id,
+                project_id,
             ),
             name=f"simulation_processor:{req_id}",
         )
@@ -499,7 +507,7 @@ def execute_single_neuron_simulation(
                 _process=_process,
                 stop_event=stop_event,
                 nexus_helper=nexus_helper,
-                org_id=org_id,
+                org_id=virtual_lab_id,
                 project_id=project_id,
                 simulation_resource_self=simulation_resource_self,
                 is_current_varying=is_current_varying,
