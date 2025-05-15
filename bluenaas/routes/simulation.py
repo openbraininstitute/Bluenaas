@@ -37,7 +37,6 @@ def run_simulation(
     background_tasks: BackgroundTasks,
     auth: Auth = Depends(verify_jwt),
     realtime: bool = True,
-    entitycore: bool = False,
 ):
     """
     Run a neuron simulation and optionally get results in realtime.
@@ -60,7 +59,6 @@ def run_simulation(
         background_tasks=background_tasks,
         auth=auth,
         realtime=realtime,
-        entitycore=entitycore,
     )
 
 

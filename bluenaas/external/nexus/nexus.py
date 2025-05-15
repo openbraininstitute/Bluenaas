@@ -523,10 +523,6 @@ class Nexus:
             output_dir / "mechanisms" / "VecStim.mod",
         )
 
-        import loguru
-
-        loguru.logger.debug(f"Model folder created at {output_dir}")
-
     def get_emodel_resource(self, resource):
         if "MEModel" in resource["@type"]:
             logger.debug("Model is ME-Model")
