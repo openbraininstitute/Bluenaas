@@ -6,7 +6,6 @@ from bluenaas.external.entitycore.schemas import (
     EModelReadExpanded,
     MEModelRead,
     ReconstructionMorphologyRead,
-    AssetRead,
 )
 from bluenaas.core.exceptions import SimulationError
 from pydantic import BaseModel
@@ -19,17 +18,17 @@ from loguru import logger
 def fetch_one[T: BaseModel](
     id: UUID,
     route: EntityRoute,
-    # virtual_lab_id: UUID,
-    # project_id: UUID,
     token: str,
     response_class: type[T],
+    virtual_lab_id: UUID,
+    project_id: UUID,
 ) -> T:
     res = requests.get(
         f"{settings.ENTITYCORE_URI}{route.value}/{id}",
         headers={
-            # "virtual_lab_id": str(virtual_lab_id),
-            # "project_id": str(project_id),
-            "Authorization": token
+            "virtual-lab-id": str(virtual_lab_id),
+            "project-id": str(project_id),
+            "Authorization": token,
         },
     )
 
@@ -43,15 +42,15 @@ def download_asset(
     entity_id: UUID,
     entity_route: EntityRoute,
     token: str,
-    # virtual_lab_id: UUID,
-    # project_id: UUID
+    virtual_lab_id: UUID,
+    project_id: UUID,
 ):
     res = requests.get(
         f"{settings.ENTITYCORE_URI}{entity_route.value}/{entity_id}/assets/{id}/download",
         headers={
-            # "virtual_lab_id": str(virtual_lab_id),
-            # "project_id": str(project_id),
-            "Authorization": token
+            "virtual-lab-id": str(virtual_lab_id),
+            "project-id": str(project_id),
+            "Authorization": token,
         },
     )
 
@@ -60,7 +59,9 @@ def download_asset(
     return res.text
 
 
-def fetch_hoc_file(emodel: EModelReadExpanded, token: str):
+def fetch_hoc_file(
+    emodel: EModelReadExpanded, token: str, virtual_lab_id: UUID, project_id: UUID
+):
     e_model_assets = emodel.assets or []
 
     hoc_file_id = next(
@@ -70,12 +71,24 @@ def fetch_hoc_file(emodel: EModelReadExpanded, token: str):
     if not hoc_file_id:
         raise ValueError(f"hoc_file not found for emodel {emodel.id}")
 
-    return download_asset(hoc_file_id, emodel.id, EntityRoute.emodel, token=token)
+    return download_asset(
+        hoc_file_id,
+        emodel.id,
+        EntityRoute.emodel,
+        token=token,
+        virtual_lab_id=virtual_lab_id,
+        project_id=project_id,
+    )
 
 
-def fetch_morphology(id: UUID, token: str):
+def fetch_morphology(id: UUID, token: str, virtual_lab_id: UUID, project_id: UUID):
     morphology = fetch_one(
-        id, EntityRoute.reconstruction_morphology, token, ReconstructionMorphologyRead
+        id,
+        EntityRoute.reconstruction_morphology,
+        token,
+        ReconstructionMorphologyRead,
+        virtual_lab_id=virtual_lab_id,
+        project_id=project_id,
     )
 
     if not morphology.assets:
@@ -90,7 +103,12 @@ def fetch_morphology(id: UUID, token: str):
                 return FileObj(
                     name=asset.path,
                     content=download_asset(
-                        asset.id, id, EntityRoute.reconstruction_morphology, token
+                        asset.id,
+                        id,
+                        EntityRoute.reconstruction_morphology,
+                        token,
+                        virtual_lab_id=virtual_lab_id,
+                        project_id=project_id,
                     ),
                 )
 
@@ -99,7 +117,9 @@ def fetch_morphology(id: UUID, token: str):
     )
 
 
-def fetch_mechanisms(emodel: EModelReadExpanded, token: str):
+def fetch_mechanisms(
+    emodel: EModelReadExpanded, token: str, virtual_lab_id: UUID, project_id: UUID
+):
     icms = emodel.ion_channel_models
 
     mechanisms: list[FileObj] = []
@@ -114,6 +134,8 @@ def fetch_mechanisms(emodel: EModelReadExpanded, token: str):
                         icm.id,
                         EntityRoute.ion_channel_model,
                         token,
+                        virtual_lab_id=virtual_lab_id,
+                        project_id=project_id,
                     )
 
                     mechanisms.append(
@@ -127,10 +149,14 @@ def fetch_mechanisms(emodel: EModelReadExpanded, token: str):
 
 
 class EntityCore(Nexus):
-    def __init__(self, token: str, model_id: str):
+    def __init__(
+        self, token: str, model_id: str, virtual_lab_id: UUID, project_id: UUID
+    ):
         self.token = token
         self.model_id = model_id
         self.model: MEModelRead | None = None
+        self.virtual_lab_id = virtual_lab_id
+        self.project_id = project_id
 
     @property
     def model_uuid(self):
@@ -143,6 +169,8 @@ class EntityCore(Nexus):
                 EntityRoute.memodel,
                 token=self.token,
                 response_class=MEModelRead,
+                virtual_lab_id=self.virtual_lab_id,
+                project_id=self.project_id,
             )
 
         return [self.model.holding_current, self.model.threshold_current]
@@ -157,6 +185,8 @@ class EntityCore(Nexus):
                 EntityRoute.memodel,
                 token=self.token,
                 response_class=MEModelRead,
+                virtual_lab_id=self.virtual_lab_id,
+                project_id=self.project_id,
             )
 
         emodel = fetch_one(
@@ -164,6 +194,8 @@ class EntityCore(Nexus):
             EntityRoute.emodel,
             token=self.token,
             response_class=EModelReadExpanded,
+            virtual_lab_id=self.virtual_lab_id,
+            project_id=self.project_id,
         )
 
         e_model_assets = emodel.assets or []
@@ -175,9 +207,18 @@ class EntityCore(Nexus):
         if not hoc_file_id:
             raise ValueError(f"hoc_file not found for emodel {emodel.id}")
 
-        hoc_file = fetch_hoc_file(emodel, token=self.token)
-        morphology = fetch_morphology(self.model.morphology.id, self.token)
-        mechanisms = fetch_mechanisms(emodel, self.token)
+        hoc_file = fetch_hoc_file(
+            emodel,
+            self.token,
+            self.virtual_lab_id,
+            self.project_id,
+        )
+        morphology = fetch_morphology(
+            self.model.morphology.id, self.token, self.virtual_lab_id, self.project_id
+        )
+        mechanisms = fetch_mechanisms(
+            emodel, self.token, self.virtual_lab_id, self.project_id
+        )
 
         logger.debug("\n\n\nCreating model folder")
         self.create_model_folder(hoc_file, morphology, mechanisms)
