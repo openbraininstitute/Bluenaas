@@ -18,6 +18,7 @@ services:
       ACCOUNTING_DISABLED: 1
     volumes:
       - ${PWD}/bluenaas:/app/bluenaas
+      - ${PWD}/.model-cache:/opt/blue-naas/models
     ports:
       - "8001:8000"
     extra_hosts:

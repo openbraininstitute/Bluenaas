@@ -304,6 +304,9 @@ code-workspace.json
 .history
 .ionide
 
+# ME-model cache
+.model-cache
+
 .python-version
 openapi.json
 notes.md

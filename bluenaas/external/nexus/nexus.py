@@ -32,7 +32,7 @@ HTTP_TIMEOUT = 10  # seconds
 model_dir = Path("/opt/blue-naas/") / "models"
 defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
 
-HOC_FORMAT = ["application/x-neuron-hoc", "application/hoc"]
+HOC_FORMATS = ["application/x-neuron-hoc", "application/neuron-hoc", "application/hoc"]
 
 RWX_TO_ALL = 0o777
 
@@ -458,12 +458,16 @@ class Nexus:
 
     def get_hoc_file(self, emodel_resource):
         emodel_script = self.get_script_resource(emodel_resource)
-        distribution = emodel_script["distribution"]
 
-        for dist in emodel_script["distribution"]:
-            if dist["encodingFormat"] in HOC_FORMAT:
+        distribution = None
+
+        for dist in ensure_list(emodel_script["distribution"]):
+            if dist["encodingFormat"] in HOC_FORMATS:
                 distribution = dist
                 break
+
+        if distribution is None:
+            raise Exception("No HOC file found")
 
         emodel_script_url = distribution["contentUrl"]
 
@@ -551,7 +555,7 @@ class Nexus:
         logger.debug("E-Model configuration fetched")
 
         emodel_morph_format = self.get_emodel_morph_format(configuration_resource)
-        logger.debug("E-Model morph format fetched")
+        logger.debug(f"E-Model morph format fetched: {emodel_morph_format}")
 
         with ThreadPoolExecutor() as executor:
             futures = [
