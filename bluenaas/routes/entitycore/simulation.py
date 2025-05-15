@@ -45,7 +45,6 @@ def run_simulation(
     config: SingleNeuronSimulationConfig,
     background_tasks: BackgroundTasks,
     auth: Auth = Depends(verify_jwt),
-    realtime: bool = True,
 ):
     return simulation.run_simulation(
         request=request,
@@ -55,6 +54,6 @@ def run_simulation(
         config=config,
         background_tasks=background_tasks,
         auth=auth,
-        realtime=realtime,
+        realtime=True,
         entitycore=True,
     )

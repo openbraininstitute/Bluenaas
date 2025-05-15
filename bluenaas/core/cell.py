@@ -1,7 +1,6 @@
 """Cell module."""
 
 # pylint: disable=import-outside-toplevel
-from uuid import UUID
 import multiprocessing as mp
 import os
 import re
@@ -23,7 +22,7 @@ from bluenaas.utils.util import (
 class BaseCell:
     """Neuron model."""
 
-    def __init__(self, model_uuid: UUID | str):
+    def __init__(self, model_uuid: str):
         self._model_uuid = model_uuid
         self._template_name = None
         self._all_sec_array = []
@@ -55,10 +54,6 @@ class BaseCell:
         os.chdir("/opt/blue-naas")
 
         model_path = locate_model(model_uuid)
-
-        import loguru
-
-        loguru.logger.debug(f"model_path: {model_path}")
 
         if model_path is None:
             raise Exception(f"Model path was not found for {model_uuid}")
