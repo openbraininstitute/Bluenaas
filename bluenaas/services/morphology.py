@@ -22,7 +22,7 @@ def _build_morphology(
     token: str,
     queue: mp.Queue,
     stop_event: Event,
-    entity_core: bool = False,
+    entitycore: bool = False,
     project_context: ProjectContext | None = None,
 ):
     def stop_process(signum: int, frame) -> None:
@@ -35,7 +35,7 @@ def _build_morphology(
         model = model_factory(
             model_id=model_id,
             hyamp=None,
-            entitycore=entity_core,
+            entitycore=entitycore,
             bearer_token=token,
             project_contect=project_context,
         )
@@ -66,7 +66,7 @@ def get_single_morphology(
     model_id: str,
     token: str,
     req_id: str,
-    entity_core: bool = False,
+    entitycore: bool = False,
     project_context: ProjectContext | None = None,
 ):
     try:
@@ -82,7 +82,7 @@ def get_single_morphology(
                 token,
                 morpho_queue,
                 stop_event,
-                entity_core,
+                entitycore,
                 project_context,
             ),
             name=f"morphology_processor:{req_id}",

@@ -20,6 +20,6 @@ def retrieve_morphology(
         model_id=str(model_id),
         token=auth.token,
         req_id=request.state.request_id,
-        entity_core=True,
+        entitycore=True,
         project_context=project_context,
     )
