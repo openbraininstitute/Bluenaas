@@ -153,11 +153,11 @@ def fetch_mechanisms(
 
 
 class EntityCore(Nexus):
-    def __init__(self, token: str, model_id: str, project_Context: ProjectContext):
+    def __init__(self, token: str, model_id: str, project_context: ProjectContext):
         self.token = token
         self.model_id = model_id
         self.model: MEModelRead | None = None
-        self.project_context = project_Context
+        self.project_context = project_context
 
     @property
     def model_uuid(self):

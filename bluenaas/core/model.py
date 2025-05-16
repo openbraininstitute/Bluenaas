@@ -82,7 +82,7 @@ class Model:
             helper = EntityCore(
                 token=self.token,
                 model_id=self.model_id,
-                project_Context=self.project_context,
+                project_context=self.project_context,
             )
 
         if not helper:
