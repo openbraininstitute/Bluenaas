@@ -127,6 +127,8 @@ class BaseCell:
 
     def get_topology(self):
         """Get topology."""
+        if not self._cell:
+            raise ValueError("Model not loaded")
         topology_root = {
             "id": get_sec_name(self._template_name, self._cell.soma),
             "children": [],
@@ -136,14 +138,16 @@ class BaseCell:
 
     def get_sec_info(self, sec_name):
         """Get section info from NEURON."""
+        if not self._nrn:
+            raise ValueError("Model not loadedF")
         logger.debug(sec_name)
-        self._nrn.h.psection(
-            sec=self._all_sec_array[self._all_sec_map[sec_name]["index"]]
-        )
+        self._nrn.h.psection(sec=self._all_sec_array[self._all_sec_map[sec_name].index])
         # TODO: rework this
         return {"txt": ""}
 
     def _get_section_from_name(self, name):
+        if not self._cell:
+            raise ValueError("Model not loaded")
         (section_name, section_id) = re.findall(r"(\w+)\[(\d)\]", name)[0]
         if section_name.startswith("soma"):
             return self._cell.soma
