@@ -5,6 +5,7 @@ description = ""
 authors = [
     "Bilal Meddah <bilal.meddah@openbraininstitute.org>",
     "Pavlo Getta <pavlo.getta@openbraininstitute.org>",
+    "Gil Barrios <gilarturo.barriosdelvillar@openbraininstitute.org>"
 ]
 readme = "README.md"
 
