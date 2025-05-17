@@ -75,7 +75,7 @@ def _init_current_varying_simulation(
                 # 3. Get "pandas.Series" for each synapse
                 synapse_placement_config = [
                     config
-                    for config in synaptome_details.synaptome_placement_config.config
+                    for config in synaptome_details.synaptome_placement_config.config  # type:ignore TODO Fix type
                     if synapse_sim_config.id == config.id
                 ][0]
 
@@ -198,7 +198,12 @@ def _init_frequency_varying_simulation(
                 synaptome_details.synaptome_placement_config,
             )
 
-            for frequency in variable_frequency_sim_config.frequency:
+            frequency_list = variable_frequency_sim_config.frequency
+
+            if not isinstance(frequency_list, list):
+                frequency_list = [frequency_list]
+
+            for frequency in frequency_list:
                 frequency_to_synapse_settings[frequency] = []
 
                 frequencies_to_apply = get_constant_frequencies_for_sim_id(
@@ -453,6 +458,7 @@ def execute_single_neuron_simulation(
     simulation_resource_self: Optional[str] = None,
     entitycore: bool = False,
 ):
+    nexus_helper = None
     try:
         if realtime is False and simulation_resource_self is not None:
             nexus_helper = Nexus({"token": token, "model_self_url": model_id})
@@ -506,7 +512,7 @@ def execute_single_neuron_simulation(
                 is_current_varying=is_current_varying,
                 request_id=req_id,
             )
-        else:
+        elif nexus_helper:
             assert simulation_resource_self is not None
             save_simulation_result_to_nexus(
                 simulation_queue=simulation_queue,

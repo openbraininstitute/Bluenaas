@@ -26,6 +26,8 @@ class StimulusFactoryPlot:
     @property
     def stim_fn(self):
         """Exposes the stimulus function to call based on stimulus chosen."""
+        if not self.protocol_name:
+            raise ValueError("Missing protocol name")
         protocol_mapping = {
             "iv": self.factory.iv,
             "fire_pattern": self.factory.fire_pattern,
@@ -35,6 +37,8 @@ class StimulusFactoryPlot:
         return protocol_mapping[self.protocol_name]
 
     def _get_stim_name(self, amplitude):
+        if not self.protocol_name:
+            raise ValueError("Missing protocol name")
         return f"{self.protocol_name.upper()}_{amplitude}"
 
     def _get_time_by_index(self, times):
@@ -126,7 +130,7 @@ class StimulusFactoryPlot:
                 * 100,  # Threshold current cannot be zero
             )
             plot_data = self._get_plot_data(response)
-            plot_data.update({"name": label, "amplitude": amplitude})
+            plot_data.update({"name": label, "amplitude": amplitude})  # type:ignore TODO: type?
             final_data.append(plot_data)
 
         return final_data

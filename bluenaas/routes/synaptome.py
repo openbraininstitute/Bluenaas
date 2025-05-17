@@ -24,7 +24,7 @@ def place_synapses(
     params: SynapsePlacementBody,
     model_id: str = Query(),
     auth: Auth = Depends(verify_jwt),
-) -> SynapsePlacementResponse:
+):
     return generate_synapses_placement(
         model_id=model_id,
         token=auth.token,
