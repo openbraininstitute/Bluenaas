@@ -3,9 +3,7 @@ name = "bluenaas"
 version = "0.1.0"
 description = ""
 authors = [
-    "Bilal Meddah <bilal.meddah@openbraininstitute.org>",
-    "Pavlo Getta <pavlo.getta@openbraininstitute.org>",
-    "Gil Barrios <gilarturo.barriosdelvillar@openbraininstitute.org>"
+    {name = "Open Brain Institute"},
 ]
 readme = "README.md"
 
