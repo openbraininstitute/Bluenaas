@@ -3,7 +3,7 @@ name = "bluenaas"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "Open Brain Institute"},
+    "Open Brain Institute <info@openbraininstitute.org>",
 ]
 readme = "README.md"
 
