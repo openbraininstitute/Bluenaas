@@ -153,12 +153,9 @@ class EntityCore(Service):
     def __init__(self, token: str, model_id: str, project_context: ProjectContext):
         self.token = token
         self.model_id = model_id
+        self.model_uuid = model_id
         self.model: MEModelRead | None = None
         self.project_context = project_context
-
-    @property
-    def model_uuid(self):
-        return self.model_id
 
     def get_currents(self) -> list[float]:
         if not self.model:
