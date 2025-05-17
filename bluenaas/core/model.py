@@ -365,14 +365,14 @@ def model_factory(
     hyamp: float | None,
     bearer_token: str,
     entitycore: bool = False,
-    project_contect: ProjectContext | None = None,
+    project_context: ProjectContext | None = None,
 ):
     model = Model(
         model_id=model_id,
         hyamp=hyamp,
         token=bearer_token,
         entitycore=entitycore,
-        project_context=project_contect,
+        project_context=project_context,
     )
 
     model.build_model()

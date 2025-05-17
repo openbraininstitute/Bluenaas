@@ -37,7 +37,7 @@ def _build_morphology(
             hyamp=None,
             entitycore=entitycore,
             bearer_token=token,
-            project_contect=project_context,
+            project_context=project_context,
         )
 
         if not model.CELL:

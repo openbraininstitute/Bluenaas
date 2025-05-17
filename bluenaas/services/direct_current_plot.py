@@ -37,7 +37,7 @@ def _build_direct_current_plot_data(
             hyamp=None,
             bearer_token=token,
             entitycore=entitycore,
-            project_contect=project_context,
+            project_context=project_context,
         )
         stimulus_factory_plot = StimulusFactoryPlot(
             config,

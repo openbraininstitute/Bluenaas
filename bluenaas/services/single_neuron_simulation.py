@@ -65,7 +65,7 @@ def _init_current_varying_simulation(
             hyamp=config.conditions.hypamp,
             bearer_token=token,
             entitycore=entitycore,
-            project_contect=project_context,
+            project_context=project_context,
         )
 
         if config.type == "synaptome-simulation" and config.synaptome is not None:
@@ -175,7 +175,7 @@ def _init_frequency_varying_simulation(
             hyamp=config.conditions.hypamp,
             bearer_token=token,
             entitycore=entitycore,
-            project_contect=project_context,
+            project_context=project_context,
         )
         assert config.synaptome is not None
 
