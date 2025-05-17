@@ -1,4 +1,3 @@
-# TOOD: review just do linting and formatting for the moment
 name: Pre-merge Review
 
 on: [pull_request]
