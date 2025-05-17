@@ -720,7 +720,7 @@ class NeuronBlock(BaseModel):
 
 class ReconstructionMorphologyRead(BaseModel):
     type: Optional[EntityType] = None
-    assets: Optional[List[AssetRead]] = Field(..., title="Assets")
+    assets: List[AssetRead] = Field(..., title="Assets")
     authorized_project_id: UUID4 = Field(..., title="Authorized Project Id")
     authorized_public: Optional[bool] = Field(False, title="Authorized Public")
     license: Optional[LicenseRead]
@@ -945,7 +945,7 @@ class IonChannelModelCreate(BaseModel):
 
 
 class IonChannelModelExpanded(BaseModel):
-    assets: Optional[List[AssetRead]] = Field(..., title="Assets")
+    assets: List[AssetRead] = Field(..., title="Assets")
     authorized_project_id: UUID4 = Field(..., title="Authorized Project Id")
     authorized_public: Optional[bool] = Field(False, title="Authorized Public")
     id: UUID = Field(..., title="Id")
@@ -991,7 +991,7 @@ class IonChannelModelRead(BaseModel):
 
 
 class IonChannelModelWAssets(BaseModel):
-    assets: Optional[List[AssetRead]] = Field(..., title="Assets")
+    assets: List[AssetRead] = Field(..., title="Assets")
     authorized_project_id: UUID4 = Field(..., title="Authorized Project Id")
     authorized_public: Optional[bool] = Field(False, title="Authorized Public")
     id: UUID = Field(..., title="Id")
@@ -1137,7 +1137,7 @@ class ReconstructionMorphologyAnnotationExpandedRead(BaseModel):
 
 
 class EModelReadExpanded(BaseModel):
-    assets: Optional[List[AssetRead]] = Field(..., title="Assets")
+    assets: List[AssetRead] = Field(..., title="Assets")
     type: Optional[EntityType] = None
     authorized_project_id: UUID4 = Field(..., title="Authorized Project Id")
     authorized_public: Optional[bool] = Field(False, title="Authorized Public")

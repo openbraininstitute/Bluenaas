@@ -13,7 +13,7 @@ from bluenaas.core.exceptions import SimulationError
 from pydantic import BaseModel
 from concurrent.futures import ThreadPoolExecutor
 from bluenaas.core.types import FileObj
-from bluenaas.external.nexus.nexus import Nexus
+from bluenaas.external.base import Service
 from loguru import logger
 
 
@@ -70,10 +70,13 @@ def download_asset(
 def fetch_hoc_file(
     emodel: EModelReadExpanded, token: str, project_context: ProjectContext
 ):
-    e_model_assets = emodel.assets or []
-
     hoc_file_id = next(
-        (asset.id for asset in e_model_assets if asset.path == "model.hoc"), None
+        (
+            asset.id
+            for asset in emodel.assets
+            if asset.content_type == "application/hoc"
+        ),
+        None,
     )
 
     if not hoc_file_id:
@@ -97,15 +100,11 @@ def fetch_morphology(id: UUID, token: str, project_context: ProjectContext):
         project_context=project_context,
     )
 
-    if not morphology.assets:
-        raise SimulationError(f"No morphology files found for morphology {id}")
-
-    formats = ["asc", "swc", "h5"]
+    formats = ["application/asc", "application/swc", "application/h5"]
 
     for format in formats:
         for asset in morphology.assets:
-            asset_format = asset.path.split(".")[-1].lower()
-            if asset_format == format:
+            if asset.content_type == format:
                 return FileObj(
                     name=asset.path,
                     content=download_asset(
@@ -122,17 +121,15 @@ def fetch_morphology(id: UUID, token: str, project_context: ProjectContext):
     )
 
 
-def fetch_mechanisms(
-    emodel: EModelReadExpanded, token: str, project_context: ProjectContext
-):
+def fetch_icms(emodel: EModelReadExpanded, token: str, project_context: ProjectContext):
     icms = emodel.ion_channel_models
 
-    mechanisms: list[FileObj] = []
+    mod_files: list[FileObj] = []
 
     with ThreadPoolExecutor() as executor:
         for icm in icms:
-            for asset in icm.assets or []:
-                if asset.path.endswith("mod"):
+            for asset in icm.assets:
+                if asset.content_type == "application/neuron-mod":
                     future = executor.submit(
                         download_asset,
                         asset.id,
@@ -142,17 +139,17 @@ def fetch_mechanisms(
                         project_context=project_context,
                     )
 
-                    mechanisms.append(
+                    mod_files.append(
                         FileObj(
                             name=asset.path,
                             content=future.result(),
                         )
                     )
 
-    return mechanisms
+    return mod_files
 
 
-class EntityCore(Nexus):
+class EntityCore(Service):
     def __init__(self, token: str, model_id: str, project_context: ProjectContext):
         self.token = token
         self.model_id = model_id
@@ -196,27 +193,17 @@ class EntityCore(Nexus):
             project_context=self.project_context,
         )
 
-        e_model_assets = emodel.assets or []
-
-        hoc_file_id = next(
-            (asset.id for asset in e_model_assets if asset.path == "model.hoc"), None
-        )
-
-        if not hoc_file_id:
-            raise ValueError(f"hoc_file not found for emodel {emodel.id}")
-
         hoc_file = fetch_hoc_file(
             emodel,
             self.token,
             project_context=self.project_context,
         )
+
         morphology = fetch_morphology(
             self.model.morphology.id, self.token, project_context=self.project_context
         )
-        mechanisms = fetch_mechanisms(
-            emodel, self.token, project_context=self.project_context
-        )
+        icms = fetch_icms(emodel, self.token, project_context=self.project_context)
 
         logger.debug("\n\n\nCreating model folder")
-        self.create_model_folder(hoc_file, morphology, mechanisms)
+        self.create_model_folder(hoc_file, morphology, icms)
         logger.debug("E-Model folder created")
