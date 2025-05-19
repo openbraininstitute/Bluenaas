@@ -125,7 +125,7 @@ def convert_numpy_dict_to_standard_dict(numpy_dict):
     return standard_dict
 
 
-def get_sections(cell) -> tuple[list, dict[str, LocationData]]:
+def get_sections(cell) -> tuple[list, dict[str, dict[str, Any]]]:  # TODO improve type
     from neuron import h
 
     """Get section segment cylinders and spines."""
@@ -264,8 +264,6 @@ def get_sections(cell) -> tuple[list, dict[str, LocationData]]:
             #     sec_data["xcenter"] = (sec_data["xstart"] + sec_data["xend"]) / 2.0
             #     sec_data["ycenter"] = (sec_data["ystart"] + sec_data["yend"]) / 2.0
             #     sec_data["zcenter"] = (sec_data["zstart"] + sec_data["zend"]) / 2.0
-
-        all_sec_map[sec_name] = LocationData.model_validate(sec_data)
 
     # TODO: rework this
     all_sec_map_no_numpy = {}
