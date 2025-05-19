@@ -310,3 +310,4 @@ code-workspace.json
 .python-version
 openapi.json
 notes.md
+_schemas.py

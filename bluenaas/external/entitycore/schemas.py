@@ -19,6 +19,12 @@ class AssetLabel(Enum):
     neurolucida = "neurolucida"
     swc = "swc"
     hdf5 = "hdf5"
+    cell_composition_summary = "cell_composition_summary"
+    cell_composition_volumes = "cell_composition_volumes"
+    single_neuron_synaptome_config = "single_neuron_synaptome_config"
+    single_neuron_synaptome_simulation_io_result = (
+        "single_neuron_synaptome_simulation_io_result"
+    )
 
 
 class AssetStatus(Enum):
@@ -39,14 +45,16 @@ class BrainRegionRead(BaseModel):
 
 
 class EntityRoute(Enum):
-    age = "age"
     analysis_software_source_code = "analysis-software-source-code"
+    brain_atlas = "brain-atlas"
     emodel = "emodel"
+    cell_composition = "cell-composition"
     experimental_bouton_density = "experimental-bouton-density"
     experimental_neuron_density = "experimental-neuron-density"
     experimental_synapses_per_connection = "experimental-synapses-per-connection"
     memodel = "memodel"
     mesh = "mesh"
+    me_type_density = "me-type-density"
     reconstruction_morphology = "reconstruction-morphology"
     electrical_cell_recording = "electrical-cell-recording"
     electrical_recording_stimulus = "electrical-recording-stimulus"
@@ -55,18 +63,19 @@ class EntityRoute(Enum):
     single_neuron_synaptome_simulation = "single-neuron-synaptome-simulation"
     ion_channel_model = "ion-channel-model"
     subject = "subject"
-    synaptic_pathway = "synaptic-pathway"
 
 
 class EntityType(Enum):
-    age = "age"
     analysis_software_source_code = "analysis_software_source_code"
+    brain_atlas = "brain_atlas"
     emodel = "emodel"
+    cell_composition = "cell_composition"
     experimental_bouton_density = "experimental_bouton_density"
     experimental_neuron_density = "experimental_neuron_density"
     experimental_synapses_per_connection = "experimental_synapses_per_connection"
     memodel = "memodel"
     mesh = "mesh"
+    me_type_density = "me_type_density"
     reconstruction_morphology = "reconstruction_morphology"
     electrical_cell_recording = "electrical_cell_recording"
     electrical_recording_stimulus = "electrical_recording_stimulus"
@@ -75,7 +84,6 @@ class EntityType(Enum):
     single_neuron_synaptome_simulation = "single_neuron_synaptome_simulation"
     ion_channel_model = "ion_channel_model"
     subject = "subject"
-    synaptic_pathway = "synaptic_pathway"
 
 
 class LicenseRead(BaseModel):
@@ -136,6 +144,7 @@ class NestedSynaptome(BaseModel):
 
 
 class SingleNeuronSynaptomeSimulationRead(BaseModel):
+    assets: Optional[List["AssetRead"]] = Field(..., title="Assets")
     type: Optional[EntityType] = None
     creation_date: datetime = Field(..., title="Creation Date")
     update_date: datetime = Field(..., title="Update Date")
@@ -227,6 +236,8 @@ class NestedMEModel(BaseModel):
     name: str = Field(..., title="Name")
     description: str = Field(..., title="Description")
     validation_status: Optional[ValidationStatus] = ValidationStatus.created
+    holding_current: Optional[float] = Field(None, title="Holding Current")
+    threshold_current: Optional[float] = Field(None, title="Threshold Current")
     mtypes: Optional[List[Annotation]] = Field(..., title="Mtypes")
     etypes: Optional[List[Annotation]] = Field(..., title="Etypes")
 
@@ -265,6 +276,7 @@ class ReconstructionMorphologyRead(BaseModel):
 
 
 class SingleNeuronSimulationRead(BaseModel):
+    assets: list[AssetRead] = Field(..., title="Assets")
     type: Optional[EntityType] = None
     creation_date: datetime = Field(..., title="Creation Date")
     update_date: datetime = Field(..., title="Update Date")
@@ -327,6 +339,7 @@ class EModelRead(BaseModel):
 
 class IonChannelModelWAssets(BaseModel):
     assets: list[AssetRead] = Field(..., title="Assets")
+    type: Optional[EntityType] = None
     authorized_project_id: UUID4 = Field(..., title="Authorized Project Id")
     authorized_public: Optional[bool] = Field(False, title="Authorized Public")
     id: UUID = Field(..., title="Id")
@@ -356,6 +369,8 @@ class MEModelRead(BaseModel):
     name: str = Field(..., title="Name")
     description: str = Field(..., title="Description")
     validation_status: Optional[ValidationStatus] = ValidationStatus.created
+    holding_current: Optional[float] = Field(None, title="Holding Current")
+    threshold_current: Optional[float] = Field(None, title="Threshold Current")
     id: UUID = Field(..., title="Id")
     species: SpeciesRead
     strain: Optional[StrainRead]
@@ -367,12 +382,10 @@ class MEModelRead(BaseModel):
     etypes: Optional[List[Annotation]] = Field(..., title="Etypes")
     morphology: ReconstructionMorphologyRead
     emodel: EModelRead
-    holding_current: float | None = None
-    threshold_current: float | None = None
 
 
 class EModelReadExpanded(BaseModel):
-    assets: List[AssetRead] = Field(..., title="Assets")
+    assets: list[AssetRead] = Field(..., title="Assets")
     type: Optional[EntityType] = None
     authorized_project_id: UUID4 = Field(..., title="Authorized Project Id")
     authorized_public: Optional[bool] = Field(False, title="Authorized Public")
