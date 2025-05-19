@@ -33,7 +33,7 @@ def fetch_one[T: BaseModel](
     project_context: ProjectContext,
 ) -> T:
     res = requests.get(
-        f"{settings.ENTITYCORE_URI}{route.value}/{id}",
+        f"{settings.ENTITYCORE_URI}/{route.value}/{id}",
         headers={
             "virtual-lab-id": str(project_context.virtual_lab_id),
             "project-id": str(project_context.project_id),
@@ -54,7 +54,7 @@ def download_asset(
     project_context: ProjectContext,
 ):
     res = requests.get(
-        f"{settings.ENTITYCORE_URI}{entity_route.value}/{entity_id}/assets/{id}/download",
+        f"{settings.ENTITYCORE_URI}/{entity_route.value}/{entity_id}/assets/{id}/download",
         headers={
             "virtual-lab-id": str(project_context.virtual_lab_id),
             "project-id": str(project_context.project_id),
