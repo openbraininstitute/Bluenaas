@@ -1,27 +1,25 @@
 import json
-from uuid import UUID
 import multiprocessing as mp
-from itertools import chain
-from bluenaas.utils.streaming import (
-    StreamingResponseWithCleanup,
-    cleanup,
-    cleanup_without_wait,
-)
-from bluenaas.utils.util import log_stats_for_series_in_frequency
-from loguru import logger
 from http import HTTPStatus as status
-from typing import Any, Optional
-
-from queue import Empty as QueueEmptyException
-from multiprocessing.queues import Queue
+from itertools import chain
 from multiprocessing.context import SpawnProcess
+from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event
+from queue import Empty as QueueEmptyException
+from typing import Any, Optional
+from uuid import UUID
+
+from loguru import logger
+
 from bluenaas.core.exceptions import (
     BlueNaasError,
     BlueNaasErrorCode,
     SimulationError,
 )
-from bluenaas.core.model import fetch_synaptome_model_details
+from bluenaas.core.model import (
+    fetch_synaptome_entitycore_model_details,
+    fetch_synaptome_model_details,
+)
 from bluenaas.domains.morphology import (
     SynapseConfig,
     SynapseSeries,
@@ -31,9 +29,15 @@ from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
     SynapseSimulationConfig,
 )
-from bluenaas.utils.const import QUEUE_STOP_EVENT
-from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.external.entitycore.service import ProjectContext
+from bluenaas.external.nexus.nexus import Nexus
+from bluenaas.utils.const import QUEUE_STOP_EVENT
+from bluenaas.utils.streaming import (
+    StreamingResponseWithCleanup,
+    cleanup,
+    cleanup_without_wait,
+)
+from bluenaas.utils.util import log_stats_for_series_in_frequency
 
 
 def _init_current_varying_simulation(
@@ -54,11 +58,18 @@ def _init_current_varying_simulation(
         synapse_generation_config: list[SynapseSeries] | None = None
 
         if config.type == "synaptome-simulation" and config.synaptome is not None:
-            # and model.resource.type:
-            synaptome_details = fetch_synaptome_model_details(
-                synaptome_self=model_id, bearer_token=token
-            )
-            me_model_id = synaptome_details.base_model_self
+            if entitycore and project_context:
+                synaptome_details = fetch_synaptome_entitycore_model_details(
+                    bearer_token=token,
+                    model_id=UUID(model_id),
+                    project_context=project_context,
+                )
+                me_model_id = synaptome_details.base_model_self
+            else:
+                synaptome_details = fetch_synaptome_model_details(
+                    synaptome_self=model_id, bearer_token=token
+                )
+                me_model_id = synaptome_details.base_model_self
 
         model = model_factory(
             model_id=me_model_id,
@@ -165,10 +176,20 @@ def _init_frequency_varying_simulation(
 
     try:
         me_model_id = model_id
-        synaptome_details = fetch_synaptome_model_details(
-            synaptome_self=model_id, bearer_token=token
-        )
-        me_model_id = synaptome_details.base_model_self
+        synaptome_details = None
+        if config.type == "synaptome-simulation" and config.synaptome is not None:
+            if entitycore and project_context:
+                synaptome_details = fetch_synaptome_entitycore_model_details(
+                    bearer_token=token,
+                    model_id=UUID(model_id),
+                    project_context=project_context,
+                )
+                me_model_id = synaptome_details.base_model_self
+            else:
+                synaptome_details = fetch_synaptome_model_details(
+                    synaptome_self=model_id, bearer_token=token
+                )
+                me_model_id = synaptome_details.base_model_self
 
         model = model_factory(
             model_id=me_model_id,
@@ -192,6 +213,8 @@ def _init_frequency_varying_simulation(
         frequency_to_synapse_settings: dict[float, list[SynapseSeries]] = {}
 
         offset = 0
+        if synaptome_details is None:
+            raise RuntimeError("synaptome_details is not initialized")
         for variable_frequency_sim_config in variable_frequency_sim_configs:
             synapse_placement_config = get_synapse_placement_config(
                 variable_frequency_sim_config.id,

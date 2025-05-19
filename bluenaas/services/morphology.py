@@ -1,20 +1,22 @@
 import json
+import multiprocessing as mp
 import re
 import signal
-import multiprocessing as mp
-from multiprocessing.synchronize import Event
-from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup
-from loguru import logger
 from http import HTTPStatus as status
+from multiprocessing.synchronize import Event
 from queue import Empty as QueueEmptyException
+
+from loguru import logger
+
 from bluenaas.core.exceptions import (
     BlueNaasError,
     BlueNaasErrorCode,
     MorphologyGenerationError,
 )
 from bluenaas.core.model import model_factory
-from bluenaas.utils.const import QUEUE_STOP_EVENT
 from bluenaas.external.entitycore.service import ProjectContext
+from bluenaas.utils.const import QUEUE_STOP_EVENT
+from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup
 
 
 def _build_morphology(

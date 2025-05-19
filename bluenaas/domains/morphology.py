@@ -1,8 +1,9 @@
-from typing import List, Literal, Optional, TypedDict
-from pydantic import BaseModel, field_validator
-import sympy as sp  # type: ignore
-import pandas  # type: ignore
 from enum import Enum
+from typing import List, Literal, Optional, TypedDict
+
+import pandas  # type: ignore
+import sympy as sp  # type: ignore
+from pydantic import BaseModel, field_validator
 
 from bluenaas.domains.simulation import CurrentInjectionConfig, SynapseSimulationConfig
 
@@ -55,7 +56,7 @@ class SynapseConfig(BaseModel):
     name: str
     target: SectionTarget | None = None
     type: int
-    distribution: Literal["exponential", "linear", "formula"]
+    distribution: Optional[Literal["exponential", "linear", "formula"]] = "formula"
     formula: Optional[str | None] = None
     soma_synapse_count: int | None = None
     seed: int
@@ -101,7 +102,6 @@ class SynapseConfig(BaseModel):
         return value
 
 
-# TODO: Remove
 class SynapsePlacementBody(BaseModel):
     seed: int
     config: SynapseConfig
