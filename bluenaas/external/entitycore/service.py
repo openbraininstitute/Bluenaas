@@ -25,6 +25,10 @@ class ProjectContext(BaseModel):
 ProjectContextDep = Annotated[ProjectContext, Header()]
 
 
+def entitycore_url():
+    return str(settings.ENTITYCORE_URI).rstrip("/")
+
+
 def fetch_one[T: BaseModel](
     id: UUID,
     route: EntityRoute,
@@ -33,7 +37,7 @@ def fetch_one[T: BaseModel](
     project_context: ProjectContext,
 ) -> T:
     res = requests.get(
-        f"{settings.ENTITYCORE_URI}/{route.value}/{id}",
+        f"{entitycore_url()}/{route.value}/{id}",
         headers={
             "virtual-lab-id": str(project_context.virtual_lab_id),
             "project-id": str(project_context.project_id),
@@ -54,7 +58,7 @@ def download_asset(
     project_context: ProjectContext,
 ):
     res = requests.get(
-        f"{settings.ENTITYCORE_URI}/{entity_route.value}/{entity_id}/assets/{id}/download",
+        f"{entitycore_url()}/{entity_route.value}/{entity_id}/assets/{id}/download",
         headers={
             "virtual-lab-id": str(project_context.virtual_lab_id),
             "project-id": str(project_context.project_id),
