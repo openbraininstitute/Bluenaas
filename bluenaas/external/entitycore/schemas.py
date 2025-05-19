@@ -144,7 +144,7 @@ class NestedSynaptome(BaseModel):
 
 
 class SingleNeuronSynaptomeSimulationRead(BaseModel):
-    assets: Optional[List["AssetRead"]] = Field(..., title="Assets")
+    assets: list["AssetRead"] = Field(..., title="Assets")
     type: Optional[EntityType] = None
     creation_date: datetime = Field(..., title="Creation Date")
     update_date: datetime = Field(..., title="Update Date")
