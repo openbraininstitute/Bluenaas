@@ -141,7 +141,9 @@ class BaseCell:
         if not self._nrn:
             raise ValueError("Model not loadedF")
         logger.debug(sec_name)
-        self._nrn.h.psection(sec=self._all_sec_array[self._all_sec_map[sec_name].index])
+        self._nrn.h.psection(
+            sec=self._all_sec_array[self._all_sec_map[sec_name]["index"]]
+        )
         # TODO: rework this
         return {"txt": ""}
 
