@@ -126,6 +126,32 @@ class SingleNeuronSimulationStatus(Enum):
     success = "success"
 
 
+class NestedSynaptome(BaseModel):
+    id: UUID = Field(..., title="Id")
+    creation_date: datetime = Field(..., title="Creation Date")
+    update_date: datetime = Field(..., title="Update Date")
+    name: str = Field(..., title="Name")
+    description: str = Field(..., title="Description")
+    seed: int = Field(..., title="Seed")
+
+
+class SingleNeuronSynaptomeSimulationRead(BaseModel):
+    type: Optional[EntityType] = None
+    creation_date: datetime = Field(..., title="Creation Date")
+    update_date: datetime = Field(..., title="Update Date")
+    id: UUID = Field(..., title="Id")
+    authorized_project_id: UUID4 = Field(..., title="Authorized Project Id")
+    authorized_public: Optional[bool] = Field(False, title="Authorized Public")
+    brain_region: BrainRegionRead
+    name: str = Field(..., title="Name")
+    description: str = Field(..., title="Description")
+    seed: int = Field(..., title="Seed")
+    status: SingleNeuronSimulationStatus
+    injectionLocation: List[str] = Field(..., title="Injectionlocation")
+    recordingLocation: List[str] = Field(..., title="Recordinglocation")
+    synaptome: NestedSynaptome
+
+
 class SpeciesRead(BaseModel):
     id: UUID = Field(..., title="Id")
     creation_date: datetime = Field(..., title="Creation Date")
