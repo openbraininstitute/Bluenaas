@@ -30,4 +30,4 @@ def place_synapses(
         token=auth.token,
         params=params,
         req_id=request.state.request_id,
-    )
+    )  # type: ignore

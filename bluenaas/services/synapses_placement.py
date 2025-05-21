@@ -10,18 +10,14 @@ from bluenaas.core.exceptions import (
     SynapseGenerationError,
 )
 from bluenaas.core.model import model_factory
-from bluenaas.domains.morphology import SynapsePlacementBody, SynapsePlacementResponse
+from bluenaas.domains.morphology import SynapsePlacementBody
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
 def _generate_synpases(
-    model_id: str,
-    token: str,
-    params: SynapsePlacementBody,
-    queue: mp.Queue,
-    stop_event: mp.Event,
+    model_id: str, token: str, params: SynapsePlacementBody, queue: mp.Queue, stop_event
 ):
-    def stop_process():
+    def stop_process(signum: int, frame):
         stop_event.set()
 
     signal.signal(signal.SIGTERM, stop_process)
@@ -51,7 +47,7 @@ def generate_synapses_placement(
     token: str,
     req_id: str,
     params: SynapsePlacementBody,
-) -> SynapsePlacementResponse:
+):
     try:
         ctx = mp.get_context("spawn")
 

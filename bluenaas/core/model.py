@@ -8,6 +8,9 @@ from loguru import logger
 import pandas  # type: ignore
 import requests
 from sympy import symbols, parse_expr  # type: ignore
+from bluenaas.external.nexus.nexus import Nexus
+from bluenaas.external.entitycore.service import ProjectContext
+
 import json
 from bluenaas.core.cell import HocCell
 from bluenaas.domains.morphology import (
@@ -23,18 +26,21 @@ from bluenaas.domains.morphology import (
 )
 from bluenaas.domains.nexus import NexusBaseResource
 from bluenaas.domains.simulation import SynapseSimulationConfig
-from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.utils.util import (
     get_sections,
     get_segments_satisfying_all_exclusion_rules,
-    get_model_path,
     perpendicular_vector,
     point_between_vectors,
     set_vector_length,
+    get_model_path,
 )
 from math import floor, modf
 from random import seed, random, randint
 import numpy as np
+from bluenaas.external.entitycore.service import (
+    EntityCore,
+)
+
 
 SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
 
@@ -44,32 +50,57 @@ MAXIMUM_ALLOWED_SYNAPSES = 20_000
 
 
 class Model:
-    def __init__(self, *, model_id: str, hyamp: float | None, token: str):
-        self.model_id: str = model_id
+    def __init__(
+        self,
+        *,
+        model_id: str,
+        hyamp: float | None,
+        token: str,
+        entitycore: bool = False,
+        project_context: ProjectContext | None = None,
+    ):
+        self.model_id = model_id
         self.token: str = token
-        self.CELL: HocCell = None
-        self.threshold_current: int = 1
+        self.CELL: HocCell | None = None
+        self.threshold_current: float = 1
         self.holding_current: float | None = hyamp
-        self.resource: NexusBaseResource = None
+        self.resource: NexusBaseResource | None = None
+        self.entitycore = entitycore
+        self.project_context = project_context
 
     def build_model(self):
         """Prepare model."""
         if self.model_id is None:
             raise Exception("Missing model _self url")
 
-        nexus_helper = Nexus({"token": self.token, "model_self_url": self.model_id})
-        [holding_current, threshold_current] = nexus_helper.get_currents()
+        helper = None
+
+        if not self.entitycore:
+            helper = Nexus({"token": self.token, "model_self_url": self.model_id})
+
+        elif self.entitycore and self.project_context:
+            helper = EntityCore(
+                token=self.token,
+                model_id=self.model_id,
+                project_context=self.project_context,
+            )
+
+        if not helper:
+            raise ValueError("Missing project context")
+
+        [holding_current, threshold_current] = helper.get_currents()
         self.threshold_current = threshold_current
 
-        model_uuid = nexus_helper.get_model_uuid()
+        model_uuid = helper.get_model_uuid()
 
         model_path = get_model_path(model_uuid)
         lock = FileLock(f"{model_path/'dir.lock'}")
 
         with lock.acquire(timeout=2 * 60):
             done_file = model_path / "done"
+
             if not done_file.exists():
-                nexus_helper.download_model()
+                helper.download_model()
                 done_file.touch()
                 self.CELL = HocCell(
                     model_uuid=model_uuid,
@@ -159,6 +190,9 @@ class Model:
         return len(target) > 0
 
     def add_synapses(self, params: SynapsePlacementBody) -> SynapsePlacementResponse:
+        if not self.CELL:
+            raise SimulationError("Model not built yet. Please build the model first.")
+
         _, section_map = get_sections(self.CELL._cell)
         config = params.config
         synapses: list[SectionSynapses] = []
@@ -202,7 +236,7 @@ class Model:
                         section_info=section_info,
                         seg_indices_to_include=segment_indices,
                     )
-                    for i in range(synapse_count)
+                    for i in range(synapse_count or 0)
                 ],
             )
             synapses.append(synapse)
@@ -262,6 +296,9 @@ class Model:
         offset: int,
         frequencies_to_apply: list[float],
     ) -> list[SynapseSeries]:
+        if not self.CELL:
+            raise SimulationError("Model not built yet. Please build the model first.")
+
         synapse_series: list[SynapseSeries] = []
         _, section_map = get_sections(self.CELL._cell)
         sections = section_map
@@ -303,7 +340,7 @@ class Model:
                     f"Simulation cannot have more than {MAXIMUM_ALLOWED_SYNAPSES} synapses per synapse set."
                 )
 
-            for _ in range(synapse_count):
+            for _ in range(synapse_count or 0):
                 synapse_id = int(f"{len(synapse_series)}{offset}")
                 synapse_series.append(
                     {
@@ -316,6 +353,7 @@ class Model:
                         ),
                         "synapseSimulationConfig": synapse_simulation_config,
                         "frequencies_to_apply": frequencies_to_apply,
+                        "directCurrentConfig": None,
                     }
                 )
 
@@ -326,11 +364,15 @@ def model_factory(
     model_id: str,
     hyamp: float | None,
     bearer_token: str,
+    entitycore: bool = False,
+    project_context: ProjectContext | None = None,
 ):
     model = Model(
         model_id=model_id,
         hyamp=hyamp,
         token=bearer_token,
+        entitycore=entitycore,
+        project_context=project_context,
     )
 
     model.build_model()

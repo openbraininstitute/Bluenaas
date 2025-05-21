@@ -13,6 +13,7 @@ from bluenaas.core.model import model_factory
 from bluenaas.core.simulation_factory_plot import StimulusFactoryPlot
 from bluenaas.domains.simulation import StimulationPlotConfig
 from bluenaas.utils.const import QUEUE_STOP_EVENT
+from bluenaas.external.entitycore.service import ProjectContext
 
 
 def _build_direct_current_plot_data(
@@ -21,8 +22,10 @@ def _build_direct_current_plot_data(
     token: str,
     queue: mp.Queue,
     stop_event: Event,
+    entitycore: bool = False,
+    project_context: ProjectContext | None = None,
 ):
-    def stop_process():
+    def stop_process(signum: int, frame) -> None:
         stop_event.set()
 
     signal.signal(signal.SIGTERM, stop_process)
@@ -33,6 +36,8 @@ def _build_direct_current_plot_data(
             model_id=model_id,
             hyamp=None,
             bearer_token=token,
+            entitycore=entitycore,
+            project_context=project_context,
         )
         stimulus_factory_plot = StimulusFactoryPlot(
             config,
@@ -55,6 +60,8 @@ def get_direct_current_plot_data(
     config: StimulationPlotConfig,
     token: str,
     req_id: str,
+    entitycore: bool = False,
+    project_context: ProjectContext | None = None,
 ):
     try:
         ctx = mp.get_context("spawn")
@@ -70,6 +77,8 @@ def get_direct_current_plot_data(
                 token,
                 plot_queue,
                 stop_event,
+                entitycore,
+                project_context,
             ),
             name=f"direct_current_plot_processor:{req_id}",
         )

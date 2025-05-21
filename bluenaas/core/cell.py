@@ -22,7 +22,7 @@ from bluenaas.utils.util import (
 class BaseCell:
     """Neuron model."""
 
-    def __init__(self, model_uuid):
+    def __init__(self, model_uuid: str):
         self._model_uuid = model_uuid
         self._template_name = None
         self._all_sec_array = []
@@ -54,6 +54,7 @@ class BaseCell:
         os.chdir("/opt/blue-naas")
 
         model_path = locate_model(model_uuid)
+
         if model_path is None:
             raise Exception(f"Model path was not found for {model_uuid}")
 
@@ -126,6 +127,8 @@ class BaseCell:
 
     def get_topology(self):
         """Get topology."""
+        if not self._cell:
+            raise ValueError("Model not loaded")
         topology_root = {
             "id": get_sec_name(self._template_name, self._cell.soma),
             "children": [],
@@ -135,6 +138,8 @@ class BaseCell:
 
     def get_sec_info(self, sec_name):
         """Get section info from NEURON."""
+        if not self._nrn:
+            raise ValueError("Model not loadedF")
         logger.debug(sec_name)
         self._nrn.h.psection(
             sec=self._all_sec_array[self._all_sec_map[sec_name]["index"]]
@@ -143,6 +148,8 @@ class BaseCell:
         return {"txt": ""}
 
     def _get_section_from_name(self, name):
+        if not self._cell:
+            raise ValueError("Model not loaded")
         (section_name, section_id) = re.findall(r"(\w+)\[(\d)\]", name)[0]
         if section_name.startswith("soma"):
             return self._cell.soma
@@ -247,7 +254,9 @@ class BaseCell:
 class HocCell(BaseCell):
     """Cell model with hoc."""
 
-    def __init__(self, model_uuid, threshold_current=0, holding_current=0):
+    def __init__(
+        self, model_uuid: str, threshold_current: float = 0, holding_current: float = 0
+    ):
         super().__init__(model_uuid)
 
         logger.info(f"hoccell init: {model_uuid, threshold_current, holding_current}")
