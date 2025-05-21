@@ -1,0 +1,64 @@
+name: Deploy to STAGING
+
+permissions:
+  id-token: write # Required for OIDC authentication
+  contents: read # Standard permission for GitHub Actions
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: staging
+      IMAGE_NAME: ${{ vars.PUBLICECR_URI }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.PUBLICECR_UPLOAD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.PUBLICECR_UPLOAD_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.PUBLICECR_REGION }}
+
+      - name: Authenticate with AWS ECR
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build a Docker image
+        run: |
+          docker build --build-arg DEPLOYMENT_ENV=staging -t ${{ vars.PUBLICECR_URI }}:staging .
+
+      - name: Publish To AWS ECR
+        run: |
+          docker push ${{ vars.PUBLICECR_URI }}:staging
+
+      - name: Authenticate with AWS ECS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_STAGING_ECS_REDEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_STAGING_REGION }}
+
+      - name: Trigger new deployment
+        run: |
+          aws ecs update-service \
+            --cluster ${{ vars.AWS_STAGING_ECS_CLUSTER }} \
+            --service ${{ vars.AWS_STAGING_ECS_SERVICE }} \
+            --force-new-deployment
+
+      - name: Wait until the service is stable
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ vars.AWS_STAGING_ECS_CLUSTER }} \
+            --service ${{ vars.AWS_STAGING_ECS_SERVICE }}

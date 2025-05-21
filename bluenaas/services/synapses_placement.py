@@ -28,7 +28,7 @@ def _generate_synpases(
     project_id: str,
     is_entitycore,
     queue: mp.Queue,
-    stop_event: mp.Event,
+    stop_event: mp.Event,  # type: ignore
 ):
     def stop_process(signum: int, frame):
         stop_event.set()

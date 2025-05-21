@@ -6,7 +6,6 @@ from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from loguru import logger
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -32,25 +31,6 @@ sentry_sdk.init(
 )
 
 
-class RawBodyLoggerMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        # Read raw body (must buffer it to reuse it later)
-        body = await request.body()
-
-        # Log or inspect
-        print(f"Raw body for {request.url.path}: {body.decode()}")
-
-        # Re-inject body into request stream for downstream use
-        async def receive():
-            return {"type": "http.request", "body": body}
-
-        request._receive = receive  # patch it so downstream can read it again
-
-        # Continue processing
-        return await call_next(request)
-
-
-# Add it to FastAPI app
 app = FastAPI(
     debug=True,
     title=settings.APP_NAME,
@@ -58,7 +38,6 @@ app = FastAPI(
     docs_url=f"{settings.BASE_PATH}/docs",
 )
 
-app.add_middleware(RawBodyLoggerMiddleware)
 app.add_middleware(SentryAsgiMiddleware)
 app.add_middleware(GZipMiddleware)
 # TODO: reduce origins to only the allowed ones
