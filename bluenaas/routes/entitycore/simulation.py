@@ -3,16 +3,16 @@ Simulation Routes
 contains the single neuron simulation endpoint (single neuron, single neuron with synaptome)
 """
 
-from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from uuid import UUID
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
 from bluenaas.domains.simulation import (
     SingleNeuronSimulationConfig,
 )
-from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
 from bluenaas.external.entitycore.service import ProjectContextDep
+from bluenaas.infrastructure.kc.auth import Auth, verify_jwt
 from bluenaas.services.simulation import run_simulation as run_simulation_service
-
 
 router = APIRouter(prefix="/simulation")
 

@@ -1,18 +1,25 @@
 """Model"""
 
+import json
 from enum import Enum
+from math import floor, modf
+from random import randint, random, seed
 from typing import List, NamedTuple
-from bluenaas.core.exceptions import SimulationError, SynapseGenerationError
-from filelock import FileLock
-from loguru import logger
+from uuid import UUID
+
+import numpy as np
 import pandas  # type: ignore
 import requests
-from sympy import symbols, parse_expr  # type: ignore
-from bluenaas.external.nexus.nexus import Nexus
-from bluenaas.external.entitycore.service import ProjectContext
+from filelock import FileLock
+from loguru import logger
+from sympy import parse_expr, symbols  # type: ignore
 
-import json
 from bluenaas.core.cell import HocCell
+from bluenaas.core.exceptions import (
+    SimulationError,
+    SingleNeuronSynaptomeConfigurationError,
+    SynapseGenerationError,
+)
 from bluenaas.domains.morphology import (
     LocationData,
     SectionSynapses,
@@ -26,21 +33,22 @@ from bluenaas.domains.morphology import (
 )
 from bluenaas.domains.nexus import NexusBaseResource
 from bluenaas.domains.simulation import SynapseSimulationConfig
+from bluenaas.external.entitycore.schemas import AssetLabel, EntityRoute
+from bluenaas.external.entitycore.service import (
+    EntityCore,
+    ProjectContext,
+    download_asset,
+    fetch_one,
+)
+from bluenaas.external.nexus.nexus import Nexus
 from bluenaas.utils.util import (
+    get_model_path,
     get_sections,
     get_segments_satisfying_all_exclusion_rules,
     perpendicular_vector,
     point_between_vectors,
     set_vector_length,
-    get_model_path,
 )
-from math import floor, modf
-from random import seed, random, randint
-import numpy as np
-from bluenaas.external.entitycore.service import (
-    EntityCore,
-)
-
 
 SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
 
@@ -252,7 +260,9 @@ class Model:
         placement_config: SynapseConfig,
         simulation_config: SynapseSimulationConfig,
     ):
-        from bluecellulab.circuit.synapse_properties import SynapseProperty  # type: ignore
+        from bluecellulab.circuit.synapse_properties import (
+            SynapseProperty,  # type: ignore
+        )
 
         random_index = randint(0, len(seg_indices_to_include) - 1)
         target_segment = seg_indices_to_include[random_index]
@@ -434,5 +444,77 @@ def fetch_synaptome_model_details(synaptome_self: str, bearer_token: str):
 
         traceback.print_exc()
         logger.error(f"There was an error while loading synaptome model {e}")
+
+        raise Exception(e)
+
+
+file_name = "single_neuron_synaptome_config"
+
+
+def fetch_synaptome_entitycore_model_details(
+    model_id: UUID, project_context: ProjectContext, bearer_token: str
+):
+    """For a given synaptome model, returns the following:
+    1. The base me-model or e-model
+    2. The configuration for all synapse groups added to the given synaptome model
+    """
+    from bluenaas.external.entitycore.schemas import SingleNeuronSynaptomeRead
+
+    try:
+        single_neuron_synaptome = fetch_one(
+            id=model_id,
+            project_context=project_context,
+            response_class=SingleNeuronSynaptomeRead,
+            route=EntityRoute.single_neuron_synaptome,
+            token=bearer_token,
+        )
+
+        if not single_neuron_synaptome.assets:
+            raise SimulationError(
+                f"No synaptome configuration file found for {model_id}"
+            )
+
+        asset = next(
+            (
+                item
+                for item in single_neuron_synaptome.assets
+                if item.label == AssetLabel.single_neuron_synaptome_config
+            ),
+            None,
+        )
+
+        if asset:
+            config = download_asset(
+                entity_id=model_id,
+                entity_route=EntityRoute.single_neuron_synaptome,
+                id=asset.id,
+                project_context=project_context,
+                token=bearer_token,
+            )
+            synapses_file = json.loads(config)
+            synapse_placement_config = [
+                SynapseConfig.model_validate(synapse)
+                for synapse in synapses_file["synapses"]
+            ]
+
+            return SynaptomeDetails(
+                base_model_self=str(single_neuron_synaptome.me_model.id),
+                synaptome_placement_config=SynapsesPlacementConfig(
+                    seed=single_neuron_synaptome.seed,
+                    config=synapse_placement_config,
+                ),
+            )
+        raise FileNotFoundError
+    except FileNotFoundError as ex:
+        raise SingleNeuronSynaptomeConfigurationError(
+            "Synapse distribution configuration file not found"
+        ) from ex
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        logger.error(
+            f"There was an error while loading single neuron synaptome model {e}"
+        )
 
         raise Exception(e)

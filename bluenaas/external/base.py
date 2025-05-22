@@ -1,7 +1,8 @@
 import os
 from pathlib import Path
-from bluenaas.utils.util import get_model_path
+
 from bluenaas.core.types import FileObj
+from bluenaas.utils.util import get_model_path
 
 RWX_TO_ALL = 0o777
 
@@ -45,4 +46,12 @@ class Service:
         self.copy_file_content(
             Path("/app/bluenaas/config/VecStim.mod"),
             output_dir / "mechanisms" / "VecStim.mod",
+        )
+        self.copy_file_content(
+            Path("/app/bluenaas/config/ProbGABAAB_EMS.mod"),
+            output_dir / "mechanisms" / "ProbGABAAB_EMS.mod",
+        )
+        self.copy_file_content(
+            Path("/app/bluenaas/config/ProbAMPANMDA_EMS.mod"),
+            output_dir / "mechanisms" / "ProbAMPANMDA_EMS.mod",
         )

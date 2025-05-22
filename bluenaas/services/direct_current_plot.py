@@ -1,9 +1,11 @@
-import signal
 import multiprocessing as mp
-from loguru import logger
+import signal
 from http import HTTPStatus as status
-from threading import Event
 from queue import Empty as QueueEmptyException
+from threading import Event
+
+from loguru import logger
+
 from bluenaas.core.exceptions import (
     BlueNaasError,
     BlueNaasErrorCode,
@@ -12,8 +14,8 @@ from bluenaas.core.exceptions import (
 from bluenaas.core.model import model_factory
 from bluenaas.core.simulation_factory_plot import StimulusFactoryPlot
 from bluenaas.domains.simulation import StimulationPlotConfig
-from bluenaas.utils.const import QUEUE_STOP_EVENT
 from bluenaas.external.entitycore.service import ProjectContext
+from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
 def _build_direct_current_plot_data(
