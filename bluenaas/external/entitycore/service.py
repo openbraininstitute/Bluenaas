@@ -1,20 +1,22 @@
-from uuid import UUID
+from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated
-from fastapi import Header
+from uuid import UUID
+
 import requests
+from fastapi import Header
+from loguru import logger
+from pydantic import BaseModel
+
 from bluenaas.config.settings import settings
+from bluenaas.core.exceptions import SimulationError
+from bluenaas.core.types import FileObj
+from bluenaas.external.base import Service
 from bluenaas.external.entitycore.schemas import (
-    EntityRoute,
     EModelReadExpanded,
+    EntityRoute,
     MEModelRead,
     ReconstructionMorphologyRead,
 )
-from bluenaas.core.exceptions import SimulationError
-from pydantic import BaseModel
-from concurrent.futures import ThreadPoolExecutor
-from bluenaas.core.types import FileObj
-from bluenaas.external.base import Service
-from loguru import logger
 
 
 class ProjectContext(BaseModel):
@@ -27,6 +29,14 @@ ProjectContextDep = Annotated[ProjectContext, Header()]
 
 def entitycore_url():
     return str(settings.ENTITYCORE_URI).rstrip("/")
+
+
+def get_project_context(
+    virtual_lab_id: str = Header(), project_id: str = Header()
+) -> ProjectContext:
+    return ProjectContext(
+        virtual_lab_id=UUID(virtual_lab_id), project_id=UUID(project_id)
+    )
 
 
 def fetch_one[T: BaseModel](

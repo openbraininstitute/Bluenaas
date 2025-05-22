@@ -1,8 +1,10 @@
-import signal
 import multiprocessing as mp
-from loguru import logger
+import signal
 from http import HTTPStatus as status
 from queue import Empty as QueueEmptyException
+from uuid import UUID
+
+from loguru import logger
 
 from bluenaas.core.exceptions import (
     BlueNaasError,
@@ -10,12 +12,23 @@ from bluenaas.core.exceptions import (
     SynapseGenerationError,
 )
 from bluenaas.core.model import model_factory
-from bluenaas.domains.morphology import SynapsePlacementBody
+from bluenaas.domains.morphology import (
+    SynapsePlacementBody,
+    SynapsePlacementResponse,
+)
+from bluenaas.external.entitycore.service import ProjectContext
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 
 
 def _generate_synpases(
-    model_id: str, token: str, params: SynapsePlacementBody, queue: mp.Queue, stop_event
+    model_id: str,
+    token: str,
+    params: SynapsePlacementBody,
+    virtual_lab_id: str,
+    project_id: str,
+    is_entitycore,
+    queue: mp.Queue,
+    stop_event: mp.Event,  # type: ignore
 ):
     def stop_process(signum: int, frame):
         stop_event.set()
@@ -28,6 +41,11 @@ def _generate_synpases(
             model_id=model_id,
             hyamp=None,
             bearer_token=token,
+            entitycore=is_entitycore,
+            project_context=ProjectContext(
+                virtual_lab_id=UUID(virtual_lab_id),
+                project_id=UUID(project_id),
+            ),
         )
 
         synapses = model.add_synapses(params)
@@ -47,7 +65,10 @@ def generate_synapses_placement(
     token: str,
     req_id: str,
     params: SynapsePlacementBody,
-):
+    virtual_lab_id: str,
+    project_id: str,
+    is_entitycore: bool = False,
+) -> SynapsePlacementResponse | None:
     try:
         ctx = mp.get_context("spawn")
 
@@ -55,7 +76,16 @@ def generate_synapses_placement(
         stop_event = ctx.Event()
         process = ctx.Process(
             target=_generate_synpases,
-            args=(model_id, token, params, synapses_queue, stop_event),
+            args=(
+                model_id,
+                token,
+                params,
+                virtual_lab_id,
+                project_id,
+                is_entitycore,
+                synapses_queue,
+                stop_event,
+            ),
             name=f"synapses_processor:{req_id}",
         )
         process.daemon = True
@@ -84,6 +114,7 @@ def generate_synapses_placement(
             synapses_queue.close()
             synapses_queue.join_thread()
             process.join()
+
         return synapses
     except SynapseGenerationError as ex:
         raise BlueNaasError(

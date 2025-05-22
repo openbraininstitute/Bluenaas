@@ -1,10 +1,13 @@
-from typing import Awaitable, Callable
 import uuid
+from typing import Awaitable, Callable
+
+import sentry_sdk
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from loguru import logger
+from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
+from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
-import sentry_sdk
 
 from bluenaas.config.settings import settings
 from bluenaas.core.exceptions import (
@@ -12,16 +15,13 @@ from bluenaas.core.exceptions import (
     BlueNaasErrorCode,
     BlueNaasErrorResponse,
 )
-from bluenaas.routes.morphology import router as morphology_router
-from bluenaas.routes.simulation import router as simulation_router
+from bluenaas.routes.entitycore import entitycore_router
 from bluenaas.routes.graph_data import router as graph_router
+from bluenaas.routes.morphology import router as morphology_router
+from bluenaas.routes.neuron_model import router as neuron_model_router
+from bluenaas.routes.simulation import router as simulation_router
 from bluenaas.routes.synaptome import router as synaptome_router
 from bluenaas.routes.validation import router as validation_router
-from bluenaas.routes.neuron_model import router as neuron_model_router
-from bluenaas.routes.entitycore import entitycore_router
-from starlette.middleware.cors import CORSMiddleware
-from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
-
 
 sentry_sdk.init(
     dsn=settings.SENTRY_DSN,
