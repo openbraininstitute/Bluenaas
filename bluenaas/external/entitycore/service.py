@@ -31,14 +31,6 @@ def entitycore_url():
     return str(settings.ENTITYCORE_URI).rstrip("/")
 
 
-def get_project_context(
-    virtual_lab_id: str = Header(), project_id: str = Header()
-) -> ProjectContext:
-    return ProjectContext(
-        virtual_lab_id=UUID(virtual_lab_id), project_id=UUID(project_id)
-    )
-
-
 def fetch_one[T: BaseModel](
     id: UUID,
     route: EntityRoute,

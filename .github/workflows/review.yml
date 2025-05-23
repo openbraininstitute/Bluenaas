@@ -14,9 +14,5 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install poetry && poetry install --sync
-      - name: Run formatting
-        run: make format
-      - name: Run linting
-        run: make lint
-      - name: Type checking
-        run: make type-check
+      - name: Lint
+        run: make lint-all
