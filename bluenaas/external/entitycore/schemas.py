@@ -108,8 +108,8 @@ class PersonRead(BaseModel):
     id: UUID = Field(..., title="Id")
     creation_date: datetime = Field(..., title="Creation Date")
     update_date: datetime = Field(..., title="Update Date")
-    givenName: str = Field(..., title="Givenname")
-    familyName: str = Field(..., title="Familyname")
+    given_name: Optional[str] = Field(None, title="Given Name")
+    family_name: Optional[str] = Field(None, title="Family Name")
     pref_label: str = Field(..., title="Pref Label")
     type: str = Field(..., title="Type")
 
@@ -309,8 +309,8 @@ class SingleNeuronSynaptomeRead(BaseModel):
     seed: int = Field(..., title="Seed")
     me_model: NestedMEModel
     brain_region: BrainRegionRead
-    createdBy: Optional[AgentRead]
-    updatedBy: Optional[AgentRead]
+    created_by: Optional[PersonRead]
+    updated_by: Optional[PersonRead]
 
 
 class EModelRead(BaseModel):
