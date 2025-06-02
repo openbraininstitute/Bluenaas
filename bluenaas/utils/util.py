@@ -33,7 +33,7 @@ def is_spine(sec_name):
 
 def get_model_path(model_uuid: str) -> Path:
     """Get model path."""
-    return Path("/opt/blue-naas/models") / model_uuid[0] / model_uuid[1] / model_uuid
+    return Path("/opt/bluenaas/models") / model_uuid[0] / model_uuid[1] / model_uuid
 
 
 def locate_model(model_uuid) -> Path | None:
@@ -47,7 +47,7 @@ def locate_model(model_uuid) -> Path | None:
     return model_path if model_path.exists() else None
 
 
-def compile_mechanisms(model_path, no_throw=False):
+def compile_mechanisms(model_path):
     """Compile model mechanisms."""
     # Bail out if the mechanisms are already compiled
     compiled_path = model_path / "x86_64"
@@ -57,10 +57,7 @@ def compile_mechanisms(model_path, no_throw=False):
 
     mech_path = model_path / "mechanisms"
     if not mech_path.is_dir():
-        if not no_throw:
-            raise Exception(
-                "Folder not found! Expecting 'mechanisms' folder in the model!"
-            )
+        raise Exception("Folder not found! Expecting 'mechanisms' folder in the model!")
     else:
         cmd = ["nrnivmodl", "mechanisms"]
         compilation_output = subprocess.check_output(cmd, cwd=model_path)
@@ -530,27 +527,3 @@ def diff_list(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     np.ndarray: The elements of `b` after the length of `a`.
     """
     return b[len(a) :]
-
-
-def construct_time_range(
-    # If it's a dictionary, convert it to a list containing the dictionary
-    start_date: Optional[datetime],
-    end_date: Optional[datetime],
-) -> str:
-    """
-    # If it's already a list, return it as is
-    Constructs a time range string based on the given start and end dates.
-    elif isinstance(value, list):
-        return value
-    Args:
-    else:
-        start_date (Optional[datetime]): The start date of the range.
-        raise TypeError("Value must be either a dictionary or a list.")
-        end_date (Optional[datetime]): The end date of the range.
-    Returns:
-        str: The constructed time range string in the format 'start..end'.
-    """
-    start_str = start_date.strftime("%Y-%m-%dT%H:%M:%SZ") if start_date else "*"
-    end_str = end_date.strftime("%Y-%m-%dT%H:%M:%SZ") if end_date else "*"
-
-    return "{}..{}".format(start_str, end_str)

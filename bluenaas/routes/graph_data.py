@@ -1,7 +1,9 @@
 from typing import List
 from fastapi import APIRouter, Depends, Request
+from rq import Queue
 
-from bluenaas.services.direct_current_plot import get_direct_current_plot_data
+from bluenaas.infrastructure.rq import JobQueue, queue_factory
+from bluenaas.services.current_clamp_plot import get_current_clamp_plot_data_stream
 from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
 from bluenaas.domains.simulation import (
     StimulationItemResponse,
@@ -21,10 +23,12 @@ def retrieve_stimulation_plot(
     model_self: str,
     config: StimulationPlotConfig,
     auth: Auth = Depends(verify_jwt),
+    job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
 ):
-    return get_direct_current_plot_data(
+    return get_current_clamp_plot_data_stream(
+        request=request,
+        queue=job_queue,
         model_id=model_self,
         config=config,
         token=auth.token,
-        req_id=request.state.request_id,
     )

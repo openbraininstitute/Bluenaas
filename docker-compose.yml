@@ -1,26 +1,66 @@
 services:
-  bluenaas:
-    image: bluenaas-single-cell-svc
-    container_name: blue-naas-single-cell-http-svc
+  bluenaas-api:
     env_file: "./.env.local"
     build:
-      dockerfile: ./Dockerfile.dev
-    command:
-      [
-        "uvicorn",
-        "bluenaas.app:app",
-        "--host=0.0.0.0",
-        "--port=8000",
-        "--reload",
-      ]
+      dockerfile: Dockerfile.api
     environment:
       DEBUG: True
+      PYTHONUNBUFFERED: 1
       ACCOUNTING_DISABLED: 1
+      REDIS_URL: redis://redis:6379/0
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./bluenaas
+          target: /app/bluenaas
+        - action: rebuild
+          path: poetry.lock
     volumes:
       - ${PWD}/bluenaas:/app/bluenaas
-      - ${PWD}/.model-cache:/opt/blue-naas/models
+      - ${PWD}/.model-cache:/opt/bluenaas/models
     ports:
       - "8001:8000"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
     platform: linux/amd64
+
+  bluenaas-worker:
+    env_file: "./.env.local"
+    build:
+      dockerfile: Dockerfile.worker
+    deploy:
+      mode: replicated
+      replicas: 2
+    environment:
+      DEBUG: True
+      PYTHONUNBUFFERED: 1
+      ACCOUNTING_DISABLED: 1
+      REDIS_URL: redis://redis:6379/0
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./bluenaas
+          target: /app/bluenaas
+        - action: rebuild
+          path: poetry.lock
+    volumes:
+      - ${PWD}/bluenaas:/app/bluenaas
+      - ${PWD}/.model-cache:/opt/bluenaas/models
+    depends_on:
+      redis:
+        condition: service_healthy
+    platform: linux/amd64
+
+  redis:
+    image: redis:8-alpine
+    container_name: bluenaas-redis
+    ports:
+      - "6379:6379"
+    command: redis-server
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+      start_period: 1s

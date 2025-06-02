@@ -1,10 +1,13 @@
 from uuid import UUID
 from typing import Annotated
-from bluenaas.services.morphology import get_single_morphology
+
 from fastapi import APIRouter, Depends, Request
+from rq import Queue
 
 from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
 from bluenaas.external.entitycore.service import ProjectContextDep
+from bluenaas.infrastructure.rq import JobQueue, queue_factory
+from bluenaas.services.morphology import get_morphology_stream
 
 router = APIRouter(prefix="/morphology")
 
@@ -15,11 +18,13 @@ def retrieve_morphology(
     auth: Annotated[Auth, Depends(verify_jwt)],
     model_id: UUID,
     project_context: ProjectContextDep,
+    job_queue: Annotated[Queue, Depends(queue_factory(JobQueue.HIGH))],
 ):
-    return get_single_morphology(
+    return get_morphology_stream(
+        request=request,
+        queue=job_queue,
         model_id=str(model_id),
         token=auth.token,
-        req_id=request.state.request_id,
         entitycore=True,
         project_context=project_context,
     )

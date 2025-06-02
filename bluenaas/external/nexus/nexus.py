@@ -27,7 +27,7 @@ from bluenaas.external.base import Service
 
 HTTP_TIMEOUT = 10  # seconds
 
-model_dir = Path("/opt/blue-naas/") / "models"
+model_dir = Path("/opt/bluenaas/") / "models"
 defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
 
 HOC_FORMATS = ["application/x-neuron-hoc", "application/neuron-hoc", "application/hoc"]

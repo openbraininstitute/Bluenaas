@@ -102,29 +102,28 @@ class Model:
         model_uuid = helper.get_model_uuid()
 
         model_path = get_model_path(model_uuid)
-        lock = FileLock(f"{model_path/'dir.lock'}")
+        done_file = model_path / "done"
 
-        with lock.acquire(timeout=2 * 60):
-            done_file = model_path / "done"
-
-            if not done_file.exists():
+        if not done_file.exists():
+            lock = FileLock(model_path / "dir.lock")
+            with lock.acquire(timeout=2 * 60):
                 helper.download_model()
+                self.CELL = HocCell(
+                    model_uuid=model_uuid,
+                    threshold_current=threshold_current,
+                    holding_current=self.holding_current
+                    if self.holding_current is not None
+                    else holding_current,
+                )
                 done_file.touch()
-                self.CELL = HocCell(
-                    model_uuid=model_uuid,
-                    threshold_current=threshold_current,
-                    holding_current=self.holding_current
-                    if self.holding_current is not None
-                    else holding_current,
-                )
-            else:
-                self.CELL = HocCell(
-                    model_uuid=model_uuid,
-                    threshold_current=threshold_current,
-                    holding_current=self.holding_current
-                    if self.holding_current is not None
-                    else holding_current,
-                )
+        else:
+            self.CELL = HocCell(
+                model_uuid=model_uuid,
+                threshold_current=threshold_current,
+                holding_current=self.holding_current
+                if self.holding_current is not None
+                else holding_current,
+            )
 
     def _generate_synapse(
         self, section_info: LocationData, seg_indices_to_include: list[int]

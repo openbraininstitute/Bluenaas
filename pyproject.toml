@@ -26,6 +26,8 @@ sentry-sdk = { version = "^2.13.0", extras = ["fastapi"] }
 filelock = "^3.16.0"
 obp-accounting-sdk = "^0.1.5"
 pyright = "^1.1.400"
+redis = {extras = ["hiredis"], version = "^6.2.0"}
+rq = "^2.3.3"
 
 [tool.poetry.group.types.dependencies]
 types-requests = "^2.32.0.20240712"
