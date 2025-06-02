@@ -31,6 +31,8 @@ from bluenaas.domains.simulation import (
 )
 from bluenaas.external.entitycore.service import ProjectContext
 from bluenaas.external.nexus.nexus import Nexus
+from bluenaas.infrastructure.redis import stream, close_stream
+from bluenaas.infrastructure.rq import get_current_stream_key
 from bluenaas.utils.const import QUEUE_STOP_EVENT
 from bluenaas.utils.streaming import (
     StreamingResponseWithCleanup,
@@ -46,7 +48,6 @@ def _init_current_varying_simulation(
     config: SingleNeuronSimulationConfig,
     realtime: bool,
     simulation_queue: mp.Queue,
-    req_id: str,
     stop_event: Event,
     entitycore: bool = False,
     project_context: ProjectContext | None = None,
@@ -110,7 +111,6 @@ def _init_current_varying_simulation(
             config=config,
             synapse_generation_config=synapse_generation_config,
             simulation_queue=simulation_queue,
-            req_id=req_id,
             stop_event=stop_event,
         )
     except SimulationError as ex:
@@ -351,45 +351,41 @@ def queue_record_to_nexus_record(record: dict, is_current_varying: bool) -> dict
 def stream_realtime_data(
     simulation_queue: Queue,
     _process: SpawnProcess,
-    stop_event: Event,
     is_current_varying: bool,
-    request_id: str,
-) -> StreamingResponseWithCleanup:
-    def queue_streamify():
-        while True:
-            try:
-                # Simulation_Queue.get() is blocking. If child fails without writing to it,
-                # the process will hang forever. That's why timeout is added.
-                record = simulation_queue.get(timeout=1)
-            except QueueEmptyException:
-                if _process.is_alive():
-                    continue
-                else:
-                    logger.warning("Process is not alive and simulation queue is empty")
-                    raise Exception("Child process died unexpectedly")
-            if isinstance(record, SimulationError):
-                yield f"{json.dumps(
-                    {
-                        "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
-                        "message": "Simulation failed",
-                        "details": record.__str__(),
-                    }
-                )}\n"
-                logger.debug("Parent stopping because of error")
-                break
-            if record == QUEUE_STOP_EVENT:
-                logger.debug("Parent received queue_stop_event")
-                break
+) -> None:
+    stream_key = get_current_stream_key()
 
-            yield f"{json.dumps(queue_record_to_nexus_record(record, is_current_varying))}\n"
+    while True:
+        try:
+            # Simulation_Queue.get() is blocking. If child fails without writing to it,
+            # the process will hang forever. That's why timeout is added.
+            record = simulation_queue.get(timeout=1)
+        except QueueEmptyException:
+            if _process.is_alive():
+                continue
+            else:
+                logger.warning("Process is not alive and simulation queue is empty")
+                raise Exception("Child process died unexpectedly")
+        if isinstance(record, SimulationError):
+            errStr = json.dumps(
+                {
+                    "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
+                    "message": "Simulation failed",
+                    "details": record.__str__(),
+                }
+            )
+            stream(stream_key, errStr)
+            logger.debug("Parent stopping because of error")
+            break
+        if record == QUEUE_STOP_EVENT:
+            logger.debug("Parent received queue_stop_event")
+            close_stream(stream_key)
+            break
 
-        logger.info(f"Realtime Simulation {request_id} completed")
+        chunk = json.dumps(queue_record_to_nexus_record(record, is_current_varying))
+        stream(stream_key, chunk)
 
-    return StreamingResponseWithCleanup(
-        queue_streamify(),
-        media_type="application/octet-stream",
-        finalizer=lambda: cleanup(stop_event, _process),
-    )
+    logger.info("Realtime Simulation completed")
 
 
 def save_simulation_result_to_nexus(
@@ -476,7 +472,6 @@ def execute_single_neuron_simulation(
     model_id: str,
     token: str,
     config: SingleNeuronSimulationConfig,
-    req_id: str,
     realtime: bool,
     simulation_resource_self: Optional[str] = None,
     entitycore: bool = False,
@@ -517,12 +512,12 @@ def execute_single_neuron_simulation(
                 config,
                 realtime,
                 simulation_queue,
-                req_id,
+                # req_id,
                 stop_event,
                 entitycore,
                 project_context,
             ),
-            name=f"simulation_processor:{req_id}",
+            # name=f"simulation_processor:{req_id}",
         )
 
         _process.start()
@@ -531,9 +526,8 @@ def execute_single_neuron_simulation(
             return stream_realtime_data(
                 simulation_queue=simulation_queue,
                 _process=_process,
-                stop_event=stop_event,
                 is_current_varying=is_current_varying,
-                request_id=req_id,
+                # request_id=req_id,
             )
         elif nexus_helper:
             assert simulation_resource_self is not None

@@ -1,5 +1,6 @@
 from fastapi import BackgroundTasks
 from loguru import logger
+from rq import Queue
 
 from bluenaas.domains.nexus import FullNexusSimulationResource
 from bluenaas.domains.simulation import SingleNeuronSimulationConfig
@@ -11,18 +12,17 @@ from bluenaas.services.single_neuron_simulation import execute_single_neuron_sim
 
 
 def submit_background_simulation(
+    job_queue: Queue,
     org_id: str,
     project_id: str,
     model_self: str,
     config: SingleNeuronSimulationConfig,
     token: str,
-    background_tasks: BackgroundTasks,
-    request_id: str,
 ):
     (
         me_model_self,
         synaptome_model_self,
-        stimulus_plot_data,
+        _stimulus_plot_data,
         sim_response,
         simulation_resource,
     ) = setup_simulation_resources(
@@ -37,17 +37,29 @@ def submit_background_simulation(
         f"Submitting simulation task for resource {simulation_resource["_self"]}"
     )
     # Step 2: Add background task to process simulation
-    background_tasks.add_task(
+    job_queue.enqueue(
         execute_single_neuron_simulation,
-        org_id=org_id,
-        project_id=project_id,
-        model_id=model_self,
-        token=token,
-        config=config,
-        req_id=request_id,
-        realtime=False,
-        simulation_resource_self=sim_response["_self"],
+        kwargs={
+            "org_id": org_id,
+            "project_id": project_id,
+            "model_id": model_self,
+            "token": token,
+            "config": config,
+            "realtime": False,
+            "simulation_resource_self": sim_response["_self"],
+        },
     )
+    # background_tasks.add_task(
+    #     execute_single_neuron_simulation,
+    #     org_id=org_id,
+    #     project_id=project_id,
+    #     model_id=model_self,
+    #     token=token,
+    #     config=config,
+    #     # req_id=request_id,
+    #     realtime=False,
+    #     simulation_resource_self=sim_response["_self"],
+    # )
 
     # Step 3: Return simulation status to user
     return convert_to_simulation_response(

@@ -1,4 +1,5 @@
-from fastapi import Request, BackgroundTasks
+from fastapi import Request
+from fastapi.responses import StreamingResponse
 from loguru import logger
 from obp_accounting_sdk.errors import InsufficientFundsError, BaseAccountingError
 from obp_accounting_sdk.constants import ServiceSubtype
@@ -10,8 +11,11 @@ from bluenaas.domains.simulation import (
 )
 from bluenaas.infrastructure.accounting.session import accounting_session_factory
 from bluenaas.infrastructure.kc.auth import Auth
+from bluenaas.infrastructure.rq import Queue
 from bluenaas.services.single_neuron_simulation import execute_single_neuron_simulation
 from bluenaas.services.submit_simulaton import submit_background_simulation
+from bluenaas.utils.rq_job import dispatch
+from bluenaas.utils.streaming import x_ndjson_http_stream
 
 
 def run_simulation(
@@ -20,7 +24,7 @@ def run_simulation(
     request: Request,
     model_id: str,
     config: SingleNeuronSimulationConfig,
-    background_tasks: BackgroundTasks,
+    job_queue: Queue,
     auth: Auth,
     realtime: bool = True,
     entitycore: bool = False,
@@ -52,25 +56,42 @@ def run_simulation(
             count=config.n_execs,
         ):
             if realtime is True:
-                return execute_single_neuron_simulation(
-                    org_id=virtual_lab_id,
-                    project_id=project_id,
-                    model_id=model_id,
-                    token=auth.token,
-                    config=config,
-                    req_id=request.state.request_id,
-                    realtime=realtime,
-                    entitycore=entitycore,
+                _job, stream = dispatch(
+                    job_queue,
+                    execute_single_neuron_simulation,
+                    # job_args=(model_id, token, entitycore, project_context),
+                    job_kwargs={
+                        "org_id": virtual_lab_id,
+                        "project_id": project_id,
+                        "model_id": model_id,
+                        "token": auth.token,
+                        "config": config,
+                        "realtime": realtime,
+                        "entitycore": entitycore,
+                    },
                 )
+                http_stream = x_ndjson_http_stream(request, stream)
+
+                return StreamingResponse(http_stream, media_type="application/x-ndjson")
+
+                # return execute_single_neuron_simulation(
+                #     org_id=virtual_lab_id,
+                #     project_id=project_id,
+                #     model_id=model_id,
+                #     token=auth.token,
+                #     config=config,
+                #     req_id=request.state.request_id,
+                #     realtime=realtime,
+                #     entitycore=entitycore,
+                # )
             else:
                 return submit_background_simulation(
+                    job_queue=job_queue,
                     org_id=virtual_lab_id,
                     project_id=project_id,
                     model_self=model_id,
                     config=config,
                     token=auth.token,
-                    background_tasks=background_tasks,
-                    request_id=request.state.request_id,
                 )
     except InsufficientFundsError as ex:
         logger.exception(f"Insufficient funds: {ex}")

@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, Request, Query, BackgroundTasks
 from typing import Optional
 from datetime import datetime
 
+from rq import Queue
+
 from bluenaas.domains.simulation import (
     SimulationDetailsResponse,
     SingleNeuronSimulationConfig,
@@ -15,6 +17,7 @@ from bluenaas.domains.simulation import (
 )
 from bluenaas.domains.nexus import DeprecateNexusResponse
 from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
+from bluenaas.infrastructure.rq import JobQueue, queue_factory
 from bluenaas.services.submit_simulaton.fetch_simulation_status_and_results import (
     fetch_simulation_status_and_results,
 )
@@ -34,8 +37,8 @@ def run_simulation(
     project_id: str,
     model_id: str,
     config: SingleNeuronSimulationConfig,
-    background_tasks: BackgroundTasks,
     auth: Auth = Depends(verify_jwt),
+    job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
     realtime: bool = True,
 ):
     """
@@ -56,7 +59,7 @@ def run_simulation(
         request=request,
         model_id=model_id,
         config=config,
-        background_tasks=background_tasks,
+        job_queue=job_queue,
         auth=auth,
         realtime=realtime,
     )
