@@ -1,0 +1,39 @@
+FROM python:3.12-slim
+
+SHELL ["bash", "-e", "-x", "-o", "pipefail", "-c"]
+
+RUN pip install poetry==1.4.2
+
+ENV POETRY_NO_INTERACTION=1 \
+  POETRY_VIRTUALENVS_IN_PROJECT=1 \
+  POETRY_VIRTUALENVS_CREATE=1 \
+  POETRY_CACHE_DIR=/tmp/bluenaas-cache
+
+WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -q -y --no-install-recommends build-essential libhdf5-dev
+
+RUN <<EOT
+groupadd -r app
+useradd -r -d /app -g app -N app
+EOT
+
+COPY --chown=app:app pyproject.toml poetry.lock ./
+
+RUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --no-root --no-dev --no-interaction
+
+RUN mkdir -p /opt/bluenaas/models
+
+ENV VIRTUAL_ENV=/app/.venv \
+  PATH="/app/.venv/bin:$PATH"
+
+USER app
+
+COPY --chown=app:app ./bluenaas /app/bluenaas
+
+RUN python -m compileall .bluenaas
+
+EXPOSE 8000
+
+CMD ["uvicorn", "bluenaas.app:app", "--port", "8000", "--host", "0.0.0.0"]

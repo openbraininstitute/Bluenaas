@@ -51,8 +51,6 @@ class BaseCell:
 
     def _load_by_model_uuid(self, model_uuid, threshold_current, holding_current):
         # pylint: disable=too-many-statements
-        os.chdir("/opt/blue-naas")
-
         model_path = locate_model(model_uuid)
 
         if model_path is None:

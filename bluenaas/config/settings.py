@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     ACCOUNTING_BASE_URL: Url | None = None
     ACCOUNTING_DISABLED: str | None = None
 
+    REDIS_URL: str = "redis://localhost:6379/0"
+
     @model_validator(mode="after")
     def validate_accounting_config(self) -> Self:
         if not self.ACCOUNTING_DISABLED and not self.ACCOUNTING_BASE_URL:

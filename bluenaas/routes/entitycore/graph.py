@@ -2,7 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Request
 from uuid import UUID
 
-from bluenaas.services.direct_current_plot import get_direct_current_plot_data
+from bluenaas.services.current_clamp_plot import get_current_clamp_plot_data_stream
 from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
 from bluenaas.domains.simulation import (
     StimulationItemResponse,
@@ -25,7 +25,7 @@ def retrieve_stimulation_plot(
     project_context: ProjectContextDep,
     auth: Auth = Depends(verify_jwt),
 ):
-    return get_direct_current_plot_data(
+    return get_current_clamp_plot_data_stream(
         model_id=str(model_id),
         config=config,
         token=auth.token,

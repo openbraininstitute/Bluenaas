@@ -1,6 +1,8 @@
-from bluenaas.services.morphology import get_single_morphology
+from bluenaas.infrastructure.rq import JobQueue, queue_factory
+from bluenaas.services.morphology import get_morphology_stream
 from bluenaas.services.morphology_dendrogram import get_single_morphology_dendrogram
 from fastapi import APIRouter, Depends, Query, Request
+from rq import Queue
 
 from bluenaas.infrastructure.kc.auth import verify_jwt, Auth
 
@@ -12,11 +14,13 @@ def retrieve_morphology(
     request: Request,
     model_self: str = Query(""),
     auth: Auth = Depends(verify_jwt),
+    job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
 ):
-    return get_single_morphology(
+    return get_morphology_stream(
+        request=request,
+        queue=job_queue,
         model_id=model_self,
         token=auth.token,
-        req_id=request.state.request_id,
     )
 
 
