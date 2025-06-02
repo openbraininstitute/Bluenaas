@@ -715,7 +715,6 @@ def apply_multiple_stimulus(
     simulation_duration: int,
     synapse_generation_config: list[SynapseSeries] | None,
     simulation_queue: mp.Queue,
-    req_id: str,
     stop_event: Event,
 ):
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
@@ -724,7 +723,7 @@ def apply_multiple_stimulus(
     neuron_global_params = NeuronGlobals.get_instance().export_params()
 
     logger.info(f"""
-        Running Simulation of {req_id}
+        Running Simulation
         {"CurrentInjection" if current_injection is not None else ""}
         {"Synaptome " if synapse_generation_config is not None else ""}
     """)
@@ -779,7 +778,6 @@ def apply_multiple_frequency(
     simulation_duration: int,
     frequency_to_synapse_series: dict[float, list[SynapseSeries]],
     simulation_queue: mp.Queue,
-    req_id: str,
     stop_event: Event,
 ):
     from bluecellulab.simulation.neuron_globals import NeuronGlobals
@@ -788,7 +786,7 @@ def apply_multiple_frequency(
     neuron_global_params = NeuronGlobals.get_instance().export_params()
 
     logger.info(f"""
-        Running Simulation of {req_id}
+        Running Simulation
         {"CurrentInjection" if current_injection is not None else ""}
         {"Synaptome "}
     """)

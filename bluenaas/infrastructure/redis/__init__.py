@@ -16,10 +16,10 @@ def stream(stream_key: str, data: str) -> None:
     redis_client.expire(stream_key, MAX_TASK_DURATION, nx=True)
 
 
-def stream_stop_message(stream_key: str) -> None:
+def close_stream(stream_key: str) -> None:
     redis_client.xadd(stream_key, {"data": STOP_MESSAGE})
 
 
 def stream_one(stream_key: str, data: str) -> None:
     stream(stream_key, data)
-    stream_stop_message(stream_key)
+    close_stream(stream_key)
