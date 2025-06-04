@@ -19,9 +19,9 @@ def dispatch(
         job_id = str(uuid4())
 
     stream_key = compose_key(job_id)
-    logger.info(f"Read stream key: {stream_key}")
     stream = redis_stream_reader(stream_key)
 
+    # TODO: add a wrapper for the generator fn function to stream the data
     job = queue.enqueue(
         fn,
         *job_args,

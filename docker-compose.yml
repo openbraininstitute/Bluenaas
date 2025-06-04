@@ -3,6 +3,8 @@ services:
     env_file: "./.env.local"
     build:
       dockerfile: Dockerfile.api
+      platforms:
+        - linux/amd64
     environment:
       DEBUG: True
       PYTHONUNBUFFERED: 1
@@ -16,7 +18,7 @@ services:
         - action: rebuild
           path: poetry.lock
     volumes:
-      - ${PWD}/bluenaas:/app/bluenaas
+      # - ${PWD}/bluenaas:/app/bluenaas
       - ${PWD}/.model-cache:/opt/bluenaas/models
     ports:
       - "8001:8000"
@@ -29,9 +31,11 @@ services:
     env_file: "./.env.local"
     build:
       dockerfile: Dockerfile.worker
+      platforms:
+        - linux/amd64
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 1
     environment:
       DEBUG: True
       PYTHONUNBUFFERED: 1
@@ -45,7 +49,7 @@ services:
         - action: rebuild
           path: poetry.lock
     volumes:
-      - ${PWD}/bluenaas:/app/bluenaas
+      # - ${PWD}/bluenaas:/app/bluenaas
       - ${PWD}/.model-cache:/opt/bluenaas/models
     depends_on:
       redis:
@@ -60,7 +64,7 @@ services:
     command: redis-server
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 1s
-      timeout: 1s
+      interval: 5s
+      timeout: 3s
       retries: 5
       start_period: 1s

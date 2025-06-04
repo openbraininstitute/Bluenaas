@@ -49,7 +49,6 @@ def get_current_clamp_plot_data_task(
     project_context: ProjectContext | None = None,
 ):
     stream_key = get_current_stream_key()
-    logger.info(f"Stream key: {stream_key}")
 
     try:
         model = model_factory(

@@ -20,6 +20,7 @@ from bluenaas.routes.graph_data import router as graph_router
 from bluenaas.routes.morphology import router as morphology_router
 from bluenaas.routes.neuron_model import router as neuron_model_router
 from bluenaas.routes.simulation import router as simulation_router
+from bluenaas.routes.circuit import router as circuit_router
 from bluenaas.routes.synaptome import router as synaptome_router
 from bluenaas.routes.validation import router as validation_router
 
@@ -102,6 +103,7 @@ def health() -> str:
 
 base_router.include_router(morphology_router)
 base_router.include_router(simulation_router)
+base_router.include_router(circuit_router)
 base_router.include_router(synaptome_router)
 base_router.include_router(graph_router)
 base_router.include_router(validation_router)
