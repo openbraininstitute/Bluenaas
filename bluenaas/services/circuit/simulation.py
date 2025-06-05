@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 from fastapi import Request
 from fastapi.responses import StreamingResponse
@@ -26,23 +27,25 @@ def run_circuit_simulation(
 def run_circuit_simulation_task():
     stream_key = get_current_stream_key()
 
-    num_cores = 4
+    num_cores = 1
     num_cells = 10
 
-    config = "/app/circuit_model/simulation_config.json"
+    cwd = os.getcwd()
+
+    config = f"{cwd}/circuit_model/simulation_config.json"
     nodes = "S1nonbarrel_neurons"
     start_gid = 0
 
     stream(stream_key, json.dumps({"status": "compiling"}))
 
-    compile_cmd = "nrnivmodl /app/circuit_model/mod"
-    subprocess.run(compile_cmd.split(" "), cwd="/app/circuit_model")
+    compile_cmd = f"nrnivmodl {cwd}/circuit_model/mod"
+    subprocess.run(compile_cmd.split(" "), cwd=f"{cwd}/circuit_model")
 
     stream(stream_key, json.dumps({"status": "running"}))
-    run_cmd = f"mpiexec -n {num_cores} python3 /app/bluenaas/services/circuit/run-sim-mpi-entrypoint.py --config {config} --node {nodes} --start_gid {start_gid} --num_cells {num_cells}"
+    run_cmd = f"mpiexec -n {num_cores} python3 {cwd}/bluenaas/services/circuit/run-sim-mpi-entrypoint.py --config {config} --node {nodes} --start_gid {start_gid} --num_cells {num_cells}"
     # run_cmd = f"mpiexec -n {num_cores} python3 /app/bluenaas/services/circuit/test.py --config {config} --node {nodes} --start_gid {start_gid} --num_cells {num_cells}"
 
-    subprocess.run(run_cmd, cwd="/app/circuit_model", shell=True)
+    subprocess.run(run_cmd, cwd=f"{cwd}/circuit_model", shell=True)
 
     stream(stream_key, json.dumps({"status": "done"}))
 

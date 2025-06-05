@@ -1,38 +1,16 @@
-import json
-
-from fastapi import Request
-from fastapi.responses import StreamingResponse
-from loguru import logger
-from rq import Queue
-
 from bluenaas.core.model import model_factory
 from bluenaas.external.entitycore.service import ProjectContext
 from bluenaas.infrastructure.redis import stream_one
 from bluenaas.infrastructure.rq import get_current_stream_key
-from bluenaas.utils.rq_job import dispatch
-from bluenaas.utils.streaming import x_ndjson_http_stream
 
 
-def get_morphology_stream(
-    request: Request,
-    queue: Queue,
-    model_id: str,
-    token: str,
-    entitycore: bool = False,
-    project_context: ProjectContext | None = None,
-):
-    # TODO: Switch to normal HTTP response, there is no benefit in streaming here.
-    _job, stream = dispatch(
-        queue,
-        get_morphology_job,
-        job_args=(model_id, token, entitycore, project_context),
-    )
-    http_stream = x_ndjson_http_stream(request, stream)
-
-    return StreamingResponse(http_stream, media_type="application/x-ndjson")
+from loguru import logger
 
 
-def get_morphology_job(
+import json
+
+
+def get_morphology_task(
     model_id: str,
     token: str,
     entitycore: bool = False,
@@ -58,4 +36,3 @@ def get_morphology_job(
     except Exception as ex:
         logger.exception(f"Morphology builder error: {ex}")
         stream_one(stream_key, "error")
-        # TODO: put exception in the queue

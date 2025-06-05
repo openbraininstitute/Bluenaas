@@ -18,7 +18,6 @@ services:
         - action: rebuild
           path: poetry.lock
     volumes:
-      # - ${PWD}/bluenaas:/app/bluenaas
       - ${PWD}/.model-cache:/opt/bluenaas/models
     ports:
       - "8001:8000"
@@ -49,7 +48,6 @@ services:
         - action: rebuild
           path: poetry.lock
     volumes:
-      # - ${PWD}/bluenaas:/app/bluenaas
       - ${PWD}/.model-cache:/opt/bluenaas/models
     depends_on:
       redis:
