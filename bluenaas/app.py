@@ -40,7 +40,7 @@ app = FastAPI(
 )
 
 app.add_middleware(SentryAsgiMiddleware)
-app.add_middleware(GZipMiddleware)
+# app.add_middleware(GZipMiddleware)
 # TODO: reduce origins to only the allowed ones
 app.add_middleware(
     CORSMiddleware,

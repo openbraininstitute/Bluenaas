@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from neuron import h  # For MPI parallel context
 from datetime import datetime, timezone
 import uuid  # For nwb file writing
-from pynwb import NWBFile, NWBHDF5IO
+from pynwb import NWBFile, NWBHDF5IO, H5DataIO
 from pynwb.icephys import CurrentClampSeries, IntracellularElectrode
 from bluecellulab import CircuitSimulation
 import numpy as np
@@ -27,24 +27,19 @@ def run_circuit_simulation(simulation_config, cell_ids, pc, rank, logger):
     logger.info(f"Rank {rank}: Determined circuit folder name: {circuit_folder_name}")
     # Create a results directory based on the circuit folder name
     # This will create a directory named "results/circuit_folder_name"
-    results_dir = f"results/{circuit_folder_name}"
+    results_dir = "results"
     # Create the results directory if it doesn't exist
 
-    # if rank == 0:
-    # os.makedirs(results_dir, exist_ok=True)
-    # logger.info(f"Rank 0: Ensured results directory exists: {results_dir}")
+    if rank == 0:
+        os.makedirs(results_dir, exist_ok=True)
+        logger.info(f"Rank 0: Ensured results directory exists: {results_dir}")
     pc.barrier()  # Ensure directory is created by rank 0 before other ranks might proceed
-
-    logger.info(1)
 
     # Load the simulation configuration
     with open(simulation_config) as f:
         simulation_config_dict = json.load(f)
 
-    logger.info(2)
-
     sim = CircuitSimulation(simulation_config)
-    logger.info(3)
     logger.info(
         f"Rank {rank}: CircuitSimulation object created for {simulation_config}"
     )
@@ -62,6 +57,8 @@ def run_circuit_simulation(simulation_config, cell_ids, pc, rank, logger):
         f"Rank {rank}: Starting simulation run for t_stop = {t_stop} ms, dt = {dt} ms."
     )
     sim_run_start_time = time.perf_counter()
+    sim.run(t_stop=t_stop / 2)
+    logger.info("Starting the second half of the simulation...")
     sim.run(t_stop=t_stop)
     sim_run_end_time = time.perf_counter()
     logger.info(
@@ -136,7 +133,8 @@ def run_circuit_simulation(simulation_config, cell_ids, pc, rank, logger):
             axs_list[i].grid()
         plt.tight_layout()
 
-        plot_filename = f"{results_dir}/{circuit_folder_name}.png"
+        # plot_filename = f"{results_dir}/{circuit_folder_name}file.png"
+        plot_filename = f"{results_dir}/voltage-trace.png"
         plt.savefig(plot_filename, dpi=300, bbox_inches="tight", facecolor="w")
         plt.close(fig)
         logger.info(f"Rank 0: Saved plot for {len(cell_ids)} cells to {plot_filename}")
@@ -192,7 +190,11 @@ def run_circuit_simulation(simulation_config, cell_ids, pc, rank, logger):
                     cid_tuple
                 )  # Re-fetch or ensure data is gathered if needed
                 if voltage_mv_nwb is not None:
-                    voltage_v = voltage_mv_nwb / 1000.0  # Convert mV to Volts
+                    voltage_v = H5DataIO(
+                        data=(voltage_mv_nwb / 1000.0),  # Convert mV to Volts
+                        compression="gzip",
+                        compression_opts=9,
+                    )
 
                     intracellular_electrode = IntracellularElectrode(
                         name=f"electrode_{cid_tuple[0]}_{cid_tuple[1]}",

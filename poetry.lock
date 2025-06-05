@@ -127,14 +127,14 @@ uvloop = ["uvloop (>=0.15.2)"]
 
 [[package]]
 name = "bluecellulab"
-version = "2.6.50"
+version = "2.6.51"
 description = "Biologically detailed neural network simulations and analysis."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "bluecellulab-2.6.50-py3-none-any.whl", hash = "sha256:59465b1a3ad246bf3a34f34fb3e325135e6660257c4f9b7c8fa204d28addf38b"},
-    {file = "bluecellulab-2.6.50.tar.gz", hash = "sha256:4d5d72c995d89c2e1592eecfd7626ff89846e1014855b1c48544c51b0abe9c24"},
+    {file = "bluecellulab-2.6.51-py3-none-any.whl", hash = "sha256:da3ab7077b5569371b26bc352323953c8bb89ea71940d8f5d411e176af15b3d1"},
+    {file = "bluecellulab-2.6.51.tar.gz", hash = "sha256:62bc7421fb850ef3279269e81af16665e41d2b6d5b196a6726a62a40be94e2e8"},
 ]
 
 [package.dependencies]
