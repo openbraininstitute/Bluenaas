@@ -61,7 +61,7 @@ def run_simulation(
             if realtime is True:
                 _job, stream = dispatch(
                     job_queue,
-                    JobFn.RUN_SINGLE_NEURON_SIMULATION,
+                    JobFn.RUN_SINGLE_CELL_SIMULATION,
                     job_kwargs={
                         "org_id": virtual_lab_id,
                         "project_id": project_id,
@@ -129,7 +129,7 @@ def _submit_background_simulation(
     )
     # Step 2: Add background task to process simulation
     job_queue.enqueue(
-        JobFn.RUN_SINGLE_NEURON_SIMULATION,
+        JobFn.RUN_SINGLE_CELL_SIMULATION,
         kwargs={
             "org_id": org_id,
             "project_id": project_id,

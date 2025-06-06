@@ -1,7 +1,7 @@
 import asyncio
 from multiprocessing.process import BaseProcess
 from multiprocessing.synchronize import Event
-from typing import AsyncGenerator, AsyncIterator
+from typing import AsyncIterator
 from fastapi.responses import StreamingResponse
 from fastapi import Request
 from loguru import logger

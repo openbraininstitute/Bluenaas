@@ -1,6 +1,6 @@
 from app.infrastructure.rq import JobQueue, queue_factory
 from app.services.api.single_cell.morphology import get_morphology_stream
-from app.services.morphology_dendrogram import get_single_morphology_dendrogram
+from app.services.api.single_cell.morphology import get_morphology_dendrogram
 from fastapi import APIRouter, Depends, Query, Request
 from rq import Queue
 
