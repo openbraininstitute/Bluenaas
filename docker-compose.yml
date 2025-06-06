@@ -1,5 +1,5 @@
 services:
-  bluenaas-api:
+  simulation-api:
     env_file: "./.env.local"
     build:
       dockerfile: Dockerfile.api
@@ -13,12 +13,12 @@ services:
     develop:
       watch:
         - action: sync+restart
-          path: ./bluenaas
-          target: /app/bluenaas
+          path: ./app
+          target: /app/app
         - action: rebuild
           path: poetry.lock
     volumes:
-      - ${PWD}/.model-cache:/opt/bluenaas/models
+      - ${PWD}/.model-cache:/app/storage/models
     ports:
       - "8001:8000"
     depends_on:
@@ -26,37 +26,36 @@ services:
         condition: service_healthy
     platform: linux/amd64
 
-  bluenaas-worker:
-    env_file: "./.env.local"
-    build:
-      dockerfile: Dockerfile.worker
-      platforms:
-        - linux/amd64
-    deploy:
-      mode: replicated
-      replicas: 1
-    environment:
-      DEBUG: True
-      PYTHONUNBUFFERED: 1
-      ACCOUNTING_DISABLED: 1
-      REDIS_URL: redis://redis:6379/0
-    develop:
-      watch:
-        - action: sync+restart
-          path: ./bluenaas
-          target: /app/bluenaas
-        - action: rebuild
-          path: poetry.lock
-    volumes:
-      - ${PWD}/.model-cache:/opt/bluenaas/models
-    depends_on:
-      redis:
-        condition: service_healthy
-    platform: linux/amd64
+  # simulation-worker:
+  #   env_file: "./.env.local"
+  #   build:
+  #     dockerfile: Dockerfile.worker
+  #     platforms:
+  #       - linux/amd64
+  #   deploy:
+  #     mode: replicated
+  #     replicas: 1
+  #   environment:
+  #     DEBUG: True
+  #     PYTHONUNBUFFERED: 1
+  #     ACCOUNTING_DISABLED: 1
+  #     REDIS_URL: redis://redis:6379/0
+  #   develop:
+  #     watch:
+  #       - action: sync+restart
+  #         path: ./app
+  #         target: /app/app
+  #       - action: rebuild
+  #         path: poetry.lock
+  #   volumes:
+  #     - ${PWD}/.model-cache:/app/storage/models
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   platform: linux/amd64
 
   redis:
     image: redis:8-alpine
-    container_name: bluenaas-redis
     ports:
       - "6379:6379"
     command: redis-server
