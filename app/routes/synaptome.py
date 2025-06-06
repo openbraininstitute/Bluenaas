@@ -11,7 +11,7 @@ from app.domains.morphology import (
 )
 from app.external.entitycore.service import ProjectContextDep
 from app.infrastructure.kc.auth import Auth, verify_jwt
-from app.services.synapses_placement import generate_synapses_placement
+from app.services.api.single_cell.synapse import generate_synapses
 
 router = APIRouter(prefix="/synaptome")
 
@@ -27,7 +27,7 @@ def place_synapses(
     model_id: str = Query(),
     auth: Auth = Depends(verify_jwt),
 ) -> SynapsePlacementResponse | None:
-    return generate_synapses_placement(
+    return generate_synapses(
         model_id=model_id,
         token=auth.token,
         params=params,

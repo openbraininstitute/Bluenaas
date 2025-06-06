@@ -5,7 +5,7 @@ Exposes an endpoint (`/generate-placement`) to generate synapse placements based
 
 from fastapi import APIRouter, Body, Depends
 from app.infrastructure.kc.auth import verify_jwt, Auth
-from app.services.api.single_cell.validate_synapse_formula import (
+from app.services.api.single_cell.synapse import (
     validate_synapse_generation_formula,
 )
 from app.domains.morphology import (
