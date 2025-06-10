@@ -4,6 +4,8 @@ services:
     image: "${IMAGE_NAME}:api-${IMAGE_TAG}"
     build:
       dockerfile: Dockerfile.api
+      args:
+        - ENVIRONMENT
     environment:
       DEBUG: True
       PYTHONUNBUFFERED: 1
@@ -29,6 +31,8 @@ services:
     image: "${IMAGE_NAME}:worker-${IMAGE_TAG}"
     build:
       dockerfile: Dockerfile.worker
+      args:
+        - ENVIRONMENT
       platforms:
         - linux/amd64
     deploy:
