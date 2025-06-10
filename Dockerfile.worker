@@ -1,51 +1,69 @@
-FROM python:3.12-slim
+ARG UV_VERSION=0.7
+ARG PYTHON_VERSION=3.12
+ARG PYTHON_BASE=${PYTHON_VERSION}-slim
 
+# uv stage
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
+
+# build stage
+FROM python:$PYTHON_BASE AS builder
 SHELL ["bash", "-e", "-x", "-o", "pipefail", "-c"]
 
-RUN pip install poetry==2.1.3
+COPY --from=uv /uv /usr/local/bin/uv
 
-RUN ldd --version
-
-ENV POETRY_NO_INTERACTION=1 \
-  POETRY_VIRTUALENVS_IN_PROJECT=1 \
-  POETRY_VIRTUALENVS_CREATE=1 \
-  POETRY_CACHE_DIR=/tmp/bluenaas-cache
+ENV UV_LINK_MODE=copy \
+  UV_COMPILE_BYTECODE=1 \
+  UV_PYTHON_DOWNLOADS=never \
+  UV_PYTHON=python${PYTHON_VERSION}
 
 WORKDIR /app
+
+# TODO: remove what's not needed
+RUN apt-get update \
+  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev libhdf5-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+  --mount=type=bind,source=uv.lock,target=uv.lock \
+  --mount=type=bind,source=pyproject.toml,target=pyproject.toml <<EOT
+if [ "${ENVIRONMENT}" = "prod" ]; then
+  uv sync --locked --no-install-project --no-dev --group worker
+elif [ "${ENVIRONMENT}" = "dev" ]; then
+  uv sync --locked --no-install-project --group worker
+else
+  echo "Invalid ENVIRONMENT"; exit 1
+fi
+EOT
+
+# run stage
+FROM python:$PYTHON_BASE
+SHELL ["bash", "-e", "-x", "-o", "pipefail", "-c"]
+
+# TODO: remove what's not needed
+RUN apt-get update \
+  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev libhdf5-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN <<EOT
 groupadd -r app
 useradd -r -d /app -g app -N app
 EOT
 
-RUN apt-get update \
-  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev libhdf5-dev \
-  && rm -rf /var/lib/apt/lists/*
-
-COPY --chown=app:app pyproject.toml poetry.lock ./
-
-RUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --no-root --only main --no-interaction
-
-# RUN pip install --upgrade pip setuptools wheel setuptools-scm
-# RUN pip install --no-binary=libsonata libsonata
-
-RUN mkdir -p /opt/bluenaas/models
-
-RUN chown -R app:app /app
-
-ENV VIRTUAL_ENV=/app/.venv \
-  PATH="/app/.venv/bin:$PATH"
-
 USER app
+WORKDIR /app
 
-COPY --chown=app:app ./bluenaas /app/bluenaas
+RUN mkdir -p /app/storage/models
+RUN mkdir -p /app/storage/results
 
-COPY --chown=app:app ./circuit_model /app/circuit_model
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH="/app:$PYTHONPATH"
 
-RUN python -m compileall ./bluenaas
+COPY --chown=app:app --from=builder /app/.venv/ .venv
+COPY --chown=app:app app/ ./app
+COPY --chown=app:app circuit_model/ /app/circuit_model
 
-EXPOSE 8000
+RUN python -m compileall .
 
 STOPSIGNAL SIGINT
-# CMD ["rq", "worker", "-w", "rq.worker.SpawnWorker", "high", "default", "low"]
+
 CMD ["rq", "worker", "high", "default", "low"]

@@ -41,8 +41,8 @@ from app.external.entitycore.service import (
     fetch_one,
 )
 from app.external.nexus.nexus import Nexus
+from app.utils.storage import get_single_cell_location
 from app.utils.util import (
-    get_model_path,
     get_sections,
     get_segments_satisfying_all_exclusion_rules,
     perpendicular_vector,
@@ -101,7 +101,7 @@ class Model:
 
         model_uuid = helper.get_model_uuid()
 
-        model_path = get_model_path(model_uuid)
+        model_path = get_single_cell_location(model_uuid)
         done_file = model_path / "done"
 
         if not done_file.exists():

@@ -304,10 +304,12 @@ code-workspace.json
 .history
 .ionide
 
-# ME-model cache
-.model-cache
+# Shared storage to persist single-cell/circuit models and simulation results
+app-storage/
 
 .python-version
 openapi.json
 notes.md
 _schemas.py
+
+circuit-model/

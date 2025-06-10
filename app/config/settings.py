@@ -1,4 +1,5 @@
 from os import getenv
+from pathlib import Path
 from typing import Literal, Self, TypeGuard, get_args
 
 from dotenv import load_dotenv
@@ -46,6 +47,8 @@ class Settings(BaseSettings):
     ACCOUNTING_DISABLED: str | None = None
 
     REDIS_URL: str = "redis://localhost:6379/0"
+
+    STORAGE_PATH: Path = Path("/app/storage")
 
     @model_validator(mode="after")
     def validate_accounting_config(self) -> Self:

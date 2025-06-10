@@ -1,3 +1,3 @@
 STOP_MESSAGE = "__STOP__"
 
-MAX_TASK_DURATION = 20 * 60  # 20 minutes
+MAX_JOB_DURATION = 20 * 60  # 20 minutes

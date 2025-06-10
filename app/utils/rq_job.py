@@ -1,10 +1,13 @@
+import time
 from typing import Any, AsyncGenerator, Callable, TypeVar
 from uuid import uuid4
-from rq.job import Job
-from rq import Queue
 
-from app.utils.streaming import compose_key
+from rq import Queue
+from rq.job import Job
+
+from app.constants import MAX_JOB_DURATION
 from app.infrastructure.redis.async_redis import redis_stream_reader
+from app.utils.streaming import compose_key
 
 FunctionReferenceType = TypeVar("FunctionReferenceType", str, Callable[..., Any])
 
@@ -31,3 +34,36 @@ def dispatch(
     )
 
     return job, stream
+
+
+def wait_for_job(
+    job: Job, timeout: float = MAX_JOB_DURATION, poll_interval: float = 1
+) -> Any:
+    """
+    Wait for an RQ job to finish with a timeout.
+
+    Args:
+        job: The RQ job to wait for
+        timeout: Maximum time to wait in seconds
+        poll_interval: How often to check job status in seconds
+
+    Returns:
+        The job result if successful
+
+    Raises:
+        TimeoutError: If the job doesn't complete within the timeout
+        Exception: If the job fails, the original exception is re-raised
+    """
+    start_time = time.time()
+
+    while time.time() - start_time < timeout:
+        job.refresh()
+
+        if job.is_finished:
+            return job.result
+        elif job.is_failed:
+            raise job.exc_info
+
+        time.sleep(poll_interval)
+
+    raise TimeoutError(f"Job {job.id} did not complete within {timeout} seconds")

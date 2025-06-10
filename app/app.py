@@ -15,12 +15,13 @@ from app.core.exceptions import (
     BlueNaasErrorCode,
     BlueNaasErrorResponse,
 )
-from app.routes.entitycore import entitycore_router
+from app.routes.circuit import router as circuit_router
+
+# from app.routes.entitycore import entitycore_router
 from app.routes.graph_data import router as graph_router
 from app.routes.morphology import router as morphology_router
 from app.routes.neuron_model import router as neuron_model_router
 from app.routes.simulation import router as simulation_router
-from app.routes.circuit import router as circuit_router
 from app.routes.synaptome import router as synaptome_router
 from app.routes.validation import router as validation_router
 
