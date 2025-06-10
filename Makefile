@@ -5,7 +5,7 @@ export ENVIRONMENT ?= dev
 # export APP_VERSION := $(shell git describe --abbrev --dirty --always --tags)
 # export COMMIT_SHA := $(shell git rev-parse HEAD)
 # export IMAGE_NAME ?= $(APP_NAME)
-export IMAGE_TAG := "staging"
+export IMAGE_TAG := staging
 # export IMAGE_TAG_ALIAS := latest
 # ifneq ($(ENVIRONMENT), prod)
 # 	export IMAGE_TAG := $(IMAGE_TAG)-$(ENVIRONMENT)
