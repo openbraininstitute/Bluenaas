@@ -163,7 +163,7 @@ def run_circuit_simulation(simulation_config, cell_ids, pc, rank, logger):
         )
 
         nwbfile = NWBFile(
-            session_description=f'Circuit simulation for {len(cell_ids)} cells of {circuit_folder_name}. Config: {simulation_config.name if simulation_config else "N/A"}',
+            session_description=f"Circuit simulation for {len(cell_ids)} cells of {circuit_folder_name}. Config: {simulation_config.name if simulation_config else 'N/A'}",
             identifier=str(uuid.uuid4()),
             session_start_time=datetime.now(timezone.utc),
             experimenter="OBI User",
@@ -262,7 +262,7 @@ def main():
     logger.propagate = False
 
     overall_start_time = time.perf_counter()
-    logger.info("Starting run10cells_parallel.py script.")
+    logger.info("Starting mpi run script.")
 
     parser = argparse.ArgumentParser(
         description="Run BlueCelluLab SONATA simulation and save voltage plots."
@@ -325,15 +325,15 @@ def main():
     # Calculate which cells this rank should handle
     cells_per_rank = args.num_cells // nhost
     remainder = args.num_cells % nhost
-    
+
     # Distribute the remainder cells among the first 'remainder' ranks
     start_idx = rank * cells_per_rank + min(rank, remainder)
     end_idx = start_idx + cells_per_rank + (1 if rank < remainder else 0)
-    
+
     # Only create the cell IDs that this rank is responsible for
     cell_ids = [(args.node, args.start_gid + i) for i in range(start_idx, end_idx)]
     logger.info(f"Rank {rank}: Handling {len(cell_ids)} cells: {cell_ids}")
-    
+
     # Pass the save_voltage flag to the simulation
     run_circuit_simulation(args.config, cell_ids, pc, rank, logger)
 

@@ -2,19 +2,20 @@
 name = "bluenaas"
 version = "0.1.0"
 description = "Service to launch and manage single cell and small network neuron simulations"
+license = "Apache-2.0"
 authors = [
     "Open Brain Institute <info@openbraininstitute.org>",
 ]
 readme = "README.md"
 requires-python = "==3.12.*"
-license = {text = "Apache-2.0"}
+
 dependencies = [
     "loguru>=0.7.3",
-    "pydantic>=2.11.5",
+    "pandas>=2.3.0",
     "pydantic-settings>=2.9.1",
+    "pydantic>=2.11.5",
     "redis[hiredis]>=6.2.0",
     "rq>=2.3.3",
-    "pandas>=2.3.0",
     "sympy>=1.14.0",
 ]
 
@@ -26,9 +27,9 @@ api = [
     "sentry-sdk[fastapi]>=2.29.1",
 ]
 worker = [
-    "pynwb>=3.0.0",
     "bluecellulab>=2.6.51",
     "filelock>=3.18.0",
+    "pynwb>=3.0.0",
     "requests>=2.32.3",
 ]
 dev = [

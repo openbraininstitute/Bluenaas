@@ -3,10 +3,8 @@
 import json
 import re
 import subprocess
-from datetime import datetime
-from pathlib import Path
 from random import randint
-from typing import Optional, Any
+from typing import Any
 
 import numpy as np
 from loguru import logger as L
@@ -29,22 +27,6 @@ class NumpyAwareJSONEncoder(json.JSONEncoder):
 def is_spine(sec_name):
     """Check if "spine" suffix is present in section name."""
     return "spine" in sec_name
-
-
-def get_model_path(model_uuid: str) -> Path:
-    """Get model path."""
-    return Path("/app/models") / model_uuid[0] / model_uuid[1] / model_uuid
-
-
-def locate_model(model_uuid) -> Path | None:
-    """Locate model.
-
-    Returns:
-        pathlib.Path: path for the model folder or None if not found.
-    """
-    model_path = get_model_path(model_uuid)
-
-    return model_path if model_path.exists() else None
 
 
 def compile_mechanisms(model_path):

@@ -1,10 +1,9 @@
 services:
-  simulation-api:
-    env_file: "./.env.local"
+  api:
+    # env_file: "./.env.local"
+    image: "${IMAGE_NAME}:api-${IMAGE_TAG}"
     build:
       dockerfile: Dockerfile.api
-      platforms:
-        - linux/amd64
     environment:
       DEBUG: True
       PYTHONUNBUFFERED: 1
@@ -18,41 +17,41 @@ services:
         - action: rebuild
           path: poetry.lock
     volumes:
-      - ${PWD}/.model-cache:/app/storage/models
+      - ${PWD}/.app-storage:/app/storage
     ports:
       - "8001:8000"
     depends_on:
       redis:
         condition: service_healthy
-    platform: linux/amd64
 
-  # simulation-worker:
-  #   env_file: "./.env.local"
-  #   build:
-  #     dockerfile: Dockerfile.worker
-  #     platforms:
-  #       - linux/amd64
-  #   deploy:
-  #     mode: replicated
-  #     replicas: 1
-  #   environment:
-  #     DEBUG: True
-  #     PYTHONUNBUFFERED: 1
-  #     ACCOUNTING_DISABLED: 1
-  #     REDIS_URL: redis://redis:6379/0
-  #   develop:
-  #     watch:
-  #       - action: sync+restart
-  #         path: ./app
-  #         target: /app/app
-  #       - action: rebuild
-  #         path: poetry.lock
-  #   volumes:
-  #     - ${PWD}/.model-cache:/app/storage/models
-  #   depends_on:
-  #     redis:
-  #       condition: service_healthy
-  #   platform: linux/amd64
+  worker:
+    # env_file: "./.env.local"
+    image: "${IMAGE_NAME}:worker-${IMAGE_TAG}"
+    build:
+      dockerfile: Dockerfile.worker
+      platforms:
+        - linux/amd64
+    deploy:
+      mode: replicated
+      replicas: 1
+    environment:
+      DEBUG: True
+      PYTHONUNBUFFERED: 1
+      ACCOUNTING_DISABLED: 1
+      REDIS_URL: redis://redis:6379/0
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./app
+          target: /app/app
+        - action: rebuild
+          path: poetry.lock
+    volumes:
+      - ${PWD}/.app-storage:/app/storage
+    depends_on:
+      redis:
+        condition: service_healthy
+    platform: linux/amd64
 
   redis:
     image: redis:8-alpine
@@ -60,8 +59,8 @@ services:
       - "6379:6379"
     command: redis-server
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 1s
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 1s
+      timeout: 2s
+      retries: 15
+      start_period: 3s

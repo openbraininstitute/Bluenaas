@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 from app.core.types import FileObj
-from app.utils.util import get_model_path
+from app.utils.storage import get_single_cell_location
 
 RWX_TO_ALL = 0o777
 
@@ -20,15 +20,16 @@ class Service:
             f.write(content)
 
     def copy_file_content(self, source_file: Path, target_file: Path):
-        with open(source_file, "r") as src, open(
-            target_file, "w", opener=opener
-        ) as dst:
+        with (
+            open(source_file, "r") as src,
+            open(target_file, "w", opener=opener) as dst,
+        ):
             dst.write(src.read())
 
     def create_model_folder(
         self, hoc_file: str, morphology_obj: FileObj, mechanisms: list[FileObj]
     ):
-        output_dir = get_model_path(self.model_uuid)
+        output_dir = get_single_cell_location(self.model_uuid)
 
         self.create_file(output_dir / "cell.hoc", hoc_file)
 

@@ -14,3 +14,9 @@ class JobFn(StrEnum):
         "app.job.handlers.single_cell.simulation.run_single_neuron_simulation"
     )
     GENERATE_SYNAPSES = "app.job.handlers.single_cell.synapse.generate_synapses"
+    RUN_CIRCUIT_SIMULATION = (
+        "app.job.handlers.circuit.simulation.run_circuit_simulation"
+    )
+    SETUP_SIMULATION_RESOURCES = (
+        "app.job.handlers.single_cell.simulation_resources.setup_simulation_resources"
+    )

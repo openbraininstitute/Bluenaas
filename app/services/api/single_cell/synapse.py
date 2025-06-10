@@ -12,7 +12,7 @@ from app.domains.morphology import (
 from app.external.entitycore.service import ProjectContext
 from app.job import JobFn
 from app.utils.rq_job import dispatch
-from app.utils.streaming import x_ndjson_http_stream
+from app.utils.api.streaming import x_ndjson_http_stream
 
 
 def generate_synapses(

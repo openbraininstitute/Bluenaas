@@ -1,22 +1,16 @@
-"""
-Simulation Routes
-contains the single neuron simulation endpoint (single neuron, single neuron with synaptome)
-"""
-
 from fastapi import APIRouter, Depends, Request
 
 from rq import Queue
 
 from app.infrastructure.kc.auth import verify_jwt, Auth
 from app.infrastructure.rq import JobQueue, queue_factory
-from app.services.circuit.simulation import (
+from app.services.api.circuit.simulation import (
     run_circuit_simulation as run_circuit_simulation_service,
 )
 
 router = APIRouter(prefix="/circuit")
 
 
-# @router.get("/circuit/{virtual_lab_id}/{project_id}/run", tags=["simulation"])
 @router.get("/simulation/run", tags=["simulation"])
 def run_circuit_simulation(
     request: Request,

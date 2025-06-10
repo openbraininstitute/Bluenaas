@@ -21,7 +21,13 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
   --mount=type=bind,source=uv.lock,target=uv.lock \
   --mount=type=bind,source=pyproject.toml,target=pyproject.toml <<EOT
+if [ "${ENVIRONMENT}" = "prod" ]; then
+  uv sync --locked --no-install-project --no-dev --group api
+elif [ "${ENVIRONMENT}" = "dev" ]; then
   uv sync --locked --no-install-project --group api
+else
+  echo "Invalid ENVIRONMENT"; exit 1
+fi
 EOT
 
 # run stage
@@ -45,9 +51,10 @@ ENV PYTHONPATH="/app:$PYTHONPATH"
 COPY --chown=app:app --from=builder /app/.venv/ .venv/
 COPY --chown=app:app app/ ./app
 
-RUN python -m compileall ./app
+RUN python -m compileall .
 
 EXPOSE 8000
 
 # STOPSIGNAL SIGINT
+
 CMD ["uvicorn", "app.app:app", "--port", "8000", "--host", "0.0.0.0"]

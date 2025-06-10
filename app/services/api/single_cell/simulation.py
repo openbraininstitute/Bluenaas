@@ -1,3 +1,5 @@
+# TODO: refactor this module
+
 from http import HTTPStatus as status
 
 from fastapi import Request
@@ -15,10 +17,9 @@ from app.domains.simulation import (
 from app.infrastructure.accounting.session import accounting_session_factory
 from app.infrastructure.kc.auth import Auth
 from app.job import JobFn
-from app.services.submit_simulaton.setup_resources import setup_simulation_resources
-from app.utils.rq_job import dispatch
+from app.utils.rq_job import dispatch, wait_for_job
 from app.utils.simulation import convert_to_simulation_response
-from app.utils.streaming import x_ndjson_http_stream
+from app.utils.api.streaming import x_ndjson_http_stream
 
 
 def run_simulation(
@@ -110,19 +111,36 @@ def _submit_background_simulation(
     config: SingleNeuronSimulationConfig,
     token: str,
 ):
-    (
-        me_model_self,
-        synaptome_model_self,
-        _stimulus_plot_data,
-        sim_response,
-        simulation_resource,
-    ) = setup_simulation_resources(
+    # (
+    #     me_model_self,
+    #     synaptome_model_self,
+    #     _stimulus_plot_data,
+    #     sim_response,
+    #     simulation_resource,
+    # ) = setup_simulation_resources(
+    #     token,
+    #     model_self,
+    #     org_id,
+    #     project_id,
+    #     config,
+    # )
+
+    setup_job = job_queue.enqueue(
+        JobFn.SETUP_SIMULATION_RESOURCES,
         token,
         model_self,
         org_id,
         project_id,
         config,
     )
+
+    (
+        me_model_self,
+        synaptome_model_self,
+        _stimulus_plot_data,
+        sim_response,
+        simulation_resource,
+    ) = wait_for_job(setup_job)
 
     logger.debug(
         f"Submitting simulation task for resource {simulation_resource['_self']}"
