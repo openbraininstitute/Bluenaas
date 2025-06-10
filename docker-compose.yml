@@ -1,11 +1,12 @@
 services:
   api:
     # env_file: "./.env.local"
-    image: "${IMAGE_NAME}:api-${IMAGE_TAG}"
+    image: "${IMAGE_NAME}:api-${IMAGE_TAG_SUFFIX}"
     build:
       dockerfile: Dockerfile.api
       args:
         - ENVIRONMENT
+        - IMAGE_TAG_SUFFIX
     environment:
       DEBUG: True
       PYTHONUNBUFFERED: 1
@@ -28,11 +29,12 @@ services:
 
   worker:
     # env_file: "./.env.local"
-    image: "${IMAGE_NAME}:worker-${IMAGE_TAG}"
+    image: "${IMAGE_NAME}:worker-${IMAGE_TAG_SUFFIX}"
     build:
       dockerfile: Dockerfile.worker
       args:
         - ENVIRONMENT
+        - IMAGE_TAG_SUFFIX
       platforms:
         - linux/amd64
     deploy:
