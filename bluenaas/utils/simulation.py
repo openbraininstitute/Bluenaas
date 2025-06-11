@@ -36,7 +36,7 @@ def get_simulation_type(
 def get_nexus_simulation_type(sim_type: SimulationType) -> NexusSimulationType:
     sim_types_to_nexus_types = {v: k for k, v in SIMULATION_TYPE_MAP.items()}
     if sim_type in sim_types_to_nexus_types:
-        return sim_types_to_nexus_types[sim_type]
+        return sim_types_to_nexus_types[sim_type]  # type:ignore
     else:
         raise ValueError(f"Unsupported simulation type {sim_type}")
 

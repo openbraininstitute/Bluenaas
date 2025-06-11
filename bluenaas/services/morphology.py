@@ -1,19 +1,22 @@
 import json
+import multiprocessing as mp
 import re
 import signal
-import multiprocessing as mp
-from multiprocessing.synchronize import Event
-from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup
-from loguru import logger
 from http import HTTPStatus as status
+from multiprocessing.synchronize import Event
 from queue import Empty as QueueEmptyException
+
+from loguru import logger
+
 from bluenaas.core.exceptions import (
     BlueNaasError,
     BlueNaasErrorCode,
     MorphologyGenerationError,
 )
 from bluenaas.core.model import model_factory
+from bluenaas.external.entitycore.service import ProjectContext
 from bluenaas.utils.const import QUEUE_STOP_EVENT
+from bluenaas.utils.streaming import StreamingResponseWithCleanup, cleanup
 
 
 def _build_morphology(
@@ -21,8 +24,10 @@ def _build_morphology(
     token: str,
     queue: mp.Queue,
     stop_event: Event,
+    entitycore: bool = False,
+    project_context: ProjectContext | None = None,
 ):
-    def stop_process():
+    def stop_process(signum: int, frame) -> None:
         stop_event.set()
 
     signal.signal(signal.SIGTERM, stop_process)
@@ -32,8 +37,14 @@ def _build_morphology(
         model = model_factory(
             model_id=model_id,
             hyamp=None,
+            entitycore=entitycore,
             bearer_token=token,
+            project_context=project_context,
         )
+
+        if not model.CELL:
+            raise RuntimeError(f"Model hasn't been initialized: {model_id}")
+
         morphology = model.CELL.get_cell_morph()
         morph_str = json.dumps(morphology)
         chunks: list[str] = re.findall(r".{1,100000}", morph_str)
@@ -57,6 +68,8 @@ def get_single_morphology(
     model_id: str,
     token: str,
     req_id: str,
+    entitycore: bool = False,
+    project_context: ProjectContext | None = None,
 ):
     try:
         ctx = mp.get_context("spawn")
@@ -71,6 +84,8 @@ def get_single_morphology(
                 token,
                 morpho_queue,
                 stop_event,
+                entitycore,
+                project_context,
             ),
             name=f"morphology_processor:{req_id}",
         )

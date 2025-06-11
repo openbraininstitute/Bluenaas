@@ -6,7 +6,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from random import randint
-from typing import Optional
+from typing import Optional, Any
 
 import numpy as np
 from loguru import logger as L
@@ -31,7 +31,7 @@ def is_spine(sec_name):
     return "spine" in sec_name
 
 
-def get_model_path(model_uuid) -> Path:
+def get_model_path(model_uuid: str) -> Path:
     """Get model path."""
     return Path("/opt/blue-naas/models") / model_uuid[0] / model_uuid[1] / model_uuid
 
@@ -125,7 +125,7 @@ def convert_numpy_dict_to_standard_dict(numpy_dict):
     return standard_dict
 
 
-def get_sections(cell) -> tuple[list, dict[str, LocationData]]:
+def get_sections(cell) -> tuple[list, dict[str, dict[str, Any]]]:  # TODO improve type
     from neuron import h
 
     """Get section segment cylinders and spines."""
@@ -137,7 +137,7 @@ def get_sections(cell) -> tuple[list, dict[str, LocationData]]:
     for sec_idx, sec in enumerate(cell.sections.values()):
         sec_name = get_sec_name(cell.hocname, sec)
         # sec_pre = cell.get_psection(section_id=sec_name).hsection
-        sec_data = {"index": sec_idx}
+        sec_data: dict[str, Any] = {"index": sec_idx}  # TODO Type
         sec_data["name"] = sec_name
 
         # We need to save the `isec` of a section because BlueCelluLab does not accept a string as POST_SECTION_ID when `add_replay_synapse` is called
@@ -313,7 +313,11 @@ def get_syns(nrn, path, template_name, all_sec_map):
         for synapse in synapses_meta[synapse_type]:
             if hasattr(nrn.h, synapse):
                 for syn in getattr(nrn.h, synapse):
-                    id_ = re.search(r"\[(\d+)\]", str(syn)).group(1)
+                    match = re.search(r"\[(\d+)\]", str(syn))
+                    if not match:
+                        continue
+
+                    id_ = match.group(1)
                     seg = syn.get_segment()
                     sec = seg.sec
                     sec_name = get_sec_name(template_name, sec)
@@ -415,9 +419,7 @@ def project_vector(v1: np.ndarray, v2: np.ndarray) -> np.ndarray:
     return projection_vector
 
 
-def generate_pre_spiketrain(
-    duration: float, delay: float, frequencies: list[float]
-) -> np.array:
+def generate_pre_spiketrain(duration: float, delay: float, frequencies: list[float]):
     if len(frequencies) == 1 and frequencies[0] == 0:
         return np.array([])
 

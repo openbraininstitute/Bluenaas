@@ -22,7 +22,7 @@ def _build_morphology_dendrogram(
     queue: mp.Queue,
     stop_event: Event,
 ):
-    def stop_process():
+    def stop_process(signum: int, frame):
         stop_event.set()
 
     signal.signal(signal.SIGTERM, stop_process)
@@ -34,6 +34,10 @@ def _build_morphology_dendrogram(
             hyamp=None,
             bearer_token=token,
         )
+
+        if not model.CELL:
+            raise RuntimeError("Model not initialized")
+
         morphology_dendrogram = model.CELL.get_dendrogram()
         morph_dend_str = json.dumps(morphology_dendrogram)
 

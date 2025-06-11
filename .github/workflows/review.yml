@@ -1,4 +1,3 @@
-# TOOD: review just do linting and formatting for the moment
 name: Pre-merge Review
 
 on: [pull_request]
@@ -12,10 +11,8 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
       - name: Install dependencies
         run: pip install poetry && poetry install --sync
-      - name: Run formatting
-        run: make format
-      - name: Run linting
-        run: make lint
+      - name: Lint
+        run: make lint-all
