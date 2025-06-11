@@ -173,7 +173,14 @@ class EntityCore(Service):
                 project_context=self.project_context,
             )
 
-        return [self.model.holding_current or 0, self.model.threshold_current or 0.1]
+        return [
+            self.model.calibration_result
+            and self.model.calibration_result.holding_current
+            or 0,
+            self.model.calibration_result
+            and self.model.calibration_result.threshold_current
+            or 0.1,
+        ]
 
     def get_model_uuid(self):
         return str(self.model_id)
