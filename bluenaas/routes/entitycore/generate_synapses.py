@@ -3,7 +3,7 @@ Synapse Placement Generation:
 Exposes an endpoint (`/generate-placement`) to generate synapse placements based on user-provided parameters
 """
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Body, Depends, Query, Request
 
 from bluenaas.domains.morphology import (
     SynapsePlacementBody,
@@ -22,8 +22,8 @@ router = APIRouter(prefix="/synaptome")
 )
 def place_synapses(
     request: Request,
-    params: SynapsePlacementBody,
     project_context: ProjectContextDep,
+    params: SynapsePlacementBody = Body(...),
     model_id: str = Query(),
     auth: Auth = Depends(verify_jwt),
 ) -> SynapsePlacementResponse | None:
@@ -31,7 +31,7 @@ def place_synapses(
         model_id=model_id,
         token=auth.token,
         params=params,
-        is_entitycore=False,
+        is_entitycore=True,
         req_id=request.state.request_id,
         virtual_lab_id=str(project_context.virtual_lab_id),
         project_id=str(project_context.project_id),

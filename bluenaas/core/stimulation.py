@@ -7,7 +7,8 @@ import os
 import queue
 from enum import Enum, auto
 from multiprocessing.synchronize import Event
-from typing import Dict, NamedTuple
+from queue import Queue
+from typing import Any, Dict, NamedTuple
 
 import neuron
 import numpy as np
@@ -106,44 +107,48 @@ def _add_single_synapse(
     from bluecellulab.circuit.config.sections import Conditions  # type: ignore
     from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
 
-    condition_parameters = Conditions(
-        celsius=experimental_setup.celsius,
-        v_init=experimental_setup.vinit,
-        randomize_gaba_rise_time=True,
-    )
-    synid = SynapseID(f"{synapse['id']}", synapse["id"])
-    # A tuple containing source and target popids used by the random number generation.
-    # Should correspond to source_popid and target_popid
-    popids = (2126, 378)
-    connection_modifiers = {
-        "add_synapses": True,
-    }
+    try:
+        condition_parameters = Conditions(
+            celsius=experimental_setup.celsius,
+            v_init=experimental_setup.vinit,
+            randomize_gaba_rise_time=True,
+        )
+        synid = SynapseID(f"{synapse['id']}", synapse["id"])
+        # A tuple containing source and target popids used by the random number generation.
 
-    cell.add_replay_synapse(
-        synapse_id=synid,
-        syn_description=synapse["series"],
-        connection_modifiers=connection_modifiers,
-        condition_parameters=condition_parameters,
-        popids=popids,
-        extracellular_calcium=None,  # may not be value used in circuit
-    )
-    cell_synapse = cell.synapses[synid]
+        # Should correspond to source_popid and target_popid
+        popids = (2126, 378)
+        connection_modifiers = {
+            "add_synapses": True,
+        }
 
-    spike_train = generate_pre_spiketrain(
-        duration=synapse["synapseSimulationConfig"].duration,
-        delay=synapse["synapseSimulationConfig"].delay,
-        frequencies=synapse["frequencies_to_apply"],
-    )
-    spike_threshold = -900.0  # TODO: Synapse - How to get spike threshold
-    connection = Connection(
-        cell_synapse,
-        pre_spiketrain=None if len(spike_train) == 0 else spike_train,
-        pre_cell=None,
-        stim_dt=cell.record_dt,
-        spike_threshold=spike_threshold,
-        spike_location="soma[0]",
-    )
-    cell.connections[synid] = connection
+        cell.add_replay_synapse(
+            synapse_id=synid,
+            syn_description=synapse["series"],
+            connection_modifiers=connection_modifiers,
+            condition_parameters=condition_parameters,
+            popids=popids,
+            extracellular_calcium=None,  # may not be value used in circuit
+        )
+
+        cell_synapse = cell.synapses[synid]
+        spike_train = generate_pre_spiketrain(
+            duration=synapse["synapseSimulationConfig"].duration,
+            delay=synapse["synapseSimulationConfig"].delay,
+            frequencies=synapse["frequencies_to_apply"],
+        )
+        spike_threshold = -900.0  # TODO: Synapse - How to get spike threshold
+        connection = Connection(
+            cell_synapse,
+            pre_spiketrain=None if len(spike_train) == 0 else spike_train,
+            pre_cell=None,
+            stim_dt=cell.record_dt,
+            spike_threshold=spike_threshold,
+            spike_location="soma[0]",
+        )
+        cell.connections[synid] = connection
+    except Exception:
+        raise RuntimeError("Model not initialized")
 
 
 def _prepare_stimulation_parameters_by_current(
@@ -154,7 +159,7 @@ def _prepare_stimulation_parameters_by_current(
     synapse_generation_config: list[SynapseSeries] | None,
     conditions: ExperimentSetupConfig,
     simulation_duration: int,
-    simulation_queue: mp.Queue,
+    simulation_queue: Queue[Any],  # TODO Type narrow the queue
     threshold_based: bool = False,
     injection_segment: float = 0.5,
     cvode: bool = True,
@@ -193,6 +198,11 @@ def _prepare_stimulation_parameters_by_current(
     stimulus_name = current_injection.stimulus.stimulus_protocol
     amplitudes = current_injection.stimulus.amplitudes
     stimulus_name = get_stimulus_name(stimulus_name)
+
+    if not isinstance(amplitudes, list):
+        amplitudes = [amplitudes]
+
+    stimulus = None
 
     # Prepare arguments for each stimulus
     for amplitude in amplitudes:
@@ -311,7 +321,7 @@ def _prepare_stimulation_parameters_by_frequency(
     frequency_to_synapse_series: dict[float, list[SynapseSeries]],
     conditions: ExperimentSetupConfig,
     simulation_duration: int,
-    simulation_queue: mp.Queue,
+    simulation_queue: Queue[Any],  # TODO type
     threshold_based: bool = False,
     injection_segment: float = 0.5,
     cvode: bool = True,

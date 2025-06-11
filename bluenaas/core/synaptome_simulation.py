@@ -5,17 +5,21 @@ from bluenaas.utils.util import generate_pre_spiketrain
 
 
 def _add_single_synapse(
-    cell, synapse: SynapseSeries, conditions: ExperimentSetupConfig
+    cell, synapse: SynapseSeries, conditions: ExperimentSetupConfig | None
 ):
     from bluecellulab import Connection
     from bluecellulab.circuit.config.sections import Conditions  # type: ignore
     from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
 
-    condition_parameters = Conditions(
-        celsius=conditions.celsius,
-        v_init=conditions.vinit,
-        randomize_gaba_rise_time=True,
-    )
+    condition_parameters = None
+
+    if conditions:
+        condition_parameters = Conditions(
+            celsius=conditions.celsius,
+            v_init=conditions.vinit,
+            randomize_gaba_rise_time=True,
+        )
+
     synid = SynapseID(f"{synapse['id']}", synapse["id"])
     # A tuple containing source and target popids used by the random number generation.
     # Should correspond to source_popid and target_popid
@@ -63,7 +67,7 @@ def run_synaptome_simulation(
     recording_segment = recording_location[0].offset
 
     for synapse in synapse_series:
-        _add_single_synapse(cell, synapse)
+        _add_single_synapse(cell, synapse, None)
 
     cell.add_voltage_recording(
         section=recording_section,

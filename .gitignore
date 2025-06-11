@@ -291,11 +291,6 @@ pyrightconfig.json
 
 ### VisualStudioCode ###
 .vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-!.vscode/*.code-snippets
 code-workspace.json
 
 # Local History for Visual Studio Code
@@ -311,3 +306,8 @@ code-workspace.json
 
 # ME-model cache
 .model-cache
+
+.python-version
+openapi.json
+notes.md
+_schemas.py

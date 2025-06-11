@@ -64,6 +64,15 @@ class SimulationError(Exception):
         return self.message
 
 
+class SingleNeuronSynaptomeConfigurationError(Exception):
+    def __init__(self, message: str = "Configuration not found") -> None:
+        self.message = message
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        return self.message
+
+
 class ResourceDeprecationError(Exception):
     def __init__(self, message, response_data):
         super().__init__(message)

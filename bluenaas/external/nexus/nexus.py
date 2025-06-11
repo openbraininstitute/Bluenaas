@@ -1,8 +1,9 @@
 """Nexus module."""
 
 from datetime import datetime
+from typing import Optional, Sequence, Any
+import json
 import zipfile
-import os
 from pathlib import Path
 from urllib.parse import quote_plus, unquote, urlencode
 from loguru import logger
@@ -20,10 +21,9 @@ from bluenaas.domains.nexus import (
 from bluenaas.config.settings import settings
 from bluenaas.utils.ensure_list import ensure_list
 from bluenaas.utils.generate_id import generate_id
-from bluenaas.utils.util import get_model_path
 from bluenaas.core.exceptions import ResourceDeprecationError, SimulationError
-from typing import Optional, Sequence, Any
-import json
+from bluenaas.external.base import Service
+
 
 HTTP_TIMEOUT = 10  # seconds
 
@@ -32,7 +32,6 @@ defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-mode
 
 HOC_FORMATS = ["application/x-neuron-hoc", "application/neuron-hoc", "application/hoc"]
 
-RWX_TO_ALL = 0o777
 
 ENCODING_FORMAT_MAP = {
     "h5": "application/x-hdf5",
@@ -40,10 +39,6 @@ ENCODING_FORMAT_MAP = {
     "asc": "application/asc",
     "swc": "application/swc",
 }
-
-
-def opener(path, flags):
-    return os.open(path, flags, RWX_TO_ALL)
 
 
 def extract_org_project_from_id(url) -> dict[str, str | None]:
@@ -75,8 +70,8 @@ def construct_time_range(
     return "{}..{}".format(start_str, end_str)
 
 
-class Nexus:
-    """Nexus class to help downloading the emodel files needed for simulation."""
+class Nexus(Service):
+    """Nexus class to help download the emodel files needed for simulation."""
 
     # pylint: disable=missing-function-docstring
     def __init__(self, params):
@@ -491,38 +486,6 @@ class Nexus:
                     mechanism["content"],
                 )
 
-    def create_file(self, path, content):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8", opener=opener) as f:
-            f.write(content)
-
-    def copy_file_content(self, source_file: Path, target_file: Path):
-        with open(source_file, "r") as src, open(
-            target_file, "w", opener=opener
-        ) as dst:
-            dst.write(src.read())
-
-    def create_model_folder(self, hoc_file, morphology_obj, mechanisms):
-        output_dir = get_model_path(self.model_uuid)
-
-        self.create_file(output_dir / "cell.hoc", hoc_file)
-
-        morph_name = morphology_obj["name"]
-        self.create_file(
-            output_dir / "morphology" / morph_name, morphology_obj["content"]
-        )
-
-        for mechanism in mechanisms:
-            mech_name = mechanism["name"]
-            self.create_file(
-                output_dir / "mechanisms" / mech_name, mechanism["content"]
-            )
-
-        self.copy_file_content(
-            Path("/app/bluenaas/config/VecStim.mod"),
-            output_dir / "mechanisms" / "VecStim.mod",
-        )
-
     def get_emodel_resource(self, resource):
         if "MEModel" in resource["@type"]:
             logger.debug("Model is ME-Model")
@@ -576,7 +539,7 @@ class Nexus:
         self.create_model_folder(hoc_file, morphology_obj, mechanisms)
         logger.debug("E-Model folder created")
 
-    def get_currents(self):
+    def get_currents(self) -> list[float]:
         resource = self.fetch_resource_by_id(self.model_id)
         # TODO: this should be the right way to do it when analysis is ready
         # With the changes to ME-model shape
