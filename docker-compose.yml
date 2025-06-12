@@ -7,6 +7,9 @@ services:
       args:
         - ENVIRONMENT
         - IMAGE_TAG_SUFFIX
+      platforms:
+        - linux/amd64
+        - linux/arm64
     environment:
       DEBUG: True
       PYTHONUNBUFFERED: 1
@@ -26,6 +29,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    platform: linux/amd64
 
   worker:
     # env_file: "./.env.local"

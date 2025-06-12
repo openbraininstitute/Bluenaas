@@ -18,6 +18,7 @@ def dispatch(
     job_args: tuple = (),
     job_kwargs: dict = {},
     job_id: str | None = None,
+    timeout: int = MAX_JOB_DURATION,
 ) -> tuple[Job, AsyncGenerator[Any, Any]]:
     if job_id is None:
         job_id = str(uuid4())
@@ -31,13 +32,14 @@ def dispatch(
         *job_args,
         **job_kwargs,
         job_id=job_id,
+        job_timeout=timeout,
     )
 
     return job, stream
 
 
 def wait_for_job(
-    job: Job, timeout: float = MAX_JOB_DURATION, poll_interval: float = 1
+    job: Job, timeout: int = MAX_JOB_DURATION, poll_interval: float = 1
 ) -> Any:
     """
     Wait for an RQ job to finish with a timeout.
