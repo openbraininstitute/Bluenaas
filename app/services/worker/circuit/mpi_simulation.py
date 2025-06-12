@@ -39,6 +39,8 @@ def run_circuit_simulation(simulation_config, cell_ids, pc, rank, logger):
     with open(simulation_config) as f:
         simulation_config_dict = json.load(f)
 
+    logger.info(f"Rank {rank}: Loaded simulation configuration: {simulation_config}")
+
     sim = CircuitSimulation(simulation_config)
     logger.info(
         f"Rank {rank}: CircuitSimulation object created for {simulation_config}"
@@ -158,9 +160,7 @@ def run_circuit_simulation(simulation_config, cell_ids, pc, rank, logger):
         logger.info(f"Rank 0: Preparing to save {len(cell_ids)} cells to NWB file...")
 
         # Write the NWB file
-        nwb_filename = (
-            f"{results_dir}/{circuit_folder_name}_num_cells={len(cell_ids)}.nwb"
-        )
+        nwb_filename = f"{results_dir}/trace.nwb"
 
         nwbfile = NWBFile(
             session_description=f"Circuit simulation for {len(cell_ids)} cells of {circuit_folder_name}. Config: {simulation_config.name if simulation_config else 'N/A'}",

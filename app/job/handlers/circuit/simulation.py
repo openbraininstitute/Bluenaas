@@ -28,8 +28,7 @@ def run_circuit_simulation():
     subprocess.run(compile_cmd.split(" "), cwd=f"{cwd}/circuit_model")
 
     stream(stream_key, json.dumps({"status": "running"}))
-    run_cmd = f"mpiexec -n {num_cores} python3 {cwd}/bluenaas/services/circuit/run-sim-mpi-entrypoint.py --config {config} --node {node} --start_gid {start_gid} --num_cells {num_cells}"
-    # run_cmd = f"mpiexec -n {num_cores} python3 /app/bluenaas/services/circuit/test.py --config {config} --node {nodes} --start_gid {start_gid} --num_cells {num_cells}"
+    run_cmd = f"mpiexec -n {num_cores} python {cwd}/app/services/worker/circuit/mpi_simulation.py --config {config} --node {node} --start_gid {start_gid} --num_cells {num_cells}"
 
     subprocess.run(run_cmd, cwd=f"{cwd}/circuit_model", shell=True)
     stream(stream_key, json.dumps({"status": "done"}))

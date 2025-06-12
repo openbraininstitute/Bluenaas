@@ -7,7 +7,7 @@ MAX_REDIS_CONNECTIONS = 20
 connection_pool = ConnectionPool.from_url(
     settings.REDIS_URL, max_connections=MAX_REDIS_CONNECTIONS
 )
-redis_client = Redis(connection_pool=connection_pool, decode_responses=True)
+redis_client = Redis(connection_pool=connection_pool)
 
 
 def stream(stream_key: str, data: str) -> None:

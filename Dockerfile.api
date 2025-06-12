@@ -43,8 +43,7 @@ EOT
 USER app
 WORKDIR /app
 
-RUN mkdir -p /app/storage/models
-RUN mkdir -p /app/storage/results
+RUN mkdir -p /app/storage
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app:$PYTHONPATH"

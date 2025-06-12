@@ -1,3 +1,5 @@
 STOP_MESSAGE = "__STOP__"
 
-MAX_JOB_DURATION = 20 * 60  # 20 minutes
+MAX_JOB_DURATION: int = 20 * 60  # 20 minutes
+
+DEFAULT_CIRCUIT_ID = "dcfa7322-e935-41fa-9807-b1b185f110fc"

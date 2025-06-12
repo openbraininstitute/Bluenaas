@@ -34,6 +34,8 @@ elif [ "${ENVIRONMENT}" = "dev" ]; then
 else
   echo "Invalid ENVIRONMENT"; exit 1
 fi
+# TODO: explain why this is needed
+uv pip install --force-reinstall https://files.pythonhosted.org/packages/71/30/5498b6838cfac205f836bcb4dd906a9495f7ea46bd844ca8bd56ea46bf63/libsonata-0.1.29-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 EOT
 
 # run stage
@@ -53,15 +55,22 @@ EOT
 USER app
 WORKDIR /app
 
-RUN mkdir -p /app/storage/models
-RUN mkdir -p /app/storage/results
+RUN mkdir -p /app/storage
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app:$PYTHONPATH"
 
 COPY --chown=app:app --from=builder /app/.venv/ .venv
 COPY --chown=app:app app/ ./app
-COPY --chown=app:app circuit_model/ /app/circuit_model
+
+# TODO: remove once entitycore API is integrated
+# ADD circuit_model.tar.xz /app/circuit_model
+# RUN chown  -R app:app /app/circuit_model
+# --mount=type=bind,source=uv.lock,target=uv.lock \
+RUN --mount=type=bind,source=circuit_model.tar.gz,target=circuit_model.tar.gz <<EOT
+  tar --no-same-owner --owner=app --group=app \
+    -xzf circuit_model.tar.gz -C .
+EOT
 
 RUN python -m compileall .
 
