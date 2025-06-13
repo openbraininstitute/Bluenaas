@@ -50,6 +50,8 @@ class Settings(BaseSettings):
 
     STORAGE_PATH: Path = Path("/app/storage")
 
+    MAX_JOB_DURATION: int = 20 * 60  # 20 minutes
+
     @model_validator(mode="after")
     def validate_accounting_config(self) -> Self:
         if not self.ACCOUNTING_DISABLED and not self.ACCOUNTING_BASE_URL:

@@ -12,7 +12,7 @@ router = APIRouter(prefix="/circuit")
 
 
 @router.get("/simulation/run", tags=["simulation"])
-def run_circuit_simulation(
+async def run_circuit_simulation(
     request: Request,
     # virtual_lab_id: str,
     # project_id: str,
@@ -20,4 +20,4 @@ def run_circuit_simulation(
     job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
     # realtime: bool = True,
 ):
-    return run_circuit_simulation_service(request, job_queue)
+    return await run_circuit_simulation_service(request, job_queue)
