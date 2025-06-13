@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI
+.github/
+
+# Docker
+# Docker
+docker-compose.yml
+Dockerfile.api
+Dockerfile.worker
+.docker
+.dockerignore
+
+# Byte-compiled / optimized files
+**/__pycache__/
+**/*.py[cod]
+
+# Virtual environment
+.env
+.venv/
+venv/
+
+# VS Code
+.vscode/
+
+# Intellij
+.idea/
+
+# Local environment variables
+.env.local
+
+
+# Tool cache
+.ruff_cache/
+
+# Shared app storage
+.app-storage/
+
+# Tmp files
+tmp/
+.tmp/

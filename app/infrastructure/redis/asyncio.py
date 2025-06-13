@@ -1,13 +1,16 @@
 import time
+
 from redis.asyncio import Redis
 from app.config.settings import settings
-from app.constants import STOP_MESSAGE, MAX_JOB_DURATION
+from app.constants import STOP_MESSAGE
 from app.core.exceptions import BlueNaasError, BlueNaasErrorCode
 
 redis_client = Redis.from_url(url=settings.REDIS_URL, decode_responses=True)
 
 
-async def redis_stream_reader(stream_key: str, timeout: int = MAX_JOB_DURATION):
+async def redis_stream_reader(
+    stream_key: str, timeout: int = settings.MAX_JOB_DURATION
+):
     """
     Asynchronously read messages from a Redis stream with timeout handling.
 
@@ -61,3 +64,18 @@ async def redis_stream_reader(stream_key: str, timeout: int = MAX_JOB_DURATION):
                     return
 
                 yield data
+
+
+async def stream(stream_key: str, data: str) -> None:
+    await redis_client.xadd(stream_key, {"data": data})
+
+    await redis_client.expire(stream_key, settings.MAX_JOB_DURATION, nx=True)
+
+
+async def close_stream(stream_key: str) -> None:
+    await redis_client.xadd(stream_key, {"data": STOP_MESSAGE})
+
+
+async def stream_one(stream_key: str, data: str) -> None:
+    await stream(stream_key, data)
+    await close_stream(stream_key)

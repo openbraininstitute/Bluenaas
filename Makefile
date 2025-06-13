@@ -36,9 +36,11 @@ format-check:  ## Run formatters and check that the code is formatted correctly
 type-check: ## Run type checkers
 	poetry run pyright bluenaas
 
+PROGRESS_FLAG := $(if $(CI),--progress=plain,)
+
 build:  ## Build the Docker images
-	docker compose --progress=plain build api
-	docker compose --progress=plain build worker
+	docker compose $(PROGRESS_FLAG) build api
+	docker compose $(PROGRESS_FLAG) build worker
 
 publish: build  ## Publish the Docker images to DockerHub
 	docker compose push api

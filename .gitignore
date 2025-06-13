@@ -305,11 +305,9 @@ code-workspace.json
 .ionide
 
 # Shared storage to persist single-cell/circuit models and simulation results
-app-storage/
+.app-storage/
 
 .python-version
 openapi.json
 notes.md
 _schemas.py
-
-circuit-model/
