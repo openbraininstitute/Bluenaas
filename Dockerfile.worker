@@ -20,7 +20,7 @@ WORKDIR /app
 
 # TODO: remove what's not needed
 RUN apt-get update \
-  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev libhdf5-dev \
+  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev \
   && rm -rf /var/lib/apt/lists/*
 
 ARG ENVIRONMENT
