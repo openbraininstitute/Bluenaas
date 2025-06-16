@@ -34,7 +34,7 @@ format-check:  ## Run formatters and check that the code is formatted correctly
 	uv run -m ruff check
 
 type-check: ## Run type checkers
-	poetry run pyright bluenaas
+	uv run pyright app
 
 PROGRESS_FLAG := $(if $(CI),--progress=plain,)
 

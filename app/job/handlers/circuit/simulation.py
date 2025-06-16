@@ -22,7 +22,7 @@ def run_circuit_simulation():
     node = "S1nonbarrel_neurons"
     start_gid = 0
 
-    stream(stream_key, json.dumps({"status": "compiling"}))
+    stream(stream_key, json.dumps({"status": "compiling mod files"}))
 
     compile_cmd = f"nrnivmodl {cwd}/circuit_model/mod"
     subprocess.run(compile_cmd.split(" "), cwd=f"{cwd}/circuit_model")

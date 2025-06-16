@@ -1,6 +1,6 @@
-from redis import Redis, ConnectionPool
 from app.config.settings import settings
 from app.constants import STOP_MESSAGE
+from redis import ConnectionPool, Redis
 
 MAX_REDIS_CONNECTIONS = 20
 

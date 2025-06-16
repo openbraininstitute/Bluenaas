@@ -42,22 +42,6 @@ types = [
 
 [tool.pyright]
 exclude = [
-  "bluenaas/external/nexus",
-  "bluenaas/utils/util.test.py"
-]
-
-[[tool.uv.dependency-metadata]]
-name = "bluepysnap"
-requires-dist = [
-  "cached_property>=1.0",
-  "click>=7.0",
-  "h5py>=3.0.1,<4.0.0",
-  "importlib_resources>=5.0.0",
-  "jsonschema>=4.0.0,<5.0.0",
-  "libsonata>=0.1.24,<1.0.0",
-  "more-itertools>=8.2.0",
-  "morph-tool>=2.4.3,<3.0.0",
-  "morphio>=3.0.0,<4.0.0",
-  "numpy>=1.8",
-  "pandas>=1.0.0"
+  "app/external/nexus",
+  "app/utils/util.test.py"
 ]
