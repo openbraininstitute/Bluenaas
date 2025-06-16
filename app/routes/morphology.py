@@ -10,13 +10,13 @@ router = APIRouter(prefix="/morphology")
 
 
 @router.get("")
-def retrieve_morphology(
+async def retrieve_morphology(
     request: Request,
     model_self: str = Query(""),
     auth: Auth = Depends(verify_jwt),
     job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
 ):
-    return get_morphology_stream(
+    return await get_morphology_stream(
         request=request,
         queue=job_queue,
         model_id=model_self,

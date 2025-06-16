@@ -20,14 +20,14 @@ router = APIRouter(prefix="/graph")
     "/direct-current-plot",
     response_model=List[StimulationItemResponse],
 )
-def retrieve_stimulation_plot(
+async def retrieve_stimulation_plot(
     request: Request,
     model_self: str,
     config: StimulationPlotConfig,
     auth: Auth = Depends(verify_jwt),
     job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
 ):
-    return get_current_clamp_plot_data_stream(
+    return await get_current_clamp_plot_data_stream(
         request=request,
         queue=job_queue,
         model_id=model_self,

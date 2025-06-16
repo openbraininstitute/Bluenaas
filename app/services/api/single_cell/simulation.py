@@ -22,7 +22,7 @@ from app.utils.simulation import convert_to_simulation_response
 from app.utils.api.streaming import x_ndjson_http_stream
 
 
-def run_simulation(
+async def run_simulation(
     virtual_lab_id: str,
     project_id: str,
     request: Request,
@@ -60,7 +60,7 @@ def run_simulation(
             count=config.n_execs,
         ):
             if realtime is True:
-                _job, stream = dispatch(
+                _job, stream = await dispatch(
                     job_queue,
                     JobFn.RUN_SINGLE_CELL_SIMULATION,
                     job_kwargs={
@@ -103,7 +103,7 @@ def run_simulation(
         ) from ex
 
 
-def _submit_background_simulation(
+async def _submit_background_simulation(
     job_queue: Queue,
     org_id: str,
     project_id: str,
@@ -140,7 +140,7 @@ def _submit_background_simulation(
         _stimulus_plot_data,
         sim_response,
         simulation_resource,
-    ) = wait_for_job(setup_job)
+    ) = await wait_for_job(setup_job)
 
     logger.debug(
         f"Submitting simulation task for resource {simulation_resource['_self']}"

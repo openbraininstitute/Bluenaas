@@ -9,7 +9,7 @@ from app.utils.rq_job import dispatch
 from app.utils.api.streaming import x_ndjson_http_stream
 
 
-def get_current_clamp_plot_data_stream(
+async def get_current_clamp_plot_data_stream(
     request: Request,
     queue: Queue,
     model_id: str,
@@ -19,7 +19,7 @@ def get_current_clamp_plot_data_stream(
     project_context: ProjectContext | None = None,
 ):
     # TODO: Switch to normal HTTP response, there is no benefit in streaming here.
-    _job, stream = dispatch(
+    _job, stream = await dispatch(
         queue,
         JobFn.GET_CURRENT_CLAMP_PLOT_DATA,
         job_args=(

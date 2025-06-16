@@ -8,7 +8,7 @@ from app.utils.rq_job import dispatch
 from app.utils.api.streaming import x_ndjson_http_stream
 
 
-def get_morphology_stream(
+async def get_morphology_stream(
     request: Request,
     queue: Queue,
     model_id: str,
@@ -17,7 +17,7 @@ def get_morphology_stream(
     project_context: ProjectContext | None = None,
 ):
     # TODO: Switch to normal HTTP response, there is no benefit in streaming here.
-    _job, stream = dispatch(
+    _job, stream = await dispatch(
         queue,
         JobFn.GET_MORPHOLOGY,
         job_args=(model_id, token, entitycore, project_context),
@@ -27,14 +27,14 @@ def get_morphology_stream(
     return StreamingResponse(http_stream, media_type="application/x-ndjson")
 
 
-def get_morphology_dendrogram(
+async def get_morphology_dendrogram(
     request: Request,
     queue: Queue,
     model_id: str,
     token: str,
 ):
     # TODO: Switch to normal HTTP response, there is no benefit in streaming here.
-    _job, stream = dispatch(
+    _job, stream = await dispatch(
         queue,
         JobFn.GET_MORPHOLOGY_DENDROGRAM,
         job_args=(model_id, token),
