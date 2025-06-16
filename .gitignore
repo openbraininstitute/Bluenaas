@@ -311,3 +311,5 @@ code-workspace.json
 openapi.json
 notes.md
 _schemas.py
+tmp/
+.tmp/
