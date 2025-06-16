@@ -33,7 +33,7 @@ router = APIRouter(prefix="/simulation")
 
 
 @router.post("/single-neuron/{virtual_lab_id}/{project_id}/run", tags=["simulation"])
-def run_simulation(
+async def run_simulation(
     request: Request,
     virtual_lab_id: str,
     project_id: str,
@@ -55,7 +55,7 @@ def run_simulation(
     If realtime is False - `BackgroundSimulationStatusResponse` is returned with simulation `id`. This `id` can be url-encoded and
     used to later query the status (and get result if any) of simulation.
     """
-    return run_simulation_service(
+    return await run_simulation_service(
         virtual_lab_id=virtual_lab_id,
         project_id=project_id,
         request=request,

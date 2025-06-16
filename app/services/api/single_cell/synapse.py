@@ -15,7 +15,7 @@ from app.utils.rq_job import dispatch
 from app.utils.api.streaming import x_ndjson_http_stream
 
 
-def generate_synapses(
+async def generate_synapses(
     request: Request,
     queue: Queue,
     model_id: str,
@@ -26,7 +26,7 @@ def generate_synapses(
     # ) -> SynapsePlacementResponse | None:
 ):
     # TODO: Switch to normal HTTP response, there is no benefit in streaming here.
-    _job, stream = dispatch(
+    _job, stream = await dispatch(
         queue,
         JobFn.GENERATE_SYNAPSES,
         job_args=(
