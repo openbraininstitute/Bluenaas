@@ -38,8 +38,6 @@ SHELL ["bash", "-e", "-x", "-o", "pipefail", "-c"]
 ARG HOST_UID
 ARG HOST_GID
 
-RUN cat /etc/group
-
 RUN <<EOT
   groupadd --system --gid ${HOST_GID} --force app
   useradd --system --home-dir /app --uid ${HOST_UID} --gid ${HOST_GID} app
