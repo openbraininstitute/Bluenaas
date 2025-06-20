@@ -7,6 +7,8 @@ services:
       args:
         - ENVIRONMENT
         - IMAGE_TAG_SUFFIX
+        - HOST_UID=${UID}
+        - HOST_GID=${GID}
       platforms:
         - linux/amd64
     environment:
@@ -31,13 +33,14 @@ services:
     platform: linux/amd64
 
   worker:
-    # env_file: "./.env.local"
     image: "${IMAGE_NAME}:worker-${IMAGE_TAG_SUFFIX}"
     build:
       dockerfile: Dockerfile.worker
       args:
         - ENVIRONMENT
         - IMAGE_TAG_SUFFIX
+        - HOST_UID=${UID}
+        - HOST_GID=${GID}
       platforms:
         - linux/amd64
     deploy:
@@ -48,6 +51,8 @@ services:
       PYTHONUNBUFFERED: 1
       ACCOUNTING_DISABLED: 1
       REDIS_URL: redis://redis:6379/0
+      QUEUES: high medium low
+      NUM_WORKERS: 2
     develop:
       watch:
         - action: sync+restart
@@ -68,8 +73,7 @@ services:
       - "6379:6379"
     command: redis-server
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 1s
-      timeout: 2s
-      retries: 15
-      start_period: 3s
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 1s
+      retries: 10

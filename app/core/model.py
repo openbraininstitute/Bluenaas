@@ -41,7 +41,7 @@ from app.external.entitycore.service import (
     fetch_one,
 )
 from app.external.nexus.nexus import Nexus
-from app.utils.storage import get_single_cell_location
+from app.infrastructure.storage import get_single_cell_location
 from app.utils.util import (
     get_sections,
     get_segments_satisfying_all_exclusion_rules,

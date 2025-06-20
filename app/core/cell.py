@@ -10,7 +10,7 @@ from app.domains.morphology import SynapseSeries
 from app.domains.simulation import (
     SingleNeuronSimulationConfig,
 )
-from app.utils.storage import get_single_cell_location
+from app.infrastructure.storage import get_single_cell_location
 from app.utils.util import (
     compile_mechanisms,
     get_sec_name,
