@@ -135,7 +135,7 @@ def fetch_icms(emodel: EModelReadExpanded, token: str, project_context: ProjectC
     with ThreadPoolExecutor() as executor:
         for icm in icms:
             for asset in icm.assets:
-                if asset.content_type == "application/neuron-mod":
+                if asset.content_type == "application/mod":
                     future = executor.submit(
                         download_asset,
                         asset.id,
