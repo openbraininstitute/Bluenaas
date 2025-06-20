@@ -12,11 +12,23 @@ export IMAGE_TAG_SUFFIX := staging
 # 	export IMAGE_TAG_ALIAS := $(IMAGE_TAG_ALIAS)-$(ENVIRONMENT)
 # endif
 
+# This ensures that owner uid/gid for the volume mounts match the host user.
+ifeq ($(CI),true)
+  UID := 1000
+  GID := 1000
+else
+  UID := $(shell id -u)
+  GID := $(shell id -g)
+endif
+
+export UID
+export GID
+
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-23s\033[0m %s\n", $$1, $$2}'
 
 install:  ## Install dependencies into .venv
-	uv sync --no-install-project
+	uv sync --no-install-project --all-groups
 
 compile-deps:  ## Create or update the lock file, without upgrading the version of the dependencies
 	uv lock

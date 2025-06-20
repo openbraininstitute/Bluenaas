@@ -47,10 +47,10 @@ RUN apt-get update \
   && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev libhdf5-dev \
   && rm -rf /var/lib/apt/lists/*
 
-RUN <<EOT
-groupadd -r app
-useradd -r -d /app -g app -N app
-EOT
+ARG HOST_UID
+ARG HOST_GID
+
+RUN useradd --system --home-dir /app --uid ${HOST_UID} --gid ${HOST_GID} app
 
 USER app
 WORKDIR /app
@@ -61,12 +61,10 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app:$PYTHONPATH"
 
 COPY --chown=app:app --from=builder /app/.venv/ .venv
+COPY --chown=app:app docker-worker-cmd.sh ./docker-cmd.sh
 COPY --chown=app:app app/ ./app
 
 # TODO: remove once entitycore API is integrated
-# ADD circuit_model.tar.xz /app/circuit_model
-# RUN chown  -R app:app /app/circuit_model
-# --mount=type=bind,source=uv.lock,target=uv.lock \
 RUN --mount=type=bind,source=circuit_model.tar.gz,target=circuit_model.tar.gz <<EOT
   tar --no-same-owner --owner=app --group=app \
     -xzf circuit_model.tar.gz -C .
@@ -76,4 +74,4 @@ RUN python -m compileall .
 
 STOPSIGNAL SIGINT
 
-CMD ["rq", "worker", "high", "default", "low"]
+CMD ["./docker-cmd.sh"]

@@ -1,14 +1,8 @@
-import os
 from pathlib import Path
 
 from app.core.types import FileObj
-from app.utils.storage import get_single_cell_location
-
-RWX_TO_ALL = 0o777
-
-
-def opener(path, flags):
-    return os.open(path, flags, RWX_TO_ALL)
+from app.infrastructure.storage import get_single_cell_location
+from app.infrastructure.storage import opener
 
 
 class Service:
