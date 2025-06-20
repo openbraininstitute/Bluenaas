@@ -50,7 +50,10 @@ RUN apt-get update \
 ARG HOST_UID
 ARG HOST_GID
 
-RUN useradd --system --home-dir /app --uid ${HOST_UID} --gid ${HOST_GID} app
+RUN <<EOT
+  groupadd --system --gid ${HOST_GID} --force app
+  useradd --system --home-dir /app --uid ${HOST_UID} --gid ${HOST_GID} app
+EOT
 
 USER app
 WORKDIR /app
