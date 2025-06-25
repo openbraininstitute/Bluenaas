@@ -40,7 +40,7 @@ def retrieve_neuron_models(
     auth: Auth = Depends(verify_jwt),
 ) -> PaginatedResponse[MEModelResponse | SynaptomeModelResponse]:
     return get_all_neuron_models_for_project(
-        token=auth.token,
+        token=auth.access_token,
         org_id=virtual_lab_id,
         project_id=project_id,
         offset=offset,
@@ -62,7 +62,7 @@ def retrieve_neuron_model(
     auth: Auth = Depends(verify_jwt),
 ) -> MEModelResponse | SynaptomeModelResponse:
     return get_neuron_model_for_project(
-        token=auth.token,
+        token=auth.access_token,
         org_id=virtual_lab_id,
         project_id=project_id,
         model_self=model_id,

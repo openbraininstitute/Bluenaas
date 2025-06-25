@@ -29,7 +29,7 @@ def place_synapses(
 ) -> SynapsePlacementResponse | None:
     return generate_synapses(
         model_id=model_id,
-        token=auth.token,
+        token=auth.access_token,
         params=params,
         is_entitycore=True,
         req_id=request.state.request_id,

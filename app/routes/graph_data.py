@@ -32,5 +32,5 @@ async def retrieve_stimulation_plot(
         queue=job_queue,
         model_id=model_self,
         config=config,
-        token=auth.token,
+        token=auth.access_token,
     )

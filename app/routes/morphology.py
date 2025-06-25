@@ -20,7 +20,7 @@ async def retrieve_morphology(
         request=request,
         queue=job_queue,
         model_id=model_self,
-        token=auth.token,
+        token=auth.access_token,
     )
 
 

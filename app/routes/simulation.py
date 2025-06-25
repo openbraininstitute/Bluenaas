@@ -95,7 +95,7 @@ async def get_all_simulations_for_project(
     auth: Auth = Depends(verify_jwt),
 ) -> PaginatedResponse[SimulationDetailsResponse]:
     return fetch_all_simulations_of_project(
-        token=auth.token,
+        token=auth.access_token,
         org_id=virtual_lab_id,
         project_id=project_id,
         sim_type=simulation_type,
@@ -124,7 +124,7 @@ async def get_simulation(
     auth: Auth = Depends(verify_jwt),
 ) -> SimulationDetailsResponse:
     return fetch_simulation_status_and_results(
-        token=auth.token,
+        token=auth.access_token,
         org_id=virtual_lab_id,
         project_id=project_id,
         simulation_uri=simulation_id,
@@ -143,7 +143,7 @@ async def delete_simulation(
     auth: Auth = Depends(verify_jwt),
 ) -> DeprecateNexusResponse:
     return deprecate_simulation(
-        token=auth.token,
+        token=auth.access_token,
         org_id=virtual_lab_id,
         project_id=project_id,
         simulation_uri=simulation_id,

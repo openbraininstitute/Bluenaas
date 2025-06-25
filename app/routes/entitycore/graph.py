@@ -35,7 +35,7 @@ def retrieve_stimulation_plot(
         queue=job_queue,
         model_id=str(model_id),
         config=config,
-        token=auth.token,
+        token=auth.access_token,
         entitycore=True,
         project_context=project_context,
     )

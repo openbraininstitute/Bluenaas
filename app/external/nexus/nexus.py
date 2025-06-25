@@ -19,6 +19,7 @@ from app.domains.nexus import (
     BaseNexusSimulationResource,
 )
 from app.config.settings import settings
+from app.utils.bearer_token import token_to_bearer
 from app.utils.ensure_list import ensure_list
 from app.utils.generate_id import generate_id
 from app.core.exceptions import ResourceDeprecationError, SimulationError
@@ -81,8 +82,8 @@ class Nexus(Service):
         self.model_id = unquote(base_and_id[-1])
         self.model_uuid = self.model_id.split("/")[-1]
         # join all except the last part (id)
-        self.nexus_base = f'{"/".join(base_and_id[:-1])}/'
-        self.headers.update({"Authorization": params["token"]})
+        self.nexus_base = f"{'/'.join(base_and_id[:-1])}/"
+        self.headers.update({"Authorization": token_to_bearer(params["token"])})
         self.fetch_cache = {}
 
     def fetch_resource_by_id(self, resource_id):
@@ -93,7 +94,7 @@ class Nexus(Service):
         if org is None or project is None:
             raise Exception("org or project are missing")
 
-        endpoint = f"{settings.NEXUS_ROOT_URI}/resolvers/{org}/{project}/_/{quote_plus(resource_id, safe=":")}"
+        endpoint = f"{settings.NEXUS_ROOT_URI}/resolvers/{org}/{project}/_/{quote_plus(resource_id, safe=':')}"
         r = requests.get(endpoint, headers=self.headers, timeout=HTTP_TIMEOUT)
         if not r.ok:
             raise Exception("Error fetching resource", r.json())
@@ -128,7 +129,7 @@ class Nexus(Service):
         return r.json()
 
     def fetch_resource_for_org_project(self, org_label, project_label, resource_id):
-        endpoint = f"{settings.NEXUS_ROOT_URI}/resolvers/{org_label}/{project_label}/_/{quote_plus(resource_id, safe=":")}"
+        endpoint = f"{settings.NEXUS_ROOT_URI}/resolvers/{org_label}/{project_label}/_/{quote_plus(resource_id, safe=':')}"
         r = requests.get(
             endpoint,
             headers=self.headers,
@@ -248,7 +249,7 @@ class Nexus(Service):
             project_id=project_id,
         )
 
-        distribution_url = f"{settings.NEXUS_ROOT_URI}/files/{org_id}/{project_id}/{quote_plus(saved_file["@id"])}"
+        distribution_url = f"{settings.NEXUS_ROOT_URI}/files/{org_id}/{project_id}/{quote_plus(saved_file['@id'])}"
         distribution = {
             "@type": "DataDownload",
             "name": saved_file["_filename"],
@@ -281,7 +282,7 @@ class Nexus(Service):
         }
 
         response = requests.put(
-            f"{file_url}?rev={file_metadata["_rev"]}",
+            f"{file_url}?rev={file_metadata['_rev']}",
             headers=file_headers,
             files=files,
             timeout=30,  # The request to write the distribution with simulation results sometimes takes more than 10 seconds.

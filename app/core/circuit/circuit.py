@@ -27,15 +27,17 @@ class Circuit:
 
     def _fetch_metadata(self):
         """Fetch the circuit metadata from entitycore"""
-        self.client.get_entity(UUID(self.circuit_id), entity_type=EntitycoreCircuit)
+        self.metadata = self.client.get_entity(
+            UUID(self.circuit_id), entity_type=EntitycoreCircuit
+        )
 
-    def _fetch(self):
+    def _fetch_assets(self):
         """Fetch the circuit files from entitycore and write to the disk storage"""
         assert self.metadata.id is not None
         stage_circuit(self.client, model=self.metadata, output_dir=self.path)
         logger.info(f"Circuit {self.circuit_id} fetched")
 
-    def _compile(self):
+    def _compile_mod_files(self):
         """Compile MOD files"""
         mech_path = self.path / CIRCUIT_MOD_FOLDER
         if not mech_path.is_dir():
@@ -61,8 +63,8 @@ class Circuit:
 
         lock = FileLock(self.path / "dir.lock")
         with lock.acquire(timeout=2 * 60):
-            self._fetch()
-            self._compile()
+            self._fetch_assets()
+            self._compile_mod_files()
             done_file.touch()
 
     def is_fetched(self) -> bool:

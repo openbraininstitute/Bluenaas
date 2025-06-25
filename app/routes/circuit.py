@@ -12,7 +12,7 @@ from app.services.api.circuit.simulation import (
 router = APIRouter(prefix="/circuit")
 
 
-@router.get("/simulation/run", tags=["simulation"])
+@router.post("/simulation/run", tags=["simulation"])
 async def run_circuit_simulation(
     request: Request,
     simulation_request: SimulationRequest,
@@ -24,5 +24,5 @@ async def run_circuit_simulation(
         request=request,
         job_queue=job_queue,
         simulation_request=simulation_request,
-        access_token=auth.token,
+        access_token=auth.access_token,
     )
