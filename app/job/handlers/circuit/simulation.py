@@ -2,35 +2,56 @@ import json
 import os
 import subprocess
 
+from entitysdk.client import Client
+from entitysdk.common import ProjectContext
 from loguru import logger
 
+from app.core.circuit.simulation import Simulation
+from app.config.settings import settings
+from app.core.circuit.circuit import Circuit
 from app.infrastructure.redis import close_stream, stream
 from app.infrastructure.rq import get_current_stream_key
 
 
-def run_circuit_simulation():
+def run_circuit_simulation(
+    *,
+    circuit_id: str,
+    simulation_id: str,
+    execution_id: str,
+    access_token: str,
+    project_context: ProjectContext,
+):
     stream_key = get_current_stream_key()
 
     num_cores = 4
-    num_cells = 10
 
-    cwd = os.getcwd()
+    client = Client(
+        api_url=str(settings.ENTITYCORE_URI),
+        project_context=project_context,
+        token_manager=access_token,
+    )
 
-    logger.info(f"cwd: {cwd}")
+    circuit = Circuit(circuit_id=circuit_id, client=client)
 
-    config = f"{cwd}/circuit_model/simulation_config.json"
-    node = "S1nonbarrel_neurons"
-    start_gid = 0
+    logger.info(f"Initializing circuit {circuit_id}")
+    stream(stream_key, json.dumps({"status": "initializing circuit"}))
+    circuit.init()
 
-    stream(stream_key, json.dumps({"status": "compiling mod files"}))
+    simulation = Simulation(
+        circuit_id=circuit_id,
+        simulation_id=simulation_id,
+        client=client,
+        execution_id=execution_id,
+    )
 
-    compile_cmd = f"nrnivmodl {cwd}/circuit_model/mod"
-    subprocess.run(compile_cmd.split(" "), cwd=f"{cwd}/circuit_model")
+    stream(stream_key, json.dumps({"status": "initializing simulation"}))
+    simulation.init()
 
-    stream(stream_key, json.dumps({"status": "running"}))
-    run_cmd = f"mpiexec -n {num_cores} python {cwd}/app/services/worker/circuit/mpi_simulation.py --config {config} --node {node} --start_gid {start_gid} --num_cells {num_cells}"
+    stream(stream_key, json.dumps({"status": "running simulation"}))
+    simulation_output = simulation.run()
 
-    subprocess.run(run_cmd, cwd=f"{cwd}/circuit_model", shell=True)
+    # TODO: Create SimulationResult, update corresponding SimulationActivity
+
     stream(stream_key, json.dumps({"status": "done"}))
 
     close_stream(stream_key)

@@ -72,7 +72,7 @@ def download_asset(
     )
     res.raise_for_status()
 
-    return res.text
+    return res.content
 
 
 def fetch_hoc_file(
@@ -224,6 +224,6 @@ class EntityCore(Service):
         )
         icms = fetch_icms(emodel, self.token, project_context=self.project_context)
 
-        logger.debug("\n\n\nCreating model folder")
+        logger.debug("Creating model folder")
         self.create_model_folder(hoc_file, morphology, icms)
         logger.debug("E-Model folder created")
