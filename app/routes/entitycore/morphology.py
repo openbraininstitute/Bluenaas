@@ -24,7 +24,7 @@ def retrieve_morphology(
         request=request,
         queue=job_queue,
         model_id=str(model_id),
-        token=auth.token,
+        token=auth.access_token,
         entitycore=True,
         project_context=project_context,
     )

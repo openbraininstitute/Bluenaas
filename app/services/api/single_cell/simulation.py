@@ -67,7 +67,7 @@ async def run_simulation(
                         "org_id": virtual_lab_id,
                         "project_id": project_id,
                         "model_id": model_id,
-                        "token": auth.token,
+                        "token": auth.access_token,
                         "config": config,
                         "realtime": realtime,
                         "entitycore": entitycore,
@@ -83,7 +83,7 @@ async def run_simulation(
                     project_id=project_id,
                     model_self=model_id,
                     config=config,
-                    token=auth.token,
+                    token=auth.access_token,
                 )
     except InsufficientFundsError as ex:
         logger.exception(f"Insufficient funds: {ex}")

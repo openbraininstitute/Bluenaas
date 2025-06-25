@@ -34,7 +34,7 @@ async def place_synapses(
         request=request,
         queue=job_queue,
         model_id=model_id,
-        token=auth.token,
+        token=auth.access_token,
         params=params,
         entitycore=False,
         virtual_lab_id=str(project_context.virtual_lab_id),

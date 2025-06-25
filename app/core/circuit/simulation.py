@@ -1,3 +1,4 @@
+import json
 import subprocess
 from os.path import relpath
 from pathlib import Path
@@ -45,11 +46,11 @@ class Simulation:
 
     def _fetch_metadata(self):
         """Fetch the simulation (config) metadata from entitycore"""
-        self.client.get_entity(
+        self.metadata = self.client.get_entity(
             UUID(self.simulation_id), entity_type=EntitycoreSimulation
         )
 
-    def _fetch(self):
+    def _fetch_assets(self):
         """Fetch the simulation (config) files from entitycore and write to the disk storage"""
         assert self.metadata.id is not None
 
@@ -65,6 +66,15 @@ class Simulation:
             circuit_config_path=self.circuit.path,
             override_results_dir=rel_output_path,
         )
+
+        # TODO: Remove this after target_simulator is fixed in obi-one API
+        config_file = self.path / "simulation_config.json"
+        with open(config_file, "r") as f:
+            config_data = json.load(f)
+        config_data["target_simulator"] = "NEURON"
+        with open(config_file, "w") as f:
+            json.dump(config_data, f, indent=2)
+
         logger.info(f"Simulation {self.simulation_id} fetched")
 
     def init(self):
@@ -82,7 +92,7 @@ class Simulation:
 
         lock = FileLock(self.path / "dir.lock")
         with lock.acquire(timeout=2 * 60):
-            self._fetch()
+            self._fetch_assets()
             done_file.touch()
 
     def run(self, num_cores: int = 4) -> SimulationOutput:
@@ -96,10 +106,13 @@ class Simulation:
         run_cmd = [
             "mpiexec",
             "-n",
-            num_cores,
-            "python/app/app/core/circuit/simulation-mpi-entrypoint.py",
+            str(num_cores),
+            "python",
+            "/app/app/core/circuit/simulation-mpi-entrypoint.py",
             "--config",
             f"{self.path}/simulation_config.json",
+            "--execution_id",
+            self.execution_id,
         ]
         subprocess.run(run_cmd, cwd=self.circuit.path)
 

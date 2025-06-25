@@ -70,7 +70,7 @@ class DecodedKeycloakToken(BaseModel):
 
 
 class Auth(BaseModel):
-    token: str
+    access_token: str
     decoded_token: DecodedKeycloakToken
 
 
@@ -87,12 +87,12 @@ def verify_jwt(
     header: HTTPAuthorizationCredentials = Depends(auth_header),
 ) -> Auth:
     try:
-        token = header.credentials
+        access_token = header.credentials
         # decoded_token_dict = kc_auth.decode_token(token=token, validate=True)
-        decoded_token_dict = kc_auth.decode_token(token=token, validate=False)
+        decoded_token_dict = kc_auth.decode_token(token=access_token, validate=False)
         decoded_token = DecodedKeycloakToken.model_validate(decoded_token_dict)
         return Auth(
-            token=token_to_bearer(token),
+            access_token=access_token,
             decoded_token=decoded_token,
         )
     except Exception as ex:

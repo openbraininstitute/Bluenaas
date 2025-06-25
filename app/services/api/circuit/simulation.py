@@ -23,8 +23,10 @@ async def run_circuit_simulation(
     simulation_request: SimulationRequest,
     access_token: str,
 ):
+    # TODO: Get rid of circuit_id param, fetch it from entitycore.
+
     # TODO: Create a simulation activity and use it's ID instead
-    execution_id = uuid4()
+    execution_id = str(uuid4())
 
     _job, stream = await dispatch(
         job_queue,
