@@ -13,6 +13,7 @@ from loguru import logger
 from app.constants import (
     DEFAULT_CIRCUIT_CONFIG_NAME,
     DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME,
+    DEFAULT_LIBNRNMECH_PATH,
 )
 from app.core.circuit.circuit import Circuit
 from app.core.circuit.simulation_output import SimulationOutput
@@ -103,11 +104,16 @@ class Simulation:
     def run(self, num_cores: int = 4) -> SimulationOutput:
         # Run the simulation via MPI entrypoint
 
+        assert self.metadata.id
+
         # This ensures the output folder exists
         self.simulation_output = SimulationOutput(
-            execution_id=self.execution_id, client=self.client
+            simulation_id=str(self.metadata.id),
+            execution_id=self.execution_id,
+            client=self.client,
         )
 
+        # TODO: Check exit status code
         run_cmd = [
             "mpiexec",
             "-n",
@@ -118,6 +124,9 @@ class Simulation:
             f"{self.path}/{DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME}",
             "--execution_id",
             self.execution_id,
+            "--libnrnmech_path",
+            # TODO: Consider adding support for other platforms/architectures
+            f"{self.circuit.path}/{DEFAULT_LIBNRNMECH_PATH}",
         ]
         subprocess.run(run_cmd, cwd=self.circuit.path)
 
