@@ -1,16 +1,17 @@
+from datetime import UTC, datetime
 import json
-import os
-import subprocess
+from uuid import UUID
 
 from entitysdk.client import Client
 from entitysdk.common import ProjectContext
 from loguru import logger
 
-from app.core.circuit.simulation import Simulation
 from app.config.settings import settings
 from app.core.circuit.circuit import Circuit
+from app.core.circuit.simulation import Simulation
 from app.infrastructure.redis import close_stream, stream
 from app.infrastructure.rq import get_current_stream_key
+from entitysdk.models import SimulationExecution
 
 
 def run_circuit_simulation(
@@ -31,6 +32,14 @@ def run_circuit_simulation(
         token_manager=access_token,
     )
 
+    client.update_entity(
+        entity_id=UUID(execution_id),
+        entity_type=SimulationExecution,
+        attrs_or_entity={
+            "status": "running",
+        },
+    )
+
     circuit = Circuit(circuit_id=circuit_id, client=client)
 
     logger.info(f"Initializing circuit {circuit_id}")
@@ -48,9 +57,19 @@ def run_circuit_simulation(
     simulation.init()
 
     stream(stream_key, json.dumps({"status": "running simulation"}))
-    simulation_output = simulation.run()
 
-    # TODO: Create SimulationResult, update corresponding SimulationActivity
+    simulation_output = simulation.run()
+    simulation_result_entity = simulation_output.upload()
+
+    client.update_entity(
+        entity_id=UUID(execution_id),
+        entity_type=SimulationExecution,
+        attrs_or_entity={
+            "generated_ids": [simulation_result_entity.id],
+            "end_time": datetime.now(UTC),
+            "status": "done",
+        },
+    )
 
     stream(stream_key, json.dumps({"status": "done"}))
 

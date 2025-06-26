@@ -10,6 +10,10 @@ from entitysdk.staging import stage_simulation
 from filelock import FileLock
 from loguru import logger
 
+from app.constants import (
+    DEFAULT_CIRCUIT_CONFIG_NAME,
+    DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME,
+)
 from app.core.circuit.circuit import Circuit
 from app.core.circuit.simulation_output import SimulationOutput
 from app.infrastructure.storage import (
@@ -52,7 +56,8 @@ class Simulation:
 
     def _fetch_assets(self):
         """Fetch the simulation (config) files from entitycore and write to the disk storage"""
-        assert self.metadata.id is not None
+        assert self.metadata.id
+        assert self.circuit.path
 
         self.circuit.init()
 
@@ -63,12 +68,12 @@ class Simulation:
             self.client,
             model=self.metadata,
             output_dir=self.path,
-            circuit_config_path=self.circuit.path,
+            circuit_config_path=self.circuit.path / DEFAULT_CIRCUIT_CONFIG_NAME,
             override_results_dir=rel_output_path,
         )
 
         # TODO: Remove this after target_simulator is fixed in obi-one API
-        config_file = self.path / "simulation_config.json"
+        config_file = self.path / DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME
         with open(config_file, "r") as f:
             config_data = json.load(f)
         config_data["target_simulator"] = "NEURON"
@@ -110,7 +115,7 @@ class Simulation:
             "python",
             "/app/app/core/circuit/simulation-mpi-entrypoint.py",
             "--config",
-            f"{self.path}/simulation_config.json",
+            f"{self.path}/{DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME}",
             "--execution_id",
             self.execution_id,
         ]
