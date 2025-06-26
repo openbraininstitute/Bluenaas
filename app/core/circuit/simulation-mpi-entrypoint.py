@@ -141,6 +141,7 @@ def plot_voltage_traces(
 def run_bluecellulab(
     simulation_config: Union[str, Path],
     execution_id: str,
+    libnrnmech_path: str,
     save_nwb: bool = False,
 ) -> None:
     """Run a simulation using BlueCelluLab backend.
@@ -151,6 +152,7 @@ def run_bluecellulab(
     """
 
     # Get MPI info using NEURON's ParallelContext
+    h.nrn_load_dll(libnrnmech_path)
     h.nrnmpi_init()
     pc = h.ParallelContext()
     rank = int(pc.id())
@@ -348,6 +350,12 @@ def main():
         help="Execution ID for this simulation run",
     )
     parser.add_argument(
+        "--libnrnmech_path",
+        type=str,
+        required=True,
+        help="Path to the nrnmech library",
+    )
+    parser.add_argument(
         "--save-nwb", action="store_true", help="Save results in NWB format"
     )
 
@@ -364,6 +372,7 @@ def main():
         simulation_config=args.simulation_config,
         execution_id=args.execution_id,
         save_nwb=args.save_nwb,
+        libnrnmech_path=args.libnrnmech_path,
     )
     return 0
 

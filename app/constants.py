@@ -7,3 +7,5 @@ CIRCUIT_MOD_FOLDER = "mod"
 DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME = "simulation_config.json"
 
 DEFAULT_CIRCUIT_CONFIG_NAME = "circuit_config.json"
+
+DEFAULT_LIBNRNMECH_PATH = "x86_64/lib/nrnmech.so"

@@ -4,8 +4,9 @@ from uuid import UUID
 from entitysdk.client import Client
 from entitysdk.models import SimulationResult
 from entitysdk.models.core import Identifiable
+from loguru import logger
 
-from app.infrastructure.storage import get_circuit_simulation_location
+from app.infrastructure.storage import get_circuit_simulation_output_location
 
 
 class SimulationOutput:
@@ -19,20 +20,25 @@ class SimulationOutput:
         self.execution_id = execution_id
         self.client = client
 
-        self.output_path = get_circuit_simulation_location(execution_id)
+        self.output_path = get_circuit_simulation_output_location(execution_id)
 
     def upload(self) -> Identifiable:
         """Upload simulation artefacts to entitycore"""
 
-        # TODO: Consider adding name, description
+        # TODO: Add proper name, consider adding a description
         simulation_result = self.client.register_entity(
-            SimulationResult(simulation_id=UUID(self.simulation_id))
+            SimulationResult(
+                name="simulation_result",
+                description="Simulation result",
+                simulation_id=UUID(self.simulation_id),
+            )
         )
         assert simulation_result.id
 
         for file_path in self.output_path.rglob("*"):
             # TODO: Futher filter out files that do not have to be uploaded
             if file_path.is_file():
+                logger.info(f"Uploading {file_path}")
                 with open(file_path, "rb") as f:
                     self.client.upload_content(
                         entity_id=simulation_result.id,

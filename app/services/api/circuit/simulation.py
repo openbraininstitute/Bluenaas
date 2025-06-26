@@ -53,9 +53,9 @@ async def run_circuit_simulation(
         JobFn.RUN_CIRCUIT_SIMULATION,
         stream_queue_position=True,
         job_kwargs={
-            "circuit_id": simulation.entity_id,
-            "simulation_id": simulation_request.simulation_id,
-            "execution_id": simulation_execution.id,
+            "circuit_id": str(simulation.entity_id),
+            "simulation_id": str(simulation_request.simulation_id),
+            "execution_id": str(simulation_execution.id),
             "access_token": access_token,
             "project_context": simulation_request.project_context,
         },
