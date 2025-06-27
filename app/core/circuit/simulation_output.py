@@ -22,6 +22,30 @@ class SimulationOutput:
 
         self.output_path = get_circuit_simulation_output_location(execution_id)
 
+    def _upload_file(
+        self,
+        *,
+        path: Path,
+        content_type: str,
+        asset_label: str,
+        entity_id: UUID,
+        client: Client,
+        raise_on_missing=True,
+    ) -> None:
+        """Upload a single file if it exists"""
+        if raise_on_missing and not path.exists():
+            raise FileNotFoundError(f"{path.name} can not be found")
+
+        with open(path, "rb") as f:
+            client.upload_content(
+                entity_id=entity_id,
+                entity_type=SimulationResult,
+                file_name=path.name,
+                file_content=f,
+                file_content_type=content_type,
+                asset_label=asset_label,
+            )
+
     def upload(self) -> Identifiable:
         """Upload simulation artefacts to entitycore"""
 
@@ -35,17 +59,23 @@ class SimulationOutput:
         )
         assert simulation_result.id
 
-        for file_path in self.output_path.rglob("*"):
-            # TODO: Futher filter out files that do not have to be uploaded
-            if file_path.is_file():
-                logger.info(f"Uploading {file_path}")
-                with open(file_path, "rb") as f:
-                    self.client.upload_content(
-                        entity_id=simulation_result.id,
-                        entity_type=SimulationResult,
-                        file_name=file_path.name,
-                        file_content=f,
-                        file_content_type="tbd",
-                    )
+        # Upload spike report
+        spike_report_path = self.output_path / "spikes.h5"
+        self._upload_file(
+            client=self.client,
+            path=spike_report_path,
+            content_type="application/x-hdf5",
+            asset_label="spike_report",
+            entity_id=simulation_result.id,
+        )
+
+        # Upload NWB voltage report
+        self._upload_file(
+            client=self.client,
+            path=self.output_path / "voltage_report.nwb",
+            content_type="application/nwb",
+            asset_label="voltage_report",
+            entity_id=simulation_result.id,
+        )
 
         return simulation_result

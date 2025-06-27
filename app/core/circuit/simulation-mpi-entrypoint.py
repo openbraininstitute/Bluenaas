@@ -3,6 +3,8 @@ Usage:
     python run_bluecellulab_simulation.py --simulation_config <simulation_config> [--save-nwb]
 """
 
+# TODO: To refactor and split into core logic and MPI entry python module
+
 import argparse
 import json
 import uuid
