@@ -68,7 +68,7 @@ def save_results_to_nwb(
             electrode=electrode,
             timestamps=time_data,
             gain=1.0,
-            unit="volt",
+            unit="volts",
             description=f"Voltage trace for {cell_id}",
         )
         nwbfile.add_acquisition(ics)
@@ -241,7 +241,7 @@ def run_bluecellulab(
             add_stimuli=True,
             add_synapses=True,
             add_minis=True,  # False
-            add_replay=True,
+            add_replay=False,
             add_projections=True,
         )
 
@@ -286,8 +286,11 @@ def run_bluecellulab(
             output_dir = None
 
             # if output_dir is explicitly specified in config
-            if "output_dir" in simulation_config_data:
-                output_dir_str = simulation_config_data["output_dir"]
+            if (
+                "output" in simulation_config_data
+                and "output_dir" in simulation_config_data["output"]
+            ):
+                output_dir_str = simulation_config_data["output"]["output_dir"]
                 # Handle $OUTPUT_DIR variable if present
                 if output_dir_str.startswith("$OUTPUT_DIR"):
                     if (
@@ -308,18 +311,19 @@ def run_bluecellulab(
             if output_dir is None:
                 output_dir = base_dir / "output"
 
+            # TODO: probably not needed
             # Ensure output directory exists
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Save NWB file directly in the output directory
-            output_path = output_dir / "voltage_traces.nwb"
+            output_path = (output_dir / "voltage_traces.nwb").resolve()
             logger.info(f"Saving simulation results to: {output_path}")
             save_results_to_nwb(all_results, execution_id, output_path)
 
             logger.info(f"Successfully saved results to {output_path}")
 
             # Save voltage traces plot
-            plot_path = output_dir / "voltage_traces.png"
+            plot_path = (output_dir / "voltage_traces.png").resolve()
             plot_voltage_traces(all_results, plot_path)
             logger.info(f"Successfully saved voltage traces plot to {plot_path}")
 
