@@ -14,6 +14,7 @@ from app.constants import (
     DEFAULT_CIRCUIT_CONFIG_NAME,
     DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME,
     DEFAULT_LIBNRNMECH_PATH,
+    READY_MARKER_FILE_NAME,
 )
 from app.core.circuit.circuit import Circuit
 from app.core.circuit.simulation_output import SimulationOutput
@@ -77,7 +78,11 @@ class Simulation:
         config_file = self.path / DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME
         with open(config_file, "r") as f:
             config_data = json.load(f)
+        logger.info(f"Target simulator: {config_data['target_simulator']}")
         config_data["target_simulator"] = "NEURON"
+        if len(config_data["reports"].keys()) == 0:
+            # Remove .reports property
+            del config_data["reports"]
         with open(config_file, "w") as f:
             json.dump(config_data, f, indent=2)
 
@@ -89,9 +94,9 @@ class Simulation:
             logger.warning("Simulation config already initialized")
             return
 
-        done_file = self.path / "done"
+        ready_marker = self.path / READY_MARKER_FILE_NAME
 
-        if done_file.exists():
+        if ready_marker.exists():
             logger.debug("Found existing simulation config in the storage")
             self.initialized = True
             return
@@ -99,9 +104,9 @@ class Simulation:
         lock = FileLock(self.path / "dir.lock")
         with lock.acquire(timeout=2 * 60):
             self._fetch_assets()
-            done_file.touch()
+            ready_marker.touch()
 
-    def run(self, num_cores: int = 4) -> SimulationOutput:
+    def run(self, num_cores: int = 2) -> SimulationOutput:
         # Run the simulation via MPI entrypoint
 
         assert self.metadata.id
