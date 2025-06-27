@@ -318,14 +318,14 @@ def run_bluecellulab(
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Save NWB file directly in the output directory
-            output_path = (output_dir / "voltage_traces.nwb").resolve()
+            output_path = (output_dir / "voltage_report.nwb").resolve()
             logger.info(f"Saving simulation results to: {output_path}")
             save_results_to_nwb(all_results, execution_id, output_path)
 
             logger.info(f"Successfully saved results to {output_path}")
 
             # Save voltage traces plot
-            plot_path = (output_dir / "voltage_traces.png").resolve()
+            plot_path = (output_dir / "voltage_report.png").resolve()
             plot_voltage_traces(all_results, plot_path)
             logger.info(f"Successfully saved voltage traces plot to {plot_path}")
 
