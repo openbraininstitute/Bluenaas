@@ -7,7 +7,7 @@ from entitysdk.models.circuit import Circuit as EntitycoreCircuit
 from filelock import FileLock
 from loguru import logger
 
-from app.constants import CIRCUIT_MOD_FOLDER
+from app.constants import CIRCUIT_MOD_FOLDER, READY_MARKER_FILE_NAME
 from app.infrastructure.storage import get_circuit_location
 
 
@@ -56,9 +56,9 @@ class Circuit:
             logger.warning("Circuit already initialized")
             return
 
-        done_file = self.path / "done"
+        ready_marker = self.path / READY_MARKER_FILE_NAME
 
-        if done_file.exists():
+        if ready_marker.exists():
             logger.debug("Found existing circuit in the storage")
             self.initialized = True
             return
@@ -67,9 +67,9 @@ class Circuit:
         with lock.acquire(timeout=2 * 60):
             self._fetch_assets()
             self._compile_mod_files()
-            done_file.touch()
+            ready_marker.touch()
 
     def is_fetched(self) -> bool:
         """Check if the circuit is in the storage"""
-        done_file = self.path / "done"
-        return done_file.exists()
+        ready_marker = self.path / READY_MARKER_FILE_NAME
+        return ready_marker.exists()

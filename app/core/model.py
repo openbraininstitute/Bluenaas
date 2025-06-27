@@ -14,6 +14,7 @@ from filelock import FileLock
 from loguru import logger
 from sympy import parse_expr, symbols  # type: ignore
 
+from app.constants import READY_MARKER_FILE_NAME
 from app.core.cell import HocCell
 from app.core.exceptions import (
     SimulationError,
@@ -102,9 +103,9 @@ class Model:
         model_uuid = helper.get_model_uuid()
 
         model_path = get_single_cell_location(model_uuid)
-        done_file = model_path / "done"
+        ready_marker = model_path / READY_MARKER_FILE_NAME
 
-        if not done_file.exists():
+        if not ready_marker.exists():
             lock = FileLock(model_path / "dir.lock")
             with lock.acquire(timeout=2 * 60):
                 helper.download_model()
@@ -115,7 +116,7 @@ class Model:
                     if self.holding_current is not None
                     else holding_current,
                 )
-                done_file.touch()
+                ready_marker.touch()
         else:
             self.CELL = HocCell(
                 model_uuid=model_uuid,
