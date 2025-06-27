@@ -44,6 +44,8 @@ class Circuit:
             err_msg = f"'{CIRCUIT_MOD_FOLDER}' folder not found under {self.path}"
             raise FileNotFoundError(err_msg)
 
+        # TODO: add additional arg to ensure custom mod files compilation
+        # Check with Darshan
         cmd = ["nrnivmodl", CIRCUIT_MOD_FOLDER]
         compilation_output = subprocess.check_output(cmd, cwd=self.path)
         logger.debug(compilation_output.decode())

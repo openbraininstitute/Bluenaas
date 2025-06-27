@@ -127,6 +127,7 @@ class Simulation:
             "--libnrnmech_path",
             # TODO: Consider adding support for other platforms/architectures
             f"{self.circuit.path}/{DEFAULT_LIBNRNMECH_PATH}",
+            "--save-nwb",
         ]
         subprocess.run(run_cmd, cwd=self.circuit.path)
 
