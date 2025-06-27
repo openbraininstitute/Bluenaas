@@ -134,6 +134,6 @@ class Simulation:
             f"{self.circuit.path}/{DEFAULT_LIBNRNMECH_PATH}",
             "--save-nwb",
         ]
-        subprocess.run(run_cmd, cwd=self.circuit.path)
+        subprocess.run(run_cmd, cwd=self.circuit.path, check=True)
 
         return self.simulation_output
