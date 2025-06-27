@@ -52,9 +52,7 @@ class AssetLabel(Enum):
     cell_composition_summary = "cell_composition_summary"
     cell_composition_volumes = "cell_composition_volumes"
     single_neuron_synaptome_config = "single_neuron_synaptome_config"
-    single_neuron_synaptome_simulation_io_result = (
-        "single_neuron_synaptome_simulation_io_result"
-    )
+    single_neuron_synaptome_simulation_data = "single_neuron_synaptome_simulation_data"
     single_cell_simulation_data = "single_cell_simulation_data"
     sonata_circuit = "sonata_circuit"
 
