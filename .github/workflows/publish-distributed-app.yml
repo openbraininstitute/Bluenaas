@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ENVIRONMENT: "prod"
+      IMAGE_NAME: ${{ vars.PUBLICECR_URI }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
