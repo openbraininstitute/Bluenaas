@@ -1,4 +1,5 @@
 import time
+from loguru import logger
 
 from redis.asyncio import Redis
 from app.config.settings import settings
@@ -61,6 +62,7 @@ async def redis_stream_reader(
                 data = fields.get("data")
 
                 if data == STOP_MESSAGE:
+                    logger.info(f"Received STOP_MESSAGE on Redis {stream_key}")
                     return
 
                 yield data

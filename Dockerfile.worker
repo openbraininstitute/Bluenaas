@@ -20,7 +20,7 @@ WORKDIR /app
 
 # TODO: remove what's not needed
 RUN apt-get update \
-  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev \
+  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev git \
   && rm -rf /var/lib/apt/lists/*
 
 ARG ENVIRONMENT
@@ -62,6 +62,9 @@ RUN mkdir -p /app/storage
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app:$PYTHONPATH"
+
+# TODO: Double check if this is needed
+ENV HDF5_USE_FILE_LOCKING=FALSE
 
 COPY --chown=app:app --from=builder /app/.venv/ .venv
 COPY --chown=app:app docker-worker-cmd.sh ./docker-cmd.sh

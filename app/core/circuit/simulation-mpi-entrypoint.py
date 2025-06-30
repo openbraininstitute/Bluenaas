@@ -272,16 +272,43 @@ def run_bluecellulab(
                     "voltage": voltage.tolist(),
                     "unit": "mV",
                 }
+            else:
+                logger.warning(f"Rank {rank}: No voltage trace for cell {cell_id}")
+
+        logger.info(f"Rank {rank}: Collected {len(results)} voltage traces")
+
+        # Debug: Print first few keys from each rank
+        if results:
+            sample_keys = list(results.keys())[:3]
+            logger.info(f"Rank {rank}: Sample cell IDs: {sample_keys}")
+        else:
+            logger.warning(f"Rank {rank}: No results to gather!")
 
         # Gather all results to rank 0
         gathered_results = pc.py_gather(results, 0)
 
         if rank == 0 and save_nwb:
+            logger.info(
+                f"Rank 0: Received gathered results from {len(gathered_results) if gathered_results else 0} ranks"
+            )
+
+            # Debug: Check what we got from each rank
+            if gathered_results:
+                for i, rank_results in enumerate(gathered_results):
+                    if rank_results:
+                        logger.info(
+                            f"Rank 0: Results from rank {i}: {len(rank_results)} cells"
+                        )
+                    else:
+                        logger.warning(f"Rank 0: No results from rank {i}")
+
             # Merge results from all ranks
             all_results = {}
             for rank_results in gathered_results:
                 if rank_results:
                     all_results.update(rank_results)
+
+            logger.info(f"Rank 0: Total merged results: {len(all_results)} cells")
 
             # Get output directory from config, handling all cases
             base_dir = Path(simulation_config).parent

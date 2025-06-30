@@ -26,7 +26,7 @@ def queue_factory(job_queue: JobQueue) -> Callable[[], Queue]:
     return get_queue
 
 
-def get_current_stream_key() -> str:
+def get_job_stream_key() -> str:
     job = get_current_job()
 
     if job is None:

@@ -30,7 +30,7 @@ from app.domains.simulation import (
 from app.external.entitycore.service import ProjectContext
 from app.external.nexus.nexus import Nexus
 from app.infrastructure.redis import close_stream, stream
-from app.infrastructure.rq import get_current_stream_key
+from app.infrastructure.rq import get_job_stream_key
 from app.utils.const import QUEUE_STOP_EVENT
 from app.utils.streaming import cleanup_without_wait
 from app.utils.util import log_stats_for_series_in_frequency
@@ -347,7 +347,7 @@ def stream_realtime_data(
     _process: SpawnProcess,
     is_current_varying: bool,
 ) -> None:
-    stream_key = get_current_stream_key()
+    stream_key = get_job_stream_key()
 
     while True:
         try:

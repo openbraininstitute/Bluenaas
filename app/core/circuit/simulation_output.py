@@ -78,4 +78,17 @@ class SimulationOutput:
             entity_id=simulation_result.id,
         )
 
+        # Upload the rest of HDF5 files, witch are mostly voltage reports
+        for h5_file in self.output_path.glob("*.h5"):
+            if h5_file.name == "spikes.h5":
+                continue
+
+            self._upload_file(
+                client=self.client,
+                path=h5_file,
+                content_type="application/x-hdf5",
+                asset_label="voltage_report",
+                entity_id=simulation_result.id,
+            )
+
         return simulation_result

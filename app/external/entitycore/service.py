@@ -3,6 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 import requests
+from entitysdk.common import ProjectContext
 from fastapi import Header
 from loguru import logger
 from pydantic import BaseModel
@@ -20,12 +21,6 @@ from app.external.entitycore.schemas import (
     MEModelRead,
     ReconstructionMorphologyRead,
 )
-
-
-class ProjectContext(BaseModel):
-    virtual_lab_id: UUID
-    project_id: UUID
-
 
 ProjectContextDep = Annotated[ProjectContext, Header()]
 
