@@ -40,23 +40,23 @@ jobs:
         with:
           registry-type: public
 
-      # - name: Build and publish the Docker images to AWS ECR
-      #   run: make publish
+      - name: Build and publish the Docker images to AWS ECR
+        run: make publish
 
-      - name: Build and push ARM64 api image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile.api
-          platforms: linux/arm64
-          push: true
-          tags: ${{ vars.PUBLICECR_URI }}:api-staging
+      # - name: Build and push ARM64 api image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: .
+      #     file: Dockerfile.api
+      #     platforms: linux/arm64
+      #     push: true
+      #     tags: ${{ vars.PUBLICECR_URI }}:api-staging
 
-      - name: Build and push AMD64 worker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile.worker
-          platforms: linux/amd64
-          push: true
-          tags: ${{ vars.PUBLICECR_URI }}:worker-staging
+      # - name: Build and push AMD64 worker image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: .
+      #     file: Dockerfile.worker
+      #     platforms: linux/amd64
+      #     push: true
+      #     tags: ${{ vars.PUBLICECR_URI }}:worker-staging
