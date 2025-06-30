@@ -479,11 +479,14 @@ def fetch_synaptome_entitycore_model_details(
                 item
                 for item in single_neuron_synaptome.assets
                 if item.label == AssetLabel.single_neuron_synaptome_config
+<<<<<<< HEAD
                 or any(
                     item.path.startswith(prefix)
                     for prefix in ["single_neuron_synaptome_config", "synaptome_config"]
                     if item.path
                 )
+=======
+>>>>>>> main
             ),
             None,
         )
