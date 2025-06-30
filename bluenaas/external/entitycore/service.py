@@ -12,8 +12,11 @@ from bluenaas.core.exceptions import SimulationError
 from bluenaas.core.types import FileObj
 from bluenaas.external.base import Service
 from bluenaas.external.entitycore.schemas import (
+    AssetLabel,
+    ContentType,
     EModelReadExpanded,
     EntityRoute,
+    IonChannelModelWAssets,
     MEModelRead,
     ReconstructionMorphologyRead,
 )
@@ -67,7 +70,6 @@ def download_asset(
             "Authorization": token,
         },
     )
-
     res.raise_for_status()
 
     return res.text
@@ -77,11 +79,7 @@ def fetch_hoc_file(
     emodel: EModelReadExpanded, token: str, project_context: ProjectContext
 ):
     hoc_file_id = next(
-        (
-            asset.id
-            for asset in emodel.assets
-            if asset.content_type == "application/hoc"
-        ),
+        (asset.id for asset in emodel.assets if asset.label == AssetLabel.neuron_hoc),
         None,
     )
 
@@ -106,11 +104,15 @@ def fetch_morphology(id: UUID, token: str, project_context: ProjectContext):
         project_context=project_context,
     )
 
-    formats = ["application/asc", "application/swc", "application/h5"]
+    formats = [
+        ContentType.application_asc,
+        ContentType.application_swc,
+        ContentType.application_x_hdf5,
+    ]
 
     for format in formats:
         for asset in morphology.assets:
-            if asset.content_type == format:
+            if asset.content_type.value == format.value:
                 return FileObj(
                     name=asset.path,
                     content=download_asset(
@@ -123,8 +125,17 @@ def fetch_morphology(id: UUID, token: str, project_context: ProjectContext):
                 )
 
     raise SimulationError(
-        f"Morphology {id} does not have a valid file format. Valid formats are {', '.join(formats)}"
+        f"Morphology {id} does not have a valid file format. Valid formats are {formats}"
     )
+
+
+def iter_matching_assets(icms: list[IonChannelModelWAssets]):
+    for icm in icms:
+        yield from (
+            (icm, asset)
+            for asset in icm.assets
+            if asset.label == AssetLabel.neuron_mechanisms
+        )
 
 
 def fetch_icms(emodel: EModelReadExpanded, token: str, project_context: ProjectContext):
@@ -133,24 +144,23 @@ def fetch_icms(emodel: EModelReadExpanded, token: str, project_context: ProjectC
     mod_files: list[FileObj] = []
 
     with ThreadPoolExecutor() as executor:
-        for icm in icms:
-            for asset in icm.assets:
-                if asset.content_type == "application/neuron-mod":
-                    future = executor.submit(
-                        download_asset,
-                        asset.id,
-                        icm.id,
-                        EntityRoute.ion_channel_model,
-                        token,
-                        project_context=project_context,
-                    )
+        futures = [
+            (
+                asset.path,
+                executor.submit(
+                    download_asset,
+                    asset.id,
+                    icm.id,
+                    EntityRoute.ion_channel_model,
+                    token,
+                    project_context=project_context,
+                ),
+            )
+            for icm, asset in iter_matching_assets(icms)
+        ]
 
-                    mod_files.append(
-                        FileObj(
-                            name=asset.path,
-                            content=future.result(),
-                        )
-                    )
+        for name, future in futures:
+            mod_files.append(FileObj(name=name, content=future.result()))
 
     return mod_files
 
