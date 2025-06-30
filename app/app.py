@@ -1,3 +1,4 @@
+import subprocess
 import uuid
 from typing import Awaitable, Callable
 
@@ -31,6 +32,12 @@ sentry_sdk.init(
     profiles_sample_rate=1.0,
     environment=settings.DEPLOYMENT_ENV,
 )
+
+subprocess.run("ls -la /app", shell=True)
+subprocess.run("ls -na /app", shell=True)
+subprocess.run("ls -la /app/storage", shell=True)
+subprocess.run("ls -na /app/storage", shell=True)
+subprocess.run("id", shell=True)
 
 
 app = FastAPI(
