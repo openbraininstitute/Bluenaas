@@ -10,7 +10,7 @@ services:
         - HOST_UID=${UID}
         - HOST_GID=${GID}
       platforms:
-        - linux/arm64
+        - linux/amd64
     environment:
       DEBUG: True
       PYTHONUNBUFFERED: 1
@@ -30,7 +30,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    platform: linux/arm64
+    platform: linux/amd64
 
   worker:
     image: "${IMAGE_NAME}:worker-${IMAGE_TAG_SUFFIX}"
