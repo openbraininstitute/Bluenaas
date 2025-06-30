@@ -5,7 +5,7 @@ from loguru import logger
 from app.core.model import model_factory
 from app.external.entitycore.service import ProjectContext
 from app.infrastructure.redis import stream_one
-from app.infrastructure.rq import get_current_stream_key
+from app.infrastructure.rq import get_job_stream_key
 
 
 def get_morphology(
@@ -14,7 +14,7 @@ def get_morphology(
     entitycore: bool = False,
     project_context: ProjectContext | None = None,
 ):
-    stream_key = get_current_stream_key()
+    stream_key = get_job_stream_key()
 
     try:
         model = model_factory(
@@ -40,7 +40,7 @@ def get_morphology_dendrogram(
     model_id: str,
     token: str,
 ):
-    stream_key = get_current_stream_key()
+    stream_key = get_job_stream_key()
 
     try:
         model = model_factory(

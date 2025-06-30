@@ -7,7 +7,7 @@ from app.core.simulation_factory_plot import StimulusFactoryPlot
 from app.domains.simulation import StimulationPlotConfig
 from app.external.entitycore.service import ProjectContext
 from app.infrastructure.redis import stream_one
-from app.infrastructure.rq import get_current_stream_key
+from app.infrastructure.rq import get_job_stream_key
 
 
 def get_current_clamp_plot_data(
@@ -17,7 +17,7 @@ def get_current_clamp_plot_data(
     entitycore: bool = False,
     project_context: ProjectContext | None = None,
 ):
-    stream_key = get_current_stream_key()
+    stream_key = get_job_stream_key()
 
     try:
         # TODO: consider moving this logic to services/worker

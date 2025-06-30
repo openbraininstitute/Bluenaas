@@ -74,17 +74,15 @@ class Simulation:
             override_results_dir=rel_output_path,
         )
 
-        # TODO: Remove this after target_simulator is fixed in obi-one API
+        # Empty reports dict causes an exception in bluecellulab
+        # TODO: Remove config overwrite after the above is fixed.
         config_file = self.path / DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME
         with open(config_file, "r") as f:
             config_data = json.load(f)
-        logger.info(f"Target simulator: {config_data['target_simulator']}")
-        config_data["target_simulator"] = "NEURON"
         if len(config_data["reports"].keys()) == 0:
-            # Remove .reports property
             del config_data["reports"]
-        with open(config_file, "w") as f:
-            json.dump(config_data, f, indent=2)
+            with open(config_file, "w") as f:
+                json.dump(config_data, f, indent=2)
 
         logger.info(f"Simulation {self.simulation_id} fetched")
 
@@ -106,7 +104,7 @@ class Simulation:
             self._fetch_assets()
             ready_marker.touch()
 
-    def run(self, num_cores: int = 2) -> SimulationOutput:
+    def run(self, *, num_cores: int = 2) -> SimulationOutput:
         # Run the simulation via MPI entrypoint
 
         assert self.metadata.id

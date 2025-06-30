@@ -1,16 +1,16 @@
 from datetime import UTC, datetime
-import json
 from uuid import UUID
 
 from entitysdk.client import Client
 from entitysdk.common import ProjectContext
 from loguru import logger
 
+from app.domains.job import JobStatus
 from app.config.settings import settings
+from app.core.job_stream import JobStream
 from app.core.circuit.circuit import Circuit
 from app.core.circuit.simulation import Simulation
-from app.infrastructure.redis import close_stream, stream
-from app.infrastructure.rq import get_current_stream_key
+from app.infrastructure.rq import get_job_stream_key
 from entitysdk.models import SimulationExecution
 
 
@@ -22,9 +22,7 @@ def run_circuit_simulation(
     access_token: str,
     project_context: ProjectContext,
 ):
-    stream_key = get_current_stream_key()
-
-    num_cores = 4
+    job_stream = JobStream(get_job_stream_key())
 
     client = Client(
         api_url=str(settings.ENTITYCORE_URI),
@@ -43,7 +41,7 @@ def run_circuit_simulation(
     circuit = Circuit(circuit_id=circuit_id, client=client)
 
     logger.info(f"Initializing circuit {circuit_id}")
-    stream(stream_key, json.dumps({"status": "initializing circuit"}))
+    job_stream.send_status(JobStatus.running, "circuit_init")
     circuit.init()
 
     simulation = Simulation(
@@ -53,15 +51,17 @@ def run_circuit_simulation(
         execution_id=execution_id,
     )
 
-    stream(stream_key, json.dumps({"status": "initializing simulation"}))
+    job_stream.send_status(JobStatus.running, "simultaion_init")
     simulation.init()
 
-    stream(stream_key, json.dumps({"status": "running simulation"}))
+    job_stream.send_status(JobStatus.running, "simulation_exec")
+    # TODO: Add logic to pick more cpus when needed
+    simulation_output = simulation.run(num_cores=1)
 
-    simulation_output = simulation.run()
+    job_stream.send_status(JobStatus.running, "results_upload")
     simulation_result_entity = simulation_output.upload()
 
-    client.update_entity(
+    res = client.update_entity(
         entity_id=UUID(execution_id),
         entity_type=SimulationExecution,
         attrs_or_entity={
@@ -71,6 +71,7 @@ def run_circuit_simulation(
         },
     )
 
-    stream(stream_key, json.dumps({"status": "done"}))
+    logger.info(res)
 
-    close_stream(stream_key)
+    job_stream.send_status(JobStatus.done)
+    job_stream.close()

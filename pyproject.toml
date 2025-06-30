@@ -28,7 +28,7 @@ api = [
     "sentry-sdk[fastapi]==2.31.0",
 ]
 worker = [
-    "bluecellulab==2.6.58",
+    "bluecellulab",
     "filelock==3.18.0",
     "pynwb==3.0.0",
     "requests==2.32.4",
@@ -46,3 +46,6 @@ exclude = [
   "app/external/nexus",
   "app/utils/util.test.py"
 ]
+
+[tool.uv.sources]
+bluecellulab = { git = "https://github.com/openbraininstitute/BlueCelluLab.git", rev = "nodeset_simconfig" }
