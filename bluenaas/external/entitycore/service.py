@@ -13,6 +13,7 @@ from bluenaas.core.types import FileObj
 from bluenaas.external.base import Service
 from bluenaas.external.entitycore.schemas import (
     AssetLabel,
+    ContentType,
     EModelReadExpanded,
     EntityRoute,
     IonChannelModelWAssets,
@@ -69,7 +70,6 @@ def download_asset(
             "Authorization": token,
         },
     )
-
     res.raise_for_status()
 
     return res.text
@@ -104,25 +104,28 @@ def fetch_morphology(id: UUID, token: str, project_context: ProjectContext):
         project_context=project_context,
     )
 
-    formats = ["application/asc", "application/swc", "application/h5"]
-    morphology_file = next(
-        (asset for asset in morphology.assets if asset.label == AssetLabel.morphology),
-        None,
-    )
-    if not morphology_file:
-        raise SimulationError(
-            f"Morphology {id} does not have a valid file format. Valid formats are {', '.join(formats)}"
-        )
+    formats = [
+        ContentType.application_asc,
+        ContentType.application_swc,
+        ContentType.application_x_hdf5,
+    ]
 
-    return FileObj(
-        name=morphology_file.path,
-        content=download_asset(
-            morphology_file.id,
-            id,
-            EntityRoute.reconstruction_morphology,
-            token,
-            project_context=project_context,
-        ),
+    for format in formats:
+        for asset in morphology.assets:
+            if asset.content_type.value == format.value:
+                return FileObj(
+                    name=asset.path,
+                    content=download_asset(
+                        asset.id,
+                        id,
+                        EntityRoute.reconstruction_morphology,
+                        token,
+                        project_context=project_context,
+                    ),
+                )
+
+    raise SimulationError(
+        f"Morphology {id} does not have a valid file format. Valid formats are {formats}"
     )
 
 
