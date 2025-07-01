@@ -30,7 +30,7 @@ def save_results_to_nwb(
 ):
     """Save simulation results to NWB format"""
     nwbfile = NWBFile(
-        session_description=f"Small Microcircuit Simulation results",
+        session_description="Small Microcircuit Simulation results",
         identifier=str(uuid.uuid4()),
         session_start_time=datetime.now(timezone.utc),
         experimenter="OBI User",
@@ -38,6 +38,7 @@ def save_results_to_nwb(
         institution="OBI",
         experiment_description="Simulation results",
         session_id=execution_id,
+        was_generated_by=["obi_small_scale_simulator_v1"],
     )
 
     # Add device and electrode
@@ -65,7 +66,7 @@ def save_results_to_nwb(
 
         # Create current clamp series
         ics = CurrentClampSeries(
-            name=f"voltage_{cell_id}",
+            name=cell_id,
             data=voltage_data,
             electrode=electrode,
             timestamps=time_data,
