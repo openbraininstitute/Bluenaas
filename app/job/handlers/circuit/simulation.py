@@ -55,13 +55,14 @@ def run_circuit_simulation(
     simulation.init()
 
     job_stream.send_status(JobStatus.running, "simulation_exec")
+
     # TODO: Add logic to pick more cpus when needed
     simulation_output = simulation.run(num_cores=1)
 
     job_stream.send_status(JobStatus.running, "results_upload")
     simulation_result_entity = simulation_output.upload()
 
-    res = client.update_entity(
+    client.update_entity(
         entity_id=UUID(execution_id),
         entity_type=SimulationExecution,
         attrs_or_entity={
@@ -70,8 +71,3 @@ def run_circuit_simulation(
             "status": "done",
         },
     )
-
-    logger.info(res)
-
-    job_stream.send_status(JobStatus.done)
-    job_stream.close()
