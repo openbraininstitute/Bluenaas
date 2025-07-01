@@ -4,10 +4,13 @@ import time
 from typing import Any, AsyncGenerator, Callable, TypeVar
 from uuid import uuid4
 
+from loguru import logger
 from rq import Queue
-from rq.job import Job, JobStatus
+from rq.job import Job
+from rq.job import JobStatus as RQJobStatus
 
 from app.config.settings import settings
+from app.core.job_stream import JobStatus, JobStream, Stream
 from app.infrastructure.redis import stream
 from app.infrastructure.redis.asyncio import redis_stream_reader
 from app.utils.streaming import compose_key
@@ -23,7 +26,7 @@ async def _stream_queue_position(job: Job, poll_interval: float = 3.0):
     try:
         while True:
             # Stop monitoring if job is no longer queued
-            if job.get_status() != JobStatus.QUEUED:
+            if job.get_status() != RQJobStatus.QUEUED:
                 break
 
             # Get current queue position
@@ -42,6 +45,21 @@ async def _stream_queue_position(job: Job, poll_interval: float = 3.0):
         print(f"Error monitoring queue position for job {job.id}: {e}")
 
 
+def on_failure(job, connection, exc_type, exc_value, traceback):
+    stream = JobStream(compose_key(job.id))
+
+    stream.send_status(JobStatus.error, str(exc_value))
+    stream.close()
+    print(f"Job {job.id} failed: {exc_type.__name__}: {exc_value}")
+
+
+def on_success(job, connection, result):
+    stream = JobStream(compose_key(job.id))
+
+    stream.send_status(JobStatus.done)
+    stream.close()
+
+
 async def dispatch(
     queue: Queue,
     fn: FunctionReferenceType,
@@ -56,7 +74,7 @@ async def dispatch(
         job_id = str(uuid4())
 
     stream_key = compose_key(job_id)
-    stream = redis_stream_reader(stream_key)
+    read_stream = redis_stream_reader(stream_key)
 
     # Run the blocking queue.enqueue call in a separate thread
     loop = asyncio.get_event_loop()
@@ -68,13 +86,15 @@ async def dispatch(
             **job_kwargs,
             job_id=job_id,
             job_timeout=timeout,
+            on_failure=on_failure,
+            on_success=on_success,
         ),
     )
 
     if stream_queue_position:
         asyncio.create_task(_stream_queue_position(job, position_poll_interval))
 
-    return job, stream
+    return job, read_stream
 
 
 async def wait_for_job(

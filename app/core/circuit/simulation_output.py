@@ -58,6 +58,7 @@ class SimulationOutput:
             )
         )
         assert simulation_result.id
+        logger.info(f"Registered simulation result {simulation_result.id}")
 
         # Upload spike report
         spike_report_path = self.output_path / "spikes.h5"
