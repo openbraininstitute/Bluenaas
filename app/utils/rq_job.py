@@ -76,6 +76,8 @@ async def dispatch(
     stream_key = compose_key(job_id)
     read_stream = redis_stream_reader(stream_key)
 
+    write_stream = JobStream(stream_key)
+
     # Run the blocking queue.enqueue call in a separate thread
     loop = asyncio.get_event_loop()
     job = await loop.run_in_executor(
@@ -89,6 +91,10 @@ async def dispatch(
             on_failure=on_failure,
             on_success=on_success,
         ),
+    )
+
+    await loop.run_in_executor(
+        None, lambda: write_stream.send_status(JobStatus.pending)
     )
 
     if stream_queue_position:
