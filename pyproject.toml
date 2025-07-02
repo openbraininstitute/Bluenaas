@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = "==3.12.*"
 
 dependencies = [
-    "entitysdk==0.7.0",
+    "entitysdk==0.7.3",
     "loguru==0.7.3",
     "pandas==2.3.0",
     "pydantic-settings==2.10.1",
@@ -28,7 +28,7 @@ api = [
     "sentry-sdk[fastapi]==2.31.0",
 ]
 worker = [
-    "bluecellulab",
+    "bluecellulab==2.6.62",
     "filelock==3.18.0",
     "pynwb==3.0.0",
     "requests==2.32.4",
@@ -46,6 +46,3 @@ exclude = [
   "app/external/nexus",
   "app/utils/util.test.py"
 ]
-
-[tool.uv.sources]
-bluecellulab = { git = "https://github.com/openbraininstitute/BlueCelluLab.git", rev = "nodeset_simconfig" }
