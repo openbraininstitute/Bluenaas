@@ -34,7 +34,9 @@ class Circuit:
     def _fetch_assets(self):
         """Fetch the circuit files from entitycore and write to the disk storage"""
         assert self.metadata.id is not None
-        stage_circuit(self.client, model=self.metadata, output_dir=self.path)
+        stage_circuit(
+            self.client, model=self.metadata, output_dir=self.path, max_concurrent=8
+        )
         logger.info(f"Circuit {self.circuit_id} fetched")
 
     def _compile_mod_files(self):
