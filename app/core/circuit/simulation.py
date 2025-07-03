@@ -26,7 +26,7 @@ from app.infrastructure.storage import (
 
 class Simulation:
     circuit: Circuit
-    simulation_output: SimulationOutput | None = None
+    output: SimulationOutput
     initialized: bool = False
     metadata: EntitycoreSimulation
     simulation_id: str
@@ -50,6 +50,9 @@ class Simulation:
 
         self._fetch_metadata()
 
+        # So that we can upload generated results, including logs even if circuit init fails.
+        self._init_output()
+
     def _fetch_metadata(self):
         """Fetch the simulation (config) metadata from entitycore"""
         self.metadata = self.client.get_entity(
@@ -60,8 +63,6 @@ class Simulation:
         """Fetch the simulation (config) files from entitycore and write to the disk storage"""
         assert self.metadata.id
         assert self.circuit.path
-
-        self.circuit.init()
 
         abs_output_path = get_circuit_simulation_output_location(self.execution_id)
         rel_output_path = Path(relpath(abs_output_path, self.path))
@@ -86,7 +87,17 @@ class Simulation:
 
         logger.info(f"Simulation {self.simulation_id} fetched")
 
-    def init(self):
+    def _init_output(self):
+        self.output = SimulationOutput(
+            simulation_id=str(self.metadata.id),
+            execution_id=self.execution_id,
+            client=self.client,
+        )
+
+    def _init_circuit(self):
+        self.circuit.init()
+
+    def _init_simulation(self):
         """Fetch simulation (config) assets and compile MOD files"""
         if self.initialized:
             logger.warning("Simulation config already initialized")
@@ -104,17 +115,12 @@ class Simulation:
             self._fetch_assets()
             ready_marker.touch()
 
+    def init(self):
+        self._init_circuit()
+        self._init_simulation()
+
     def run(self, *, num_cores: int = 2) -> SimulationOutput:
         # Run the simulation via MPI entrypoint
-
-        assert self.metadata.id
-
-        # This ensures the output folder exists
-        self.simulation_output = SimulationOutput(
-            simulation_id=str(self.metadata.id),
-            execution_id=self.execution_id,
-            client=self.client,
-        )
 
         # TODO: Check exit status code
         run_cmd = [
@@ -134,4 +140,4 @@ class Simulation:
         ]
         subprocess.run(run_cmd, cwd=self.circuit.path, check=True)
 
-        return self.simulation_output
+        return self.output

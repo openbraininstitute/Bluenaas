@@ -33,8 +33,14 @@ class SimulationOutput:
         raise_on_missing=True,
     ) -> None:
         """Upload a single file if it exists"""
-        if raise_on_missing and not path.exists():
-            raise FileNotFoundError(f"{path.name} can not be found")
+        if not path.exists():
+            msg = f"{path.name} can not be found"
+
+            if raise_on_missing:
+                raise FileNotFoundError(msg)
+            else:
+                logger.warning(msg)
+                return
 
         with open(path, "rb") as f:
             client.upload_content(
@@ -68,6 +74,7 @@ class SimulationOutput:
             content_type="application/x-hdf5",
             asset_label="spike_report",
             entity_id=simulation_result.id,
+            raise_on_missing=False,
         )
 
         # Upload NWB voltage report
@@ -77,6 +84,7 @@ class SimulationOutput:
             content_type="application/nwb",
             asset_label="voltage_report",
             entity_id=simulation_result.id,
+            raise_on_missing=False,
         )
 
         # Upload the rest of HDF5 files, witch are mostly voltage reports
