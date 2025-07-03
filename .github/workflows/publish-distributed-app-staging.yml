@@ -1,4 +1,4 @@
-name: Builfd and publish the Docker images for the new distributed archhitecture
+name: Build and publish Docker images for the new distributed archhitecture
 
 permissions:
   id-token: write # Required for OIDC authentication
