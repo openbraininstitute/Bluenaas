@@ -60,8 +60,9 @@ def save_results_to_nwb(
         )
         nwbfile.add_icephys_electrode(electrode)
 
-        # Convert time from ms to seconds for NWB
-        time_data = np.array(trace["time"], dtype=float) / 1000.0
+        # Compute time rate
+        time_rate = 1 / (trace["time"][1] - trace["time"][0])
+
         voltage_data = (
             np.array(trace["voltage"], dtype=float) / 1000.0
         )  # Convert mV to V
@@ -71,7 +72,7 @@ def save_results_to_nwb(
             name=cell_id,
             data=voltage_data,
             electrode=electrode,
-            timestamps=time_data,
+            rate=time_rate,
             gain=1.0,
             unit="volts",
             description=f"Voltage trace for {cell_id}",
