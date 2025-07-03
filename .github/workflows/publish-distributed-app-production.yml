@@ -65,5 +65,5 @@ jobs:
 
       - name: Build and publish the Docker images to AWS ECR
         env:
-          IMAGE_TAG_SUFFIX: $NEW_TAG
+          IMAGE_TAG_SUFFIX: ${{ env.NEW_TAG }}
         run: make publish
