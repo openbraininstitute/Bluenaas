@@ -3,6 +3,7 @@ from uuid import UUID
 
 from entitysdk.client import Client
 from entitysdk.common import ProjectContext
+from entitysdk.types import SimulationExecutionStatus
 from loguru import logger
 
 from app.domains.job import JobStatus
@@ -16,10 +17,10 @@ from entitysdk.models import SimulationExecution
 
 def run_circuit_simulation(
     *,
-    circuit_id: str,
-    simulation_id: str,
-    execution_id: str,
     access_token: str,
+    circuit_id: str,
+    execution_id: str,
+    simulation_id: str,
     project_context: ProjectContext,
 ):
     job_stream = JobStream(get_job_stream_key())
@@ -40,34 +41,41 @@ def run_circuit_simulation(
 
     circuit = Circuit(circuit_id=circuit_id, client=client)
 
-    logger.info(f"Initializing circuit {circuit_id}")
-    job_stream.send_status(JobStatus.running, "circuit_init")
-    circuit.init()
-
     simulation = Simulation(
         circuit_id=circuit_id,
-        simulation_id=simulation_id,
         client=client,
         execution_id=execution_id,
+        simulation_id=simulation_id,
     )
 
-    job_stream.send_status(JobStatus.running, "simultaion_init")
-    simulation.init()
+    status: SimulationExecutionStatus | None = None
 
-    job_stream.send_status(JobStatus.running, "simulation_exec")
+    try:
+        logger.info(f"Initializing circuit {circuit_id}")
+        job_stream.send_status(JobStatus.running, "circuit_init")
+        circuit.init()
 
-    # TODO: Add logic to pick more cpus when needed
-    simulation_output = simulation.run(num_cores=1)
+        job_stream.send_status(JobStatus.running, "simultaion_init")
+        simulation.init()
 
-    job_stream.send_status(JobStatus.running, "results_upload")
-    simulation_result_entity = simulation_output.upload()
+        job_stream.send_status(JobStatus.running, "simulation_exec")
+        # TODO: Add logic to pick more cpus when needed
+        simulation.run(num_cores=1)
 
-    client.update_entity(
-        entity_id=UUID(execution_id),
-        entity_type=SimulationExecution,
-        attrs_or_entity={
-            "generated_ids": [simulation_result_entity.id],
-            "end_time": datetime.now(UTC),
-            "status": "done",
-        },
-    )
+        status = SimulationExecutionStatus.done
+    except Exception:
+        status = SimulationExecutionStatus.error
+        raise
+    finally:
+        job_stream.send_status(JobStatus.running, "results_upload")
+        simulation_result_entity = simulation.output.upload()
+
+        client.update_entity(
+            entity_id=UUID(execution_id),
+            entity_type=SimulationExecution,
+            attrs_or_entity={
+                "generated_ids": [simulation_result_entity.id],
+                "end_time": datetime.now(UTC),
+                "status": status,
+            },
+        )
