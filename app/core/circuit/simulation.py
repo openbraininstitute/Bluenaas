@@ -77,13 +77,24 @@ class Simulation:
 
         # Empty reports dict causes an exception in bluecellulab
         # TODO: Remove config overwrite after the above is fixed.
+        # TODO: Move spike_file location overwrite to staging functions in entitysdk.
         config_file = self.path / DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME
         with open(config_file, "r") as f:
             config_data = json.load(f)
+
         if len(config_data["reports"].keys()) == 0:
             del config_data["reports"]
-            with open(config_file, "w") as f:
-                json.dump(config_data, f, indent=2)
+
+        for input_name, input_value in config_data.get("inputs", {}).items():
+            if "spike_file" in input_value:
+                spike_f_path = str(self.path / input_value["spike_file"])
+                logger.info(
+                    f"Overwriting spike file location for {input_name} with {spike_f_path}"
+                )
+                input_value["spike_file"] = spike_f_path
+
+        with open(config_file, "w") as f:
+            json.dump(config_data, f, indent=2)
 
         logger.info(f"Simulation {self.simulation_id} fetched")
 
