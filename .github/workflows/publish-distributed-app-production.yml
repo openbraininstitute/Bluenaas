@@ -43,7 +43,8 @@ jobs:
             COUNTER=$(( ${LATEST_TAG##*.} + 1 ))
           fi
 
-          NEW_TAG="${YEAR}.${MONTH}.${DAY}.${COUNTER}"
+          # NEW_TAG="${YEAR}.${MONTH}.${DAY}.${COUNTER}"
+          NEW_TAG="2025.07.04.1"
           echo "NEW_TAG=${NEW_TAG}" >> $GITHUB_ENV
           echo "New tag: $NEW_TAG"
 
