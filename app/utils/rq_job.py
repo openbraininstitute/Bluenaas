@@ -4,13 +4,12 @@ import time
 from typing import Any, AsyncGenerator, Callable, TypeVar
 from uuid import uuid4
 
-from loguru import logger
 from rq import Queue
 from rq.job import Job
 from rq.job import JobStatus as RQJobStatus
 
 from app.config.settings import settings
-from app.core.job_stream import JobStatus, JobStream, Stream
+from app.core.job_stream import JobStatus, JobStream
 from app.infrastructure.redis import stream
 from app.infrastructure.redis.asyncio import redis_stream_reader
 from app.utils.streaming import compose_key
@@ -50,7 +49,6 @@ def on_failure(job, connection, exc_type, exc_value, traceback):
 
     stream.send_status(JobStatus.error, str(exc_value))
     stream.close()
-    print(f"Job {job.id} failed: {exc_type.__name__}: {exc_value}")
 
 
 def on_success(job, connection, result):

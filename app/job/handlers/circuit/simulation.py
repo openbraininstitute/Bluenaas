@@ -66,7 +66,8 @@ def run_circuit_simulation(
         simulation.run(num_procs=num_mpi_procs)
 
         status = SimulationExecutionStatus.done
-    except Exception:
+    except Exception as e:
+        logger.exception(e)
         status = SimulationExecutionStatus.error
         raise
     finally:
