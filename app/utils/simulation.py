@@ -1,3 +1,5 @@
+import math
+
 from typing import Optional
 from urllib.parse import quote_plus
 
@@ -96,3 +98,8 @@ def get_simulations_by_recoding_name(simulations: list) -> dict[str, list]:
             )
 
     return record_location_to_simulation_result
+
+
+def get_num_mpi_procs(num_cells: int) -> int:
+    # Clamp between 1 and 4
+    return min(max(math.floor(num_cells / 2), 1), 4)

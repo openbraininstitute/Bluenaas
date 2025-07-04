@@ -3,16 +3,17 @@ from uuid import UUID
 
 from entitysdk.client import Client
 from entitysdk.common import ProjectContext
+from entitysdk.models import SimulationExecution
 from entitysdk.types import SimulationExecutionStatus
 from loguru import logger
 
-from app.domains.job import JobStatus
 from app.config.settings import settings
-from app.core.job_stream import JobStream
 from app.core.circuit.circuit import Circuit
 from app.core.circuit.simulation import Simulation
+from app.core.job_stream import JobStream
+from app.domains.job import JobStatus
 from app.infrastructure.rq import get_job_stream_key
-from entitysdk.models import SimulationExecution
+from app.utils.simulation import get_num_mpi_procs
 
 
 def run_circuit_simulation(
@@ -58,9 +59,11 @@ def run_circuit_simulation(
         job_stream.send_status(JobStatus.running, "simultaion_init")
         simulation.init()
 
+        num_cells = simulation.get_num_cells()
+        num_mpi_procs = get_num_mpi_procs(num_cells)
+
         job_stream.send_status(JobStatus.running, "simulation_exec")
-        # TODO: Add logic to pick more cpus when needed
-        simulation.run(num_cores=1)
+        simulation.run(num_procs=num_mpi_procs)
 
         status = SimulationExecutionStatus.done
     except Exception:
