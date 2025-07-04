@@ -4,6 +4,7 @@ import time
 from typing import Any, AsyncGenerator, Callable, TypeVar
 from uuid import uuid4
 
+from loguru import logger
 from rq import Queue
 from rq.job import Job
 from rq.job import JobStatus as RQJobStatus
@@ -32,7 +33,7 @@ async def _stream_queue_position(job: Job, poll_interval: float = 3.0):
             position = job.get_position()
 
             if position != prev_position:
-                msg = {"status": "queued", "queue_position": position}
+                msg = {"status": "queued", "extra": position}
                 stream(stream_key, json.dumps(msg))
                 prev_position = position
 
@@ -40,8 +41,7 @@ async def _stream_queue_position(job: Job, poll_interval: float = 3.0):
 
     except Exception as e:
         # Log error but don't crash the thread
-        # TODO User logger
-        print(f"Error monitoring queue position for job {job.id}: {e}")
+        logger.error(f"Error monitoring queue position for job {job.id}: {e}")
 
 
 def on_failure(job, connection, exc_type, exc_value, traceback):
