@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import subprocess
 from uuid import UUID
@@ -7,7 +8,11 @@ from entitysdk.models.circuit import Circuit as EntitycoreCircuit
 from filelock import FileLock
 from loguru import logger
 
-from app.constants import CIRCUIT_MOD_FOLDER, READY_MARKER_FILE_NAME
+from app.constants import (
+    CIRCUIT_MOD_FOLDER,
+    DEFAULT_CIRCUIT_CONFIG_NAME,
+    READY_MARKER_FILE_NAME,
+)
 from app.infrastructure.storage import get_circuit_location
 
 
@@ -37,6 +42,25 @@ class Circuit:
         stage_circuit(
             self.client, model=self.metadata, output_dir=self.path, max_concurrent=8
         )
+
+        # --------- TODO remove this ---------------------------------------------------------------
+        config_file = self.path / DEFAULT_CIRCUIT_CONFIG_NAME
+        with open(config_file, "r") as f:
+            config_data = json.load(f)
+
+        config_data["networks"]["edges"] = [
+            edge
+            for edge in config_data["networks"]["edges"]
+            if not (
+                "hippocampus" in edge["edges_file"].lower()
+                and "projections" in edge["edges_file"].lower()
+            )
+        ]
+
+        with open(config_file, "w") as f:
+            json.dump(config_data, f, indent=2)
+        # ------------------------------------------------------------------------------------------
+
         logger.info(f"Circuit {self.circuit_id} fetched")
 
     def _compile_mod_files(self):
