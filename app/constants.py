@@ -10,4 +10,5 @@ DEFAULT_CIRCUIT_CONFIG_NAME = "circuit_config.json"
 
 DEFAULT_LIBNRNMECH_PATH = "x86_64/lib/nrnmech.so"
 
-READY_MARKER_FILE_NAME = ".ready"
+# TODO revert back to .ready
+READY_MARKER_FILE_NAME = ".ready-v1"
