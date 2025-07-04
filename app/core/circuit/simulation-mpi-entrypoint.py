@@ -271,6 +271,7 @@ def run_bluecellulab(
     # Get simulation parameters from config
     t_stop = simulation_config_data["run"]["tstop"]
     dt = simulation_config_data["run"]["dt"]
+    v_init = simulation_config_data["conditions"]["v_init"]
 
     # Get the directory of the simulation config
     sim_config_base_dir = Path(simulation_config).parent
@@ -351,7 +352,7 @@ def run_bluecellulab(
 
         # Run simulation
         logger.info(f"Rank {rank}: Running simulation...")
-        sim.run(t_stop, dt, cvode=False)
+        sim.run(t_stop, v_init, cvode=False)
 
         # Get time trace once for all cells
         time_ms = sim.get_time_trace()
@@ -382,13 +383,15 @@ def run_bluecellulab(
 
             # spikes -----------------------------------------------------------
             try:
+                pop = cell_id[0]
+                gid = cell_id[1]
+                results_spikes[pop][gid] = []
                 cell_obj = sim.cells[cell_id]
                 spikes = cell_obj.get_recorded_spikes(
                     location=sim.spike_location, threshold=sim.spike_threshold
                 )
                 if spikes is not None and len(spikes):
-                    pop = cell_id[0]
-                    results_spikes[pop][cell_id[1]] = list(spikes)
+                    results_spikes[pop][gid] = list(spikes)
             except Exception:
                 pass  # silently skip cells without spike recordings
 
