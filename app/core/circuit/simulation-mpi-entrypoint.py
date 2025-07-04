@@ -19,7 +19,7 @@ from bluecellulab import CircuitSimulation
 from bluecellulab.reports.manager import ReportManager
 from loguru import logger
 from neuron import h
-from pynwb import NWBHDF5IO, NWBFile
+from pynwb import NWBHDF5IO, H5DataIO, NWBFile
 from pynwb.icephys import CurrentClampSeries, IntracellularElectrode
 
 # Use non-interactive backend for matplotlib to avoid display issues
@@ -70,7 +70,7 @@ def save_results_to_nwb(
         # Create current clamp series
         ics = CurrentClampSeries(
             name=cell_id,
-            data=voltage_data,
+            data=H5DataIO(data=voltage_data, compression="gzip"),
             electrode=electrode,
             rate=time_rate,
             gain=1.0,
