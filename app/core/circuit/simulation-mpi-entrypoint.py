@@ -433,6 +433,7 @@ def run_bluecellulab(
             # Ensure proper cleanup
             logger.info(f"Rank {rank}: Cleaning up...")
             pc.barrier()
+            h.quit()
             if rank == 0:
                 logger.info("All ranks completed. Simulation finished.")
         except Exception as e:
