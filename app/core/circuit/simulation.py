@@ -32,6 +32,7 @@ class Simulation:
     simulation_id: str
     path: Path
     execution_id: str
+    num_cells: int | None
 
     def __init__(
         self,
@@ -126,18 +127,35 @@ class Simulation:
             self._fetch_assets()
             ready_marker.touch()
 
+    def get_num_cells(self) -> int:
+        config_file = self.path / DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME
+        with open(config_file, "r") as f:
+            config_data = json.load(f)
+            node_set_name = config_data.get("node_set", "All")
+            node_sets_file = self.path / config_data["node_sets_file"]
+
+            with open(node_sets_file) as f:
+                node_set_data = json.load(f)
+
+                if node_set_name not in node_set_data:
+                    raise KeyError(
+                        f"Node set '{node_set_name}' not found in node sets file"
+                    )
+
+                return len(node_set_data[node_set_name]["node_id"])
+
     def init(self):
         self._init_circuit()
         self._init_simulation()
 
-    def run(self, *, num_cores: int = 2) -> SimulationOutput:
+    def run(self, *, num_procs: int = 1) -> SimulationOutput:
         # Run the simulation via MPI entrypoint
 
         # TODO: Check exit status code
         run_cmd = [
             "mpiexec",
             "-n",
-            str(num_cores),
+            str(num_procs),
             "python",
             "/app/app/core/circuit/simulation-mpi-entrypoint.py",
             "--config",
