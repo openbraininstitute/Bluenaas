@@ -234,7 +234,9 @@ def get_instantiate_gids_params(
     #             break
 
     # Enable projections by default if synapses are enabled
-    params["add_projections"] = params["add_synapses"]
+
+    # ! This was disabling local synapses, to be addressed in BCL
+    # params["add_projections"] = params["add_synapses"]
 
     return params
 
