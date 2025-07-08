@@ -17,12 +17,12 @@ from app.infrastructure.storage import get_circuit_location
 
 
 class Circuit:
-    circuit_id: str
+    circuit_id: UUID
     initialized: bool = False
     metadata: EntitycoreCircuit
     path: Path
 
-    def __init__(self, circuit_id: str, client: Client):
+    def __init__(self, circuit_id: UUID, client: Client):
         self.circuit_id = circuit_id
         self.path = get_circuit_location(self.circuit_id)
 
@@ -33,7 +33,7 @@ class Circuit:
     def _fetch_metadata(self):
         """Fetch the circuit metadata from entitycore"""
         self.metadata = self.client.get_entity(
-            UUID(self.circuit_id), entity_type=EntitycoreCircuit
+            self.circuit_id, entity_type=EntitycoreCircuit
         )
 
     def _fetch_assets(self):

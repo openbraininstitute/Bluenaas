@@ -219,7 +219,6 @@ class BaseCell:
         config: SingleNeuronSimulationConfig,
         frequency_to_synapse_series: dict[float, list[SynapseSeries]],
         simulation_queue: mp.Queue,
-        req_id: str,
         stop_event: Event,
     ):
         from app.core.stimulation import apply_multiple_frequency
@@ -234,7 +233,6 @@ class BaseCell:
                 simulation_duration=config.duration,
                 frequency_to_synapse_series=frequency_to_synapse_series,
                 simulation_queue=simulation_queue,
-                req_id=req_id,
                 stop_event=stop_event,
             )
         except Exception as e:

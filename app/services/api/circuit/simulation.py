@@ -16,15 +16,13 @@ from entitysdk.types import SimulationExecutionStatus
 
 
 async def run_circuit_simulation(
+    simulation_id: UUID,
     *,
     request: Request,
     job_queue: Queue,
-    simulation_id: UUID,
     project_context: ProjectContext,
     access_token: str,
-):
-    # TODO: Get rid of circuit_id param, fetch it from entitycore.
-
+) -> StreamingResponse:
     client = Client(
         api_url=str(settings.ENTITYCORE_URI),
         project_context=project_context,
@@ -47,12 +45,11 @@ async def run_circuit_simulation(
     _job, stream = await dispatch(
         job_queue,
         JobFn.RUN_CIRCUIT_SIMULATION,
-        stream_queue_position=True,
         job_id=str(simulation_execution.id),
         job_kwargs={
-            "circuit_id": str(simulation.entity_id),
-            "simulation_id": str(simulation_id),
-            "execution_id": str(simulation_execution.id),
+            "circuit_id": simulation.entity_id,
+            "simulation_id": simulation_id,
+            "execution_id": simulation_execution.id,
             "access_token": access_token,
             "project_context": project_context,
         },

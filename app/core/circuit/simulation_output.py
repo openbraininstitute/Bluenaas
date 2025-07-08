@@ -10,12 +10,12 @@ from app.infrastructure.storage import get_circuit_simulation_output_location
 
 
 class SimulationOutput:
-    simulation_id: str
-    execution_id: str
+    simulation_id: UUID
+    execution_id: UUID
     output_path: Path
     client: Client
 
-    def __init__(self, simulation_id: str, execution_id: str, client: Client):
+    def __init__(self, simulation_id: UUID, execution_id: UUID, client: Client):
         self.simulation_id = simulation_id
         self.execution_id = execution_id
         self.client = client
@@ -60,7 +60,7 @@ class SimulationOutput:
             SimulationResult(
                 name="simulation_result",
                 description="Simulation result",
-                simulation_id=UUID(self.simulation_id),
+                simulation_id=self.simulation_id,
             )
         )
         assert simulation_result.id

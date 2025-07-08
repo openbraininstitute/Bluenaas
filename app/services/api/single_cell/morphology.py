@@ -1,26 +1,29 @@
+from uuid import UUID
+
 from fastapi import Request
 from fastapi.responses import StreamingResponse
 from rq import Queue
 
 from app.external.entitycore.service import ProjectContext
 from app.job import JobFn
-from app.utils.rq_job import dispatch
 from app.utils.api.streaming import x_ndjson_http_stream
+from app.utils.rq_job import dispatch
 
 
 async def get_morphology_stream(
+    model_id: UUID,
+    *,
     request: Request,
-    queue: Queue,
-    model_id: str,
-    token: str,
-    entitycore: bool = False,
+    job_queue: Queue,
+    access_token: str,
     project_context: ProjectContext | None = None,
-):
+) -> StreamingResponse:
     # TODO: Switch to normal HTTP response, there is no benefit in streaming here.
     _job, stream = await dispatch(
-        queue,
+        job_queue,
         JobFn.GET_MORPHOLOGY,
-        job_args=(model_id, token, entitycore, project_context),
+        job_args=(model_id,),
+        job_kwargs={"access_token": access_token, "project_context": project_context},
     )
     http_stream = x_ndjson_http_stream(request, stream)
 
@@ -28,16 +31,17 @@ async def get_morphology_stream(
 
 
 async def get_morphology_dendrogram(
+    model_id: UUID,
+    *,
     request: Request,
-    queue: Queue,
-    model_id: str,
-    token: str,
-):
+    job_queue: Queue,
+    access_token: str,
+) -> StreamingResponse:
     # TODO: Switch to normal HTTP response, there is no benefit in streaming here.
     _job, stream = await dispatch(
-        queue,
+        job_queue,
         JobFn.GET_MORPHOLOGY_DENDROGRAM,
-        job_args=(model_id, token),
+        job_args=(model_id, access_token),
     )
     http_stream = x_ndjson_http_stream(request, stream)
 

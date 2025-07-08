@@ -13,18 +13,18 @@ from app.services.api.circuit.simulation import (
 router = APIRouter(prefix="/circuit")
 
 
-@router.post("/simulation/run", tags=["simulation"])
+@router.post("/simulation/run", tags=["circuit", "simulation"])
 async def run_circuit_simulation(
     request: Request,
     simulation_id: UUID4,
     project_context: ProjectContextDep,
     auth: Auth = Depends(verify_jwt),
-    job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
+    job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
 ):
     return await run_circuit_simulation_service(
+        simulation_id,
         request=request,
         job_queue=job_queue,
-        simulation_id=simulation_id,
         project_context=project_context,
         access_token=auth.access_token,
     )
