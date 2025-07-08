@@ -1,18 +1,19 @@
+from datetime import UTC, datetime
 from http import HTTPStatus
-from uuid import UUID, uuid4
+from uuid import UUID
+
+from entitysdk.client import Client
+from entitysdk.common import ProjectContext
+from entitysdk.models import Simulation, SimulationExecution
+from entitysdk.types import SimulationExecutionStatus
 from fastapi import Request
 from fastapi.responses import StreamingResponse
 from rq import Queue
-from datetime import UTC, datetime
-from entitysdk.common import ProjectContext
 
+from app.config.settings import settings
 from app.job import JobFn
 from app.utils.api.streaming import x_ndjson_http_stream
 from app.utils.rq_job import dispatch
-from app.config.settings import settings
-from entitysdk.client import Client
-from entitysdk.models import SimulationExecution, Simulation
-from entitysdk.types import SimulationExecutionStatus
 
 
 async def run_circuit_simulation(
