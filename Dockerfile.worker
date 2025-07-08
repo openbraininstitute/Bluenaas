@@ -70,12 +70,6 @@ COPY --chown=app:app --from=builder /app/.venv/ .venv
 COPY --chown=app:app docker-worker-cmd.sh ./docker-cmd.sh
 COPY --chown=app:app app/ ./app
 
-# TODO: remove once entitycore API is integrated
-RUN --mount=type=bind,source=circuit_model.tar.gz,target=circuit_model.tar.gz <<EOT
-  tar --no-same-owner --owner=app --group=app \
-    -xzf circuit_model.tar.gz -C .
-EOT
-
 RUN python -m compileall .
 
 STOPSIGNAL SIGINT
