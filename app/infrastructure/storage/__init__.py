@@ -2,7 +2,6 @@ from pathlib import Path
 from uuid import UUID
 
 from app.config.settings import settings
-from app.constants import DEFAULT_CIRCUIT_ID
 
 
 def uuid_subpath(uuid: UUID) -> Path:
@@ -29,14 +28,7 @@ def ensure_dir(path: Path) -> Path:
     return path
 
 
-def get_default_circuit_location() -> Path:
-    return Path("/app/circuit")
-
-
 def get_circuit_location(uuid: UUID) -> Path:
-    if uuid == DEFAULT_CIRCUIT_ID:
-        return get_default_circuit_location()
-
     path = settings.STORAGE_PATH / "circuit" / "model" / uuid_subpath(uuid)
     return ensure_dir(path)
 
