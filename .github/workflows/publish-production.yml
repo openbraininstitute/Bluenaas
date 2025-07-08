@@ -1,16 +1,21 @@
-name: Publish PRODUCTION image
+name: Publish PRODUCTION images
+
+permissions:
+  id-token: write # Required for OIDC authentication
+  contents: write
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  tag-and-publish-image:
+  publish-to-aws-ecr:
     runs-on: ubuntu-latest
     env:
-      ENVIRONMENT: staging
+      ENVIRONMENT: "prod"
       IMAGE_NAME: ${{ vars.PUBLICECR_URI }}
     steps:
       - name: Fail if branch is not main
@@ -19,10 +24,8 @@ jobs:
           echo "This workflow should not be triggered with workflow_dispatch on a branch other than main"
           exit 1
 
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Get full history to check existing tags
 
       - name: Set up Git
         run: |
@@ -43,7 +46,8 @@ jobs:
             COUNTER=$(( ${LATEST_TAG##*.} + 1 ))
           fi
 
-          NEW_TAG="${YEAR}.${MONTH}.${DAY}.${COUNTER}"
+          # NEW_TAG="${YEAR}.${MONTH}.${DAY}.${COUNTER}"
+          NEW_TAG="2025.07.04.1"
           echo "NEW_TAG=${NEW_TAG}" >> $GITHUB_ENV
           echo "New tag: $NEW_TAG"
 
@@ -59,15 +63,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.PUBLICECR_UPLOAD_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.PUBLICECR_REGION }}
 
-      - name: Authenticate with AWS Public ECR
+      - name: Authenticate with AWS ECR
         uses: aws-actions/amazon-ecr-login@v2
         with:
           registry-type: public
 
-      - name: Build a Docker image
-        run: |
-          docker build --build-arg DEPLOYMENT_ENV=production -t ${{ vars.PUBLICECR_URI }}:${{ env.NEW_TAG }} .
-
-      - name: Publish To AWS ECR
-        run: |
-          docker push ${{ vars.PUBLICECR_URI }}:${{ env.NEW_TAG }}
+      - name: Build and publish the Docker images to AWS ECR
+        env:
+          IMAGE_TAG_SUFFIX: ${{ env.NEW_TAG }}
+        run: make publish
