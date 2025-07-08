@@ -14,14 +14,14 @@ from app.domains.simulation import (
 from app.external.entitycore.service import ProjectContextDep
 from app.infrastructure.kc.auth import Auth, verify_jwt
 from app.infrastructure.rq import JobQueue, queue_factory
-from app.services.api.single_cell.current_clamp_plot import (
+from app.services.api.single_neuron.current_clamp_plot import (
     get_current_clamp_plot_data_stream,
 )
-from app.services.api.single_cell.morphology import get_morphology_stream
-from app.services.api.single_cell.simulation import (
+from app.services.api.single_neuron.morphology import get_morphology_stream
+from app.services.api.single_neuron.simulation import (
     run_simulation as run_simulation_service,
 )
-from app.services.api.single_cell.synapse import (
+from app.services.api.single_neuron.synapse import (
     generate_synapses,
     validate_synapse_generation_formula,
 )
@@ -85,7 +85,7 @@ async def place_synapses(
         model_id,
         params,
         request=request,
-        queue=job_queue,
+        job_queue=job_queue,
         access_token=auth.access_token,
         project_context=project_context,
     )

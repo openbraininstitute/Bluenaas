@@ -188,9 +188,6 @@ class EntityCore(Service):
             or 0.1,
         ]
 
-    def get_model_uuid(self):
-        return self.model_id
-
     def download_model(self):
         if not self.model:
             self.model = fetch_one(

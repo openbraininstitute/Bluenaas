@@ -41,3 +41,9 @@ dev = [
 types = [
     "types-requests==2.32.4.20250611",
 ]
+
+[tool.pyright]
+exclude = [
+    "app/core/circuit/simulation-mpi-entrypoint.py",
+    "app/utils/util.test.py"
+]

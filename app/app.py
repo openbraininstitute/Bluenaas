@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from starlette.middleware.cors import CORSMiddleware
-from starlette.middleware.gzip import GZipMiddleware
 
 from app.config.settings import settings
 from app.core.exceptions import (
@@ -16,14 +15,7 @@ from app.core.exceptions import (
     BlueNaasErrorResponse,
 )
 from app.routes.circuit import router as circuit_router
-
-# from app.routes.entitycore import entitycore_router
-from app.routes.graph_data import router as graph_router
-from app.routes.morphology import router as morphology_router
-from app.routes.neuron_model import router as neuron_model_router
-from app.routes.simulation import router as simulation_router
-from app.routes.synaptome import router as synaptome_router
-from app.routes.validation import router as validation_router
+from app.routes.single_neuron import router as single_neuron_router
 
 sentry_sdk.init(
     dsn=settings.SENTRY_DSN,
@@ -40,7 +32,6 @@ app = FastAPI(
 )
 
 app.add_middleware(SentryAsgiMiddleware)
-# app.add_middleware(GZipMiddleware)
 # TODO: reduce origins to only the allowed ones
 app.add_middleware(
     CORSMiddleware,
@@ -101,15 +92,7 @@ def health() -> str:
     return "OK"
 
 
-base_router.include_router(morphology_router)
-base_router.include_router(simulation_router)
+base_router.include_router(single_neuron_router)
 base_router.include_router(circuit_router)
-base_router.include_router(synaptome_router)
-base_router.include_router(graph_router)
-base_router.include_router(validation_router)
-base_router.include_router(neuron_model_router)
-
 
 app.include_router(base_router)
-# TODO: enable after adding inline imports (so that we separate dependencies)
-# app.include_router(entitycore_router)

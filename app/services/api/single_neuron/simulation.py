@@ -12,16 +12,14 @@ from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsErro
 from rq import Queue
 
 from app.core.exceptions import BlueNaasError, BlueNaasErrorCode
-from app.domains.nexus import FullNexusSimulationResource
 from app.domains.simulation import (
     SingleNeuronSimulationConfig,
 )
 from app.infrastructure.accounting.session import accounting_session_factory
 from app.infrastructure.kc.auth import Auth
 from app.job import JobFn
-from app.utils.rq_job import dispatch, wait_for_job
-from app.utils.simulation import convert_to_simulation_response
 from app.utils.api.streaming import x_ndjson_http_stream
+from app.utils.rq_job import dispatch, wait_for_job
 
 
 async def run_simulation(
@@ -137,16 +135,4 @@ async def _submit_background_simulation(
             "realtime": False,
             "simulation_resource_self": sim_response["_self"],
         },
-    )
-
-    # Step 3: Return simulation status to user
-    return convert_to_simulation_response(
-        simulation_uri=simulation_resource["@id"],
-        simulation_resource=FullNexusSimulationResource.model_validate(
-            simulation_resource,
-        ),
-        me_model_self=me_model_self,
-        synaptome_model_self=synaptome_model_self,
-        simulation_config=config,
-        results=None,
     )
