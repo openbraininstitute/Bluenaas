@@ -1,11 +1,13 @@
 from pathlib import Path
+from uuid import UUID
 
 from app.config.settings import settings
 from app.constants import DEFAULT_CIRCUIT_ID
 
 
-def uuid_subpath(uuid: str) -> Path:
-    return Path(f"{uuid[0]}/{uuid[1]}/{uuid[2:]}")
+def uuid_subpath(uuid: UUID) -> Path:
+    uuid_str = str(uuid)
+    return Path(f"{uuid_str[0]}/{uuid_str[1]}/{uuid_str[2:]}")
 
 
 def create_file(path: Path, content: bytes) -> None:
@@ -31,7 +33,7 @@ def get_default_circuit_location() -> Path:
     return Path("/app/circuit")
 
 
-def get_circuit_location(uuid: str) -> Path:
+def get_circuit_location(uuid: UUID) -> Path:
     if uuid == DEFAULT_CIRCUIT_ID:
         return get_default_circuit_location()
 
@@ -39,16 +41,16 @@ def get_circuit_location(uuid: str) -> Path:
     return ensure_dir(path)
 
 
-def get_circuit_simulation_location(uuid: str) -> Path:
+def get_circuit_simulation_location(uuid: UUID) -> Path:
     path = settings.STORAGE_PATH / "circuit" / "simulation" / uuid_subpath(uuid)
     return ensure_dir(path)
 
 
-def get_circuit_simulation_output_location(uuid: str) -> Path:
+def get_circuit_simulation_output_location(uuid: UUID) -> Path:
     path = settings.STORAGE_PATH / "circuit" / "output" / uuid_subpath(uuid)
     return ensure_dir(path)
 
 
-def get_single_cell_location(uuid: str) -> Path:
+def get_single_cell_location(uuid: UUID) -> Path:
     path = settings.STORAGE_PATH / "single-cell" / "model" / uuid_subpath(uuid)
     return ensure_dir(path)

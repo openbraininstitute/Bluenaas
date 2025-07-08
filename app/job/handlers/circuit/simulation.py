@@ -19,9 +19,9 @@ from app.utils.simulation import get_num_mpi_procs
 def run_circuit_simulation(
     *,
     access_token: str,
-    circuit_id: str,
-    execution_id: str,
-    simulation_id: str,
+    circuit_id: UUID,
+    execution_id: UUID,
+    simulation_id: UUID,
     project_context: ProjectContext,
 ):
     job_stream = JobStream(get_job_stream_key())
@@ -33,7 +33,7 @@ def run_circuit_simulation(
     )
 
     client.update_entity(
-        entity_id=UUID(execution_id),
+        entity_id=execution_id,
         entity_type=SimulationExecution,
         attrs_or_entity={
             "status": "running",
@@ -75,7 +75,7 @@ def run_circuit_simulation(
         simulation_result_entity = simulation.output.upload()
 
         client.update_entity(
-            entity_id=UUID(execution_id),
+            entity_id=execution_id,
             entity_type=SimulationExecution,
             attrs_or_entity={
                 "generated_ids": [simulation_result_entity.id],

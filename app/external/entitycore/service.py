@@ -151,19 +151,20 @@ def fetch_icms(emodel: EModelReadExpanded, token: str, project_context: ProjectC
 
 
 class EntityCore(Service):
-    def __init__(self, token: str, model_id: str, project_context: ProjectContext):
-        self.token = token
+    def __init__(
+        self, model_id: UUID, access_token: str, project_context: ProjectContext
+    ):
+        self.access_token = access_token
         self.model_id = model_id
-        self.model_uuid = model_id
         self.model: MEModelRead | None = None
         self.project_context = project_context
 
     def get_currents(self) -> list[float]:
         if not self.model:
             self.model = fetch_one(
-                UUID(self.model_id),
+                self.model_id,
                 EntityRoute.memodel,
-                token=self.token,
+                token=self.access_token,
                 response_class=MEModelRead,
                 project_context=self.project_context,
             )
@@ -176,9 +177,9 @@ class EntityCore(Service):
     def download_model(self):
         if not self.model:
             self.model = fetch_one(
-                UUID(self.model_id),
+                self.model_id,
                 EntityRoute.memodel,
-                token=self.token,
+                token=self.access_token,
                 response_class=MEModelRead,
                 project_context=self.project_context,
             )
@@ -186,21 +187,25 @@ class EntityCore(Service):
         emodel = fetch_one(
             self.model.emodel.id,
             EntityRoute.emodel,
-            token=self.token,
+            token=self.access_token,
             response_class=EModelReadExpanded,
             project_context=self.project_context,
         )
 
         hoc_file = fetch_hoc_file(
             emodel,
-            self.token,
+            self.access_token,
             project_context=self.project_context,
         )
 
         morphology = fetch_morphology(
-            self.model.morphology.id, self.token, project_context=self.project_context
+            self.model.morphology.id,
+            self.access_token,
+            project_context=self.project_context,
         )
-        icms = fetch_icms(emodel, self.token, project_context=self.project_context)
+        icms = fetch_icms(
+            emodel, self.access_token, project_context=self.project_context
+        )
 
         logger.debug("Creating model folder")
         self.create_model_folder(hoc_file, morphology, icms)

@@ -24,7 +24,7 @@ def get_current_clamp_plot_data(
         model = model_factory(
             model_id=model_id,
             hyamp=None,
-            bearer_token=token,
+            access_token=token,
             entitycore=entitycore,
             project_context=project_context,
         )

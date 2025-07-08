@@ -1,4 +1,5 @@
 import json
+from uuid import UUID
 
 from loguru import logger
 
@@ -11,20 +12,19 @@ from app.infrastructure.rq import get_job_stream_key
 
 
 def generate_synapses(
-    model_id: str,
-    token: str,
+    model_id: UUID,
     params: SynapsePlacementBody,
+    *,
+    access_token: str,
     project_context: ProjectContext,
-    entitycore,
 ):
     stream_key = get_job_stream_key()
 
     try:
         model = model_factory(
-            model_id=model_id,
+            model_id,
             hyamp=None,
-            bearer_token=token,
-            entitycore=entitycore,
+            access_token=access_token,
             project_context=project_context,
         )
 

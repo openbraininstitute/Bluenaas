@@ -29,17 +29,17 @@ class Simulation:
     output: SimulationOutput
     initialized: bool = False
     metadata: EntitycoreSimulation
-    simulation_id: str
+    simulation_id: UUID
     path: Path
-    execution_id: str
+    execution_id: UUID
     num_cells: int | None
 
     def __init__(
         self,
-        circuit_id: str,
-        simulation_id: str,
+        circuit_id: UUID,
+        simulation_id: UUID,
         client: Client,
-        execution_id: str = str(uuid4()),
+        execution_id: UUID = uuid4(),
     ):
         self.simulation_id = simulation_id
         self.execution_id = execution_id
@@ -57,7 +57,7 @@ class Simulation:
     def _fetch_metadata(self):
         """Fetch the simulation (config) metadata from entitycore"""
         self.metadata = self.client.get_entity(
-            UUID(self.simulation_id), entity_type=EntitycoreSimulation
+            self.simulation_id, entity_type=EntitycoreSimulation
         )
 
     def _fetch_assets(self):
@@ -100,8 +100,10 @@ class Simulation:
         logger.info(f"Simulation {self.simulation_id} fetched")
 
     def _init_output(self):
+        assert self.metadata.id
+
         self.output = SimulationOutput(
-            simulation_id=str(self.metadata.id),
+            simulation_id=self.metadata.id,
             execution_id=self.execution_id,
             client=self.client,
         )

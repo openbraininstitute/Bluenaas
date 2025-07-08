@@ -14,10 +14,7 @@ from app.core.exceptions import (
     BlueNaasErrorCode,
     SimulationError,
 )
-from app.core.model import (
-    fetch_synaptome_entitycore_model_details,
-    fetch_synaptome_model_details,
-)
+from app.core.model import fetch_synaptome_model_details
 from app.domains.morphology import (
     SynapseConfig,
     SynapseSeries,
@@ -37,14 +34,14 @@ from app.utils.util import log_stats_for_series_in_frequency
 
 
 def init_current_varying_simulation(
-    model_id: str,
-    token: str,
+    model_id: UUID,
     config: SingleNeuronSimulationConfig,
+    *,
+    access_token: str,
     realtime: bool,
     simulation_queue: mp.Queue,
     stop_event: Event,
-    entitycore: bool = False,
-    project_context: ProjectContext | None = None,
+    project_context: ProjectContext,
 ):
     from app.core.model import model_factory
 
@@ -53,24 +50,17 @@ def init_current_varying_simulation(
         synapse_generation_config: list[SynapseSeries] | None = None
 
         if config.type == "synaptome-simulation" and config.synaptome is not None:
-            if entitycore and project_context:
-                synaptome_details = fetch_synaptome_entitycore_model_details(
-                    bearer_token=token,
-                    model_id=UUID(model_id),
-                    project_context=project_context,
-                )
-                me_model_id = synaptome_details.base_model_self
-            else:
-                synaptome_details = fetch_synaptome_model_details(
-                    synaptome_self=model_id, bearer_token=token
-                )
-                me_model_id = synaptome_details.base_model_self
+            synaptome_details = fetch_synaptome_model_details(
+                bearer_token=access_token,
+                model_id=model_id,
+                project_context=project_context,
+            )
+            me_model_id = synaptome_details.base_model_id
 
         model = model_factory(
-            model_id=me_model_id,
+            me_model_id,
             hyamp=config.conditions.hypamp,
-            bearer_token=token,
-            entitycore=entitycore,
+            access_token=access_token,
             project_context=project_context,
         )
 
@@ -156,15 +146,14 @@ def get_sim_configs_by_synapse_id(
 
 
 def init_frequency_varying_simulation(
-    model_id: str,
-    token: str,
+    model_id: UUID,
     config: SingleNeuronSimulationConfig,
+    *,
+    access_token: str,
     realtime: bool,
     simulation_queue: mp.Queue,
-    req_id: str,
     stop_event: Event,
-    entitycore: bool = False,
-    project_context: ProjectContext | None = None,
+    project_context: ProjectContext,
 ):
     from app.core.model import model_factory
 
@@ -172,24 +161,17 @@ def init_frequency_varying_simulation(
         me_model_id = model_id
         synaptome_details = None
         if config.type == "synaptome-simulation" and config.synaptome is not None:
-            if entitycore and project_context:
-                synaptome_details = fetch_synaptome_entitycore_model_details(
-                    bearer_token=token,
-                    model_id=UUID(model_id),
-                    project_context=project_context,
-                )
-                me_model_id = synaptome_details.base_model_self
-            else:
-                synaptome_details = fetch_synaptome_model_details(
-                    synaptome_self=model_id, bearer_token=token
-                )
-                me_model_id = synaptome_details.base_model_self
+            synaptome_details = fetch_synaptome_model_details(
+                bearer_token=access_token,
+                model_id=model_id,
+                project_context=project_context,
+            )
+            me_model_id = synaptome_details.base_model_id
 
         model = model_factory(
-            model_id=me_model_id,
+            me_model_id,
             hyamp=config.conditions.hypamp,
-            bearer_token=token,
-            entitycore=entitycore,
+            access_token=access_token,
             project_context=project_context,
         )
         assert config.synaptome is not None
@@ -295,7 +277,6 @@ def init_frequency_varying_simulation(
             config=config,
             frequency_to_synapse_series=frequency_to_synapse_settings,
             simulation_queue=simulation_queue,
-            req_id=req_id,
             stop_event=stop_event,
         )
     except SimulationError as ex:

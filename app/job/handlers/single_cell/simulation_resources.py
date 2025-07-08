@@ -22,7 +22,7 @@ def get_stimulation_plot_data(
     model = model_factory(
         model_id=me_model_self,
         hyamp=None,
-        bearer_token=token,
+        access_token=token,
     )
     stimulus_config = StimulationPlotConfig(
         stimulus_protocol=stimulus.stimulus_protocol,

@@ -1,7 +1,9 @@
 # TODO: refactor this module
 
 from http import HTTPStatus as status
+from uuid import UUID
 
+from entitysdk.common import ProjectContext
 from fastapi import Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
@@ -23,15 +25,14 @@ from app.utils.api.streaming import x_ndjson_http_stream
 
 
 async def run_simulation(
-    virtual_lab_id: str,
-    project_id: str,
-    request: Request,
-    model_id: str,
+    model_id: UUID,
     config: SingleNeuronSimulationConfig,
-    job_queue: Queue,
+    *,
+    request: Request,
     auth: Auth,
+    project_context: ProjectContext,
+    job_queue: Queue,
     realtime: bool = True,
-    entitycore: bool = False,
 ):
     """
     Run a neuron simulation and optionally get results in realtime.
@@ -55,22 +56,19 @@ async def run_simulation(
     try:
         with accounting_session_factory.oneshot_session(
             subtype=accounting_subtype,
-            proj_id=project_id,
+            proj_id=project_context.project_id,
             user_id=auth.decoded_token.sub,
             count=config.n_execs,
         ):
             if realtime is True:
                 _job, stream = await dispatch(
                     job_queue,
-                    JobFn.RUN_SINGLE_CELL_SIMULATION,
+                    JobFn.RUN_SINGLE_NEURON_SIMULATION,
+                    job_args=(model_id, config),
                     job_kwargs={
-                        "org_id": virtual_lab_id,
-                        "project_id": project_id,
-                        "model_id": model_id,
+                        "project_context": project_context,
                         "token": auth.access_token,
-                        "config": config,
                         "realtime": realtime,
-                        "entitycore": entitycore,
                     },
                 )
                 http_stream = x_ndjson_http_stream(request, stream)
@@ -79,11 +77,10 @@ async def run_simulation(
             else:
                 return _submit_background_simulation(
                     job_queue=job_queue,
-                    org_id=virtual_lab_id,
-                    project_id=project_id,
-                    model_self=model_id,
+                    project_context=project_context,
+                    model_id=model_id,
                     config=config,
-                    token=auth.access_token,
+                    access_token=auth.access_token,
                 )
     except InsufficientFundsError as ex:
         logger.exception(f"Insufficient funds: {ex}")
@@ -105,32 +102,16 @@ async def run_simulation(
 
 async def _submit_background_simulation(
     job_queue: Queue,
-    org_id: str,
-    project_id: str,
-    model_self: str,
+    project_context: ProjectContext,
+    model_id: UUID,
     config: SingleNeuronSimulationConfig,
-    token: str,
+    access_token: str,
 ):
-    # (
-    #     me_model_self,
-    #     synaptome_model_self,
-    #     _stimulus_plot_data,
-    #     sim_response,
-    #     simulation_resource,
-    # ) = setup_simulation_resources(
-    #     token,
-    #     model_self,
-    #     org_id,
-    #     project_id,
-    #     config,
-    # )
-
     setup_job = job_queue.enqueue(
         JobFn.SETUP_SIMULATION_RESOURCES,
-        token,
-        model_self,
-        org_id,
-        project_id,
+        access_token,
+        model_id,
+        project_context,
         config,
     )
 
@@ -147,12 +128,11 @@ async def _submit_background_simulation(
     )
     # Step 2: Add background task to process simulation
     job_queue.enqueue(
-        JobFn.RUN_SINGLE_CELL_SIMULATION,
+        JobFn.RUN_SINGLE_NEURON_SIMULATION,
         kwargs={
-            "org_id": org_id,
-            "project_id": project_id,
-            "model_id": model_self,
-            "token": token,
+            "project_context": project_context,
+            "model_id": model_id,
+            "token": access_token,
             "config": config,
             "realtime": False,
             "simulation_resource_self": sim_response["_self"],

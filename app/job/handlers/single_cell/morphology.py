@@ -1,4 +1,5 @@
 import json
+from uuid import UUID
 
 from loguru import logger
 
@@ -9,19 +10,18 @@ from app.infrastructure.rq import get_job_stream_key
 
 
 def get_morphology(
-    model_id: str,
-    token: str,
-    entitycore: bool = False,
-    project_context: ProjectContext | None = None,
+    model_id: UUID,
+    *,
+    access_token: str,
+    project_context: ProjectContext,
 ):
     stream_key = get_job_stream_key()
 
     try:
         model = model_factory(
-            model_id=model_id,
+            model_id,
             hyamp=None,
-            entitycore=entitycore,
-            bearer_token=token,
+            access_token=access_token,
             project_context=project_context,
         )
 
@@ -37,16 +37,16 @@ def get_morphology(
 
 
 def get_morphology_dendrogram(
-    model_id: str,
-    token: str,
+    model_id: UUID, *, access_token: str, project_context: ProjectContext
 ):
     stream_key = get_job_stream_key()
 
     try:
         model = model_factory(
-            model_id=model_id,
+            model_id,
             hyamp=None,
-            bearer_token=token,
+            access_token=access_token,
+            project_context=project_context,
         )
 
         if not model.CELL:

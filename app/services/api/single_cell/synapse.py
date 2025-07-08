@@ -1,9 +1,11 @@
 from http import HTTPStatus as status
+from uuid import UUID
+
+import sympy as sp
 from fastapi import Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from rq import Queue
-import sympy as sp
 
 from app.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from app.domains.morphology import (
@@ -11,31 +13,28 @@ from app.domains.morphology import (
 )
 from app.external.entitycore.service import ProjectContext
 from app.job import JobFn
-from app.utils.rq_job import dispatch
 from app.utils.api.streaming import x_ndjson_http_stream
+from app.utils.rq_job import dispatch
 
 
 async def generate_synapses(
+    model_id: UUID,
+    params: SynapsePlacementBody,
+    *,
     request: Request,
     queue: Queue,
-    model_id: str,
-    token: str,
-    params: SynapsePlacementBody,
-    project_context: ProjectContext | None = None,
-    entitycore: bool = False,
-    # ) -> SynapsePlacementResponse | None:
-):
+    access_token: str,
+    project_context: ProjectContext,
+) -> StreamingResponse:
     # TODO: Switch to normal HTTP response, there is no benefit in streaming here.
     _job, stream = await dispatch(
         queue,
         JobFn.GENERATE_SYNAPSES,
         job_args=(
             model_id,
-            token,
             params,
-            project_context,
-            entitycore,
         ),
+        job_kwargs={"access_token": access_token, "project_context": project_context},
     )
     http_stream = x_ndjson_http_stream(request, stream)
 

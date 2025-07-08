@@ -9,7 +9,6 @@ from uuid import UUID
 
 import numpy as np
 import pandas  # type: ignore
-import requests
 from filelock import FileLock
 from loguru import logger
 from sympy import parse_expr, symbols  # type: ignore
@@ -41,7 +40,6 @@ from app.external.entitycore.service import (
     download_asset,
     fetch_one,
 )
-from app.external.nexus.nexus import Nexus
 from app.infrastructure.storage import get_single_cell_location
 from app.utils.util import (
     get_sections,
@@ -54,27 +52,25 @@ from app.utils.util import (
 SUPPORTED_SYNAPSES_TYPES = ["apic", "basal", "dend"]
 
 SynapseType = Enum("SynapseType", "GABAAB AMPANMDA GLUSYNAPSE")
-defaultIdBaseUrl = "https://bbp.epfl.ch/data/bbp/mmb-point-neuron-framework-model"
+
 MAXIMUM_ALLOWED_SYNAPSES = 20_000
 
 
 class Model:
     def __init__(
         self,
+        model_id: UUID,
         *,
-        model_id: str,
         hyamp: float | None,
-        token: str,
-        entitycore: bool = False,
-        project_context: ProjectContext | None = None,
+        access_token: str,
+        project_context: ProjectContext,
     ):
         self.model_id = model_id
-        self.token: str = token
+        self.access_token: str = access_token
         self.CELL: HocCell | None = None
         self.threshold_current: float = 1
         self.holding_current: float | None = hyamp
         self.resource: NexusBaseResource | None = None
-        self.entitycore = entitycore
         self.project_context = project_context
 
     def build_model(self):
@@ -82,17 +78,11 @@ class Model:
         if self.model_id is None:
             raise Exception("Missing model _self url")
 
-        helper = None
-
-        if not self.entitycore:
-            helper = Nexus({"token": self.token, "model_self_url": self.model_id})
-
-        elif self.entitycore and self.project_context:
-            helper = EntityCore(
-                token=self.token,
-                model_id=self.model_id,
-                project_context=self.project_context,
-            )
+        helper = EntityCore(
+            access_token=self.access_token,
+            model_id=self.model_id,
+            project_context=self.project_context,
+        )
 
         if not helper:
             raise ValueError("Missing project context")
@@ -371,17 +361,16 @@ class Model:
 
 
 def model_factory(
-    model_id: str,
+    model_id: UUID,
+    *,
     hyamp: float | None,
-    bearer_token: str,
-    entitycore: bool = False,
-    project_context: ProjectContext | None = None,
+    access_token: str,
+    project_context: ProjectContext,
 ):
     model = Model(
         model_id=model_id,
         hyamp=hyamp,
-        token=bearer_token,
-        entitycore=entitycore,
+        access_token=access_token,
         project_context=project_context,
     )
 
@@ -391,67 +380,14 @@ def model_factory(
 
 
 class SynaptomeDetails(NamedTuple):
-    base_model_self: str
+    base_model_id: UUID
     synaptome_placement_config: SynapsesPlacementConfig
-
-
-def fetch_synaptome_model_details(synaptome_self: str, bearer_token: str):
-    """For a given synamptome model, returns the following:
-    1. The base me-model or e-model
-    2. The configuration for all synapse groups added to the given synaptome model
-    """
-    try:
-        resource_headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Authorization": bearer_token,
-        }
-        file_headers = {
-            "Authorization": bearer_token,
-        }
-
-        synaptome_resource_req = requests.get(
-            synaptome_self, headers=resource_headers, verify=False
-        )
-        synaptome_resource_req.raise_for_status()
-        synaptome_model_resource = synaptome_resource_req.json()
-
-        distributions = synaptome_model_resource.get("distribution")
-        distribution = (
-            distributions[0] if isinstance(distributions, list) else distributions
-        )
-
-        distribution_req = requests.get(
-            distribution["contentUrl"], headers=file_headers
-        )
-        distribution_req.raise_for_status()
-        synapses_file = json.loads(
-            distribution_req.text
-        )  # TODO: Add type for distribution file content
-        synapse_placement_config = [
-            SynapseConfig.model_validate(synapse)
-            for synapse in synapses_file["synapses"]
-        ]
-
-        return SynaptomeDetails(
-            base_model_self=synapses_file["meModelSelf"],
-            synaptome_placement_config=SynapsesPlacementConfig(
-                seed=synaptome_model_resource["seed"], config=synapse_placement_config
-            ),
-        )
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        logger.error(f"There was an error while loading synaptome model {e}")
-
-        raise Exception(e)
 
 
 file_name = "single_neuron_synaptome_config"
 
 
-def fetch_synaptome_entitycore_model_details(
+def fetch_synaptome_model_details(
     model_id: UUID, project_context: ProjectContext, bearer_token: str
 ):
     """For a given synaptome model, returns the following:
@@ -498,7 +434,7 @@ def fetch_synaptome_entitycore_model_details(
             ]
 
             return SynaptomeDetails(
-                base_model_self=str(single_neuron_synaptome.me_model.id),
+                base_model_id=single_neuron_synaptome.me_model.id,
                 synaptome_placement_config=SynapsesPlacementConfig(
                     seed=single_neuron_synaptome.seed,
                     config=synapse_placement_config,
