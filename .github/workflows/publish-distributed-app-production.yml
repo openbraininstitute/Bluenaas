@@ -7,7 +7,6 @@ permissions:
 on:
   push:
     branches:
-      - feat/small-circuit-simulations
       - main
 
 concurrency:
