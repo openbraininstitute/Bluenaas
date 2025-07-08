@@ -691,7 +691,7 @@ def _run_frequency_varying_stimulus(
         )
 
         simulation.run(
-            maxtime=simulation_duration,
+            tstop=simulation_duration,
             cvode=False,
             dt=experimental_setup.time_step,
             show_progress=True if realtime is True else False,

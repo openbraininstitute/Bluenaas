@@ -4,6 +4,7 @@
 import multiprocessing as mp
 import os
 import re
+from uuid import UUID
 from loguru import logger
 from multiprocessing.synchronize import Event
 from app.domains.morphology import SynapseSeries
@@ -22,8 +23,8 @@ from app.utils.util import (
 class BaseCell:
     """Neuron model."""
 
-    def __init__(self, model_uuid: str):
-        self._model_uuid = model_uuid
+    def __init__(self, model_id: UUID):
+        self._model_id = model_id
         self._template_name = None
         self._all_sec_array = []
         self._all_sec_map = {}
@@ -102,11 +103,6 @@ class BaseCell:
     def get_init_params(self):
         """Get initial parameters."""
         return getattr(self, "_init_params", None)
-
-    @property
-    def model_uuid(self):
-        """Get model id."""
-        return self._model_uuid
 
     def get_cell_morph(self):
         """Get neuron morphology."""
@@ -246,9 +242,13 @@ class HocCell(BaseCell):
     """Cell model with hoc."""
 
     def __init__(
-        self, model_uuid: str, threshold_current: float = 0, holding_current: float = 0
+        self,
+        model_id: UUID,
+        *,
+        threshold_current: float = 0,
+        holding_current: float = 0,
     ):
-        super().__init__(model_uuid)
+        super().__init__(model_id)
 
-        logger.info(f"hoccell init: {model_uuid, threshold_current, holding_current}")
-        self._load_by_model_uuid(model_uuid, threshold_current, holding_current)
+        logger.info(f"hoccell init: {model_id, threshold_current, holding_current}")
+        self._load_by_model_uuid(model_id, threshold_current, holding_current)

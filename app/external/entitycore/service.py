@@ -172,7 +172,7 @@ class EntityCore(Service):
         return [self.model.holding_current or 0, self.model.threshold_current or 0.1]
 
     def get_model_uuid(self):
-        return str(self.model_id)
+        return self.model_id
 
     def download_model(self):
         if not self.model:
