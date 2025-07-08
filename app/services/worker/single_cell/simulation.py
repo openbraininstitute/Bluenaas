@@ -5,7 +5,6 @@ from multiprocessing.context import SpawnProcess
 from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event
 from queue import Empty as QueueEmptyException
-from typing import Any
 from uuid import UUID
 
 from loguru import logger
@@ -25,11 +24,9 @@ from app.domains.simulation import (
     SynapseSimulationConfig,
 )
 from app.external.entitycore.service import ProjectContext
-from app.external.nexus.nexus import Nexus
 from app.infrastructure.redis import close_stream, stream
 from app.infrastructure.rq import get_job_stream_key
 from app.utils.const import QUEUE_STOP_EVENT
-from app.utils.streaming import cleanup_without_wait
 from app.utils.util import log_stats_for_series_in_frequency
 
 
@@ -308,7 +305,7 @@ def is_current_varying_simulation(config: SingleNeuronSimulationConfig) -> bool:
     return True
 
 
-def queue_record_to_nexus_record(record: dict, is_current_varying: bool) -> dict:
+def queue_record_to_stream_record(record: dict, is_current_varying: bool) -> dict:
     return {
         "x": record["time"],
         "y": record["voltage"],
@@ -316,7 +313,7 @@ def queue_record_to_nexus_record(record: dict, is_current_varying: bool) -> dict
         "name": record["label"],
         "recording": record["recording_name"],
         "amplitude": record["amplitude"],
-        "frequency": record.get("frequency"),
+        "frequency": record["frequency"],
         "varying_key": record["amplitude"]
         if is_current_varying is True
         else record["frequency"],
@@ -357,85 +354,7 @@ def stream_realtime_data(
             close_stream(stream_key)
             break
 
-        chunk = json.dumps(queue_record_to_nexus_record(record, is_current_varying))
+        chunk = json.dumps(queue_record_to_stream_record(record, is_current_varying))
         stream(stream_key, chunk)
 
     logger.info("Realtime Simulation completed")
-
-
-def save_simulation_result_to_nexus(
-    simulation_queue: Queue,
-    _process: SpawnProcess,
-    stop_event: Event,
-    nexus_helper: Nexus,
-    org_id: str,
-    project_id: str,
-    simulation_resource_self: str,
-    is_current_varying: bool,
-) -> None:
-    try:
-        final_result: dict[str, Any] = {}
-        while True:
-            try:
-                # Simulation_Queue.get() is blocking. If child fails without writing to it,
-                # the process will hang forever. That's why timeout is added.
-                record = simulation_queue.get(timeout=1)
-            except QueueEmptyException:
-                if _process.is_alive():
-                    continue
-                else:
-                    logger.warning("Process is not alive and simulation queue is empty")
-                    raise Exception("Child process died unexpectedly")
-            if isinstance(record, SimulationError):
-                nexus_helper.update_simulation_status(
-                    org_id=org_id,
-                    project_id=project_id,
-                    resource_self=simulation_resource_self,
-                    status="failure",
-                    is_draft=True,
-                    err=f"{record}",
-                )
-                logger.debug("Parent stopping because of error")
-                break
-            if record == QUEUE_STOP_EVENT:
-                logger.debug("Parent received queue_stop_event")
-                break
-
-            recording_name = record["recording_name"]
-            current_recording_data = (
-                final_result[recording_name] if recording_name in final_result else []
-            )
-            final_result[recording_name] = current_recording_data
-
-            current_recording_data.append(
-                queue_record_to_nexus_record(record, is_current_varying)
-            )
-
-        logger.debug(f"All data received for simulation {simulation_resource_self}")
-        nexus_helper.update_simulation_with_final_results(
-            simulation_resource_self=simulation_resource_self,
-            org_id=org_id,
-            project_id=project_id,
-            status="success",
-            results=final_result,
-        )
-        logger.debug(
-            f"Successfully updated simulation resource {simulation_resource_self}"
-        )
-    except Exception as e:
-        try:
-            logger.exception(f"background simulation failed {e}")
-            nexus_helper.update_simulation_status(
-                org_id=org_id,
-                project_id=project_id,
-                resource_self=simulation_resource_self,
-                status="failure",
-                is_draft=True,
-                err=f"{e}",
-            )
-        except Exception as e:
-            logger.error(
-                f"Could not update simulation resource {simulation_resource_self} with error message {e}"
-            )
-    finally:
-        cleanup_without_wait(stop_event=stop_event, process=_process)

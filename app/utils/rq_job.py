@@ -1,5 +1,4 @@
 import asyncio
-import json
 import time
 from typing import Any, AsyncGenerator, Callable, TypeVar
 from uuid import uuid4
@@ -143,7 +142,7 @@ async def wait_for_job(
         if job.is_finished:
             return job.result
         elif job.is_failed:
-            raise job.exc_info
+            raise RuntimeError(job.exc_info)
 
         await asyncio.sleep(poll_interval)
 
