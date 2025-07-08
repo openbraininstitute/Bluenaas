@@ -11,47 +11,61 @@ from rq.job import JobStatus as RQJobStatus
 
 from app.config.settings import settings
 from app.core.job_stream import JobStatus, JobStream
-from app.infrastructure.redis import stream
 from app.infrastructure.redis.asyncio import redis_stream_reader
+from app.utils.asyncio import run_async
 from app.utils.streaming import compose_key
 
 FunctionReferenceType = TypeVar("FunctionReferenceType", str, Callable[..., Any])
 
 
-async def _stream_queue_position(job: Job, poll_interval: float = 3.0):
-    stream_key = compose_key(job.id)
+async def _job_status_monitor(
+    job: Job,
+    *,
+    poll_interval: float = 3.0,
+    on_success: Callable | None = None,
+    on_failure: Callable | None = None,
+):
+    stream = JobStream(compose_key(job.id))
 
     prev_position = None
 
     try:
         while True:
             # Stop monitoring if job is no longer queued
-            if job.get_status() != RQJobStatus.QUEUED:
+
+            status = await run_async(lambda: job.get_status())
+
+            if status == RQJobStatus.FAILED and on_failure:
+                on_failure()
+                break
+            elif status == RQJobStatus.FINISHED and on_success:
+                on_success()
+                break
+            elif status != RQJobStatus.QUEUED:
                 break
 
             # Get current queue position
             position = job.get_position()
 
-            if position != prev_position:
-                msg = {"status": "queued", "extra": position}
-                stream(stream_key, json.dumps(msg))
+            if position and position != prev_position:
+                stream.send_status(JobStatus.pending, str(position))
                 prev_position = position
 
             await asyncio.sleep(poll_interval)
 
     except Exception as e:
         # Log error but don't crash the thread
-        logger.error(f"Error monitoring queue position for job {job.id}: {e}")
+        logger.error(f"Error monitoring job status for job {job.id}: {e}")
 
 
-def on_failure(job, connection, exc_type, exc_value, traceback):
+def on_failure_default_handler(job, connection, exc_type, exc_value, traceback):
     stream = JobStream(compose_key(job.id))
 
     stream.send_status(JobStatus.error, str(exc_value))
     stream.close()
 
 
-def on_success(job, connection, result):
+def on_success_default_handler(job, connection, result):
     stream = JobStream(compose_key(job.id))
 
     stream.send_status(JobStatus.done)
@@ -61,12 +75,13 @@ def on_success(job, connection, result):
 async def dispatch(
     queue: Queue,
     fn: FunctionReferenceType,
+    *,
     job_args: tuple = (),
     job_kwargs: dict = {},
     job_id: str | None = None,
     timeout: int = settings.MAX_JOB_DURATION,
-    stream_queue_position: bool = False,
-    position_poll_interval: float = 1.0,
+    on_failure: Callable[..., Any] | None = None,
+    on_success: Callable[..., Any] | None = None,
 ) -> tuple[Job, AsyncGenerator[Any, Any]]:
     if job_id is None:
         job_id = str(uuid4())
@@ -77,26 +92,25 @@ async def dispatch(
     write_stream = JobStream(stream_key)
 
     # Run the blocking queue.enqueue call in a separate thread
-    loop = asyncio.get_event_loop()
-    job = await loop.run_in_executor(
-        None,
+    # loop = asyncio.get_event_loop()
+    job = await run_async(
         lambda: queue.enqueue(
             fn,
             *job_args,
             **job_kwargs,
             job_id=job_id,
             job_timeout=timeout,
-            on_failure=on_failure,
-            on_success=on_success,
+            # Default handlers only stream status updates
+            on_failure=on_failure_default_handler,
+            on_success=on_success_default_handler,
         ),
     )
 
-    await loop.run_in_executor(
-        None, lambda: write_stream.send_status(JobStatus.pending)
-    )
+    await run_async(lambda: write_stream.send_status(JobStatus.pending))
 
-    if stream_queue_position:
-        asyncio.create_task(_stream_queue_position(job, position_poll_interval))
+    asyncio.create_task(
+        _job_status_monitor(job, on_success=on_success, on_failure=on_failure)
+    )
 
     return job, read_stream
 
