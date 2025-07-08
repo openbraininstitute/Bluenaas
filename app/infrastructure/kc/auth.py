@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 from app.config.settings import settings
 from app.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from app.infrastructure.kc.config import kc_auth
-from app.utils.bearer_token import token_to_bearer
 
 auth_header: HTTPBearer | OAuth2AuthorizationCodeBearer = HTTPBearer(auto_error=False)
 

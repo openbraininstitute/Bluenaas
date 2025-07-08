@@ -73,7 +73,7 @@ def on_success_default_handler(job, connection, result):
 
 
 async def dispatch(
-    queue: Queue,
+    job_queue: Queue,
     fn: FunctionReferenceType,
     *,
     job_args: tuple = (),
@@ -94,7 +94,7 @@ async def dispatch(
     # Run the blocking queue.enqueue call in a separate thread
     # loop = asyncio.get_event_loop()
     job = await run_async(
-        lambda: queue.enqueue(
+        lambda: job_queue.enqueue(
             fn,
             *job_args,
             **job_kwargs,

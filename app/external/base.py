@@ -1,4 +1,5 @@
 from pathlib import Path
+from uuid import UUID
 
 from app.core.types import FileObj
 from app.infrastructure.storage import (
@@ -9,12 +10,12 @@ from app.infrastructure.storage import (
 
 
 class Service:
-    model_uuid: str
+    model_id: UUID
 
     def create_model_folder(
         self, hoc_file: bytes, morphology_obj: FileObj, mechanisms: list[FileObj]
     ):
-        output_dir = get_single_cell_location(self.model_uuid)
+        output_dir = get_single_cell_location(self.model_id)
 
         create_file(output_dir / "cell.hoc", hoc_file)
 

@@ -31,7 +31,6 @@ from app.domains.morphology import (
     SynapseSeries,
     SynapsesPlacementConfig,
 )
-from app.domains.nexus import NexusBaseResource
 from app.domains.simulation import SynapseSimulationConfig
 from app.external.entitycore.schemas import AssetLabel, EntityRoute
 from app.external.entitycore.service import (
@@ -70,7 +69,6 @@ class Model:
         self.CELL: HocCell | None = None
         self.threshold_current: float = 1
         self.holding_current: float | None = hyamp
-        self.resource: NexusBaseResource | None = None
         self.project_context = project_context
 
     def build_model(self):
@@ -90,9 +88,7 @@ class Model:
         [holding_current, threshold_current] = helper.get_currents()
         self.threshold_current = threshold_current
 
-        model_uuid = helper.get_model_uuid()
-
-        model_path = get_single_cell_location(model_uuid)
+        model_path = get_single_cell_location(self.model_id)
         ready_marker = model_path / READY_MARKER_FILE_NAME
 
         if not ready_marker.exists():
@@ -100,7 +96,7 @@ class Model:
             with lock.acquire(timeout=2 * 60):
                 helper.download_model()
                 self.CELL = HocCell(
-                    model_uuid=model_uuid,
+                    self.model_id,
                     threshold_current=threshold_current,
                     holding_current=self.holding_current
                     if self.holding_current is not None
@@ -109,7 +105,7 @@ class Model:
                 ready_marker.touch()
         else:
             self.CELL = HocCell(
-                model_uuid=model_uuid,
+                self.model_id,
                 threshold_current=threshold_current,
                 holding_current=self.holding_current
                 if self.holding_current is not None

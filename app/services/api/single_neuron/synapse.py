@@ -22,13 +22,13 @@ async def generate_synapses(
     params: SynapsePlacementBody,
     *,
     request: Request,
-    queue: Queue,
+    job_queue: Queue,
     access_token: str,
     project_context: ProjectContext,
 ) -> StreamingResponse:
     # TODO: Switch to normal HTTP response, there is no benefit in streaming here.
     _job, stream = await dispatch(
-        queue,
+        job_queue,
         JobFn.GENERATE_SYNAPSES,
         job_args=(
             model_id,

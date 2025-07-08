@@ -189,7 +189,7 @@ class EntityCore(Service):
         ]
 
     def get_model_uuid(self):
-        return str(self.model_id)
+        return self.model_id
 
     def download_model(self):
         if not self.model:
