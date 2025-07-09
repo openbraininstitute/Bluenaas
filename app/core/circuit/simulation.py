@@ -163,7 +163,7 @@ class Simulation:
             "--config",
             f"{self.path}/{DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME}",
             "--execution_id",
-            self.execution_id,
+            str(self.execution_id),
             "--libnrnmech_path",
             # TODO: Consider adding support for other platforms/architectures
             f"{self.circuit.path}/{DEFAULT_LIBNRNMECH_PATH}",
