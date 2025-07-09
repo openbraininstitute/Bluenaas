@@ -90,8 +90,6 @@ async def dispatch(
 
     write_stream = JobStream(stream_key)
 
-    # Run the blocking queue.enqueue call in a separate thread
-    # loop = asyncio.get_event_loop()
     job = await run_async(
         lambda: job_queue.enqueue(
             fn,
