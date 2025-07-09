@@ -1,10 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
-from typing import Annotated
 from uuid import UUID
 
 import requests
 from entitysdk.common import ProjectContext
-from fastapi import Header
 from loguru import logger
 from pydantic import BaseModel
 
@@ -18,8 +16,6 @@ from app.external.entitycore.schemas import (
     MEModelRead,
     ReconstructionMorphologyRead,
 )
-
-ProjectContextDep = Annotated[ProjectContext, Header()]
 
 
 def entitycore_url():
@@ -173,6 +169,8 @@ class EntityCore(Service):
 
     def download_model(self):
         if not self.model:
+            logger.info(self.project_context)
+            logger.info(self.access_token)
             self.model = fetch_one(
                 self.model_id,
                 EntityRoute.memodel,

@@ -73,17 +73,12 @@ class Model:
 
     def build_model(self):
         """Prepare model."""
-        if self.model_id is None:
-            raise Exception("Missing model _self url")
 
         helper = EntityCore(
             access_token=self.access_token,
             model_id=self.model_id,
             project_context=self.project_context,
         )
-
-        if not helper:
-            raise ValueError("Missing project context")
 
         [holding_current, threshold_current] = helper.get_currents()
         self.threshold_current = threshold_current

@@ -11,7 +11,7 @@ from app.domains.simulation import (
     StimulationItemResponse,
     StimulationPlotConfig,
 )
-from app.external.entitycore.service import ProjectContextDep
+from app.routes.dependencies import ProjectContextDep
 from app.infrastructure.kc.auth import Auth, verify_jwt
 from app.infrastructure.rq import JobQueue, queue_factory
 from app.services.api.single_neuron.current_clamp_plot import (
