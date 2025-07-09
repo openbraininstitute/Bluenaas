@@ -102,15 +102,15 @@ def validate_synapse_formula(
     return validate_synapse_generation_formula(formula=formula)  # type: ignore
 
 
-@router.get("/memodel/morpgology")
-def retrieve_morphology(
+@router.get("/memodel/morphology")
+async def retrieve_morphology(
     model_id: UUID,
     request: Request,
     auth: Annotated[Auth, Depends(verify_jwt)],
     project_context: ProjectContextDep,
     job_queue: Annotated[Queue, Depends(queue_factory(JobQueue.HIGH))],
 ):
-    return get_morphology_stream(
+    return await get_morphology_stream(
         model_id,
         request=request,
         job_queue=job_queue,

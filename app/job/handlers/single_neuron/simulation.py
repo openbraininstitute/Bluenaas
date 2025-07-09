@@ -7,7 +7,7 @@ from loguru import logger
 from app.core.exceptions import BlueNaasError, BlueNaasErrorCode
 from app.domains.simulation import SingleNeuronSimulationConfig
 from app.external.entitycore.service import ProjectContext
-from app.services.worker.single_cell.simulation import (
+from app.services.worker.single_neuron.simulation import (
     init_current_varying_simulation,
     init_frequency_varying_simulation,
     is_current_varying_simulation,
