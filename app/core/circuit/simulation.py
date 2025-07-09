@@ -18,6 +18,7 @@ from app.constants import (
 )
 from app.core.circuit.circuit import Circuit
 from app.core.circuit.simulation_output import SimulationOutput
+from app.core.exceptions import CircuitSimulationError, CircuitSimulationInitError
 from app.infrastructure.storage import (
     get_circuit_simulation_location,
     get_circuit_simulation_output_location,
@@ -148,7 +149,11 @@ class Simulation:
 
     def init(self):
         self._init_circuit()
-        self._init_simulation()
+
+        try:
+            self._init_simulation()
+        except Exception:
+            raise CircuitSimulationInitError()
 
     def run(self, *, num_procs: int = 1) -> SimulationOutput:
         # Run the simulation via MPI entrypoint
@@ -169,6 +174,9 @@ class Simulation:
             f"{self.circuit.path}/{DEFAULT_LIBNRNMECH_PATH}",
             "--save-nwb",
         ]
-        subprocess.run(run_cmd, cwd=self.circuit.path, check=True)
+        try:
+            subprocess.run(run_cmd, cwd=self.circuit.path, check=True)
+        except Exception:
+            raise CircuitSimulationError()
 
         return self.output

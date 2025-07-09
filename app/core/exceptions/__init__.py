@@ -55,61 +55,59 @@ class BlueNaasErrorResponse(BaseModel):
     details: str | None = None
 
 
-class SimulationError(Exception):
+class _BaseMessageException(Exception):
+    """Base class for exceptions that only need a message."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        return self.message
+
+
+class SimulationError(_BaseMessageException):
     def __init__(self, message: str = "Simulation failed") -> None:
-        self.message = message
-        super().__init__(self.message)
-
-    def __str__(self) -> str:
-        return self.message
-
-
-class SingleNeuronSynaptomeConfigurationError(Exception):
-    def __init__(self, message: str = "Configuration not found") -> None:
-        self.message = message
-        super().__init__(self.message)
-
-    def __str__(self) -> str:
-        return self.message
-
-
-class ResourceDeprecationError(Exception):
-    def __init__(self, message, response_data):
         super().__init__(message)
-        self.response_data = response_data
 
 
-class ChildSimulationError(Exception):
+class SingleNeuronSynaptomeConfigurationError(_BaseMessageException):
+    def __init__(self, message: str = "Configuration not found") -> None:
+        super().__init__(message)
+
+
+class ChildSimulationError(_BaseMessageException):
     def __init__(self, message: str = "Child simulation failed") -> None:
-        self.message = message
-        super().__init__(self.message)
-
-    def __str__(self) -> str:
-        return self.message
+        super().__init__(message)
 
 
-class SynapseGenerationError(Exception):
+class SynapseGenerationError(_BaseMessageException):
     def __init__(self, message: str = "Synapse generation failed") -> None:
-        self.message = message
-        super().__init__(self.message)
-
-    def __str__(self) -> str:
-        return self.message
+        super().__init__(message)
 
 
-class MorphologyGenerationError(Exception):
+class MorphologyGenerationError(_BaseMessageException):
     def __init__(self, message: str = "Morphology generation failed") -> None:
-        self.message = message
-        super().__init__(self.message)
-
-    def __str__(self) -> str:
-        return self.message
+        super().__init__(message)
 
 
-class StimulationPlotGenerationError(Exception):
+class StimulationPlotGenerationError(_BaseMessageException):
     def __init__(self, message: str = "Stimulation plot generation failed") -> None:
-        self.message = message
-        super().__init__(self.message)
+        super().__init__(message)
 
-    def __str__(self) -> str:
-        return self.message
+
+class CircuitInitError(_BaseMessageException):
+    def __init__(self, message: str = "Circuit instantiation failed") -> None:
+        super().__init__(message)
+
+
+class CircuitSimulationInitError(_BaseMessageException):
+    def __init__(
+        self, message: str = "Circuit simulation instantiation failed"
+    ) -> None:
+        super().__init__(message)
+
+
+class CircuitSimulationError(_BaseMessageException):
+    def __init__(self, message: str = "Circuit simulation failed") -> None:
+        super().__init__(message)
