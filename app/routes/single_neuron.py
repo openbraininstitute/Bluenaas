@@ -2,7 +2,7 @@ from typing import Annotated, List
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse
 from rq import Queue
 
 from app.domains.morphology import SynapsePlacementBody, SynapsePlacementResponse
@@ -11,9 +11,9 @@ from app.domains.simulation import (
     StimulationItemResponse,
     StimulationPlotConfig,
 )
-from app.routes.dependencies import ProjectContextDep
 from app.infrastructure.kc.auth import Auth, verify_jwt
 from app.infrastructure.rq import JobQueue, queue_factory
+from app.routes.dependencies import ProjectContextDep
 from app.services.api.single_neuron.current_clamp_plot import (
     get_current_clamp_plot_data_response,
 )
@@ -21,7 +21,7 @@ from app.services.api.single_neuron.morphology import get_morphology_stream
 from app.services.api.single_neuron.simulation import (
     run_simulation as run_simulation_service,
 )
-from app.services.api.single_neuron.synapse import (
+from app.services.api.single_neuron.synaptome import (
     generate_synapses,
     validate_synapse_generation_formula,
 )
@@ -74,17 +74,15 @@ def run_single_neuron_synaptome_simulation(
     response_model=SynapsePlacementResponse,
 )
 async def place_synapses(
-    request: Request,
     params: SynapsePlacementBody,
     project_context: ProjectContextDep,
     model_id: UUID = Query(),
     auth: Auth = Depends(verify_jwt),
     job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
-) -> StreamingResponse:
+) -> JSONResponse:
     return await generate_synapses(
         model_id,
         params,
-        request=request,
         job_queue=job_queue,
         access_token=auth.access_token,
         project_context=project_context,

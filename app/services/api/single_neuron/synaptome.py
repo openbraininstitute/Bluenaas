@@ -3,7 +3,7 @@ from uuid import UUID
 
 import sympy as sp
 from fastapi import Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse
 from loguru import logger
 from rq import Queue
 
@@ -13,20 +13,17 @@ from app.domains.morphology import (
 )
 from app.external.entitycore.service import ProjectContext
 from app.job import JobFn
-from app.utils.api.streaming import x_ndjson_http_stream
-from app.utils.rq_job import dispatch
+from app.utils.rq_job import dispatch, get_job_data
 
 
 async def generate_synapses(
     model_id: UUID,
     params: SynapsePlacementBody,
     *,
-    request: Request,
     job_queue: Queue,
     access_token: str,
     project_context: ProjectContext,
-) -> StreamingResponse:
-    # TODO: Switch to normal HTTP response, there is no benefit in streaming here.
+) -> JSONResponse:
     _job, stream = await dispatch(
         job_queue,
         JobFn.GENERATE_SYNAPSES,
@@ -36,9 +33,10 @@ async def generate_synapses(
         ),
         job_kwargs={"access_token": access_token, "project_context": project_context},
     )
-    http_stream = x_ndjson_http_stream(request, stream)
 
-    return StreamingResponse(http_stream, media_type="application/x-ndjson")
+    synaptome = await get_job_data(stream)
+
+    return JSONResponse(synaptome)
 
 
 def validate_synapse_generation_formula(formula: str):
