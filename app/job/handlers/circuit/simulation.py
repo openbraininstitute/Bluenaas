@@ -10,6 +10,7 @@ from loguru import logger
 from app.config.settings import settings
 from app.core.circuit.circuit import Circuit
 from app.core.circuit.simulation import Simulation
+from app.core.exceptions import CircuitInitError
 from app.core.job_stream import JobStream
 from app.domains.job import JobStatus
 from app.infrastructure.rq import get_job_stream_key
@@ -49,7 +50,7 @@ def run_circuit_simulation(
         simulation_id=simulation_id,
     )
 
-    status: SimulationExecutionStatus | None = None
+    status: JobStatus | None = None
 
     try:
         logger.info(f"Initializing circuit {circuit_id}")
@@ -65,11 +66,10 @@ def run_circuit_simulation(
         job_stream.send_status(JobStatus.running, "simulation_exec")
         simulation.run(num_procs=num_mpi_procs)
 
-        status = SimulationExecutionStatus.done
+        status = JobStatus.done
     except Exception as e:
         logger.exception(e)
-        status = SimulationExecutionStatus.error
-        raise
+        status = JobStatus.error
     finally:
         job_stream.send_status(JobStatus.running, "results_upload")
         simulation_result_entity = simulation.output.upload()
@@ -83,3 +83,6 @@ def run_circuit_simulation(
                 "status": status,
             },
         )
+
+        job_stream.send_status(status or JobStatus.error)
+        job_stream.close()

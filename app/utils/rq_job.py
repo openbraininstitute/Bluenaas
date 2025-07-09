@@ -60,6 +60,11 @@ async def _job_status_monitor(
 def on_failure_default_handler(job, connection, exc_type, exc_value, traceback):
     stream = JobStream(compose_key(job.id))
 
+    logger.error(
+        f"Job {job.id} failed with {exc_type.__name__}: {exc_value}",
+        exc_info=(exc_type, exc_value, traceback),
+    )
+
     stream.send_status(JobStatus.error, str(exc_value))
     stream.close()
 

@@ -13,6 +13,7 @@ from app.constants import (
     DEFAULT_CIRCUIT_CONFIG_NAME,
     READY_MARKER_FILE_NAME,
 )
+from app.core.exceptions import CircuitInitError
 from app.infrastructure.storage import get_circuit_location
 
 
@@ -90,10 +91,14 @@ class Circuit:
             return
 
         lock = FileLock(self.path / "dir.lock")
-        with lock.acquire(timeout=2 * 60):
-            self._fetch_assets()
-            self._compile_mod_files()
-            ready_marker.touch()
+
+        try:
+            with lock.acquire(timeout=2 * 60):
+                self._fetch_assets()
+                self._compile_mod_files()
+                ready_marker.touch()
+        except Exception:
+            raise CircuitInitError()
 
     def is_fetched(self) -> bool:
         """Check if the circuit is in the storage"""
