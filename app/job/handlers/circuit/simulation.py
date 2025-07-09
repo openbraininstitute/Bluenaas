@@ -56,7 +56,7 @@ def run_circuit_simulation(
         job_stream.send_status(JobStatus.running, "circuit_init")
         circuit.init()
 
-        job_stream.send_status(JobStatus.running, "simultaion_init")
+        job_stream.send_status(JobStatus.running, "simulation_init")
         simulation.init()
 
         num_cells = simulation.get_num_cells()
