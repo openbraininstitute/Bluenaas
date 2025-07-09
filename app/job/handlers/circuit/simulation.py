@@ -4,13 +4,11 @@ from uuid import UUID
 from entitysdk.client import Client
 from entitysdk.common import ProjectContext
 from entitysdk.models import SimulationExecution
-from entitysdk.types import SimulationExecutionStatus
 from loguru import logger
 
 from app.config.settings import settings
 from app.core.circuit.circuit import Circuit
 from app.core.circuit.simulation import Simulation
-from app.core.exceptions import CircuitInitError
 from app.core.job_stream import JobStream
 from app.domains.job import JobStatus
 from app.infrastructure.rq import get_job_stream_key

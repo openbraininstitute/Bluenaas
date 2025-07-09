@@ -26,11 +26,11 @@ from app.services.api.single_neuron.synaptome import (
     validate_synapse_generation_formula,
 )
 
-router = APIRouter()
+router = APIRouter(prefix="/single-neuron")
 
 
-@router.post("/memodel/simulation/run", tags=["simulation", "memodel"])
-async def run_memodel_simulation(
+@router.post("/simulation/run", tags=["simulation", "single-neuron"])
+async def run_simulation(
     request: Request,
     model_id: UUID,
     config: SingleNeuronSimulationConfig,
@@ -49,28 +49,8 @@ async def run_memodel_simulation(
     )
 
 
-@router.post("/single-neuron-synaptome/simulation/run", tags=["simulation", "memodel"])
-def run_single_neuron_synaptome_simulation(
-    request: Request,
-    model_id: UUID,
-    config: SingleNeuronSimulationConfig,
-    project_context: ProjectContextDep,
-    auth: Auth = Depends(verify_jwt),
-    job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
-):
-    return run_simulation_service(
-        model_id,
-        config,
-        auth=auth,
-        request=request,
-        job_queue=job_queue,
-        project_context=project_context,
-        realtime=True,
-    )
-
-
 @router.post(
-    "/single-neuron-synaptome/generate-synaptome-placement",
+    "/synaptome/generate",
     response_model=SynapsePlacementResponse,
 )
 async def place_synapses(
@@ -90,7 +70,7 @@ async def place_synapses(
 
 
 @router.post(
-    "/single-neuron-synaptome/synapse-formula/validate",
+    "/synaptome/validate-placement-formula",
     response_model=bool,
 )
 def validate_synapse_formula(
@@ -100,7 +80,7 @@ def validate_synapse_formula(
     return validate_synapse_generation_formula(formula=formula)  # type: ignore
 
 
-@router.get("/memodel/morphology")
+@router.get("/morphology")
 async def retrieve_morphology(
     model_id: UUID,
     request: Request,
@@ -118,7 +98,7 @@ async def retrieve_morphology(
 
 
 @router.post(
-    "/memodel/current-clamp-plot-data",
+    "/current-clamp-plot-data",
     response_model=List[StimulationItemResponse],
 )
 async def retrieve_stimulation_plot(
