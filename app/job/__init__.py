@@ -8,7 +8,7 @@ class JobFn(StrEnum):
         "app.job.handlers.single_neuron.morphology.get_morphology_dendrogram"
     )
     GET_CURRENT_CLAMP_PLOT_DATA = (
-        "app.job.handlers.single_neuron.current_clamp.get_current_clamp_plot_data"
+        "app.job.handlers.single_neuron.current_clamp_plot.get_current_clamp_plot_data"
     )
     RUN_SINGLE_NEURON_SIMULATION = "app.job.handlers.single_neuron.simulation.run"
     GENERATE_SYNAPSES = "app.job.handlers.single_neuron.synapse.generate_synapses"

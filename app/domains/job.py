@@ -1,6 +1,6 @@
 from enum import StrEnum, auto
-from typing import Literal, Union
-from pydantic import BaseModel, Field
+from typing import Annotated, Any, Literal, Union
+from pydantic import BaseModel, Field, TypeAdapter
 
 
 class JobStatus(StrEnum):
@@ -34,7 +34,11 @@ class JobDataMessage(BaseModel):
         default=JobMessageType.data, alias="type"
     )
     data_type: str | None
-    data: str
+    data: Any
 
 
-JobMessage = Union[JobStatusMessage, JobDataMessage]
+JobMessage = Annotated[
+    Union[JobStatusMessage, JobDataMessage], Field(discriminator="message_type")
+]
+
+JobMessageAdapter = TypeAdapter(JobMessage)

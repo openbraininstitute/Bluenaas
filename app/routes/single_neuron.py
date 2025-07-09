@@ -15,7 +15,7 @@ from app.routes.dependencies import ProjectContextDep
 from app.infrastructure.kc.auth import Auth, verify_jwt
 from app.infrastructure.rq import JobQueue, queue_factory
 from app.services.api.single_neuron.current_clamp_plot import (
-    get_current_clamp_plot_data_stream,
+    get_current_clamp_plot_data_response,
 )
 from app.services.api.single_neuron.morphology import get_morphology_stream
 from app.services.api.single_neuron.simulation import (
@@ -30,15 +30,15 @@ router = APIRouter()
 
 
 @router.post("/memodel/simulation/run", tags=["simulation", "memodel"])
-def run_memodel_simulation(
+async def run_memodel_simulation(
     request: Request,
     model_id: UUID,
     config: SingleNeuronSimulationConfig,
     project_context: ProjectContextDep,
     auth: Auth = Depends(verify_jwt),
-    job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
+    job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
 ):
-    return run_simulation_service(
+    return await run_simulation_service(
         model_id,
         config,
         auth=auth,
@@ -56,7 +56,7 @@ def run_single_neuron_synaptome_simulation(
     config: SingleNeuronSimulationConfig,
     project_context: ProjectContextDep,
     auth: Auth = Depends(verify_jwt),
-    job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
+    job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
 ):
     return run_simulation_service(
         model_id,
@@ -123,18 +123,16 @@ async def retrieve_morphology(
     "/memodel/current-clamp-plot-data",
     response_model=List[StimulationItemResponse],
 )
-def retrieve_stimulation_plot(
+async def retrieve_stimulation_plot(
     model_id: UUID,
     config: StimulationPlotConfig,
-    request: Request,
     project_context: ProjectContextDep,
     auth: Auth = Depends(verify_jwt),
     job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
 ):
-    return get_current_clamp_plot_data_stream(
+    return await get_current_clamp_plot_data_response(
         model_id,
         config,
-        request=request,
         job_queue=job_queue,
         access_token=auth.access_token,
         project_context=project_context,

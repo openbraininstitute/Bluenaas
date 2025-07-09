@@ -1,4 +1,5 @@
 import asyncio
+import json
 import time
 from typing import Any, AsyncGenerator, Callable, TypeVar
 from uuid import uuid4
@@ -10,6 +11,7 @@ from rq.job import JobStatus as RQJobStatus
 
 from app.config.settings import settings
 from app.core.job_stream import JobStatus, JobStream
+from app.domains.job import JobMessage, JobMessageAdapter, JobMessageType
 from app.infrastructure.redis.asyncio import redis_stream_reader
 from app.utils.asyncio import run_async
 from app.utils.streaming import compose_key
@@ -115,6 +117,22 @@ async def dispatch(
     )
 
     return job, read_stream
+
+
+async def get_job_data(stream: AsyncGenerator[str, None]):
+    async for message_str in stream:
+        message: JobMessage = JobMessageAdapter.validate_json(message_str)
+
+        if (
+            message.message_type == JobMessageType.status
+            and message.status == JobStatus.error
+        ):
+            raise RuntimeError("Job failed")
+
+        if message.message_type == JobMessageType.data:
+            return message.data
+
+    raise RuntimeError("Job never sent any data")
 
 
 async def wait_for_job(

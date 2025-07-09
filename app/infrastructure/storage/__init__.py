@@ -11,6 +11,9 @@ def uuid_subpath(uuid: UUID) -> Path:
 
 def create_file(path: Path, content: bytes) -> None:
     """Create file."""
+    if not path.parent.exists():
+        path.parent.mkdir(parents=True)
+
     with open(path, "bw") as f:
         f.write(content)
 

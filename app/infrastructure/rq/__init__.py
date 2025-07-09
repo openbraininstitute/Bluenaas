@@ -27,9 +27,24 @@ def queue_factory(job_queue: JobQueue) -> Callable[[], Queue]:
 
 
 def get_job_stream_key() -> str:
+    """Get stream key for current job.
+    Can be called only from a worker.
+    """
     job = get_current_job()
 
     if job is None:
         raise ValueError("No job found")
 
     return compose_key(job.id)
+
+
+def get_current_job_id() -> str:
+    """Get current job id.
+    Can be called only from a worker.
+    """
+    job = get_current_job()
+
+    if job is None:
+        raise ValueError("No job available")
+
+    return job.id

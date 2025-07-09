@@ -65,7 +65,7 @@ async def run_simulation(
                     job_args=(model_id, config),
                     job_kwargs={
                         "project_context": project_context,
-                        "token": auth.access_token,
+                        "access_token": auth.access_token,
                         "realtime": realtime,
                     },
                 )

@@ -13,7 +13,9 @@ from app.core.exceptions import (
     BlueNaasErrorCode,
     SimulationError,
 )
+from app.core.job_stream import JobStream
 from app.core.model import fetch_synaptome_model_details
+from app.domains.job import JobStatus
 from app.domains.morphology import (
     SynapseConfig,
     SynapseSeries,
@@ -24,7 +26,6 @@ from app.domains.simulation import (
     SynapseSimulationConfig,
 )
 from app.external.entitycore.service import ProjectContext
-from app.infrastructure.redis import close_stream, stream
 from app.infrastructure.rq import get_job_stream_key
 from app.utils.const import QUEUE_STOP_EVENT
 from app.utils.util import log_stats_for_series_in_frequency
@@ -313,7 +314,7 @@ def queue_record_to_stream_record(record: dict, is_current_varying: bool) -> dic
         "name": record["label"],
         "recording": record["recording_name"],
         "amplitude": record["amplitude"],
-        "frequency": record["frequency"],
+        "frequency": record.get("frequency"),
         "varying_key": record["amplitude"]
         if is_current_varying is True
         else record["frequency"],
@@ -326,6 +327,7 @@ def stream_realtime_data(
     is_current_varying: bool,
 ) -> None:
     stream_key = get_job_stream_key()
+    job_stream = JobStream(stream_key)
 
     while True:
         try:
@@ -346,15 +348,14 @@ def stream_realtime_data(
                     "details": record.__str__(),
                 }
             )
-            stream(stream_key, errStr)
+            job_stream.send_status(job_status=JobStatus.error, extra=errStr)
             logger.debug("Parent stopping because of error")
             break
         if record == QUEUE_STOP_EVENT:
             logger.debug("Parent received queue_stop_event")
-            close_stream(stream_key)
             break
 
-        chunk = json.dumps(queue_record_to_stream_record(record, is_current_varying))
-        stream(stream_key, chunk)
+        chunk = queue_record_to_stream_record(record, is_current_varying)
+        job_stream.send_data(chunk)
 
     logger.info("Realtime Simulation completed")

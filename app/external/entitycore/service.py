@@ -37,7 +37,7 @@ def fetch_one[T: BaseModel](
         headers={
             "virtual-lab-id": str(project_context.virtual_lab_id),
             "project-id": str(project_context.project_id),
-            "Authorization": token,
+            "Authorization": f"Bearer {token}",
         },
     )
 
@@ -58,7 +58,7 @@ def download_asset(
         headers={
             "virtual-lab-id": str(project_context.virtual_lab_id),
             "project-id": str(project_context.project_id),
-            "Authorization": token,
+            "Authorization": f"Bearer {token}",
         },
     )
     res.raise_for_status()
@@ -186,8 +186,6 @@ class EntityCore(Service):
 
     def download_model(self):
         if not self.model:
-            logger.info(self.project_context)
-            logger.info(self.access_token)
             self.model = fetch_one(
                 self.model_id,
                 EntityRoute.memodel,

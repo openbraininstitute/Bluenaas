@@ -3,6 +3,7 @@ from uuid import UUID
 
 from loguru import logger
 
+from app.core.job_stream import JobStream
 from app.core.model import model_factory
 from app.external.entitycore.service import ProjectContext
 from app.infrastructure.redis import stream_one
@@ -16,6 +17,7 @@ def get_morphology(
     project_context: ProjectContext,
 ):
     stream_key = get_job_stream_key()
+    job_stream = JobStream(stream_key)
 
     try:
         model = model_factory(
@@ -29,11 +31,13 @@ def get_morphology(
             raise RuntimeError(f"Model hasn't been initialized: {model_id}")
 
         morphology = model.CELL.get_cell_morph()
-        stream_one(stream_key, json.dumps(morphology))
+
+        job_stream.send_data(morphology)
+        job_stream.close()
 
     except Exception as ex:
         logger.exception(f"Morphology builder error: {ex}")
-        stream_one(stream_key, "error")
+        raise
 
 
 def get_morphology_dendrogram(
