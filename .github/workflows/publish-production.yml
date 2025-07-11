@@ -1,0 +1,74 @@
+name: Publish PRODUCTION images
+
+permissions:
+  id-token: write # Required for OIDC authentication
+  contents: write
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish-to-aws-ecr:
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: "prod"
+      IMAGE_NAME: ${{ vars.PUBLICECR_URI }}
+    steps:
+      - name: Fail if branch is not main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "This workflow should not be triggered with workflow_dispatch on a branch other than main"
+          exit 1
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine new tag
+        id: tag
+        run: |
+          YEAR=$(date +'%Y')
+          MONTH=$(date +'%m')
+          DAY=$(date +'%d')
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E "^${YEAR}\.${MONTH}\.${DAY}\.[0-9]+$" | head -n 1 || echo "")
+
+          if [[ -z "$LATEST_TAG" ]]; then
+            COUNTER=1
+          else
+            COUNTER=$(( ${LATEST_TAG##*.} + 1 ))
+          fi
+
+          # NEW_TAG="${YEAR}.${MONTH}.${DAY}.${COUNTER}"
+          NEW_TAG="2025.07.04.1"
+          echo "NEW_TAG=${NEW_TAG}" >> $GITHUB_ENV
+          echo "New tag: $NEW_TAG"
+
+      - name: Create Git Tag
+        run: |
+          git tag $NEW_TAG
+          git push origin $NEW_TAG
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.PUBLICECR_UPLOAD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.PUBLICECR_UPLOAD_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.PUBLICECR_REGION }}
+
+      - name: Authenticate with AWS ECR
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build and publish the Docker images to AWS ECR
+        env:
+          IMAGE_TAG_SUFFIX: ${{ env.NEW_TAG }}
+        run: make publish
