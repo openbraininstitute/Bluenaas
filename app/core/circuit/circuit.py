@@ -9,8 +9,8 @@ from filelock import FileLock
 from loguru import logger
 
 from app.constants import (
-    CIRCUIT_MOD_FOLDER,
-    DEFAULT_CIRCUIT_CONFIG_NAME,
+    CIRCUIT_MOD_DIR,
+    CIRCUIT_CONFIG_NAME,
     READY_MARKER_FILE_NAME,
 )
 from app.core.exceptions import CircuitInitError
@@ -45,7 +45,7 @@ class Circuit:
         )
 
         # --------- TODO remove this ---------------------------------------------------------------
-        config_file = self.path / DEFAULT_CIRCUIT_CONFIG_NAME
+        config_file = self.path / CIRCUIT_CONFIG_NAME
         with open(config_file, "r") as f:
             config_data = json.load(f)
 
@@ -66,14 +66,14 @@ class Circuit:
 
     def _compile_mod_files(self):
         """Compile MOD files"""
-        mech_path = self.path / CIRCUIT_MOD_FOLDER
+        mech_path = self.path / CIRCUIT_MOD_DIR
         if not mech_path.is_dir():
-            err_msg = f"'{CIRCUIT_MOD_FOLDER}' folder not found under {self.path}"
+            err_msg = f"'{CIRCUIT_MOD_DIR}' folder not found under {self.path}"
             raise FileNotFoundError(err_msg)
 
         # TODO: add additional arg to ensure custom mod files compilation
         # Check with Darshan
-        cmd = ["nrnivmodl", CIRCUIT_MOD_FOLDER]
+        cmd = ["nrnivmodl", CIRCUIT_MOD_DIR]
         compilation_output = subprocess.check_output(cmd, cwd=self.path)
         logger.debug(compilation_output.decode())
 

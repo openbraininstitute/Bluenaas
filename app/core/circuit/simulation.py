@@ -11,9 +11,9 @@ from filelock import FileLock
 from loguru import logger
 
 from app.constants import (
-    DEFAULT_CIRCUIT_CONFIG_NAME,
-    DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME,
-    DEFAULT_LIBNRNMECH_PATH,
+    CIRCUIT_CONFIG_NAME,
+    CIRCUIT_SIMULATION_CONFIG_NAME,
+    LIBNRNMECH_PATH,
     READY_MARKER_FILE_NAME,
 )
 from app.core.circuit.circuit import Circuit
@@ -73,14 +73,14 @@ class Simulation:
             self.client,
             model=self.metadata,
             output_dir=self.path,
-            circuit_config_path=self.circuit.path / DEFAULT_CIRCUIT_CONFIG_NAME,
+            circuit_config_path=self.circuit.path / CIRCUIT_CONFIG_NAME,
             override_results_dir=rel_output_path,
         )
 
         # Empty reports dict causes an exception in bluecellulab
         # TODO: Remove config overwrite after the above is fixed.
         # TODO: Move spike_file location overwrite to staging functions in entitysdk.
-        config_file = self.path / DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME
+        config_file = self.path / CIRCUIT_SIMULATION_CONFIG_NAME
         with open(config_file, "r") as f:
             config_data = json.load(f)
 
@@ -131,7 +131,7 @@ class Simulation:
             ready_marker.touch()
 
     def get_num_cells(self) -> int:
-        config_file = self.path / DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME
+        config_file = self.path / CIRCUIT_SIMULATION_CONFIG_NAME
         with open(config_file, "r") as f:
             config_data = json.load(f)
             node_set_name = config_data.get("node_set", "All")
@@ -166,12 +166,12 @@ class Simulation:
             "python",
             "/app/app/core/circuit/simulation-mpi-entrypoint.py",
             "--config",
-            f"{self.path}/{DEFAULT_CIRCUIT_SIMULATION_CONFIG_NAME}",
+            f"{self.path}/{CIRCUIT_SIMULATION_CONFIG_NAME}",
             "--execution_id",
             str(self.execution_id),
             "--libnrnmech_path",
             # TODO: Consider adding support for other platforms/architectures
-            f"{self.circuit.path}/{DEFAULT_LIBNRNMECH_PATH}",
+            f"{self.circuit.path}/{LIBNRNMECH_PATH}",
             "--save-nwb",
         ]
         try:

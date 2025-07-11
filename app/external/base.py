@@ -5,7 +5,7 @@ from app.core.types import FileObj
 from app.infrastructure.storage import (
     copy_file_content,
     create_file,
-    get_single_cell_location,
+    get_single_neuron_location,
 )
 
 
@@ -15,7 +15,7 @@ class Service:
     def create_model_folder(
         self, hoc_file: bytes, morphology_obj: FileObj, mechanisms: list[FileObj]
     ):
-        output_dir = get_single_cell_location(self.model_id)
+        output_dir = get_single_neuron_location(self.model_id)
 
         create_file(output_dir / "cell.hoc", hoc_file)
 

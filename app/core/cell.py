@@ -11,7 +11,7 @@ from app.domains.morphology import SynapseSeries
 from app.domains.simulation import (
     SingleNeuronSimulationConfig,
 )
-from app.infrastructure.storage import get_single_cell_location
+from app.infrastructure.storage import get_single_neuron_location
 from app.utils.util import (
     compile_mechanisms,
     get_sec_name,
@@ -52,7 +52,7 @@ class BaseCell:
 
     def _load_by_model_uuid(self, model_uuid, threshold_current, holding_current):
         # pylint: disable=too-many-statements
-        model_path = get_single_cell_location(model_uuid)
+        model_path = get_single_neuron_location(model_uuid)
 
         compile_mechanisms(model_path)
 

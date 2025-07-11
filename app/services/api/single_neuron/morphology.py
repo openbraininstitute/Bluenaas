@@ -10,10 +10,9 @@ from app.utils.api.streaming import x_ndjson_http_stream
 from app.utils.rq_job import dispatch, get_job_data
 
 
-async def get_morphology_stream(
+async def get_morphology_service(
     model_id: UUID,
     *,
-    request: Request,
     job_queue: Queue,
     access_token: str,
     project_context: ProjectContext | None = None,

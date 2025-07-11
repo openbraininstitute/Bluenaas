@@ -46,6 +46,16 @@ def get_circuit_simulation_output_location(uuid: UUID) -> Path:
     return ensure_dir(path)
 
 
-def get_single_cell_location(uuid: UUID) -> Path:
-    path = settings.STORAGE_PATH / "single-cell" / "model" / uuid_subpath(uuid)
+def get_single_neuron_location(uuid: UUID) -> Path:
+    path = settings.STORAGE_PATH / "single-neuron" / "model" / uuid_subpath(uuid)
+    return ensure_dir(path)
+
+
+def get_single_neuron_validation_output_location(uuid: UUID) -> Path:
+    path = (
+        settings.STORAGE_PATH
+        / "single-neuron"
+        / "validation-output"
+        / uuid_subpath(uuid)
+    )
     return ensure_dir(path)

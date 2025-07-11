@@ -1,8 +1,5 @@
-import uuid
-from typing import Awaitable, Callable
-
 import sentry_sdk
-from fastapi import APIRouter, FastAPI, Request, Response
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
@@ -14,6 +11,7 @@ from app.core.exceptions import (
     BlueNaasErrorCode,
     BlueNaasErrorResponse,
 )
+from app.middleware.request_id import add_request_id_middleware
 from app.routes.circuit import router as circuit_router
 from app.routes.single_neuron import router as single_neuron_router
 
@@ -42,16 +40,7 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def add_request_id_middleware(
-    request: Request, call_next: Callable[[Request], Awaitable[Response]]
-) -> Response:
-    request_id = str(uuid.uuid4())
-    request.state.request_id = request_id
-
-    response = await call_next(request)
-    response.headers["x-request-id"] = request_id
-    return response
+app.middleware("http")(add_request_id_middleware)
 
 
 @app.exception_handler(BlueNaasError)

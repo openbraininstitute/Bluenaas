@@ -2,7 +2,7 @@ from typing import Annotated, List
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from rq import Queue
 
 from app.domains.morphology import SynapsePlacementBody, SynapsePlacementResponse
@@ -17,7 +17,7 @@ from app.routes.dependencies import ProjectContextDep
 from app.services.api.single_neuron.current_clamp_plot import (
     get_current_clamp_plot_data_response,
 )
-from app.services.api.single_neuron.morphology import get_morphology_stream
+from app.services.api.single_neuron.morphology import get_morphology_service
 from app.services.api.single_neuron.simulation import (
     run_simulation as run_simulation_service,
 )
@@ -25,6 +25,7 @@ from app.services.api.single_neuron.synaptome import (
     generate_synapses,
     validate_synapse_generation_formula,
 )
+from app.services.api.single_neuron.validation import run_validation_service
 
 router = APIRouter(prefix="/single-neuron")
 
@@ -49,9 +50,27 @@ async def run_simulation(
     )
 
 
+@router.post("/validation/run", tags=["validation", "single-neuron"])
+async def run_validation(
+    request: Request,
+    model_id: UUID,
+    project_context: ProjectContextDep,
+    auth: Auth = Depends(verify_jwt),
+    job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
+) -> StreamingResponse:
+    return await run_validation_service(
+        model_id,
+        auth=auth,
+        request=request,
+        job_queue=job_queue,
+        project_context=project_context,
+    )
+
+
 @router.post(
     "/synaptome/generate",
     response_model=SynapsePlacementResponse,
+    tags=["single-neuron", "synaptome"],
 )
 async def place_synapses(
     params: SynapsePlacementBody,
@@ -72,6 +91,7 @@ async def place_synapses(
 @router.post(
     "/synaptome/validate-placement-formula",
     response_model=bool,
+    tags=["single-neuron", "synaptome"],
 )
 def validate_synapse_formula(
     formula: str = Body(embed=True),
@@ -80,17 +100,15 @@ def validate_synapse_formula(
     return validate_synapse_generation_formula(formula=formula)  # type: ignore
 
 
-@router.get("/morphology")
+@router.get("/morphology", tags=["single-neuron", "morphology"])
 async def retrieve_morphology(
     model_id: UUID,
-    request: Request,
     auth: Annotated[Auth, Depends(verify_jwt)],
     project_context: ProjectContextDep,
     job_queue: Annotated[Queue, Depends(queue_factory(JobQueue.HIGH))],
 ):
-    return await get_morphology_stream(
+    return await get_morphology_service(
         model_id,
-        request=request,
         job_queue=job_queue,
         access_token=auth.access_token,
         project_context=project_context,
@@ -100,6 +118,7 @@ async def retrieve_morphology(
 @router.post(
     "/current-clamp-plot-data",
     response_model=List[StimulationItemResponse],
+    tags=["single-neuron", "stimuli"],
 )
 async def retrieve_stimulation_plot(
     model_id: UUID,

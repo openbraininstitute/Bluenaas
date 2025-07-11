@@ -39,7 +39,7 @@ from app.external.entitycore.service import (
     download_asset,
     fetch_one,
 )
-from app.infrastructure.storage import get_single_cell_location
+from app.infrastructure.storage import get_single_neuron_location
 from app.utils.util import (
     get_sections,
     get_segments_satisfying_all_exclusion_rules,
@@ -83,7 +83,7 @@ class Model:
         [holding_current, threshold_current] = helper.get_currents()
         self.threshold_current = threshold_current
 
-        model_path = get_single_cell_location(self.model_id)
+        model_path = get_single_neuron_location(self.model_id)
         ready_marker = model_path / READY_MARKER_FILE_NAME
 
         if not ready_marker.exists():
