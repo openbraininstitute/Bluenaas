@@ -1,11 +1,11 @@
 from uuid import UUID
 
 from entitysdk import Client
-from loguru import logger
 
 from app.config.settings import settings
 from app.core.job_stream import JobStream
 from app.core.single_neuron.validation import Validation
+from app.domains.job import JobStatus
 from app.external.entitycore.service import ProjectContext
 from app.infrastructure.rq import get_job_stream_key
 
@@ -28,10 +28,11 @@ def run(
 
     validation = Validation(model_id, client=client, execution_id=execution_id)
 
+    job_stream.send_status(JobStatus.running, "validation_init")
     validation.init()
 
-    logger.info("init done")
-
+    job_stream.send_status(JobStatus.running, "validation_exec")
     validation.run()
 
-    logger.info("validation done")
+    job_stream.send_status(JobStatus.running, "results_upload")
+    validation.output.upload()

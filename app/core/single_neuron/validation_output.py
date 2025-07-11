@@ -3,7 +3,6 @@ from typing import Dict
 
 from entitysdk import Client
 from entitysdk.models import MEModelCalibrationResult, ValidationResult
-from entitysdk.models.core import Identifiable
 from loguru import logger
 
 from app.infrastructure.storage import (
@@ -30,7 +29,7 @@ class ValidationOutput:
     def set_calibration_result(
         self, *, holding_current: float, rin: float, threshold_current: float
     ):
-        self.calibrationResult = MEModelCalibrationResult(
+        self.calibration_result = MEModelCalibrationResult(
             calibrated_entity_id=self.model_id,
             holding_current=holding_current,
             rin=rin,
@@ -40,37 +39,9 @@ class ValidationOutput:
     def set_validation_result(self, validation_dict: Dict):
         self.validation_result = validation_dict
 
-    def _upload_file(
-        self,
-        *,
-        path: Path,
-        content_type: str,
-        asset_label: str,
-        entity_id: UUID,
-        client: Client,
-        raise_on_missing=True,
-    ) -> None:
-        """Upload a single file if it exists"""
-        if not path.exists():
-            msg = f"{path.name} can not be found"
+    def _upload_calibration_result(self):
+        logger.debug("Uploading calibration results")
 
-            if raise_on_missing:
-                raise FileNotFoundError(msg)
-            else:
-                logger.warning(msg)
-                return
-
-        with open(path, "rb") as f:
-            client.upload_content(
-                entity_id=entity_id,
-                entity_type=ValidationResult,
-                file_name=path.name,
-                file_content=f,
-                file_content_type=content_type,
-                asset_label=asset_label,
-            )
-
-    def _uploadCalibrationResult(self):
         assert self.calibration_result
         # Do not register MEModelCalibrationResult if it already exists
         # Once we are able to delete the CalibrationResult, we should move to the following logic:
@@ -83,11 +54,9 @@ class ValidationOutput:
                 "calibrated_entity_id": self.calibration_result.calibrated_entity_id
             },
         )
-        cal = iterator.first()
-        if cal is not None:
-            model_id = self.calibration_result.calibrated_entity_id
+        if iterator.first() is not None:
             logger.warning(
-                f"MEModel {model_id} has already calibration result. Skipping registration"
+                f"MEModel {self.model_id} has already calibration result. Skipping registration"
             )
             return
 
@@ -95,28 +64,72 @@ class ValidationOutput:
             entity=self.calibration_result,
         )
 
-    def _uploadValidationResult(self) -> Identifiable:
-        validation_result = self.client.register_entity(
-            ValidationResult(
-                name=val_dict["name"],
-                passed=val_dict["passed"],
-                validated_entity_id=self.model_id,
-            )
+    def _upload_validation_result_entry(self, val_dict: Dict) -> None:
+        # Do not register ValidationResult if it already exists
+        # Once we are able to delete the ValidationResult, we should move to the following logic:
+        # delete the ValidationResult if it already exists
+        # register the new one
+        iterator = self.client.search_entity(
+            entity_type=ValidationResult,
+            query={"name": val_dict["name"], "validated_entity_id": self.model_id},
         )
-        assert validation_result.id
-        logger.info(f"Registered validaton result {validation_result.id}")
+        if iterator.first() is not None:
+            logger.warning(
+                f"MEModel {self.model_id} has already validation result for {val_dict['name']}. Skipping registration"
+            )
+            return
 
-        for pdf_file in self.path.glob("*.pdf"):
-            self._upload_file(
-                client=self.client,
-                path=pdf_file,
-                content_type="application/pdf",
+        validation_result_entity = ValidationResult(
+            name=val_dict["name"],
+            passed=val_dict["passed"],
+            validated_entity_id=self.model_id,
+        )
+        registered = self.client.register_entity(
+            entity=validation_result_entity,
+        )
+
+        assert registered.id
+
+        for fig_path in val_dict["figures"]:
+            if fig_path.suffix != ".pdf":
+                logger.warning(f"Unsupported figure format: {str(fig_path)}")
+                continue
+
+            self.client.upload_file(
+                entity_id=registered.id,
+                entity_type=ValidationResult,
+                file_path=fig_path,
+                file_content_type="application/pdf",
                 asset_label="validation_result_figure",
-                entity_id=validation_result.id,
             )
 
-        return validation_result
+        if val_dict["validation_details"]:
+            # write down validation details to a file
+            val_details_fname = (
+                f"{val_dict['name'].replace(' ', '')}_validation_details.txt"
+            )
+            val_details_path = self.path / val_details_fname
+
+            with open(val_details_path, "w") as f:
+                f.write(val_dict["validation_details"])
+
+            # register validation details as asset
+            self.client.upload_file(
+                entity_id=registered.id,
+                entity_type=ValidationResult,
+                file_path=val_details_path,
+                file_content_type="text/plain",
+                asset_label="validation_result_details",
+            )
+
+    def _upload_validation_result(self) -> None:
+        logger.debug("Uploading validation result(s)")
+
+        assert self.validation_result
+
+        for validation_result_entry in self.validation_result.values():
+            self._upload_validation_result_entry(validation_result_entry)
 
     def upload(self):
-        self._uploadCalibrationResult()
-        self._uploadValidationResult()
+        self._upload_calibration_result()
+        self._upload_validation_result()

@@ -1,5 +1,3 @@
-import json
-from os import chdir
 from uuid import UUID, uuid4
 
 from entitysdk import Client
@@ -44,7 +42,7 @@ class Validation:
     def init(self):
         self._init_single_neuron()
 
-    def run(self):
+    def run(self) -> ValidationOutput:
         # TODO: can we import that globally?
         from bluecellulab.validation.validation import run_validations
 
@@ -57,6 +55,7 @@ class Validation:
 
         # TODO: Use pydantic class / validate
         calibration_dict = result_dict["memodel_properties"]
+        logger.info("Setting calibration result")
         self.output.set_calibration_result(
             holding_current=calibration_dict["holding_current"],
             threshold_current=calibration_dict["rheobase"],
@@ -69,9 +68,4 @@ class Validation:
 
         self.output.set_validation_result(validation_dict)
 
-        # try:
-        #     subprocess.run(run_cmd, cwd=self.circuit.path, check=True)
-        # except Exception:
-        #     raise CircuitSimulationError()
-
-        # return self.output
+        return self.output

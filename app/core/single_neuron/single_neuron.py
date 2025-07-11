@@ -43,9 +43,8 @@ class SingleNeuron:
         """Fetch the circuit files from entitycore and write to the disk storage"""
         assert self.metadata.id is not None
 
+        logger.info(f"Fetching single neuron model {self.model_id}")
         download_memodel(self.client, memodel=self.metadata, output_dir=str(self.path))
-
-        logger.info(f"Single neuron model {self.model_id} fetched")
 
     def _compile_mod_files(self):
         """Compile MOD files"""
@@ -61,8 +60,12 @@ class SingleNeuron:
             "-DDISABLE_REPORTINGLIB",
             SINGLE_NEURON_MOD_DIR,
         ]
-        compilation_output = subprocess.check_output(cmd, cwd=self.path)
-        logger.debug(compilation_output.decode())
+        compilation_output = subprocess.check_output(
+            cmd,
+            cwd=self.path,
+            text=True,
+        )
+        logger.debug(compilation_output)
 
     def _init_bcl_cell(self):
         # Consider using h.nrn_load_dll(libnrnmech_path) as with a circuit simulation
