@@ -19,7 +19,7 @@ async def run_circuit_simulation(
     simulation_id: UUID4,
     project_context: ProjectContextDep,
     auth: Auth = Depends(verify_jwt),
-    job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
+    job_queue: Queue = Depends(queue_factory(JobQueue.LOW)),
 ):
     return await run_circuit_simulation_service(
         simulation_id,

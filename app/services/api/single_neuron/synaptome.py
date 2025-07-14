@@ -26,7 +26,7 @@ async def generate_synapses(
 ) -> JSONResponse:
     _job, stream = await dispatch(
         job_queue,
-        JobFn.GENERATE_SYNAPSES,
+        JobFn.GENERATE_SINGLE_NEURON_SYNAPTOME,
         job_args=(
             model_id,
             params,

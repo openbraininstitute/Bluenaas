@@ -78,7 +78,7 @@ class SingleNeuron:
 
         emodel_properties = EmodelProperties(
             threshold_current=self.threshold_current,
-            holding_current=self.threshold_current,
+            holding_current=self.holding_current,
             AIS_scaler=1.0,
         )
 

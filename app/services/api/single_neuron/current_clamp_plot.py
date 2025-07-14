@@ -19,7 +19,7 @@ async def get_current_clamp_plot_data_response(
 ) -> JSONResponse:
     _job, stream = await dispatch(
         job_queue,
-        JobFn.GET_CURRENT_CLAMP_PLOT_DATA,
+        JobFn.GET_SINGLE_NEURON_CURRENT_CLAMP_PLOT_DATA,
         job_args=(
             model_id,
             config,

@@ -106,7 +106,7 @@ async def _submit_background_simulation(
     access_token: str,
 ):
     setup_job = job_queue.enqueue(
-        JobFn.SETUP_SIMULATION_RESOURCES,
+        JobFn.SETUP_SINGLE_NEURON_SIMULATION_RESOURCES,
         access_token,
         model_id,
         project_context,

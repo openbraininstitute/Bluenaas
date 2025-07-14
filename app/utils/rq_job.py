@@ -86,6 +86,8 @@ async def dispatch(
     job_kwargs: dict = {},
     job_id: str | None = None,
     timeout: int = settings.MAX_JOB_DURATION,
+    meta: dict | None = None,
+    depends_on: Job | None = None,
     on_failure: Callable[..., Any] | None = None,
     on_success: Callable[..., Any] | None = None,
 ) -> tuple[Job, AsyncGenerator[Any, Any]]:
@@ -104,6 +106,8 @@ async def dispatch(
             **job_kwargs,
             job_id=job_id,
             job_timeout=timeout,
+            depends_on=depends_on,
+            meta=meta,
             # Default handlers only stream status updates
             on_failure=on_failure_default_handler,
             on_success=on_success_default_handler,
@@ -112,9 +116,7 @@ async def dispatch(
 
     await run_async(lambda: write_stream.send_status(JobStatus.pending))
 
-    asyncio.create_task(
-        _job_status_monitor(job, on_success=on_success, on_failure=on_failure)
-    )
+    asyncio.create_task(_job_status_monitor(job, on_success=on_success, on_failure=on_failure))
 
     return job, read_stream
 
@@ -123,10 +125,7 @@ async def get_job_data(stream: AsyncGenerator[str, None]):
     async for message_str in stream:
         message: JobMessage = JobMessageAdapter.validate_json(message_str)
 
-        if (
-            message.message_type == JobMessageType.status
-            and message.status == JobStatus.error
-        ):
+        if message.message_type == JobMessageType.status and message.status == JobStatus.error:
             raise RuntimeError("Job failed")
 
         if message.message_type == JobMessageType.data:

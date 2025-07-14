@@ -8,6 +8,7 @@ from app.core.single_neuron.validation_output import ValidationOutput
 
 
 class Validation:
+    model_id: UUID
     single_neuron: SingleNeuron
     output: ValidationOutput
     initialized: bool = False
@@ -19,47 +20,30 @@ class Validation:
         client: Client,
         execution_id: UUID = uuid4(),
     ):
+        self.model_id
         self.execution_id = execution_id
         self.client = client
 
         self.single_neuron = SingleNeuron(model_id, client)
 
-        # So that we can upload generated results, including logs even if the model init fails.
-        self._init_output()
-
-    def _init_single_neuron(self):
-        self.single_neuron.init()
-
-    def _init_output(self):
-        assert self.single_neuron.metadata.id
-
-        self.output = ValidationOutput(
-            self.single_neuron.metadata.id,
-            execution_id=self.execution_id,
-            client=self.client,
-        )
-
     def init(self):
-        self._init_single_neuron()
+        self.single_neuron.init()
 
     def run(self) -> ValidationOutput:
         # TODO: can we import that globally?
         from bluecellulab.validation.validation import run_validations
+
+        self.output = ValidationOutput(
+            self.model_id,
+            execution_id=self.execution_id,
+            client=self.client,
+        )
 
         logger.info("Running validations")
         result_dict = run_validations(
             self.single_neuron.cell,
             self.single_neuron.metadata.name,
             output_dir=str(self.output.path),
-        )
-
-        # TODO: Use pydantic class / validate
-        calibration_dict = result_dict["memodel_properties"]
-        logger.info("Setting calibration result")
-        self.output.set_calibration_result(
-            holding_current=calibration_dict["holding_current"],
-            threshold_current=calibration_dict["rheobase"],
-            rin=calibration_dict["rin"],
         )
 
         validation_dict = {

@@ -48,3 +48,7 @@ exclude = [
     "app/core/circuit/simulation-mpi-entrypoint.py",
     "app/utils/util.test.py"
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

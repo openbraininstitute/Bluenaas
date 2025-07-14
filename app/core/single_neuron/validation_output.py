@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Dict
 
 from entitysdk import Client
-from entitysdk.models import MEModelCalibrationResult, ValidationResult
+from entitysdk.models import ValidationResult
 from loguru import logger
 
 from app.infrastructure.storage import (
@@ -15,7 +15,6 @@ class ValidationOutput:
     model_id: UUID
     client: Client
     execution_id: UUID
-    calibration_result: MEModelCalibrationResult | None = None
     validation_result: Dict | None = None
     path: Path
 
@@ -26,43 +25,8 @@ class ValidationOutput:
 
         self.path = get_single_neuron_validation_output_location(execution_id)
 
-    def set_calibration_result(
-        self, *, holding_current: float, rin: float, threshold_current: float
-    ):
-        self.calibration_result = MEModelCalibrationResult(
-            calibrated_entity_id=self.model_id,
-            holding_current=holding_current,
-            rin=rin,
-            threshold_current=threshold_current,
-        )
-
     def set_validation_result(self, validation_dict: Dict):
         self.validation_result = validation_dict
-
-    def _upload_calibration_result(self):
-        logger.debug("Uploading calibration results")
-
-        assert self.calibration_result
-        # Do not register MEModelCalibrationResult if it already exists
-        # Once we are able to delete the CalibrationResult, we should move to the following logic:
-        # if no MEModelCalibrationResult exists, register a new one
-        # if one exists with exactly the same values, do nothing
-        # if one exists with different values, delete the old one and register a new one
-        iterator = self.client.search_entity(
-            entity_type=MEModelCalibrationResult,
-            query={
-                "calibrated_entity_id": self.calibration_result.calibrated_entity_id
-            },
-        )
-        if iterator.first() is not None:
-            logger.warning(
-                f"MEModel {self.model_id} has already calibration result. Skipping registration"
-            )
-            return
-
-        self.client.register_entity(
-            entity=self.calibration_result,
-        )
 
     def _upload_validation_result_entry(self, val_dict: Dict) -> None:
         # Do not register ValidationResult if it already exists
@@ -131,5 +95,4 @@ class ValidationOutput:
             self._upload_validation_result_entry(validation_result_entry)
 
     def upload(self):
-        self._upload_calibration_result()
         self._upload_validation_result()

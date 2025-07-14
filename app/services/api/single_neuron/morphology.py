@@ -19,7 +19,7 @@ async def get_morphology_service(
 ) -> JSONResponse:
     _job, stream = await dispatch(
         job_queue,
-        JobFn.GET_MORPHOLOGY,
+        JobFn.GET_SINGLE_NEURON_MORPHOLOGY,
         job_args=(model_id,),
         job_kwargs={"access_token": access_token, "project_context": project_context},
     )
@@ -39,7 +39,7 @@ async def get_morphology_dendrogram(
     # TODO: Switch to normal HTTP response, there is no benefit in streaming here.
     _job, stream = await dispatch(
         job_queue,
-        JobFn.GET_MORPHOLOGY_DENDROGRAM,
+        JobFn.GET_SINGLE_NEURON_MORPHOLOGY_DENDROGRAM,
         job_args=(model_id, access_token),
     )
     http_stream = x_ndjson_http_stream(request, stream)
