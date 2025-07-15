@@ -26,5 +26,5 @@ async def run_circuit_simulation(
         request=request,
         job_queue=job_queue,
         project_context=project_context,
-        access_token=auth.access_token,
+        auth=auth,
     )

@@ -10,7 +10,7 @@ from uuid import UUID
 from loguru import logger
 
 from app.core.exceptions import (
-    BlueNaasErrorCode,
+    AppErrorCode,
     SimulationError,
 )
 from app.core.job_stream import JobStream
@@ -111,9 +111,7 @@ def get_constant_frequencies_for_sim_id(
 ):
     constant_frequencies: list[float] = []
     for sim_config in constant_frequency_sim_configs:
-        if sim_config.id == synapse_set_id and not isinstance(
-            sim_config.frequency, list
-        ):
+        if sim_config.id == synapse_set_id and not isinstance(sim_config.frequency, list):
             constant_frequencies.append(sim_config.frequency)
 
     return constant_frequencies
@@ -219,15 +217,11 @@ def init_frequency_varying_simulation(
                 )
                 offset += 1
 
-                sim_id_to_configs = get_sim_configs_by_synapse_id(
-                    constant_frequency_sim_configs
-                )
+                sim_id_to_configs = get_sim_configs_by_synapse_id(constant_frequency_sim_configs)
 
                 # Second, add synapse series for other sim configs of same synapse_set, but which have constant frequencies
                 if variable_frequency_sim_config.id in sim_id_to_configs:
-                    for sim_config in sim_id_to_configs[
-                        variable_frequency_sim_config.id
-                    ]:
+                    for sim_config in sim_id_to_configs[variable_frequency_sim_config.id]:
                         frequency_to_synapse_settings[frequency].extend(
                             model.get_synapse_series(
                                 synapse_placement_config,
@@ -294,9 +288,7 @@ def is_current_varying_simulation(config: SingleNeuronSimulationConfig) -> bool:
         return True
 
     synapse_set_with_multiple_frequency = [
-        synapse_set
-        for synapse_set in config.synaptome
-        if isinstance(synapse_set.frequency, list)
+        synapse_set for synapse_set in config.synaptome if isinstance(synapse_set.frequency, list)
     ]
     if len(synapse_set_with_multiple_frequency) > 0:
         # TODO: This assertion should be at pydantic model level
@@ -315,9 +307,7 @@ def queue_record_to_stream_record(record: dict, is_current_varying: bool) -> dic
         "recording": record["recording_name"],
         "amplitude": record["amplitude"],
         "frequency": record.get("frequency"),
-        "varying_key": record["amplitude"]
-        if is_current_varying is True
-        else record["frequency"],
+        "varying_key": record["amplitude"] if is_current_varying is True else record["frequency"],
     }
 
 
@@ -343,7 +333,7 @@ def stream_realtime_data(
         if isinstance(record, SimulationError):
             errStr = json.dumps(
                 {
-                    "error_code": BlueNaasErrorCode.SIMULATION_ERROR,
+                    "error_code": AppErrorCode.SIMULATION_ERROR,
                     "message": "Simulation failed",
                     "details": record.__str__(),
                 }

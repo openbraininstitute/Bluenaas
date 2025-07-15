@@ -1,5 +1,4 @@
 import asyncio
-import json
 import time
 from typing import Any, AsyncGenerator, Callable, TypeVar
 from uuid import uuid4
@@ -23,34 +22,46 @@ async def _job_status_monitor(
     job: Job,
     *,
     poll_interval: float = 3.0,
+    on_start: Callable | None = None,
     on_success: Callable | None = None,
     on_failure: Callable | None = None,
 ):
     stream = JobStream(compose_key(job.id))
 
-    prev_position = None
+    last_queue_position: int | None = None
+    last_status: RQJobStatus | None = None
 
     try:
         while True:
-            # Stop monitoring if job is no longer queued
+            # Stop monitoring if the job is in a terminal state.
 
             status = await run_async(lambda: job.get_status())
 
-            if status == RQJobStatus.FAILED and on_failure:
-                on_failure()
-                break
-            elif status == RQJobStatus.FINISHED and on_success:
-                on_success()
-                break
-            elif status != RQJobStatus.QUEUED:
-                break
+            match status:
+                case RQJobStatus.SCHEDULED:
+                    pass
+                case RQJobStatus.DEFERRED:
+                    pass
+                case RQJobStatus.QUEUED:
+                    position = await run_async(lambda: job.get_position())
+                    if position and position != last_queue_position:
+                        stream.send_status(JobStatus.pending, str(position))
+                        last_queue_position = position
+                case RQJobStatus.STARTED:
+                    if on_start:
+                        await on_start()
+                case RQJobStatus.FAILED:
+                    if on_failure:
+                        await on_failure()
+                    break
+                case RQJobStatus.FINISHED:
+                    if on_success and status != last_status:
+                        await on_success()
+                    break
+                case _:
+                    break
 
-            # Get current queue position
-            position = job.get_position()
-
-            if position and position != prev_position:
-                stream.send_status(JobStatus.pending, str(position))
-                prev_position = position
+            last_status = status
 
             await asyncio.sleep(poll_interval)
 
@@ -88,6 +99,7 @@ async def dispatch(
     timeout: int = settings.MAX_JOB_DURATION,
     meta: dict | None = None,
     depends_on: Job | None = None,
+    on_start: Callable[..., Any] | None = None,
     on_failure: Callable[..., Any] | None = None,
     on_success: Callable[..., Any] | None = None,
 ) -> tuple[Job, AsyncGenerator[Any, Any]]:
@@ -116,7 +128,9 @@ async def dispatch(
 
     await run_async(lambda: write_stream.send_status(JobStatus.pending))
 
-    asyncio.create_task(_job_status_monitor(job, on_success=on_success, on_failure=on_failure))
+    asyncio.create_task(
+        _job_status_monitor(job, on_start=on_start, on_failure=on_failure, on_success=on_success)
+    )
 
     return job, read_stream
 
@@ -155,9 +169,7 @@ async def wait_for_job(
     start_time = time.time()
 
     while time.time() - start_time < timeout:
-        # Run the blocking job.refresh call in a separate thread
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, job.refresh)
+        await run_async(lambda: job.refresh())
 
         if job.is_finished:
             return job.result

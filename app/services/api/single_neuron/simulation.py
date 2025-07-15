@@ -11,7 +11,7 @@ from obp_accounting_sdk.constants import ServiceSubtype
 from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
 from rq import Queue
 
-from app.core.exceptions import BlueNaasError, BlueNaasErrorCode
+from app.core.exceptions import AppError, AppErrorCode
 from app.domains.simulation import (
     SingleNeuronSimulationConfig,
 )
@@ -46,9 +46,7 @@ async def run_simulation(
     """
 
     accounting_subtype = (
-        ServiceSubtype.SYNAPTOME_SIM
-        if config.synaptome
-        else ServiceSubtype.SINGLE_CELL_SIM
+        ServiceSubtype.SYNAPTOME_SIM if config.synaptome else ServiceSubtype.SINGLE_CELL_SIM
     )
 
     try:
@@ -82,17 +80,17 @@ async def run_simulation(
                 )
     except InsufficientFundsError as ex:
         logger.exception(f"Insufficient funds: {ex}")
-        raise BlueNaasError(
+        raise AppError(
             http_status_code=status.FORBIDDEN,
-            error_code=BlueNaasErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
+            error_code=AppErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
             message="The project does not have enough funds to run the simulation",
             details=ex.__str__(),
         ) from ex
     except BaseAccountingError as ex:
         logger.exception(f"Accounting service error: {ex}")
-        raise BlueNaasError(
+        raise AppError(
             http_status_code=status.BAD_GATEWAY,
-            error_code=BlueNaasErrorCode.ACCOUNTING_GENERIC_ERROR,
+            error_code=AppErrorCode.ACCOUNTING_GENERIC_ERROR,
             message="Accounting service error",
             details=ex.__str__(),
         ) from ex
@@ -121,9 +119,7 @@ async def _submit_background_simulation(
         simulation_resource,
     ) = await wait_for_job(setup_job)
 
-    logger.debug(
-        f"Submitting simulation task for resource {simulation_resource['_self']}"
-    )
+    logger.debug(f"Submitting simulation task for resource {simulation_resource['_self']}")
     # Step 2: Add background task to process simulation
     job_queue.enqueue(
         JobFn.RUN_SINGLE_NEURON_SIMULATION,

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from rq import Queue
 
-from app.core.exceptions import BlueNaasError, BlueNaasErrorCode
+from app.core.exceptions import AppError, AppErrorCode
 from app.domains.morphology import (
     SynapsePlacementBody,
 )
@@ -58,9 +58,9 @@ def validate_synapse_generation_formula(formula: str):
 
     except Exception as ex:
         logger.error(f"validating synapse generation formula failed {ex}")
-        raise BlueNaasError(
+        raise AppError(
             http_status_code=status.INTERNAL_SERVER_ERROR,
-            error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,
+            error_code=AppErrorCode.INTERNAL_SERVER_ERROR,
             message="validating synapse generation formula failed",
             details=ex.__str__(),
         ) from ex

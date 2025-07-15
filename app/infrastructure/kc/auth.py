@@ -11,7 +11,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from app.config.settings import settings
-from app.core.exceptions import BlueNaasError, BlueNaasErrorCode
+from app.core.exceptions import AppError, AppErrorCode
 from app.infrastructure.kc.config import kc_auth
 
 auth_header: HTTPBearer | OAuth2AuthorizationCodeBearer = HTTPBearer(auto_error=False)
@@ -22,15 +22,9 @@ KC_SUBJECT: str = f"service-account-{settings.KC_CLIENT_ID}"
 class DecodedKeycloakToken(BaseModel):
     # JWT Standard Fields (RFC 7519)
     exp: int = Field(description="Expiration timestamp of the token")
-    iat: Optional[int] = Field(
-        description="Timestamp when the token was issued", default=None
-    )
-    jti: Optional[str] = Field(
-        description="Unique identifier for the token", default=None
-    )
-    iss: str = Field(
-        description="URL of the authentication server that issued the token"
-    )
+    iat: Optional[int] = Field(description="Timestamp when the token was issued", default=None)
+    jti: Optional[str] = Field(description="Unique identifier for the token", default=None)
+    iss: str = Field(description="URL of the authentication server that issued the token")
     sub: str = Field(description="Unique identifier for the user")
     aud: Optional[List[str] | str] = Field(
         description="Intended recipient of the token", default=None
@@ -42,9 +36,7 @@ class DecodedKeycloakToken(BaseModel):
         description="Authorized party - the client that requested the token",
         default=None,
     )
-    scope: Optional[str] = Field(
-        description="Space-separated list of granted scopes", default=None
-    )
+    scope: Optional[str] = Field(description="Space-separated list of granted scopes", default=None)
     email_verified: Optional[bool] = Field(
         description="Indicates if the user's email is verified", default=None
     )
@@ -58,12 +50,8 @@ class DecodedKeycloakToken(BaseModel):
     auth_time: Optional[int] = Field(
         description="Timestamp of the original authentication", default=None
     )
-    session_state: Optional[str] = Field(
-        description="Keycloak's session identifier", default=None
-    )
-    acr: Optional[str] = Field(
-        description="Authentication Context Class Reference", default=None
-    )
+    session_state: Optional[str] = Field(description="Keycloak's session identifier", default=None)
+    acr: Optional[str] = Field(description="Authentication Context Class Reference", default=None)
     sid: Optional[str] = Field(description="Keycloak session ID", default=None)
     # * Add realm_access and resource_access fields if necessary.
 
@@ -77,9 +65,7 @@ def get_public_key() -> str:
     """
     get the public key to decode the token
     """
-    return (
-        f"-----BEGIN PUBLIC KEY-----\n{kc_auth.public_key()}\n-----END PUBLIC KEY-----"
-    )
+    return f"-----BEGIN PUBLIC KEY-----\n{kc_auth.public_key()}\n-----END PUBLIC KEY-----"
 
 
 def verify_jwt(
@@ -96,8 +82,8 @@ def verify_jwt(
         )
     except Exception as ex:
         logger.error(ex)
-        raise BlueNaasError(
+        raise AppError(
             message="The supplied authentication is not authorized to access",
-            error_code=BlueNaasErrorCode.AUTHORIZATION_ERROR,
+            error_code=AppErrorCode.AUTHORIZATION_ERROR,
             http_status_code=status.UNAUTHORIZED,
         )

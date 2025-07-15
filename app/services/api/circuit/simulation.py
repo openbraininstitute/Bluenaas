@@ -8,9 +8,15 @@ from entitysdk.models import Simulation, SimulationExecution
 from entitysdk.types import SimulationExecutionStatus
 from fastapi import Request
 from fastapi.responses import StreamingResponse
+from obp_accounting_sdk.constants import ServiceSubtype
+from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
 from rq import Queue
+from loguru import logger
 
 from app.config.settings import settings
+from app.core.exceptions import AppError, AppErrorCode
+from app.infrastructure.kc.auth import Auth
+from app.infrastructure.accounting.session import async_accounting_session_factory
 from app.job import JobFn
 from app.utils.api.streaming import x_ndjson_http_stream
 from app.utils.asyncio import run_async
@@ -23,12 +29,43 @@ async def run_circuit_simulation(
     request: Request,
     job_queue: Queue,
     project_context: ProjectContext,
-    access_token: str,
+    auth: Auth,
 ) -> StreamingResponse:
+    # TODO estimate number of CPUs for simulation
+    num_cpus = 1
+
+    accounting_session = async_accounting_session_factory.longrun_session(
+        subtype=ServiceSubtype.SMALL_CIRCUIT_SIM,
+        proj_id=project_context.project_id,
+        user_id=auth.decoded_token.sub,
+        instances=num_cpus,
+        instance_type="FARGATE",
+        duration=60,  # defaults to one minute, TODO implement estimation logic
+    )
+
+    try:
+        await accounting_session.make_reservation()
+    except InsufficientFundsError as ex:
+        logger.warning(f"Insufficient funds: {ex}")
+        raise AppError(
+            http_status_code=HTTPStatus.FORBIDDEN,
+            error_code=AppErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
+            message="The project does not have enough funds to run the simulation",
+            details=ex.__str__(),
+        ) from ex
+    except BaseAccountingError as ex:
+        logger.warning(f"Accounting service error: {ex}")
+        raise AppError(
+            http_status_code=HTTPStatus.BAD_GATEWAY,
+            error_code=AppErrorCode.ACCOUNTING_GENERIC_ERROR,
+            message="Accounting service error",
+            details=ex.__str__(),
+        ) from ex
+
     client = Client(
         api_url=str(settings.ENTITYCORE_URI),
         project_context=project_context,
-        token_manager=access_token,
+        token_manager=auth.access_token,
     )
 
     simulation = await run_async(
@@ -48,7 +85,13 @@ async def run_circuit_simulation(
         )
     )
 
-    def on_failure():
+    async def on_start() -> None:
+        await accounting_session.start()
+
+    async def on_success() -> None:
+        await accounting_session.finish()
+
+    async def on_failure(exc_type: str) -> None:
         assert simulation_execution.id
 
         client.update_entity(
@@ -60,6 +103,8 @@ async def run_circuit_simulation(
             },
         )
 
+        await accounting_session.finish(exc_type=exc_type)
+
     _job, stream = await dispatch(
         job_queue,
         JobFn.RUN_CIRCUIT_SIMULATION,
@@ -68,10 +113,12 @@ async def run_circuit_simulation(
             "circuit_id": simulation.entity_id,
             "simulation_id": simulation_id,
             "execution_id": simulation_execution.id,
-            "access_token": access_token,
+            "access_token": auth.access_token,
             "project_context": project_context,
         },
         on_failure=on_failure,
+        on_start=on_start,
+        on_success=on_success,
     )
     http_stream = x_ndjson_http_stream(request, stream)
 

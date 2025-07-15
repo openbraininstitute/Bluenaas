@@ -7,9 +7,9 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.config.settings import settings
 from app.core.exceptions import (
-    BlueNaasError,
-    BlueNaasErrorCode,
-    BlueNaasErrorResponse,
+    AppError,
+    AppErrorCode,
+    AppErrorResponse,
 )
 from app.middleware.request_id import add_request_id_middleware
 from app.routes.circuit import router as circuit_router
@@ -43,10 +43,8 @@ app.add_middleware(
 app.middleware("http")(add_request_id_middleware)
 
 
-@app.exception_handler(BlueNaasError)
-async def bluenaas_exception_handler(
-    request: Request, exception: BlueNaasError
-) -> JSONResponse:
+@app.exception_handler(AppError)
+async def bluenaas_exception_handler(request: Request, exception: AppError) -> JSONResponse:
     """
     this is will handle (format, standardize) all exceptions raised by the app
     any BlueNaasError raised anywhere in the app, will be captured by this handler
@@ -55,9 +53,9 @@ async def bluenaas_exception_handler(
     logger.error(f"{request.method} {request.url} failed: {repr(exception)}")
     return JSONResponse(
         status_code=int(exception.http_status_code),
-        content=BlueNaasErrorResponse(
+        content=AppErrorResponse(
             message=exception.message,
-            error_code=BlueNaasErrorCode(
+            error_code=AppErrorCode(
                 exception.error_code
                 if exception.error_code is not None
                 else "UNKNOWN_BLUENAAS_ERROR"

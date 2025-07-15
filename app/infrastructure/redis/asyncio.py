@@ -4,14 +4,12 @@ from loguru import logger
 from redis.asyncio import Redis
 from app.config.settings import settings
 from app.constants import STOP_MESSAGE
-from app.core.exceptions import BlueNaasError, BlueNaasErrorCode
+from app.core.exceptions import AppError, AppErrorCode
 
 redis_client = Redis.from_url(url=settings.REDIS_URL, decode_responses=True)
 
 
-async def redis_stream_reader(
-    stream_key: str, timeout: int = settings.MAX_JOB_DURATION
-):
+async def redis_stream_reader(stream_key: str, timeout: int = settings.MAX_JOB_DURATION):
     """
     Asynchronously read messages from a Redis stream with timeout handling.
 
@@ -41,9 +39,9 @@ async def redis_stream_reader(
     while True:
         # Check if timeout has been reached
         if time.time() - start_time > timeout:
-            raise BlueNaasError(
+            raise AppError(
                 message=f"Redis stream reader timeout after {timeout} seconds",
-                error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,
+                error_code=AppErrorCode.INTERNAL_SERVER_ERROR,
                 details=f"Stream key: {stream_key}",
             )
 

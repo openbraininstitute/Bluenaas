@@ -4,7 +4,7 @@ from http import HTTPStatus
 from pydantic import BaseModel
 
 
-class BlueNaasErrorCode(StrEnum):
+class AppErrorCode(StrEnum):
     """
     Error codes of the blue naas service
     """
@@ -15,12 +15,11 @@ class BlueNaasErrorCode(StrEnum):
     SYNAPSE_PLACEMENT_ERROR = "SYNAPSE_PLACEMENT_ERROR"
     SIMULATION_ERROR = "SIMULATION_ERROR"
     MORPHOLOGY_GENERATION_ERROR = "MORPHOLOGY_GENERATION_ERROR"
-    NEXUS_ERROR = "NEXUS_ERROR"
     ACCOUNTING_INSUFFICIENT_FUNDS_ERROR = "ACCOUNTING_INSUFFICIENT_FUNDS_ERROR"
     ACCOUNTING_GENERIC_ERROR = "ACCOUNTING_GENERIC_ERROR"
 
 
-class BlueNaasError(Exception):
+class AppError(Exception):
     """Base class for blue naas service exceptions."""
 
     message: str
@@ -32,7 +31,7 @@ class BlueNaasError(Exception):
         self,
         *,
         message: str,
-        error_code: BlueNaasErrorCode | None,
+        error_code: AppErrorCode | None,
         details: str | None = None,
         http_status_code: HTTPStatus = HTTPStatus.BAD_REQUEST,
     ):
@@ -47,10 +46,10 @@ class BlueNaasError(Exception):
         return f'{class_name}(message="{self.message}", error_code={self.error_code}, details={self.details}, http_status_code={self.http_status_code})'
 
 
-class BlueNaasErrorResponse(BaseModel):
+class AppErrorResponse(BaseModel):
     """The format of an error response"""
 
-    error_code: BlueNaasErrorCode | None
+    error_code: AppErrorCode | None
     message: str | None = None
     details: str | None = None
 
@@ -102,9 +101,7 @@ class CircuitInitError(_BaseMessageException):
 
 
 class CircuitSimulationInitError(_BaseMessageException):
-    def __init__(
-        self, message: str = "Circuit simulation instantiation failed"
-    ) -> None:
+    def __init__(self, message: str = "Circuit simulation instantiation failed") -> None:
         super().__init__(message)
 
 
@@ -114,7 +111,5 @@ class CircuitSimulationError(_BaseMessageException):
 
 
 class SingleNeuronInitError(_BaseMessageException):
-    def __init__(
-        self, message: str = "Single neuron model instantiation failed"
-    ) -> None:
+    def __init__(self, message: str = "Single neuron model instantiation failed") -> None:
         super().__init__(message)

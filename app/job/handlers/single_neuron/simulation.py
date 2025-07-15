@@ -4,7 +4,7 @@ from uuid import UUID
 
 from loguru import logger
 
-from app.core.exceptions import BlueNaasError, BlueNaasErrorCode
+from app.core.exceptions import AppError, AppErrorCode
 from app.domains.simulation import SingleNeuronSimulationConfig
 from app.external.entitycore.service import ProjectContext
 from app.services.worker.single_neuron.simulation import (
@@ -60,9 +60,9 @@ def run(
             )
     except Exception as ex:
         logger.exception(f"running simulation failed {ex}")
-        raise BlueNaasError(
+        raise AppError(
             http_status_code=status.INTERNAL_SERVER_ERROR,
-            error_code=BlueNaasErrorCode.INTERNAL_SERVER_ERROR,
+            error_code=AppErrorCode.INTERNAL_SERVER_ERROR,
             message="running simulation failed",
             details=ex.__str__(),
         ) from ex
