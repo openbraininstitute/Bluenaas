@@ -15,9 +15,6 @@ class JobFn(StrEnum):
     RUN_SINGLE_NEURON_CALIBRATION = "app.job.handlers.single_neuron.calibration.run"
     RUN_SINGLE_NEURON_SIMULATION = "app.job.handlers.single_neuron.simulation.run"
     RUN_SINGLE_NEURON_VALIDATION = "app.job.handlers.single_neuron.validation.run"
-    SETUP_SINGLE_NEURON_SIMULATION_RESOURCES = (
-        "app.job.handlers.single_neuron.simulation_resources.setup_simulation_resources"
-    )
 
     # Circuit
     RUN_CIRCUIT_SIMULATION = "app.job.handlers.circuit.simulation.run"

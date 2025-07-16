@@ -1,25 +1,23 @@
 # TODO: refactor this module
 
-from http import HTTPStatus as status
+from http import HTTPStatus
 from uuid import UUID
 
 from entitysdk.common import ProjectContext
 from fastapi import Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from loguru import logger
 from obp_accounting_sdk.constants import ServiceSubtype
 from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
 from rq import Queue
 
 from app.core.exceptions import AppError, AppErrorCode
-from app.domains.simulation import (
-    SingleNeuronSimulationConfig,
-)
+from app.domains.simulation import SingleNeuronSimulationConfig
 from app.infrastructure.accounting.session import accounting_session_factory
 from app.infrastructure.kc.auth import Auth
 from app.job import JobFn
 from app.utils.api.streaming import x_ndjson_http_stream
-from app.utils.rq_job import dispatch, wait_for_job
+from app.utils.rq_job import dispatch
 
 
 async def run_simulation(
@@ -56,32 +54,28 @@ async def run_simulation(
             user_id=auth.decoded_token.sub,
             count=config.n_execs,
         ):
+            _job, stream = await dispatch(
+                job_queue,
+                JobFn.RUN_SINGLE_NEURON_SIMULATION,
+                job_args=(model_id, config),
+                job_kwargs={
+                    "project_context": project_context,
+                    "access_token": auth.access_token,
+                    "realtime": realtime,
+                },
+            )
             if realtime is True:
-                _job, stream = await dispatch(
-                    job_queue,
-                    JobFn.RUN_SINGLE_NEURON_SIMULATION,
-                    job_args=(model_id, config),
-                    job_kwargs={
-                        "project_context": project_context,
-                        "access_token": auth.access_token,
-                        "realtime": realtime,
-                    },
-                )
                 http_stream = x_ndjson_http_stream(request, stream)
-
-                return StreamingResponse(http_stream, media_type="application/x-ndjson")
-            else:
-                return _submit_background_simulation(
-                    job_queue=job_queue,
-                    project_context=project_context,
-                    model_id=model_id,
-                    config=config,
-                    access_token=auth.access_token,
+                return StreamingResponse(
+                    http_stream, media_type="application/x-ndjson", status_code=HTTPStatus.ACCEPTED
                 )
+            else:
+                return JSONResponse({"id": _job.id}, status_code=HTTPStatus.ACCEPTED)
+
     except InsufficientFundsError as ex:
         logger.exception(f"Insufficient funds: {ex}")
         raise AppError(
-            http_status_code=status.FORBIDDEN,
+            http_status_code=HTTPStatus.FORBIDDEN,
             error_code=AppErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
             message="The project does not have enough funds to run the simulation",
             details=ex.__str__(),
@@ -89,46 +83,8 @@ async def run_simulation(
     except BaseAccountingError as ex:
         logger.exception(f"Accounting service error: {ex}")
         raise AppError(
-            http_status_code=status.BAD_GATEWAY,
+            http_status_code=HTTPStatus.BAD_GATEWAY,
             error_code=AppErrorCode.ACCOUNTING_GENERIC_ERROR,
             message="Accounting service error",
             details=ex.__str__(),
         ) from ex
-
-
-async def _submit_background_simulation(
-    job_queue: Queue,
-    project_context: ProjectContext,
-    model_id: UUID,
-    config: SingleNeuronSimulationConfig,
-    access_token: str,
-):
-    setup_job = job_queue.enqueue(
-        JobFn.SETUP_SINGLE_NEURON_SIMULATION_RESOURCES,
-        access_token,
-        model_id,
-        project_context,
-        config,
-    )
-
-    (
-        me_model_self,
-        synaptome_model_self,
-        _stimulus_plot_data,
-        sim_response,
-        simulation_resource,
-    ) = await wait_for_job(setup_job)
-
-    logger.debug(f"Submitting simulation task for resource {simulation_resource['_self']}")
-    # Step 2: Add background task to process simulation
-    job_queue.enqueue(
-        JobFn.RUN_SINGLE_NEURON_SIMULATION,
-        kwargs={
-            "project_context": project_context,
-            "model_id": model_id,
-            "token": access_token,
-            "config": config,
-            "realtime": False,
-            "simulation_resource_self": sim_response["_self"],
-        },
-    )
