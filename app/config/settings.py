@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     SENTRY_TRACES_SAMPLE_RATE: float = 1.0
     SENTRY_PROFILES_SAMPLE_RATE: float = 1.0
 
-    ACCOUNTING_BASE_URL: Url | None = None
+    ACCOUNTING_BASE_URL: Url | None = Url("http://localhost:8100")
     ACCOUNTING_DISABLED: str | None = None
 
     REDIS_URL: str = "redis://localhost:6379/0"
