@@ -6,22 +6,6 @@ from app.domains.morphology import SynapseConfig
 from app.domains.simulation import BrainRegion
 
 ModelType = Literal["me-model", "synaptome", "m-model", "e-model"]
-SupportedNexusNeuronModels = Literal[
-    "https://neuroshapes.org/MEModel",
-    "MEModel",
-    "SingleNeuronSynaptome",
-    "https://bbp.epfl.ch/ontologies/core/bmo/SingleNeuronSynaptome",
-]
-
-NexusMEModelType: SupportedNexusNeuronModels = "MEModel"
-NexusMEModelExtendedType: SupportedNexusNeuronModels = "https://neuroshapes.org/MEModel"
-NexusSynaptomeType: SupportedNexusNeuronModels = "SingleNeuronSynaptome"
-NexusSynaptomeExtendedType: SupportedNexusNeuronModels = (
-    "https://bbp.epfl.ch/ontologies/core/bmo/SingleNeuronSynaptome"
-)
-
-NexusMModelType = "NeuronMorphology"
-NexusEModelType = "EModel"
 
 
 class UsedModel(BaseModel):

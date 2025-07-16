@@ -14,9 +14,7 @@ class SimulationStimulusConfig(BaseModel):
     def validate_amplitudes(cls, value):
         if isinstance(value, list):
             if len(value) < 1 or len(value) > 15:
-                raise ValueError(
-                    "Amplitude length should be between 1 and 15 (inclusive)"
-                )
+                raise ValueError("Amplitude length should be between 1 and 15 (inclusive)")
 
         return value
 
@@ -57,12 +55,6 @@ class SimulationWithSynapseBody(BaseModel):
 
 
 SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
-NexusSimulationType = Literal["SingleNeuronSimulation", "SynaptomeSimulation"]
-
-SIMULATION_TYPE_MAP: dict[NexusSimulationType, SimulationType] = {
-    "SingleNeuronSimulation": "single-neuron-simulation",
-    "SynaptomeSimulation": "synaptome-simulation",
-}
 
 
 class SingleNeuronSimulationConfig(BaseModel):
@@ -82,9 +74,7 @@ class SingleNeuronSimulationConfig(BaseModel):
             synapses = stuff.get("synaptome") or []
             for synapse in synapses:
                 if isinstance(synapse.frequency, list):
-                    raise ValueError(
-                        "Amplitude should be a constant float if frequency is a list"
-                    )
+                    raise ValueError("Amplitude should be a constant float if frequency is a list")
         elif isinstance(value.stimulus.amplitudes, float):
             synapses = stuff.get("synaptome") or []
             synapses_with_variable_frequencies = [

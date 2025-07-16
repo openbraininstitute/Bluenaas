@@ -32,10 +32,10 @@ uv sync
 
 2. To start the backend server run the following command. This starts some docker services and then brings up the fastapi server:
 
-## Run dev frontend/backend
+## Run dev backend
 
 ```bash
-make build
+make run
 ```
 
 ## Simulate your own models.
