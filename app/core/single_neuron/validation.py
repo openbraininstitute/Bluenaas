@@ -18,10 +18,10 @@ class Validation:
         self,
         model_id: UUID,
         client: Client,
-        execution_id: UUID = uuid4(),
+        execution_id: UUID | None = None,
     ):
-        self.model_id
-        self.execution_id = execution_id
+        self.model_id = model_id
+        self.execution_id = execution_id or uuid4()
         self.client = client
 
         self.single_neuron = SingleNeuron(model_id, client)
@@ -44,11 +44,10 @@ class Validation:
             self.single_neuron.cell,
             self.single_neuron.metadata.name,
             output_dir=str(self.output.path),
+            n_processes=4,
         )
 
-        validation_dict = {
-            k: v for k, v in result_dict.items() if k != "memodel_properties"
-        }
+        validation_dict = {k: v for k, v in result_dict.items() if k != "memodel_properties"}
 
         self.output.set_validation_result(validation_dict)
 

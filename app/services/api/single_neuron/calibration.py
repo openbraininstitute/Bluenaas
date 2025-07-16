@@ -1,4 +1,4 @@
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from entitysdk.common import ProjectContext
 from fastapi import Request

@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from http import HTTPStatus
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from entitysdk.client import Client
 from entitysdk.common import ProjectContext
@@ -8,19 +8,20 @@ from entitysdk.models import Simulation, SimulationExecution
 from entitysdk.types import SimulationExecutionStatus
 from fastapi import Request
 from fastapi.responses import StreamingResponse
+from loguru import logger
 from obp_accounting_sdk.constants import ServiceSubtype
 from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
 from rq import Queue
-from loguru import logger
 
 from app.config.settings import settings
 from app.core.exceptions import AppError, AppErrorCode
-from app.infrastructure.kc.auth import Auth
+from app.domains.circuit.simulation import SimulationParams
 from app.infrastructure.accounting.session import async_accounting_session_factory
+from app.infrastructure.kc.auth import Auth
 from app.job import JobFn
 from app.utils.api.streaming import x_ndjson_http_stream
 from app.utils.asyncio import run_async
-from app.utils.rq_job import dispatch
+from app.utils.rq_job import dispatch, get_job_data
 
 
 async def run_circuit_simulation(
@@ -31,20 +32,49 @@ async def run_circuit_simulation(
     project_context: ProjectContext,
     auth: Auth,
 ) -> StreamingResponse:
-    # TODO estimate number of CPUs for simulation
-    num_cpus = 1
+    client = Client(
+        api_url=str(settings.ENTITYCORE_URI),
+        project_context=project_context,
+        token_manager=auth.access_token,
+    )
 
-    accounting_session = async_accounting_session_factory.longrun_session(
+    simulation = await run_async(
+        lambda: client.get_entity(
+            simulation_id,
+            entity_type=Simulation,
+        )
+    )
+
+    execution_id = uuid4()
+
+    # Estimate accounting task size as "n cpus * sim bio time".
+    _job, stream = await dispatch(
+        job_queue,
+        JobFn.GET_CIRCUIT_SIMULATION_PARAMS,
+        job_kwargs={
+            "circuit_id": simulation.entity_id,
+            "simulation_id": simulation_id,
+            "execution_id": execution_id,
+            "access_token": auth.access_token,
+            "project_context": project_context,
+        },
+    )
+    simulation_params_str = await get_job_data(stream)
+    simulation_params = SimulationParams.model_validate(simulation_params_str)
+    accounting_count = simulation_params.num_cells * min(1, round(simulation_params.tstop / 1000))
+    logger.info(f"Accounting count: {accounting_count}")
+
+    accounting_session = async_accounting_session_factory.oneshot_session(
         subtype=ServiceSubtype.SMALL_CIRCUIT_SIM,
         proj_id=project_context.project_id,
         user_id=auth.decoded_token.sub,
-        instances=num_cpus,
-        instance_type="FARGATE",
-        duration=60,  # defaults to one minute, TODO implement estimation logic
+        count=accounting_count,
+        name=simulation.name,
     )
 
     try:
         await accounting_session.make_reservation()
+        logger.info("Accounting reservation success")
     except InsufficientFundsError as ex:
         logger.warning(f"Insufficient funds: {ex}")
         raise AppError(
@@ -62,22 +92,10 @@ async def run_circuit_simulation(
             details=ex.__str__(),
         ) from ex
 
-    client = Client(
-        api_url=str(settings.ENTITYCORE_URI),
-        project_context=project_context,
-        token_manager=auth.access_token,
-    )
-
-    simulation = await run_async(
-        lambda: client.get_entity(
-            simulation_id,
-            entity_type=Simulation,
-        )
-    )
-
-    simulation_execution = await run_async(
+    await run_async(
         lambda: client.register_entity(
             SimulationExecution(
+                id=execution_id,
                 used=[simulation],
                 start_time=datetime.now(UTC),
                 status=SimulationExecutionStatus.pending,
@@ -92,10 +110,10 @@ async def run_circuit_simulation(
         await accounting_session.finish()
 
     async def on_failure(exc_type: str) -> None:
-        assert simulation_execution.id
+        assert execution_id
 
         client.update_entity(
-            entity_id=simulation_execution.id,
+            entity_id=execution_id,
             entity_type=SimulationExecution,
             attrs_or_entity={
                 "end_time": datetime.now(UTC),
@@ -108,11 +126,11 @@ async def run_circuit_simulation(
     _job, stream = await dispatch(
         job_queue,
         JobFn.RUN_CIRCUIT_SIMULATION,
-        job_id=str(simulation_execution.id),
+        job_id=str(execution_id),
         job_kwargs={
             "circuit_id": simulation.entity_id,
             "simulation_id": simulation_id,
-            "execution_id": simulation_execution.id,
+            "execution_id": execution_id,
             "access_token": auth.access_token,
             "project_context": project_context,
         },

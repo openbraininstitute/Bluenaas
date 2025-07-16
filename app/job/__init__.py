@@ -20,4 +20,5 @@ class JobFn(StrEnum):
     )
 
     # Circuit
-    RUN_CIRCUIT_SIMULATION = "app.job.handlers.circuit.simulation.run_circuit_simulation"
+    RUN_CIRCUIT_SIMULATION = "app.job.handlers.circuit.simulation.run"
+    GET_CIRCUIT_SIMULATION_PARAMS = "app.job.handlers.circuit.simulation.get_params"

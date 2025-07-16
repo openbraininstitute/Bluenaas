@@ -9,6 +9,11 @@ FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 FROM python:$PYTHON_BASE AS builder
 SHELL ["bash", "-e", "-x", "-o", "pipefail", "-c"]
 
+# TODO: remove after new release of accounting sdk
+RUN apt-get update \
+  && apt-get install -q -y --no-install-recommends git \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY --from=uv /uv /usr/local/bin/uv
 
 ENV UV_LINK_MODE=copy \

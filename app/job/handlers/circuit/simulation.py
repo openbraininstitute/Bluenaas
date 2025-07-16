@@ -15,7 +15,7 @@ from app.infrastructure.rq import get_job_stream_key
 from app.utils.simulation import get_num_mpi_procs
 
 
-def run_circuit_simulation(
+def run(
     *,
     access_token: str,
     circuit_id: UUID,
@@ -58,8 +58,8 @@ def run_circuit_simulation(
         job_stream.send_status(JobStatus.running, "simulation_init")
         simulation.init()
 
-        num_cells = simulation.get_num_cells()
-        num_mpi_procs = get_num_mpi_procs(num_cells)
+        sim_params = simulation.get_simulation_params()
+        num_mpi_procs = get_num_mpi_procs(sim_params.num_cells)
 
         job_stream.send_status(JobStatus.running, "simulation_exec")
         simulation.run(num_procs=num_mpi_procs)
@@ -83,4 +83,39 @@ def run_circuit_simulation(
         )
 
         job_stream.send_status(status or JobStatus.error)
+        job_stream.close()
+
+
+def get_params(
+    *,
+    access_token: str,
+    circuit_id: UUID,
+    execution_id: UUID,
+    simulation_id: UUID,
+    project_context: ProjectContext,
+):
+    job_stream = JobStream(get_job_stream_key())
+
+    client = Client(
+        api_url=str(settings.ENTITYCORE_URI),
+        project_context=project_context,
+        token_manager=access_token,
+    )
+
+    simulation = Simulation(
+        circuit_id=circuit_id,
+        client=client,
+        execution_id=execution_id,
+        simulation_id=simulation_id,
+    )
+
+    try:
+        simulation.init(init_circuit=False)
+
+        sim_params = simulation.get_simulation_params()
+        job_stream.send_data(sim_params)
+    except Exception as e:
+        logger.exception(e)
+        job_stream.send_status(JobStatus.error, str(e))
+    finally:
         job_stream.close()

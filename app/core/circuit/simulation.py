@@ -19,6 +19,7 @@ from app.constants import (
 from app.core.circuit.circuit import Circuit
 from app.core.circuit.simulation_output import SimulationOutput
 from app.core.exceptions import CircuitSimulationError, CircuitSimulationInitError
+from app.domains.circuit.simulation import SimulationParams
 from app.infrastructure.storage import (
     get_circuit_simulation_location,
     get_circuit_simulation_output_location,
@@ -33,7 +34,6 @@ class Simulation:
     simulation_id: UUID
     path: Path
     execution_id: UUID
-    num_cells: int | None
 
     def __init__(
         self,
@@ -57,9 +57,7 @@ class Simulation:
 
     def _fetch_metadata(self):
         """Fetch the simulation (config) metadata from entitycore"""
-        self.metadata = self.client.get_entity(
-            self.simulation_id, entity_type=EntitycoreSimulation
-        )
+        self.metadata = self.client.get_entity(self.simulation_id, entity_type=EntitycoreSimulation)
 
     def _fetch_assets(self):
         """Fetch the simulation (config) files from entitycore and write to the disk storage"""
@@ -90,9 +88,7 @@ class Simulation:
         for input_name, input_value in config_data.get("inputs", {}).items():
             if "spike_file" in input_value:
                 spike_f_path = str(self.path / input_value["spike_file"])
-                logger.info(
-                    f"Overwriting spike file location for {input_name} with {spike_f_path}"
-                )
+                logger.info(f"Overwriting spike file location for {input_name} with {spike_f_path}")
                 input_value["spike_file"] = spike_f_path
 
         with open(config_file, "w") as f:
@@ -130,7 +126,7 @@ class Simulation:
             self._fetch_assets()
             ready_marker.touch()
 
-    def get_num_cells(self) -> int:
+    def get_simulation_params(self) -> SimulationParams:
         config_file = self.path / CIRCUIT_SIMULATION_CONFIG_NAME
         with open(config_file, "r") as f:
             config_data = json.load(f)
@@ -141,14 +137,16 @@ class Simulation:
                 node_set_data = json.load(f)
 
                 if node_set_name not in node_set_data:
-                    raise KeyError(
-                        f"Node set '{node_set_name}' not found in node sets file"
-                    )
+                    raise KeyError(f"Node set '{node_set_name}' not found in node sets file")
 
-                return len(node_set_data[node_set_name]["node_id"])
+                num_cells = len(node_set_data[node_set_name]["node_id"])
+                tstop = config_data["run"]["tstop"]
 
-    def init(self):
-        self._init_circuit()
+                return SimulationParams(num_cells=num_cells, tstop=tstop)
+
+    def init(self, *, init_circuit: bool = True):
+        if init_circuit:
+            self._init_circuit()
 
         try:
             self._init_simulation()

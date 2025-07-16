@@ -1,4 +1,4 @@
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from entitysdk.common import ProjectContext
 from fastapi import Request
@@ -19,22 +19,9 @@ async def run_validation_service(
     project_context: ProjectContext,
     job_queue: Queue,
 ) -> StreamingResponse:
-    # Run calibration first
-
-    calibration_job, _calibration_stream = await dispatch(
-        job_queue,
-        JobFn.RUN_SINGLE_NEURON_CALIBRATION,
-        job_args=(model_id,),
-        job_kwargs={
-            "project_context": project_context,
-            "access_token": auth.access_token,
-        },
-    )
-
-    _validation_job, validation_stream = await dispatch(
+    _validation_job, stream = await dispatch(
         job_queue,
         JobFn.RUN_SINGLE_NEURON_VALIDATION,
-        depends_on=calibration_job,
         job_args=(model_id,),
         job_kwargs={
             "project_context": project_context,
@@ -42,8 +29,6 @@ async def run_validation_service(
         },
     )
 
-    # TODO Consider merging two streams.
-
-    http_stream = x_ndjson_http_stream(request, validation_stream)
+    http_stream = x_ndjson_http_stream(request, stream)
 
     return StreamingResponse(http_stream, media_type="application/x-ndjson")
