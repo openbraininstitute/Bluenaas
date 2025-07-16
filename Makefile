@@ -65,6 +65,11 @@ publish: build  ## Publish the Docker images to DockerHub
 run: build  ## Run the application in Docker
 	docker compose up --watch --remove-orphans
 
+job-monitor: ## Run the RQ job/queue monitor
+	docker compose run --rm \
+		--entrypoint sh \
+		worker -c "rq info --url redis://redis:6379 --interval 1"
+
 kill:  ## Take down the application containers and remove the volumes
 	docker compose down --remove-orphans --volumes
 
