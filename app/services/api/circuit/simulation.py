@@ -112,16 +112,19 @@ async def run_circuit_simulation(
     async def on_failure(exc_type: type[BaseException] | None) -> None:
         assert execution_id
 
-        client.update_entity(
-            entity_id=execution_id,
-            entity_type=SimulationExecution,
-            attrs_or_entity={
-                "end_time": datetime.now(UTC),
-                "status": SimulationExecutionStatus.error,
-            },
+        await run_async(
+            lambda: client.update_entity(
+                entity_id=execution_id,
+                entity_type=SimulationExecution,
+                attrs_or_entity={
+                    "end_time": datetime.now(UTC),
+                    "status": SimulationExecutionStatus.error,
+                },
+            )
         )
 
-        await accounting_session.finish(exc_type=exc_type)
+        # TODO fix the exc_type type below.
+        await accounting_session.finish(exc_type=exc_type)  # type: ignore
 
     _job, stream = await dispatch(
         job_queue,
