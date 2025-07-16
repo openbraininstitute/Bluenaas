@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Dict
 
 from entitysdk import Client
+from entitysdk.types import ContentType, AssetLabel
 from entitysdk.models import ValidationResult
 from loguru import logger
 
@@ -12,18 +13,12 @@ from app.infrastructure.storage import (
 
 
 class ValidationOutput:
-    model_id: UUID
-    client: Client
-    execution_id: UUID
-    validation_result: Dict | None = None
-    path: Path
-
     def __init__(self, model_id: UUID, *, execution_id: UUID, client: Client):
-        self.model_id = model_id
-        self.execution_id = execution_id
-        self.client = client
-
-        self.path = get_single_neuron_validation_output_location(execution_id)
+        self.model_id: UUID = model_id
+        self.execution_id: UUID = execution_id
+        self.client: Client = client
+        self.validation_result: Dict | None = None
+        self.path: Path = get_single_neuron_validation_output_location(execution_id)
 
     def set_validation_result(self, validation_dict: Dict):
         self.validation_result = validation_dict
@@ -63,15 +58,13 @@ class ValidationOutput:
                 entity_id=registered.id,
                 entity_type=ValidationResult,
                 file_path=fig_path,
-                file_content_type="application/pdf",
-                asset_label="validation_result_figure",
+                file_content_type=ContentType.application_pdf,
+                asset_label=AssetLabel.validation_result_figure,
             )
 
         if val_dict["validation_details"]:
             # write down validation details to a file
-            val_details_fname = (
-                f"{val_dict['name'].replace(' ', '')}_validation_details.txt"
-            )
+            val_details_fname = f"{val_dict['name'].replace(' ', '')}_validation_details.txt"
             val_details_path = self.path / val_details_fname
 
             with open(val_details_path, "w") as f:
@@ -82,8 +75,8 @@ class ValidationOutput:
                 entity_id=registered.id,
                 entity_type=ValidationResult,
                 file_path=val_details_path,
-                file_content_type="text/plain",
-                asset_label="validation_result_details",
+                file_content_type=ContentType.text_plain,
+                asset_label=AssetLabel.validation_result_details,
             )
 
     def _upload_validation_result(self) -> None:
