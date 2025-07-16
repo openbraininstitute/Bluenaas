@@ -109,7 +109,7 @@ async def run_circuit_simulation(
     async def on_success() -> None:
         await accounting_session.finish()
 
-    async def on_failure(exc_type: str) -> None:
+    async def on_failure(exc_type: type[BaseException] | None) -> None:
         assert execution_id
 
         client.update_entity(
