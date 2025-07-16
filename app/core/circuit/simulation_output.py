@@ -4,6 +4,7 @@ from uuid import UUID
 from entitysdk.client import Client
 from entitysdk.models import SimulationResult
 from entitysdk.models.core import Identifiable
+from entitysdk.types import AssetLabel, ContentType
 from loguru import logger
 
 from app.infrastructure.storage import get_circuit_simulation_output_location
@@ -26,8 +27,8 @@ class SimulationOutput:
         self,
         *,
         path: Path,
-        content_type: str,
-        asset_label: str,
+        content_type: ContentType,
+        asset_label: AssetLabel,
         entity_id: UUID,
         client: Client,
         raise_on_missing=True,
@@ -71,8 +72,8 @@ class SimulationOutput:
         self._upload_file(
             client=self.client,
             path=spike_report_path,
-            content_type="application/x-hdf5",
-            asset_label="spike_report",
+            content_type=ContentType.application_x_hdf5,
+            asset_label=AssetLabel.spike_report,
             entity_id=simulation_result.id,
             raise_on_missing=False,
         )
@@ -81,8 +82,8 @@ class SimulationOutput:
         self._upload_file(
             client=self.client,
             path=self.output_path / "voltage_report.nwb",
-            content_type="application/nwb",
-            asset_label="voltage_report",
+            content_type=ContentType.application_nwb,
+            asset_label=AssetLabel.voltage_report,
             entity_id=simulation_result.id,
             raise_on_missing=False,
         )
@@ -95,8 +96,8 @@ class SimulationOutput:
             self._upload_file(
                 client=self.client,
                 path=h5_file,
-                content_type="application/x-hdf5",
-                asset_label="voltage_report",
+                content_type=ContentType.application_x_hdf5,
+                asset_label=AssetLabel.voltage_report,
                 entity_id=simulation_result.id,
             )
 
