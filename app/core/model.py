@@ -9,6 +9,7 @@ from uuid import UUID
 
 import numpy as np
 import pandas  # type: ignore
+from entitysdk.types import AssetLabel
 from filelock import FileLock
 from loguru import logger
 from sympy import parse_expr, symbols  # type: ignore
@@ -32,7 +33,7 @@ from app.domains.morphology import (
     SynapsesPlacementConfig,
 )
 from app.domains.simulation import SynapseSimulationConfig
-from app.external.entitycore.schemas import AssetLabel, EntityRoute
+from app.external.entitycore.schemas import EntityRoute
 from app.external.entitycore.service import (
     EntityCore,
     ProjectContext,
@@ -107,9 +108,7 @@ class Model:
                 else holding_current,
             )
 
-    def _generate_synapse(
-        self, section_info: LocationData, seg_indices_to_include: list[int]
-    ):
+    def _generate_synapse(self, section_info: LocationData, seg_indices_to_include: list[int]):
         random_index = randint(0, len(seg_indices_to_include) - 1)
 
         target_segment = seg_indices_to_include[random_index]
@@ -139,9 +138,7 @@ class Model:
         perp_vector = perpendicular_vector(new_vector)
 
         # 5. Create new (perpendicular) vector of length = segment radius
-        adjusted_perp_vector = set_vector_length(
-            perp_vector, section_info.diam[target_segment] / 2
-        )
+        adjusted_perp_vector = set_vector_length(perp_vector, section_info.diam[target_segment] / 2)
 
         # 6. Project above vector to segment (Not sure how. ChatGPT answer looks different from one we discussed yesterday)
         # target_vector = project_vector(vNew, length_vector)
@@ -397,9 +394,7 @@ def fetch_synaptome_model_details(
         )
 
         if not single_neuron_synaptome.assets:
-            raise SimulationError(
-                f"No synaptome configuration file found for {model_id}"
-            )
+            raise SimulationError(f"No synaptome configuration file found for {model_id}")
 
         asset = next(
             (
@@ -425,8 +420,7 @@ def fetch_synaptome_model_details(
             )
             synapses_file = json.loads(config)
             synapse_placement_config = [
-                SynapseConfig.model_validate(synapse)
-                for synapse in synapses_file["synapses"]
+                SynapseConfig.model_validate(synapse) for synapse in synapses_file["synapses"]
             ]
 
             return SynaptomeDetails(
@@ -445,8 +439,6 @@ def fetch_synaptome_model_details(
         import traceback
 
         traceback.print_exc()
-        logger.error(
-            f"There was an error while loading single neuron synaptome model {e}"
-        )
+        logger.error(f"There was an error while loading single neuron synaptome model {e}")
 
         raise Exception(e)

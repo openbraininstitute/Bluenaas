@@ -3,6 +3,7 @@ from uuid import UUID
 
 import requests
 from entitysdk.common import ProjectContext
+from entitysdk.types import AssetLabel, ContentType
 from loguru import logger
 from pydantic import BaseModel
 
@@ -11,8 +12,6 @@ from app.core.exceptions import SimulationError
 from app.core.types import FileObj
 from app.external.base import Service
 from app.external.entitycore.schemas import (
-    AssetLabel,
-    ContentType,
     EModelReadExpanded,
     EntityRoute,
     IonChannelModelWAssets,
@@ -66,9 +65,7 @@ def download_asset(
     return res.content
 
 
-def fetch_hoc_file(
-    emodel: EModelReadExpanded, token: str, project_context: ProjectContext
-):
+def fetch_hoc_file(emodel: EModelReadExpanded, token: str, project_context: ProjectContext):
     hoc_file_id = next(
         (asset.id for asset in emodel.assets if asset.label == AssetLabel.neuron_hoc),
         None,
@@ -123,9 +120,7 @@ def fetch_morphology(id: UUID, token: str, project_context: ProjectContext):
 def iter_matching_assets(icms: list[IonChannelModelWAssets]):
     for icm in icms:
         yield from (
-            (icm, asset)
-            for asset in icm.assets
-            if asset.label == AssetLabel.neuron_mechanisms
+            (icm, asset) for asset in icm.assets if asset.label == AssetLabel.neuron_mechanisms
         )
 
 
@@ -157,9 +152,7 @@ def fetch_icms(emodel: EModelReadExpanded, token: str, project_context: ProjectC
 
 
 class EntityCore(Service):
-    def __init__(
-        self, model_id: UUID, access_token: str, project_context: ProjectContext
-    ):
+    def __init__(self, model_id: UUID, access_token: str, project_context: ProjectContext):
         self.access_token = access_token
         self.model_id = model_id
         self.model: MEModelRead | None = None
@@ -176,9 +169,7 @@ class EntityCore(Service):
             )
 
         return [
-            self.model.calibration_result
-            and self.model.calibration_result.holding_current
-            or 0,
+            self.model.calibration_result and self.model.calibration_result.holding_current or 0,
             self.model.calibration_result
             and self.model.calibration_result.threshold_current
             or 0.1,
@@ -213,9 +204,7 @@ class EntityCore(Service):
             self.access_token,
             project_context=self.project_context,
         )
-        icms = fetch_icms(
-            emodel, self.access_token, project_context=self.project_context
-        )
+        icms = fetch_icms(emodel, self.access_token, project_context=self.project_context)
 
         logger.debug("Creating model folder")
         self.create_model_folder(hoc_file, morphology, icms)

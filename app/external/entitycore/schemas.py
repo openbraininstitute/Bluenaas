@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
+from entitysdk.types import AssetLabel
 from pydantic import UUID4, AnyUrl, BaseModel, Field, PositiveFloat, RootModel
 
 
@@ -51,34 +52,6 @@ class ApiErrorCode(Enum):
     ASSET_INVALID_CONTENT_TYPE = "ASSET_INVALID_CONTENT_TYPE"
     ION_NAME_NOT_FOUND = "ION_NAME_NOT_FOUND"
     S3_CANNOT_CREATE_PRESIGNED_URL = "S3_CANNOT_CREATE_PRESIGNED_URL"
-
-
-class AssetLabel(Enum):
-    morphology = "morphology"
-    cell_composition_summary = "cell_composition_summary"
-    cell_composition_volumes = "cell_composition_volumes"
-    single_neuron_synaptome_config = "single_neuron_synaptome_config"
-    single_neuron_synaptome_simulation_data = "single_neuron_synaptome_simulation_data"
-    single_cell_simulation_data = "single_cell_simulation_data"
-    sonata_circuit = "sonata_circuit"
-    nwb = "nwb"
-    neuron_hoc = "neuron_hoc"
-    emodel_optimization_output = "emodel_optimization_output"
-    sonata_simulation_config = "sonata_simulation_config"
-    simulation_generation_config = "simulation_generation_config"
-    custom_node_sets = "custom_node_sets"
-    campaign_generation_config = "campaign_generation_config"
-    campaign_summary = "campaign_summary"
-    replay_spikes = "replay_spikes"
-    voltage_report = "voltage_report"
-    spike_report = "spike_report"
-    neuron_mechanisms = "neuron_mechanisms"
-    brain_atlas_annotation = "brain_atlas_annotation"
-    brain_region_mesh = "brain_region_mesh"
-    voxel_densities = "voxel_densities"
-    validation_result_figure = "validation_result_figure"
-    validation_result_details = "validation_result_details"
-    simulation_designer_image = "simulation_designer_image"
 
 
 class AssetStatus(Enum):
@@ -663,12 +636,8 @@ class SubjectCreate(BaseModel):
     name: str = Field(..., title="Name")
     description: str = Field(..., title="Description")
     sex: Sex = Field(..., description="Sex of the subject", title="Sex")
-    weight: Optional[PositiveFloat] = Field(
-        None, description="Weight in grams", title="Weight"
-    )
-    age_value: Optional[float] = Field(
-        None, description="Age value interval.", title="Age value"
-    )
+    weight: Optional[PositiveFloat] = Field(None, description="Weight in grams", title="Weight")
+    age_value: Optional[float] = Field(None, description="Age value interval.", title="Age value")
     age_min: Optional[float] = Field(
         None, description="Minimum age range", title="Minimum age range"
     )
@@ -691,12 +660,8 @@ class SubjectRead(BaseModel):
     name: str = Field(..., title="Name")
     description: str = Field(..., title="Description")
     sex: Sex = Field(..., description="Sex of the subject")
-    weight: Optional[PositiveFloat] = Field(
-        None, description="Weight in grams", title="Weight"
-    )
-    age_value: Optional[float] = Field(
-        None, description="Age value interval.", title="Age value"
-    )
+    weight: Optional[PositiveFloat] = Field(None, description="Weight in grams", title="Weight")
+    age_value: Optional[float] = Field(None, description="Age value interval.", title="Age value")
     age_min: Optional[float] = Field(
         None, description="Minimum age range", title="Minimum age range"
     )
@@ -806,9 +771,7 @@ class CircuitCreate(BaseModel):
     description: str = Field(..., title="Description")
     has_morphologies: Optional[bool] = Field(False, title="Has Morphologies")
     has_point_neurons: Optional[bool] = Field(False, title="Has Point Neurons")
-    has_electrical_cell_models: Optional[bool] = Field(
-        False, title="Has Electrical Cell Models"
-    )
+    has_electrical_cell_models: Optional[bool] = Field(False, title="Has Electrical Cell Models")
     has_spines: Optional[bool] = Field(False, title="Has Spines")
     number_neurons: int = Field(..., title="Number Neurons")
     number_synapses: int = Field(..., title="Number Synapses")
@@ -1081,12 +1044,8 @@ class NestedSubjectRead(BaseModel):
     name: str = Field(..., title="Name")
     description: str = Field(..., title="Description")
     sex: Sex = Field(..., description="Sex of the subject")
-    weight: Optional[PositiveFloat] = Field(
-        None, description="Weight in grams", title="Weight"
-    )
-    age_value: Optional[float] = Field(
-        None, description="Age value interval.", title="Age value"
-    )
+    weight: Optional[PositiveFloat] = Field(None, description="Weight in grams", title="Weight")
+    age_value: Optional[float] = Field(None, description="Age value interval.", title="Age value")
     age_min: Optional[float] = Field(
         None, description="Minimum age range", title="Minimum age range"
     )
@@ -1098,20 +1057,14 @@ class NestedSubjectRead(BaseModel):
 
 
 class NeuronBlock(BaseModel):
-    global_: Optional[List[Dict[str, Optional[str]]]] = Field(
-        [], alias="global", title="Global"
-    )
+    global_: Optional[List[Dict[str, Optional[str]]]] = Field([], alias="global", title="Global")
     range: Optional[List[Dict[str, Optional[str]]]] = Field([], title="Range")
     useion: Optional[List[UseIon]] = Field([], title="Useion")
-    nonspecific: Optional[List[Dict[str, Optional[str]]]] = Field(
-        [], title="Nonspecific"
-    )
+    nonspecific: Optional[List[Dict[str, Optional[str]]]] = Field([], title="Nonspecific")
 
 
 class ReconstructionMorphologyRead(BaseModel):
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     created_by: NestedPersonRead
     updated_by: NestedPersonRead
     type: Optional[EntityType] = None
@@ -1243,9 +1196,7 @@ class SingleNeuronSynaptomeRead(BaseModel):
     updated_by: NestedPersonRead
     assets: List[AssetRead] = Field(..., title="Assets")
     type: Optional[EntityType] = None
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     creation_date: datetime = Field(..., title="Creation Date")
     update_date: datetime = Field(..., title="Update Date")
     id: UUID = Field(..., title="Id")
@@ -1285,9 +1236,7 @@ class AssetAndPresignedURLS(BaseModel):
 
 class CellCompositionRead(BaseModel):
     assets: List[AssetRead] = Field(..., title="Assets")
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     type: Optional[EntityType] = None
     id: UUID = Field(..., title="Id")
     authorized_project_id: UUID4 = Field(..., title="Authorized Project Id")
@@ -1318,9 +1267,7 @@ class CircuitRead(BaseModel):
     description: str = Field(..., title="Description")
     has_morphologies: Optional[bool] = Field(False, title="Has Morphologies")
     has_point_neurons: Optional[bool] = Field(False, title="Has Point Neurons")
-    has_electrical_cell_models: Optional[bool] = Field(
-        False, title="Has Electrical Cell Models"
-    )
+    has_electrical_cell_models: Optional[bool] = Field(False, title="Has Electrical Cell Models")
     has_spines: Optional[bool] = Field(False, title="Has Spines")
     number_neurons: int = Field(..., title="Number Neurons")
     number_synapses: int = Field(..., title="Number Synapses")
@@ -1331,9 +1278,7 @@ class CircuitRead(BaseModel):
 
 
 class EModelRead(BaseModel):
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     created_by: NestedPersonRead
     updated_by: NestedPersonRead
     assets: List[AssetRead] = Field(..., title="Assets")
@@ -1357,9 +1302,7 @@ class EModelRead(BaseModel):
 
 
 class ElectricalCellRecordingRead(BaseModel):
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     subject: NestedSubjectRead
     created_by: NestedPersonRead
     updated_by: NestedPersonRead
@@ -1407,9 +1350,7 @@ class ElectricalCellRecordingRead(BaseModel):
 
 class ExperimentalBoutonDensityRead(BaseModel):
     subject: NestedSubjectRead
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     created_by: NestedPersonRead
     updated_by: NestedPersonRead
     type: Optional[EntityType] = None
@@ -1429,9 +1370,7 @@ class ExperimentalBoutonDensityRead(BaseModel):
 
 class ExperimentalNeuronDensityRead(BaseModel):
     subject: NestedSubjectRead
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     created_by: NestedPersonRead
     updated_by: NestedPersonRead
     type: Optional[EntityType] = None
@@ -1452,9 +1391,7 @@ class ExperimentalNeuronDensityRead(BaseModel):
 
 class ExperimentalSynapsesPerConnectionRead(BaseModel):
     subject: NestedSubjectRead
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     created_by: NestedPersonRead
     updated_by: NestedPersonRead
     type: Optional[EntityType] = None
@@ -1481,9 +1418,7 @@ class IonChannelModelCreate(BaseModel):
     name: str = Field(..., title="Name")
     nmodl_suffix: str = Field(..., title="Nmodl Suffix")
     is_ljp_corrected: Optional[bool] = Field(False, title="Is Ljp Corrected")
-    is_temperature_dependent: Optional[bool] = Field(
-        False, title="Is Temperature Dependent"
-    )
+    is_temperature_dependent: Optional[bool] = Field(False, title="Is Temperature Dependent")
     temperature_celsius: int = Field(..., title="Temperature Celsius")
     is_stochastic: Optional[bool] = Field(False, title="Is Stochastic")
     neuron_block: NeuronBlock
@@ -1493,9 +1428,7 @@ class IonChannelModelCreate(BaseModel):
 
 
 class IonChannelModelExpanded(BaseModel):
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     created_by: NestedPersonRead
     updated_by: NestedPersonRead
     assets: List[AssetRead] = Field(..., title="Assets")
@@ -1509,9 +1442,7 @@ class IonChannelModelExpanded(BaseModel):
     name: str = Field(..., title="Name")
     nmodl_suffix: str = Field(..., title="Nmodl Suffix")
     is_ljp_corrected: Optional[bool] = Field(False, title="Is Ljp Corrected")
-    is_temperature_dependent: Optional[bool] = Field(
-        False, title="Is Temperature Dependent"
-    )
+    is_temperature_dependent: Optional[bool] = Field(False, title="Is Temperature Dependent")
     temperature_celsius: int = Field(..., title="Temperature Celsius")
     is_stochastic: Optional[bool] = Field(False, title="Is Stochastic")
     neuron_block: NeuronBlock
@@ -1531,9 +1462,7 @@ class IonChannelModelRead(BaseModel):
     name: str = Field(..., title="Name")
     nmodl_suffix: str = Field(..., title="Nmodl Suffix")
     is_ljp_corrected: Optional[bool] = Field(False, title="Is Ljp Corrected")
-    is_temperature_dependent: Optional[bool] = Field(
-        False, title="Is Temperature Dependent"
-    )
+    is_temperature_dependent: Optional[bool] = Field(False, title="Is Temperature Dependent")
     temperature_celsius: int = Field(..., title="Temperature Celsius")
     is_stochastic: Optional[bool] = Field(False, title="Is Stochastic")
     neuron_block: NeuronBlock
@@ -1554,9 +1483,7 @@ class IonChannelModelWAssets(BaseModel):
     name: str = Field(..., title="Name")
     nmodl_suffix: str = Field(..., title="Nmodl Suffix")
     is_ljp_corrected: Optional[bool] = Field(False, title="Is Ljp Corrected")
-    is_temperature_dependent: Optional[bool] = Field(
-        False, title="Is Temperature Dependent"
-    )
+    is_temperature_dependent: Optional[bool] = Field(False, title="Is Temperature Dependent")
     temperature_celsius: int = Field(..., title="Temperature Celsius")
     is_stochastic: Optional[bool] = Field(False, title="Is Stochastic")
     neuron_block: NeuronBlock
@@ -1662,9 +1589,7 @@ class ListResponseSingleNeuronSynaptomeSimulationRead(BaseModel):
 
 
 class MEModelRead(BaseModel):
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     created_by: NestedPersonRead
     updated_by: NestedPersonRead
     type: Optional[EntityType] = None
@@ -1689,9 +1614,7 @@ class MEModelRead(BaseModel):
 class MeasurementAnnotationCreate(BaseModel):
     entity_id: UUID = Field(..., title="Entity Id")
     entity_type: MeasurableEntity
-    measurement_kinds: List[MeasurementKindCreate] = Field(
-        ..., title="Measurement Kinds"
-    )
+    measurement_kinds: List[MeasurementKindCreate] = Field(..., title="Measurement Kinds")
 
 
 class MeasurementAnnotationRead(BaseModel):
@@ -1704,9 +1627,7 @@ class MeasurementAnnotationRead(BaseModel):
 
 
 class ReconstructionMorphologyAnnotationExpandedRead(BaseModel):
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     created_by: NestedPersonRead
     updated_by: NestedPersonRead
     type: Optional[EntityType] = None
@@ -1729,9 +1650,7 @@ class ReconstructionMorphologyAnnotationExpandedRead(BaseModel):
 
 
 class EModelReadExpanded(BaseModel):
-    contributions: Optional[List[NestedContributionRead]] = Field(
-        ..., title="Contributions"
-    )
+    contributions: Optional[List[NestedContributionRead]] = Field(..., title="Contributions")
     created_by: NestedPersonRead
     updated_by: NestedPersonRead
     assets: List[AssetRead] = Field(..., title="Assets")
@@ -1752,9 +1671,7 @@ class EModelReadExpanded(BaseModel):
     mtypes: Optional[List[Annotation]] = Field(..., title="Mtypes")
     etypes: Optional[List[Annotation]] = Field(..., title="Etypes")
     exemplar_morphology: ExemplarMorphology
-    ion_channel_models: List[IonChannelModelWAssets] = Field(
-        ..., title="Ion Channel Models"
-    )
+    ion_channel_models: List[IonChannelModelWAssets] = Field(..., title="Ion Channel Models")
 
 
 class ListResponseEModelReadExpanded(BaseModel):
