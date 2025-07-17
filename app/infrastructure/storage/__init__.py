@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from uuid import UUID
 
@@ -21,6 +22,11 @@ def create_file(path: Path, content: bytes) -> None:
 def copy_file_content(source_file: Path, target_file: Path):
     with open(source_file, "br") as src, open(target_file, "bw") as dst:
         dst.write(src.read())
+
+
+def rm_dir(path: Path) -> None:
+    if path.exists():
+        shutil.rmtree(path)
 
 
 def ensure_dir(path: Path) -> Path:
@@ -52,10 +58,5 @@ def get_single_neuron_location(uuid: UUID) -> Path:
 
 
 def get_single_neuron_validation_output_location(uuid: UUID) -> Path:
-    path = (
-        settings.STORAGE_PATH
-        / "single-neuron"
-        / "validation-output"
-        / uuid_subpath(uuid)
-    )
+    path = settings.STORAGE_PATH / "single-neuron" / "validation-output" / uuid_subpath(uuid)
     return ensure_dir(path)

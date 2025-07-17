@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from http import HTTPStatus
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from entitysdk.client import Client
 from entitysdk.common import ProjectContext
@@ -45,24 +45,25 @@ async def run_circuit_simulation(
         )
     )
 
-    execution_id = uuid4()
-
     # Estimate accounting task size as "n cpus * sim bio time".
     _job, stream = await dispatch(
         job_queue,
         JobFn.GET_CIRCUIT_SIMULATION_PARAMS,
+        job_args=(simulation_id,),
         job_kwargs={
             "circuit_id": simulation.entity_id,
-            "simulation_id": simulation_id,
-            "execution_id": execution_id,
             "access_token": auth.access_token,
             "project_context": project_context,
         },
     )
-    simulation_params_str = await get_job_data(stream)
-    simulation_params = SimulationParams.model_validate(simulation_params_str)
-    accounting_count = simulation_params.num_cells * min(1, round(simulation_params.tstop / 1000))
-    logger.info(f"Accounting count: {accounting_count}")
+    sim_params_str = await get_job_data(stream)
+    sim_params = SimulationParams.model_validate(sim_params_str)
+    accounting_count = sim_params.num_cells * min(1, round(sim_params.tstop / 1000))
+
+    logger.info(
+        "Making accounting reservation for simulation run of "
+        f"{sim_params.num_cells} neurons for {sim_params.tstop} ms",
+    )
 
     accounting_session = async_accounting_session_factory.oneshot_session(
         subtype=ServiceSubtype.SMALL_CIRCUIT_SIM,
@@ -92,16 +93,18 @@ async def run_circuit_simulation(
             details=ex.__str__(),
         ) from ex
 
-    await run_async(
+    simulation_execution_entity = await run_async(
         lambda: client.register_entity(
             SimulationExecution(
-                id=execution_id,
                 used=[simulation],
                 start_time=datetime.now(UTC),
                 status=SimulationExecutionStatus.pending,
             )
         )
     )
+
+    execution_id = simulation_execution_entity.id
+    assert execution_id
 
     async def on_start() -> None:
         await accounting_session.start()
@@ -110,8 +113,6 @@ async def run_circuit_simulation(
         await accounting_session.finish()
 
     async def on_failure(exc_type: type[BaseException] | None) -> None:
-        assert execution_id
-
         await run_async(
             lambda: client.update_entity(
                 entity_id=execution_id,
@@ -130,9 +131,9 @@ async def run_circuit_simulation(
         job_queue,
         JobFn.RUN_CIRCUIT_SIMULATION,
         job_id=str(execution_id),
+        job_args=(simulation_id,),
         job_kwargs={
             "circuit_id": simulation.entity_id,
-            "simulation_id": simulation_id,
             "execution_id": execution_id,
             "access_token": auth.access_token,
             "project_context": project_context,

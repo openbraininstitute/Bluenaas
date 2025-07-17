@@ -23,6 +23,7 @@ from app.domains.circuit.simulation import SimulationParams
 from app.infrastructure.storage import (
     get_circuit_simulation_location,
     get_circuit_simulation_output_location,
+    rm_dir,
 )
 
 
@@ -178,3 +179,10 @@ class Simulation:
             raise CircuitSimulationError()
 
         return self.output
+
+    def cleanup(self):
+        self.output.cleanup()
+
+        # TODO: Make instance re-initializable
+        self.initialized = False
+        rm_dir(self.path)

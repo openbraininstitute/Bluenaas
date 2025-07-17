@@ -23,7 +23,7 @@ class Circuit:
     metadata: EntitycoreCircuit
     path: Path
 
-    def __init__(self, circuit_id: UUID, client: Client):
+    def __init__(self, circuit_id: UUID, *, client: Client):
         self.circuit_id = circuit_id
         self.path = get_circuit_location(self.circuit_id)
 
@@ -33,16 +33,12 @@ class Circuit:
 
     def _fetch_metadata(self):
         """Fetch the circuit metadata from entitycore"""
-        self.metadata = self.client.get_entity(
-            self.circuit_id, entity_type=EntitycoreCircuit
-        )
+        self.metadata = self.client.get_entity(self.circuit_id, entity_type=EntitycoreCircuit)
 
     def _fetch_assets(self):
         """Fetch the circuit files from entitycore and write to the disk storage"""
         assert self.metadata.id is not None
-        stage_circuit(
-            self.client, model=self.metadata, output_dir=self.path, max_concurrent=8
-        )
+        stage_circuit(self.client, model=self.metadata, output_dir=self.path, max_concurrent=8)
 
         # --------- TODO remove this ---------------------------------------------------------------
         config_file = self.path / CIRCUIT_CONFIG_NAME

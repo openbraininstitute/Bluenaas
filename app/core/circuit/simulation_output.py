@@ -7,7 +7,7 @@ from entitysdk.models.core import Identifiable
 from entitysdk.types import AssetLabel, ContentType
 from loguru import logger
 
-from app.infrastructure.storage import get_circuit_simulation_output_location
+from app.infrastructure.storage import get_circuit_simulation_output_location, rm_dir
 
 
 class SimulationOutput:
@@ -102,3 +102,8 @@ class SimulationOutput:
             )
 
         return simulation_result
+
+    def cleanup(self):
+        """Cleanup the simulation output"""
+        # TODO: Make instance re-initializable
+        rm_dir(self.output_path)
