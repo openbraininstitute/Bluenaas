@@ -28,7 +28,7 @@ api = [
     "sentry-sdk[fastapi]==2.33.0",
 ]
 worker = [
-    "bluecellulab",
+    "bluecellulab==2.6.63",
     "efel==5.7.18",
     "filelock==3.18.0",
     "pynwb==3.1.0",
@@ -55,4 +55,3 @@ target-version = "py312"
 
 [tool.uv.sources]
 obp-accounting-sdk = { git = "https://github.com/openbraininstitute/accounting-sdk.git", rev = "feat/use-asyncio-in-async-hearbeat-sender" }
-bluecellulab = { git = "https://github.com/openbraininstitute/BlueCelluLab.git", rev = "multiprocessing" }
