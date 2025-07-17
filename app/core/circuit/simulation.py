@@ -49,7 +49,7 @@ class Simulation:
 
         self.path = get_circuit_simulation_location(self.execution_id)
 
-        self.circuit = Circuit(circuit_id, client)
+        self.circuit = Circuit(circuit_id, client=client)
 
         self._fetch_metadata()
 
