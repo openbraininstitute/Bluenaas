@@ -16,7 +16,7 @@ def run(
     execution_id: UUID,
     project_context: ProjectContext,
 ) -> None:
-    return run_circuit_simulation(
+    run_circuit_simulation(
         simulation_id,
         access_token=access_token,
         circuit_id=circuit_id,
@@ -32,7 +32,7 @@ def get_params(
     circuit_id: UUID,
     project_context: ProjectContext,
 ) -> None:
-    return get_circuit_simulation_params(
+    get_circuit_simulation_params(
         simulation_id,
         access_token=access_token,
         circuit_id=circuit_id,

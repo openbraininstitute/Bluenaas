@@ -4,9 +4,7 @@ from redis import ConnectionPool, Redis
 
 MAX_REDIS_CONNECTIONS = 20
 
-connection_pool = ConnectionPool.from_url(
-    settings.REDIS_URL, max_connections=MAX_REDIS_CONNECTIONS
-)
+connection_pool = ConnectionPool.from_url(settings.REDIS_URL, max_connections=MAX_REDIS_CONNECTIONS)
 redis_client = Redis(connection_pool=connection_pool, decode_responses=True)
 
 
@@ -30,7 +28,7 @@ class Stream:
     def send(self, data: str):
         self._send(data)
 
-    def send_one(self, data: str):
+    def send_once(self, data: str):
         self._send(data)
         self.close()
 
@@ -45,6 +43,6 @@ def close_stream(stream_key: str) -> None:
     redis_client.xadd(stream_key, {"data": STOP_MESSAGE})
 
 
-def stream_one(stream_key: str, data: str) -> None:
+def stream_once(stream_key: str, data: str) -> None:
     stream(stream_key, data)
     close_stream(stream_key)
