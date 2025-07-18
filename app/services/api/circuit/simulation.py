@@ -58,7 +58,7 @@ async def run_circuit_simulation(
     )
     sim_params_str = await get_job_data(stream)
     sim_params = SimulationParams.model_validate(sim_params_str)
-    accounting_count = sim_params.num_cells * min(1, round(sim_params.tstop / 1000))
+    accounting_count = sim_params.num_cells * max(1, round(sim_params.tstop / 1000))
 
     logger.info(
         "Making accounting reservation for simulation run of "
