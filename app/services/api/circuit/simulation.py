@@ -4,7 +4,7 @@ from uuid import UUID
 
 from entitysdk.client import Client
 from entitysdk.common import ProjectContext
-from entitysdk.models import Simulation, SimulationExecution
+from entitysdk.models import Simulation, SimulationExecution, SimulationCampaign
 from entitysdk.types import SimulationExecutionStatus
 from fastapi import Request
 from fastapi.responses import StreamingResponse
@@ -45,7 +45,14 @@ async def run_circuit_simulation(
         )
     )
 
-    # Estimate accounting task size as "n cpus * sim bio time".
+    simulation_campaign = await run_async(
+        lambda: client.get_entity(
+            simulation.simulation_campaign_id,
+            entity_type=SimulationCampaign,
+        )
+    )
+
+    # Estimate accounting task size in neuron seconds.
     _job, stream = await dispatch(
         job_queue,
         JobFn.GET_CIRCUIT_SIMULATION_PARAMS,
@@ -62,7 +69,8 @@ async def run_circuit_simulation(
 
     logger.info(
         "Making accounting reservation for simulation run of "
-        f"{sim_params.num_cells} neurons for {sim_params.tstop} ms",
+        f"{sim_params.num_cells} neurons for {sim_params.tstop} ms. "
+        f"Total accounting task size: {accounting_count} neuron seconds"
     )
 
     accounting_session = async_accounting_session_factory.oneshot_session(
@@ -70,7 +78,7 @@ async def run_circuit_simulation(
         proj_id=project_context.project_id,
         user_id=auth.decoded_token.sub,
         count=accounting_count,
-        name=simulation.name,
+        name=f"{simulation_campaign.name} - {simulation.name}",
     )
 
     try:
@@ -111,6 +119,7 @@ async def run_circuit_simulation(
 
     async def on_success() -> None:
         await accounting_session.finish()
+        logger.info("Accounting session finished successfully")
 
     async def on_failure(exc_type: type[BaseException] | None) -> None:
         await run_async(
