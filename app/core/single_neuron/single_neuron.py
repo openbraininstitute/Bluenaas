@@ -43,7 +43,7 @@ class SingleNeuron:
         """Fetch the circuit files from entitycore and write to the disk storage"""
         assert self.metadata.id is not None
 
-        logger.info(f"Fetching single neuron model {self.model_id}")
+        logger.debug(f"Fetching single neuron model {self.model_id}")
         download_memodel(self.client, memodel=self.metadata, output_dir=str(self.path))
 
     def _compile_mod_files(self):
@@ -66,6 +66,27 @@ class SingleNeuron:
             text=True,
         )
         logger.debug(compilation_output)
+
+    def _init_model_files(self):
+        ready_marker = self.path / READY_MARKER_FILE_NAME
+
+        if ready_marker.exists():
+            logger.debug("Found existing single neuron model in the storage")
+            return
+
+        lock = FileLock(self.path / "dir.lock")
+
+        with lock.acquire(timeout=2 * 60):
+            # Re-check if the single neuron model is already initialized.
+            # Another worker might have initialized the model
+            # while the current one was waiting for the lock.
+            if ready_marker.exists():
+                logger.debug("Found existing single neuron model in the storage")
+                return
+
+            self._fetch_assets()
+            self._compile_mod_files()
+            ready_marker.touch()
 
     def _init_bcl_cell(self):
         # Consider using h.nrn_load_dll(libnrnmech_path) as with a circuit simulation
@@ -98,24 +119,15 @@ class SingleNeuron:
         logger.debug(f"BCL Cell {self.model_id} initialized")
 
     def init(self):
-        """Fetch model assets and compile MOD files"""
+        """Fetch model assets, compile MOD files and initialize BlueCelluLab Cell"""
         if self.initialized:
             logger.warning("Single neuron model already initialized")
             return
 
-        ready_marker = self.path / READY_MARKER_FILE_NAME
-
-        lock = FileLock(self.path / "dir.lock")
-
         try:
-            if not ready_marker.exists():
-                logger.debug("Found existing single neuron model in the storage")
-                with lock.acquire(timeout=2 * 60):
-                    self._fetch_assets()
-                    self._compile_mod_files()
-                    ready_marker.touch()
-
+            self._init_model_files()
             self._init_bcl_cell()
+
             self.initialized = True
 
         except Exception:

@@ -90,6 +90,14 @@ class Circuit:
 
         try:
             with lock.acquire(timeout=2 * 60):
+                # Re-check if the circuit is already initialized.
+                # Another worker might have initialized the circuit
+                # while the current one was waiting for the lock.
+                if ready_marker.exists():
+                    logger.debug("Found existing circuit in the storage")
+                    self.initialized = True
+                    return
+
                 self._fetch_assets()
                 self._compile_mod_files()
                 ready_marker.touch()
