@@ -65,14 +65,16 @@ class BaseCell:
         from bluecellulab.importer import neuron
 
         # load the model
-        sbo_template = model_path / "cell.hoc"
+        hoc_file = model_path / "cell.hoc"
+        logger.debug(f"hoc_file: {hoc_file}")
+
         morph_path = model_path / "morphology"
         morph_file_name = os.listdir(morph_path)[0]
         morph_file = morph_path / morph_file_name
         logger.debug(f"morph_file: {morph_file}")
 
-        if sbo_template.exists():
-            logger.debug(f"template exists {sbo_template}")
+        if hoc_file.exists():
+            logger.debug(f"template exists {hoc_file}")
             try:
                 emodel_properties = EmodelProperties(
                     threshold_current,
@@ -81,7 +83,7 @@ class BaseCell:
                 )
                 logger.debug(f"emodel_properties {emodel_properties}")
                 self._cell = Cell(
-                    sbo_template,
+                    hoc_file,
                     morph_file,
                     template_format="v6",
                     emodel_properties=emodel_properties,
@@ -95,10 +97,7 @@ class BaseCell:
             self._template_name = self._cell.hocname
             set_sec_dendrogram(self._template_name, self._cell.soma, self._dendrogram)
         else:
-            raise Exception(
-                "HOC file not found! Expecting '/checkpoints/cell.hoc' for "
-                "BSP model format or `/template.hoc`!"
-            )
+            raise Exception(f"HOC file expected but not found at: {hoc_file}")
 
     def get_init_params(self):
         """Get initial parameters."""
@@ -132,9 +131,7 @@ class BaseCell:
         if not self._nrn:
             raise ValueError("Model not loadedF")
         logger.debug(sec_name)
-        self._nrn.h.psection(
-            sec=self._all_sec_array[self._all_sec_map[sec_name]["index"]]
-        )
+        self._nrn.h.psection(sec=self._all_sec_array[self._all_sec_map[sec_name]["index"]])
         # TODO: rework this
         return {"txt": ""}
 
