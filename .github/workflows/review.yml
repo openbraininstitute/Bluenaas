@@ -8,11 +8,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+          enable-cache: true
+
       - name: Setup python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Install dependencies
-        run: pip install poetry && poetry install --sync
-      - name: Lint
-        run: make lint-all
+          python-version-file: "pyproject.toml"
+
+      - name: Check requirements
+        run: make check-deps
+
+      - name: Install requirements
+        run: make install
+
+      - name: Run checks
+        run: make check-all
