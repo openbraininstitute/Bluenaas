@@ -83,4 +83,3 @@ base_router.include_router(single_neuron_router)
 base_router.include_router(circuit_router)
 
 app.include_router(base_router)
-app.include_router(entitycore_router)
