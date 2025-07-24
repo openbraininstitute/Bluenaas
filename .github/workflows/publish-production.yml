@@ -24,8 +24,10 @@ jobs:
           echo "This workflow should not be triggered with workflow_dispatch on a branch other than main"
           exit 1
 
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Get full history to check existing tags
 
       - name: Set up Git
         run: |
@@ -46,8 +48,7 @@ jobs:
             COUNTER=$(( ${LATEST_TAG##*.} + 1 ))
           fi
 
-          # NEW_TAG="${YEAR}.${MONTH}.${DAY}.${COUNTER}"
-          NEW_TAG="2025.07.04.1"
+          NEW_TAG="${YEAR}.${MONTH}.${DAY}.${COUNTER}"
           echo "NEW_TAG=${NEW_TAG}" >> $GITHUB_ENV
           echo "New tag: $NEW_TAG"
 
