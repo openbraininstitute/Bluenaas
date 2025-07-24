@@ -1,26 +1,79 @@
 services:
-  bluenaas:
-    image: bluenaas-single-cell-svc
-    container_name: blue-naas-single-cell-http-svc
-    env_file: "./.env.local"
+  api:
+    # env_file: "./.env.local"
+    image: "${IMAGE_NAME}:api-${IMAGE_TAG_SUFFIX}"
     build:
-      dockerfile: ./Dockerfile.dev
-    command:
-      [
-        "uvicorn",
-        "bluenaas.app:app",
-        "--host=0.0.0.0",
-        "--port=8000",
-        "--reload",
-      ]
+      dockerfile: Dockerfile.api
+      args:
+        - ENVIRONMENT
+        - IMAGE_TAG_SUFFIX
+        - HOST_UID=${UID}
+        - HOST_GID=${GID}
+      platforms:
+        - linux/amd64
     environment:
       DEBUG: True
+      PYTHONUNBUFFERED: 1
       ACCOUNTING_DISABLED: 1
+      REDIS_URL: redis://redis:6379/0
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./app
+          target: /app/app
+        - action: rebuild
+          path: uv.lock
     volumes:
-      - ${PWD}/bluenaas:/app/bluenaas
-      - ${PWD}/.model-cache:/opt/blue-naas/models
+      - ${PWD}/.app-storage:/app/storage
     ports:
       - "8001:8000"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
     platform: linux/amd64
+
+  worker:
+    image: "${IMAGE_NAME}:worker-${IMAGE_TAG_SUFFIX}"
+    build:
+      dockerfile: Dockerfile.worker
+      args:
+        - ENVIRONMENT
+        - IMAGE_TAG_SUFFIX
+        - HOST_UID=${UID}
+        - HOST_GID=${GID}
+      platforms:
+        - linux/amd64
+    deploy:
+      mode: replicated
+      replicas: 1
+    environment:
+      DEBUG: True
+      PYTHONUNBUFFERED: 1
+      ACCOUNTING_DISABLED: True
+      REDIS_URL: redis://redis:6379/0
+      QUEUES: high medium low
+      NUM_WORKERS: 2
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./app
+          target: /app/app
+        - action: rebuild
+          path: uv.lock
+    volumes:
+      - ${PWD}/.app-storage:/app/storage
+    depends_on:
+      redis:
+        condition: service_healthy
+    platform: linux/amd64
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 1s
+      retries: 10
