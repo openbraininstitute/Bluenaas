@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 from loguru import logger as L
 
+from app.constants import SINGLE_NEURON_MOD_DIR
 from app.domains.morphology import ExclusionRule, LocationData, SynapseSeries
 
 PADDING = 2.0
@@ -37,11 +38,13 @@ def compile_mechanisms(model_path):
         L.debug("Found already compiled mechanisms")
         return
 
-    mech_path = model_path / "mechanisms"
+    mech_path = model_path / SINGLE_NEURON_MOD_DIR
     if not mech_path.is_dir():
-        raise Exception("Folder not found! Expecting 'mechanisms' folder in the model!")
+        raise Exception(
+            f"Folder not found! Expecting '{SINGLE_NEURON_MOD_DIR}' folder in the model!"
+        )
     else:
-        cmd = ["nrnivmodl", "mechanisms"]
+        cmd = ["nrnivmodl", SINGLE_NEURON_MOD_DIR]
         compilation_output = subprocess.check_output(cmd, cwd=model_path)
         L.info(compilation_output.decode())
 
@@ -247,9 +250,7 @@ def get_sections(cell) -> tuple[list, dict[str, dict[str, Any]]]:  # TODO improv
     # TODO: rework this
     all_sec_map_no_numpy = {}
     for section, values in all_sec_map.items():
-        all_sec_map_no_numpy.update(
-            {section: convert_numpy_dict_to_standard_dict(values)}
-        )
+        all_sec_map_no_numpy.update({section: convert_numpy_dict_to_standard_dict(values)})
 
     return all_sec_array, all_sec_map_no_numpy
 
@@ -301,9 +302,7 @@ def get_syns(nrn, path, template_name, all_sec_map):
                     sec = seg.sec
                     sec_name = get_sec_name(template_name, sec)
                     # 0.9999999 just so that seg_idx is not equal to 1
-                    seg_idx = int(
-                        np.fix(all_sec_map[sec_name]["nseg"] * seg.x * 0.9999999)
-                    )
+                    seg_idx = int(np.fix(all_sec_map[sec_name]["nseg"] * seg.x * 0.9999999))
                     if synapses.get(synapse_type):
                         synapses[synapse_type].append(
                             {"sec_name": sec_name, "seg_idx": seg_idx, "id": id_}
@@ -315,9 +314,7 @@ def get_syns(nrn, path, template_name, all_sec_map):
     return synapses
 
 
-def point_between_vectors(
-    vec1: np.ndarray, vec2: np.ndarray, position: float
-) -> np.ndarray:
+def point_between_vectors(vec1: np.ndarray, vec2: np.ndarray, position: float) -> np.ndarray:
     # Compute the random point as an interpolation between vec1 and vec2
     random_point = (1 - position) * vec1 + position * vec2
 
@@ -407,9 +404,7 @@ def generate_pre_spiketrain(duration: float, delay: float, frequencies: list[flo
     for frequency in frequencies:
         spike_interval = 1000 / frequency
         spiketrain_size = int(round(float(duration) / 1000 * frequency))
-        spiketrain_raw = np.insert(
-            np.random.poisson(spike_interval, spiketrain_size)[:-1], 0, 0
-        )
+        spiketrain_raw = np.insert(np.random.poisson(spike_interval, spiketrain_size)[:-1], 0, 0)
         spike_times = np.cumsum(spiketrain_raw) + delay
         all_spike_times.append(spike_times)
 
@@ -428,19 +423,13 @@ def log_stats_for_series_in_frequency(
 
     for sim_config in sim_configs:
         if sim_config["synapseSimulationConfig"].id in sim_id_to_sim_configs:
-            sim_id_to_sim_configs[sim_config["synapseSimulationConfig"].id].append(
-                sim_config
-            )
+            sim_id_to_sim_configs[sim_config["synapseSimulationConfig"].id].append(sim_config)
         else:
-            sim_id_to_sim_configs[sim_config["synapseSimulationConfig"].id] = [
-                sim_config
-            ]
+            sim_id_to_sim_configs[sim_config["synapseSimulationConfig"].id] = [sim_config]
 
     for sim_id in sim_id_to_sim_configs:
         configs_for_id = sim_id_to_sim_configs[sim_id]
-        L.debug(
-            f"There are {len(sim_id_to_sim_configs[sim_id])} synapses for set {sim_id}"
-        )
+        L.debug(f"There are {len(sim_id_to_sim_configs[sim_id])} synapses for set {sim_id}")
         sim_stats_to_count: dict[str, int] = {}
 
         for config in configs_for_id:
@@ -486,10 +475,7 @@ def get_segments_satisfying_all_exclusion_rules(
             set.intersection(
                 *map(
                     set,
-                    [
-                        get_segx_indices_satisfying_rule(rule, segment_distances)
-                        for rule in rules
-                    ],
+                    [get_segx_indices_satisfying_rule(rule, segment_distances) for rule in rules],
                 )
             )
         )
