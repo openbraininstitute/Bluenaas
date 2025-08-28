@@ -17,7 +17,7 @@ from app.constants import (
     SINGLE_NEURON_MORPHOLOGY_DIR,
 )
 from app.core.exceptions import SingleNeuronInitError
-from app.infrastructure.storage import get_single_neuron_location
+from app.infrastructure.storage import copy_file_content, get_single_neuron_location
 
 
 class SingleNeuron:
@@ -45,6 +45,21 @@ class SingleNeuron:
 
         logger.debug(f"Fetching single neuron model {self.model_id}")
         download_memodel(self.client, memodel=self.metadata, output_dir=str(self.path))
+
+    def _add_syn_mod_files(self):
+        # TODO: Move this to a helper function.
+        copy_file_content(
+            Path("/app/app/config/VecStim.mod"),
+            self.path / SINGLE_NEURON_MOD_DIR / "VecStim.mod",
+        )
+        copy_file_content(
+            Path("/app/app/config/ProbGABAAB_EMS.mod"),
+            self.path / SINGLE_NEURON_MOD_DIR / "ProbGABAAB_EMS.mod",
+        )
+        copy_file_content(
+            Path("/app/app/config/ProbAMPANMDA_EMS.mod"),
+            self.path / SINGLE_NEURON_MOD_DIR / "ProbAMPANMDA_EMS.mod",
+        )
 
     def _compile_mod_files(self):
         """Compile MOD files"""
@@ -85,6 +100,7 @@ class SingleNeuron:
                 return
 
             self._fetch_assets()
+            self._add_syn_mod_files()
             self._compile_mod_files()
             ready_marker.touch()
 

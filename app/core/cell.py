@@ -91,6 +91,8 @@ class BaseCell:
             logger.error(f"Error creating Cell object: {ex}")
             raise Exception(ex) from ex
 
+        neuron.h.define_shape()
+
         self._all_sec_array, self._all_sec_map = get_sections(self._cell)
         self._nrn = neuron
         self._template_name = self._cell.hocname
