@@ -8,14 +8,17 @@ from app.utils.streaming import compose_key
 
 
 class JobQueue(StrEnum):
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
+    # TODO Refactor names to be more descriptive
+    HIGH = "high"  # single cpu hi-priority / realtime tasks
+    MEDIUM = "medium"  # single cpu low-priority tasks
+    LOW = "low"  # multi cpu tasks, e.g. circuit simulation
+    MESH_SKELETONIZATION = (
+        "mesh_skeletonization"  # Ultraliser tasks using workers with 16 cpus / 32 gb of ram
+    )
 
 
 _queues: Dict[JobQueue, Queue] = {
-    queue_name: Queue(queue_name.value, connection=redis_client)
-    for queue_name in JobQueue
+    queue_name: Queue(queue_name.value, connection=redis_client) for queue_name in JobQueue
 }
 
 
