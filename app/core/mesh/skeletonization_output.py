@@ -12,8 +12,8 @@ class SkeletonizationOutput:
         self.output_id = output_id
         self.path = get_mesh_skeletonization_output_location(self.output_id)
 
-    def list_files(self) -> list[Path]:
-        return [p for p in self.path.rglob("*") if p.is_file()]
+    def list_files(self) -> list[str]:
+        return [str(p.relative_to(self.path)) for p in self.path.rglob("*") if p.is_file()]
 
     def init(self) -> None:
         ensure_dir(self.path)

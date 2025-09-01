@@ -1,3 +1,4 @@
+from pathlib import Path
 from uuid import UUID
 
 import ultraliser
@@ -6,7 +7,7 @@ from loguru import logger
 from app.core.mesh.mesh import Mesh
 from app.core.mesh.skeletonization_output import SkeletonizationOutput
 from app.domains.mesh.skeletonization import SkeletonizationParams
-from app.utils.safe_process import SafeProcessExecutor
+from app.utils.safe_process import SafeProcessExecutor, SafeProcessRuntimeError
 
 
 def run_mesh_skeletonization(
@@ -27,9 +28,10 @@ def run_mesh_skeletonization(
 
     try:
         result = executor.execute(
-            target_func=ultraliser.skeletonizeNeuronMesh,
-            args=(mesh.file_path, output.path),
-            kwargs=params_dict,
+            ultraliser.skeletonizeNeuronMesh,
+            mesh=str(mesh.file_path),
+            output_directory=str(output.path),
+            **params_dict,
         )
 
         logger.info(f"Process logs:\n{result.logs}")
@@ -38,3 +40,7 @@ def run_mesh_skeletonization(
         raise
     finally:
         mesh.cleanup()
+
+    logger.info(f"Skeletonization completed for mesh {mesh_id}")
+
+    logger.info(f"Output files: {output.list_files()}")
