@@ -19,7 +19,7 @@ router = APIRouter(prefix="/mesh")
 @router.post("/skeletonization/run", tags=["mesh", "skeletonization"])
 async def run_mesh_skeletonization(
     project_context: ProjectContextDep,
-    # _auth: Auth = Depends(verify_jwt),
+    _auth: Auth = Depends(verify_jwt),
     job_queue: Queue = Depends(queue_factory(JobQueue.MESH_SKELETONIZATION)),
     mesh_file: UploadFile = File(...),
     params: SkeletonizationParams = Depends(),
@@ -36,7 +36,7 @@ async def run_mesh_skeletonization(
 async def get_mesh_skeletonization_status(
     job_id: UUID,
     project_context: ProjectContextDep,
-    # _auth: Auth = Depends(verify_jwt),
+    _auth: Auth = Depends(verify_jwt),
     job_queue: Queue = Depends(queue_factory(JobQueue.MESH_SKELETONIZATION)),
 ):
     return await get_mesh_skeletonization_status_service(
@@ -52,7 +52,7 @@ async def get_mesh_skeletonization_output_file(
     job_id: UUID,
     output_file_path: str,
     project_context: ProjectContextDep,
-    # _auth: Auth = Depends(verify_jwt),
+    _auth: Auth = Depends(verify_jwt),
     job_queue: Queue = Depends(queue_factory(JobQueue.MESH_SKELETONIZATION)),
 ):
     return await get_mesh_skeletonization_output_file_service(
