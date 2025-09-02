@@ -1,12 +1,11 @@
 from http import HTTPStatus
-from pathlib import Path
 from uuid import UUID, uuid4
 
 from entitysdk.common import ProjectContext
 from fastapi import UploadFile
 from fastapi.responses import FileResponse, JSONResponse
-from rq import Queue
 from loguru import logger
+from rq import Queue
 
 from app.core.mesh.mesh import Mesh
 from app.core.mesh.skeletonization_output import SkeletonizationOutput
