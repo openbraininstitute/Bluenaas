@@ -1,5 +1,5 @@
-from pathlib import Path
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, File, UploadFile
 from rq import Queue
 
@@ -8,9 +8,13 @@ from app.infrastructure.kc.auth import Auth, verify_jwt
 from app.infrastructure.rq import JobQueue, queue_factory
 from app.routes.dependencies import ProjectContextDep
 from app.services.api.mesh.skeletonization import (
-    run_mesh_skeletonization as run_mesh_skeletonization_service,
-    get_mesh_skeletonization_status as get_mesh_skeletonization_status_service,
     get_mesh_skeletonization_output_file as get_mesh_skeletonization_output_file_service,
+)
+from app.services.api.mesh.skeletonization import (
+    get_mesh_skeletonization_status as get_mesh_skeletonization_status_service,
+)
+from app.services.api.mesh.skeletonization import (
+    run_mesh_skeletonization as run_mesh_skeletonization_service,
 )
 
 router = APIRouter(prefix="/mesh")
