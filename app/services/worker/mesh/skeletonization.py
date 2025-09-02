@@ -1,6 +1,6 @@
 from uuid import UUID
 
-import ultraliser
+import ultraliser  # pyright: ignore[reportMissingImports]
 from loguru import logger
 
 from app.core.mesh.mesh import Mesh
