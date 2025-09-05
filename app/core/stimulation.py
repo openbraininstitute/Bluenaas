@@ -475,68 +475,68 @@ def _run_current_varying_stimulus(
         )
         cell.add_replay_hypamp(hyp_stim)
 
-    prev_voltage = {}
-    prev_time = {}
-    prev_current = {}
+    # Track previous values for realtime differential updates
+    previous_data = {}
+
+    def _extract_recording_data(loc: RecordingLocation):
+        """Extract voltage, time, and current data for a recording location."""
+        sec, seg = cell.sections[loc.section], loc.offset
+        cell_section = f"{loc.section}_{seg}"
+
+        voltage = cell.get_variable_recording("v", sec, seg).tolist()
+        time = cell.get_time().tolist()
+        current = (
+            {
+                var_name: cell.get_variable_recording(var_name, section=sec, segx=seg).tolist()
+                for var_name in i_rec_var_dict[loc.section]
+            }
+            if loc.record_currents
+            else None
+        )
+
+        return cell_section, voltage, time, current
+
+    def _create_record_payload(cell_section, voltage, time, current):
+        """Create the payload dict for simulation queue."""
+        return {
+            "label": f"{stimulus_name.name}_{amplitude}",
+            "recording_name": cell_section,
+            "amplitude": amplitude,
+            "time": time,
+            "voltage": voltage,
+            "current": current,
+        }
 
     def process_simulation_recordings(enable_realtime=True):
+        """Process and send recording data to simulation queue."""
         for loc in recording_locations:
-            sec, seg = cell.sections[loc.section], loc.offset
-            cell_section = f"{loc.section}_{seg}"
-            label = f"{stimulus_name.name}_{amplitude}"
+            cell_section, voltage, time, current = _extract_recording_data(loc)
 
-            voltage = cell.get_variable_recording("v", sec, seg).tolist()
-            time = cell.get_time().tolist()
-            current = (
-                {
-                    var_name: cell.get_variable_recording(var_name, section=sec, segx=seg).tolist()
-                    for var_name in i_rec_var_dict[loc.section]
-                }
-                if loc.record_currents
-                else None
-            )
+            if enable_realtime:
+                # Calculate differential data for realtime updates
+                prev_data = previous_data.get(cell_section, {})
 
-            if enable_realtime is True:
-                voltage_diff = diff_list(prev_voltage.get(cell_section, []), voltage)
-                time_diff = diff_list(prev_time.get(cell_section, []), time)
-
-                prev_voltage[cell_section] = voltage
-                prev_time[cell_section] = time
+                voltage_diff = diff_list(prev_data.get("voltage", []), voltage)
+                time_diff = diff_list(prev_data.get("time", []), time)
 
                 current_diff = None
-
                 if loc.record_currents and current:
+                    prev_current = prev_data.get("current", {})
                     current_diff = {
-                        var_name: diff_list(
-                            prev_current.get(cell_section, {}).get(var_name, []),
-                            current[var_name],
-                        )
+                        var_name: diff_list(prev_current.get(var_name, []), current[var_name])
                         for var_name in i_rec_var_dict[loc.section]
                     }
 
-                prev_current[cell_section] = current
+                # Update previous data for next iteration
+                previous_data[cell_section] = {"voltage": voltage, "time": time, "current": current}
 
-                simulation_queue.put(
-                    {
-                        "label": label,
-                        "recording_name": cell_section,
-                        "amplitude": amplitude,
-                        "time": time_diff,
-                        "voltage": voltage_diff,
-                        "current": current_diff,
-                    }
+                payload = _create_record_payload(
+                    cell_section, voltage_diff, time_diff, current_diff
                 )
             else:
-                simulation_queue.put(
-                    {
-                        "label": label,
-                        "recording_name": cell_section,
-                        "amplitude": amplitude,
-                        "time": time,
-                        "voltage": voltage,
-                        "current": current,
-                    }
-                )
+                payload = _create_record_payload(cell_section, voltage, time, current)
+
+            simulation_queue.put(payload)
 
     try:
         simulation = Simulation(
@@ -669,15 +669,15 @@ def _run_frequency_varying_stimulus(
 
             if enable_realtime is True:
                 if cell_section not in prev_voltage:
-                    prev_voltage[cell_section] = np.array([])
+                    prev_voltage[cell_section] = []
                 if cell_section not in prev_time:
-                    prev_time[cell_section] = np.array([])
+                    prev_time[cell_section] = []
 
-                voltage_diff = diff_list(prev_voltage[cell_section], voltage)
-                time_diff = diff_list(prev_time[cell_section], time)
+                voltage_diff = diff_list(prev_voltage[cell_section], voltage.tolist())
+                time_diff = diff_list(prev_time[cell_section], time.tolist())
 
-                prev_voltage[cell_section] = voltage
-                prev_time[cell_section] = time
+                prev_voltage[cell_section] = voltage.tolist()
+                prev_time[cell_section] = time.tolist()
 
                 simulation_queue.put(
                     {
@@ -685,8 +685,8 @@ def _run_frequency_varying_stimulus(
                         "recording_name": cell_section,
                         "amplitude": amplitude,
                         "frequency": frequency,
-                        "time": time_diff.tolist(),
-                        "voltage": voltage_diff.tolist(),
+                        "time": time_diff,
+                        "voltage": voltage_diff,
                     }
                 )
             else:
