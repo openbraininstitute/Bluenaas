@@ -179,6 +179,7 @@ def _prepare_stimulation_parameters_by_current(
     if current_injection is None:
         return [
             (
+                realtime,
                 cell.template_params,
                 None,
                 injection_section_name,
@@ -264,6 +265,7 @@ def _prepare_stimulation_parameters_by_current(
                 simulation_queue,
                 stimulus_name,
                 amplitude,
+                None,
                 cvode,
                 add_hypamp,
             )
@@ -375,7 +377,7 @@ def _prepare_stimulation_parameters_by_frequency(
     return task_args
 
 
-def _run_current_varying_stimulus(
+def _run_stimulus(
     realtime: bool,
     template_params,
     stimulus,
@@ -388,6 +390,7 @@ def _run_current_varying_stimulus(
     simulation_queue: mp.Queue,
     stimulus_name: StimulusName,
     amplitude: float,
+    frequency: float | None = None,
     cvode: bool = True,
     add_hypamp: bool = True,
 ):
@@ -435,7 +438,7 @@ def _run_current_varying_stimulus(
     if synapse_generation_config is not None:
         for synapse in synapse_generation_config:
             # Frequency should be constant in current varying simulation
-            assert isinstance(synapse["synapseSimulationConfig"].frequency, float)
+            # assert isinstance(synapse["synapseSimulationConfig"].frequency, float)
             _add_single_synapse(
                 cell=cell,
                 synapse=synapse,
@@ -483,11 +486,11 @@ def _run_current_varying_stimulus(
         sec, seg = cell.sections[loc.section], loc.offset
         cell_section = f"{loc.section}_{seg}"
 
-        voltage = cell.get_variable_recording("v", sec, seg).tolist()
-        time = cell.get_time().tolist()
+        voltage = cell.get_variable_recording("v", sec, seg)
+        time = cell.get_time()
         current = (
             {
-                var_name: cell.get_variable_recording(var_name, section=sec, segx=seg).tolist()
+                var_name: cell.get_variable_recording(var_name, section=sec, segx=seg)
                 for var_name in i_rec_var_dict[loc.section]
             }
             if loc.record_currents
@@ -496,15 +499,21 @@ def _run_current_varying_stimulus(
 
         return cell_section, voltage, time, current
 
-    def _create_record_payload(cell_section, voltage, time, current):
+    def _create_record_payload(
+        cell_section: str,
+        voltage: np.ndarray,
+        time: np.ndarray,
+        current: dict[str, np.ndarray] | None,
+    ):
         """Create the payload dict for simulation queue."""
+        label_prefix = "Frequency" if frequency is not None else stimulus_name.name
         return {
-            "label": f"{stimulus_name.name}_{amplitude}",
+            "label": f"{label_prefix}_{amplitude}",
             "recording_name": cell_section,
             "amplitude": amplitude,
-            "time": time,
-            "voltage": voltage,
-            "current": current,
+            "time": time.tolist(),
+            "voltage": voltage.tolist(),
+            "current": {var: current[var].tolist() for var in current} if current else None,
         }
 
     def process_simulation_recordings(enable_realtime=True):
@@ -516,14 +525,16 @@ def _run_current_varying_stimulus(
                 # Calculate differential data for realtime updates
                 prev_data = previous_data.get(cell_section, {})
 
-                voltage_diff = diff_list(prev_data.get("voltage", []), voltage)
-                time_diff = diff_list(prev_data.get("time", []), time)
+                voltage_diff = diff_list(prev_data.get("voltage", np.array([])), voltage)
+                time_diff = diff_list(prev_data.get("time", np.array([])), time)
 
                 current_diff = None
                 if loc.record_currents and current:
                     prev_current = prev_data.get("current", {})
                     current_diff = {
-                        var_name: diff_list(prev_current.get(var_name, []), current[var_name])
+                        var_name: diff_list(
+                            prev_current.get(var_name, np.array([])), current[var_name]
+                        )
                         for var_name in i_rec_var_dict[loc.section]
                     }
 
@@ -560,167 +571,167 @@ def _run_current_varying_stimulus(
         simulation_queue.put(SUB_PROCESS_STOP_EVENT)
 
 
-def _run_frequency_varying_stimulus(
-    realtime: bool,
-    template_params,
-    stimulus,
-    injection_section_name: str,
-    injection_segment: float,
-    recording_locations: list[RecordingLocation],
-    synapse_generation_config: list[SynapseSeries] | None,
-    experimental_setup: ExperimentSetupConfig,
-    simulation_duration: int,
-    simulation_queue: mp.Queue,
-    stimulus_name: StimulusName,
-    amplitude: float,
-    frequency: float,
-    cvode: bool = True,
-    add_hypamp: bool = True,
-):
-    """Creates a cell and stimulates it with a given stimulus.
+# def _run_frequency_varying_stimulus(
+#     realtime: bool,
+#     template_params,
+#     stimulus,
+#     injection_section_name: str,
+#     injection_segment: float,
+#     recording_locations: list[RecordingLocation],
+#     synapse_generation_config: list[SynapseSeries] | None,
+#     experimental_setup: ExperimentSetupConfig,
+#     simulation_duration: int,
+#     simulation_queue: mp.Queue,
+#     stimulus_name: StimulusName,
+#     amplitude: float,
+#     frequency: float,
+#     cvode: bool = True,
+#     add_hypamp: bool = True,
+# ):
+#     """Creates a cell and stimulates it with a given stimulus.
 
-    Args:
-        template_params: The parameters to create the cell from a template.
-        stimulus: The input stimulus to inject into the cell.
-        section: Name of the section of cell where the stimulus is to be injected.
-        segment: The segment of the section where the stimulus is to be injected.
-        cvode: True to use variable time-steps. False for fixed time-steps.
+#     Args:
+#         template_params: The parameters to create the cell from a template.
+#         stimulus: The input stimulus to inject into the cell.
+#         section: Name of the section of cell where the stimulus is to be injected.
+#         segment: The segment of the section where the stimulus is to be injected.
+#         cvode: True to use variable time-steps. False for fixed time-steps.
 
-    Returns:
-        The voltage-time recording at the specified location.
+#     Returns:
+#         The voltage-time recording at the specified location.
 
-    Raises:
-        ValueError: If the time and voltage arrays are not the same length.
-    """
+#     Raises:
+#         ValueError: If the time and voltage arrays are not the same length.
+#     """
 
-    logger.info(f"Starting simulation for frequency {frequency}")
+#     logger.info(f"Starting simulation for frequency {frequency}")
 
-    from bluecellulab.cell.core import Cell
-    from bluecellulab.rngsettings import RNGSettings
-    from bluecellulab.simulation.simulation import Simulation
-    from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
+#     from bluecellulab.cell.core import Cell
+#     from bluecellulab.rngsettings import RNGSettings
+#     from bluecellulab.simulation.simulation import Simulation
+#     from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
 
-    rng = RNGSettings(
-        base_seed=experimental_setup.seed,
-        synapse_seed=experimental_setup.seed,
-        stimulus_seed=experimental_setup.seed,
-    )
+#     rng = RNGSettings(
+#         base_seed=experimental_setup.seed,
+#         synapse_seed=experimental_setup.seed,
+#         stimulus_seed=experimental_setup.seed,
+#     )
 
-    rng.set_seeds(
-        base_seed=experimental_setup.seed,
-    )
+#     rng.set_seeds(
+#         base_seed=experimental_setup.seed,
+#     )
 
-    cell = Cell.from_template_parameters(template_params)
-    injection_section = cell.sections[injection_section_name]
+#     cell = Cell.from_template_parameters(template_params)
+#     injection_section = cell.sections[injection_section_name]
 
-    logger.info(f"""
-        [simulation stimulus/start]: {stimulus}
-        [simulation injection_section_name (provided)]: {injection_section_name}
-        [simulation injection_section (resolved)]: {injection_section}
-        [simulation recording_locations]: {recording_locations}
-    """)
+#     logger.info(f"""
+#         [simulation stimulus/start]: {stimulus}
+#         [simulation injection_section_name (provided)]: {injection_section_name}
+#         [simulation injection_section (resolved)]: {injection_section}
+#         [simulation recording_locations]: {recording_locations}
+#     """)
 
-    if synapse_generation_config is not None:
-        for synapse in synapse_generation_config:
-            _add_single_synapse(
-                cell=cell,
-                synapse=synapse,
-                experimental_setup=experimental_setup,
-            )
+#     if synapse_generation_config is not None:
+#         for synapse in synapse_generation_config:
+#             _add_single_synapse(
+#                 cell=cell,
+#                 synapse=synapse,
+#                 experimental_setup=experimental_setup,
+#             )
 
-    for loc in recording_locations:
-        sec, seg = cell.sections[loc.section], loc.offset
+#     for loc in recording_locations:
+#         sec, seg = cell.sections[loc.section], loc.offset
 
-        cell.add_voltage_recording(
-            section=sec,
-            segx=seg,
-        )
+#         cell.add_variable_recording(
+#             "v",
+#             section=sec,
+#             segx=seg,
+#         )
 
-    iclamp, _ = cell.inject_current_waveform(
-        stimulus.time,
-        stimulus.current,
-        section=injection_section,
-        segx=injection_segment,
-    )
-    current_vector = neuron.h.Vector()
-    current_vector.record(iclamp._ref_i)
-    neuron.h.v_init = experimental_setup.vinit
-    neuron.h.celsius = experimental_setup.celsius
+#     iclamp, _ = cell.inject_current_waveform(
+#         stimulus.time,
+#         stimulus.current,
+#         section=injection_section,
+#         segx=injection_segment,
+#     )
+#     current_vector = neuron.h.Vector()
+#     current_vector.record(iclamp._ref_i)
+#     neuron.h.v_init = experimental_setup.vinit
+#     neuron.h.celsius = experimental_setup.celsius
 
-    if add_hypamp:
-        hyp_stim = Hyperpolarizing(
-            target="",
-            delay=0.0,
-            duration=stimulus.stimulus_time,
-        )
-        cell.add_replay_hypamp(hyp_stim)
+#     if add_hypamp:
+#         hyp_stim = Hyperpolarizing(
+#             target="",
+#             delay=0.0,
+#             duration=stimulus.stimulus_time,
+#         )
+#         cell.add_replay_hypamp(hyp_stim)
 
-    prev_voltage = {}
-    prev_time = {}
+#     # Track previous values for realtime differential updates
+#     previous_data = {}
 
-    def process_simulation_recordings(enable_realtime=True):
-        for loc in recording_locations:
-            sec, seg = cell.sections[loc.section], loc.offset
-            cell_section = f"{loc.section}_{seg}"
-            label = f"Frequency_{frequency}"
+#     def _extract_recording_data(loc):
+#         """Extract voltage and time data for a recording location."""
+#         sec, seg = cell.sections[loc.section], loc.offset
+#         cell_section = f"{loc.section}_{seg}"
 
-            voltage = cell.get_voltage_recording(sec, seg)
-            time = cell.get_time()
+#         voltage = cell.get_variable_recording("v", sec, seg).tolist()
+#         time = cell.get_time().tolist()
 
-            if enable_realtime is True:
-                if cell_section not in prev_voltage:
-                    prev_voltage[cell_section] = []
-                if cell_section not in prev_time:
-                    prev_time[cell_section] = []
+#         return cell_section, voltage, time
 
-                voltage_diff = diff_list(prev_voltage[cell_section], voltage.tolist())
-                time_diff = diff_list(prev_time[cell_section], time.tolist())
+#     def _create_record_payload(cell_section, voltage, time):
+#         """Create the payload dict for simulation queue."""
+#         return {
+#             "label": f"Frequency_{frequency}",
+#             "recording_name": cell_section,
+#             "amplitude": amplitude,
+#             "frequency": frequency,
+#             "time": time,
+#             "voltage": voltage,
+#         }
 
-                prev_voltage[cell_section] = voltage.tolist()
-                prev_time[cell_section] = time.tolist()
+#     def process_simulation_recordings(enable_realtime=True):
+#         """Process and send recording data to simulation queue."""
+#         for loc in recording_locations:
+#             cell_section, voltage, time = _extract_recording_data(loc)
 
-                simulation_queue.put(
-                    {
-                        "label": label,
-                        "recording_name": cell_section,
-                        "amplitude": amplitude,
-                        "frequency": frequency,
-                        "time": time_diff,
-                        "voltage": voltage_diff,
-                    }
-                )
-            else:
-                simulation_queue.put(
-                    {
-                        "label": label,
-                        "recording_name": cell_section,
-                        "frequency": frequency,
-                        "amplitude": amplitude,
-                        "time": time.tolist(),
-                        "voltage": voltage.tolist(),
-                    }
-                )
+#             if enable_realtime:
+#                 # Calculate differential data for realtime updates
+#                 prev_data = previous_data.get(cell_section, {})
 
-    try:
-        simulation = Simulation(
-            cell,
-            custom_progress_function=process_simulation_recordings if realtime is True else None,
-        )
+#                 voltage_diff = diff_list(prev_data.get("voltage", []), voltage)
+#                 time_diff = diff_list(prev_data.get("time", []), time)
 
-        simulation.run(
-            tstop=simulation_duration,
-            cvode=False,
-            dt=experimental_setup.time_step,
-            show_progress=True if realtime is True else False,
-        )
+#                 # Update previous data for next iteration
+#                 previous_data[cell_section] = {"voltage": voltage, "time": time}
 
-        if realtime is False:
-            process_simulation_recordings(enable_realtime=False)
-    except Exception as ex:
-        logger.exception(f"child simulation failed {ex}")
-        raise ChildSimulationError from ex
-    finally:
-        simulation_queue.put(SUB_PROCESS_STOP_EVENT)
+#                 payload = _create_record_payload(cell_section, voltage_diff, time_diff)
+#             else:
+#                 payload = _create_record_payload(cell_section, voltage, time)
+
+#             simulation_queue.put(payload)
+
+#     try:
+#         simulation = Simulation(
+#             cell,
+#             custom_progress_function=process_simulation_recordings if realtime is True else None,
+#         )
+
+#         simulation.run(
+#             tstop=simulation_duration,
+#             cvode=False,
+#             dt=experimental_setup.time_step,
+#             show_progress=True if realtime is True else False,
+#         )
+
+#         if realtime is False:
+#             process_simulation_recordings(enable_realtime=False)
+#     except Exception as ex:
+#         logger.exception(f"child simulation failed {ex}")
+#         raise ChildSimulationError from ex
+#     finally:
+#         simulation_queue.put(SUB_PROCESS_STOP_EVENT)
 
 
 def apply_multiple_stimulus(
@@ -766,7 +777,7 @@ def apply_multiple_stimulus(
             initargs=(neuron_global_params,),
             maxtasksperchild=1,
         ) as pool:
-            pool.starmap_async(_run_current_varying_stimulus, args)
+            pool.starmap_async(_run_stimulus, args)
 
             process_finished = 0
 
@@ -831,7 +842,7 @@ def apply_multiple_frequency(
             initargs=(neuron_global_params,),
             maxtasksperchild=1,
         ) as pool:
-            pool.starmap_async(_run_frequency_varying_stimulus, args)
+            pool.starmap_async(_run_stimulus, args)
 
             process_finished = 0
 

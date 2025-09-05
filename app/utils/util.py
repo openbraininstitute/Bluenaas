@@ -483,15 +483,15 @@ def get_segments_satisfying_all_exclusion_rules(
     return result
 
 
-def diff_list(a: list, b: list) -> list:
+def diff_list(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     """
     Returns the elements in array `b` that come after the length of array `a`.
 
     Parameters:
-    a (list): The reference array.
-    b (list): The array to find the difference from.
+    a (np.ndarray): The reference array.
+    b (np.ndarray): The array to find the difference from.
 
     Returns:
-    list: The elements of `b` after the length of `a`.
+    np.ndarray: The elements of `b` after the length of `a`.
     """
     return b[len(a) :]
