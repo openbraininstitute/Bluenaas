@@ -272,9 +272,7 @@ def _prepare_stimulation_parameters_by_current(
     return task_args
 
 
-def get_stimulus_from_name(
-    stimulus_name: StimulusName, stimulus_factory, cell, thres_perc, amp
-):
+def get_stimulus_from_name(stimulus_name: StimulusName, stimulus_factory, cell, thres_perc, amp):
     if stimulus_name == StimulusName.AP_WAVEFORM:
         return stimulus_factory.ap_waveform(
             threshold_current=cell.threshold,
@@ -353,9 +351,7 @@ def _prepare_stimulation_parameters_by_frequency(
             thres_perc = None
             amp = amplitude
 
-        stimulus = get_stimulus_from_name(
-            stimulus_name, stim_factory, cell, thres_perc, amp
-        )
+        stimulus = get_stimulus_from_name(stimulus_name, stim_factory, cell, thres_perc, amp)
 
         task_args.append(
             (
@@ -446,13 +442,19 @@ def _run_current_varying_stimulus(
                 experimental_setup=experimental_setup,
             )
 
+    i_rec_var_dict = {}
+
     for loc in recording_locations:
         sec, seg = cell.sections[loc.section], loc.offset
 
-        cell.add_voltage_recording(
+        cell.add_variable_recording(
+            "v",
             section=sec,
             segx=seg,
         )
+
+        if loc.record_currents:
+            i_rec_var_dict[loc.section] = cell.add_currents_recordings(section=sec, segx=seg)
 
     iclamp, _ = cell.inject_current_waveform(
         stimulus.time,
@@ -475,6 +477,7 @@ def _run_current_varying_stimulus(
 
     prev_voltage = {}
     prev_time = {}
+    prev_current = {}
 
     def process_simulation_recordings(enable_realtime=True):
         for loc in recording_locations:
@@ -482,28 +485,45 @@ def _run_current_varying_stimulus(
             cell_section = f"{loc.section}_{seg}"
             label = f"{stimulus_name.name}_{amplitude}"
 
-            voltage = cell.get_voltage_recording(sec, seg)
-            time = cell.get_time()
+            voltage = cell.get_variable_recording("v", sec, seg).tolist()
+            time = cell.get_time().tolist()
+            current = (
+                {
+                    var_name: cell.get_variable_recording(var_name, section=sec, segx=seg).tolist()
+                    for var_name in i_rec_var_dict[loc.section]
+                }
+                if loc.record_currents
+                else None
+            )
 
             if enable_realtime is True:
-                if cell_section not in prev_voltage:
-                    prev_voltage[cell_section] = np.array([])
-                if cell_section not in prev_time:
-                    prev_time[cell_section] = np.array([])
-
-                voltage_diff = diff_list(prev_voltage[cell_section], voltage)
-                time_diff = diff_list(prev_time[cell_section], time)
+                voltage_diff = diff_list(prev_voltage.get(cell_section, []), voltage)
+                time_diff = diff_list(prev_time.get(cell_section, []), time)
 
                 prev_voltage[cell_section] = voltage
                 prev_time[cell_section] = time
+
+                current_diff = None
+
+                if loc.record_currents and current:
+                    current_diff = {
+                        var_name: diff_list(
+                            prev_current.get(cell_section, {}).get(var_name, []),
+                            current[var_name],
+                        )
+                        for var_name in i_rec_var_dict[loc.section]
+                    }
+
+                prev_current[cell_section] = current
 
                 simulation_queue.put(
                     {
                         "label": label,
                         "recording_name": cell_section,
                         "amplitude": amplitude,
-                        "time": time_diff.tolist(),
-                        "voltage": voltage_diff.tolist(),
+                        "time": time_diff,
+                        "voltage": voltage_diff,
+                        "current": current_diff,
                     }
                 )
             else:
@@ -512,17 +532,16 @@ def _run_current_varying_stimulus(
                         "label": label,
                         "recording_name": cell_section,
                         "amplitude": amplitude,
-                        "time": time.tolist(),
-                        "voltage": voltage.tolist(),
+                        "time": time,
+                        "voltage": voltage,
+                        "current": current,
                     }
                 )
 
     try:
         simulation = Simulation(
             cell,
-            custom_progress_function=process_simulation_recordings
-            if realtime is True
-            else None,
+            custom_progress_function=process_simulation_recordings if realtime is True else None,
         )
 
         simulation.run(
@@ -685,9 +704,7 @@ def _run_frequency_varying_stimulus(
     try:
         simulation = Simulation(
             cell,
-            custom_progress_function=process_simulation_recordings
-            if realtime is True
-            else None,
+            custom_progress_function=process_simulation_recordings if realtime is True else None,
         )
 
         simulation.run(

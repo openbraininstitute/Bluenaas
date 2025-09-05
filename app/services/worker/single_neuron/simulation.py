@@ -307,6 +307,7 @@ def queue_record_to_stream_record(record: dict, is_current_varying: bool) -> dic
         "recording": record["recording_name"],
         "amplitude": record["amplitude"],
         "frequency": record.get("frequency"),
+        "current": record.get("current"),
         "varying_key": record["amplitude"] if is_current_varying is True else record["frequency"],
     }
 

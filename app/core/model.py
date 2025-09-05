@@ -9,18 +9,19 @@ from uuid import UUID
 
 import numpy as np
 import pandas  # type: ignore
+from entitysdk import Client, ProjectContext
 from entitysdk.types import AssetLabel
-from filelock import FileLock
 from loguru import logger
 from sympy import parse_expr, symbols  # type: ignore
 
-from app.constants import READY_MARKER_FILE_NAME
+from app.config.settings import settings
 from app.core.cell import HocCell
 from app.core.exceptions import (
     SimulationError,
     SingleNeuronSynaptomeConfigurationError,
     SynapseGenerationError,
 )
+from app.core.single_neuron.single_neuron import SingleNeuron
 from app.domains.morphology import (
     LocationData,
     SectionSynapses,
@@ -35,12 +36,9 @@ from app.domains.morphology import (
 from app.domains.simulation import SynapseSimulationConfig
 from app.external.entitycore.schemas import EntityRoute
 from app.external.entitycore.service import (
-    EntityCore,
-    ProjectContext,
     download_asset,
     fetch_one,
 )
-from app.infrastructure.storage import get_single_neuron_location
 from app.utils.util import (
     get_sections,
     get_segments_satisfying_all_exclusion_rules,
@@ -75,38 +73,29 @@ class Model:
     def build_model(self):
         """Prepare model."""
 
-        helper = EntityCore(
-            access_token=self.access_token,
-            model_id=self.model_id,
+        client = Client(
+            api_url=str(settings.ENTITYCORE_URI),
             project_context=self.project_context,
+            token_manager=self.access_token,
         )
 
-        [holding_current, threshold_current] = helper.get_currents()
-        self.threshold_current = threshold_current
+        single_neuron = SingleNeuron(
+            client=client,
+            model_id=self.model_id,
+        )
 
-        model_path = get_single_neuron_location(self.model_id)
-        ready_marker = model_path / READY_MARKER_FILE_NAME
+        # SingleNeuron class to eventually replace current Model class
+        single_neuron.init()
 
-        if not ready_marker.exists():
-            lock = FileLock(model_path / "dir.lock")
-            with lock.acquire(timeout=2 * 60):
-                helper.download_model()
-                self.CELL = HocCell(
-                    self.model_id,
-                    threshold_current=threshold_current,
-                    holding_current=self.holding_current
-                    if self.holding_current is not None
-                    else holding_current,
-                )
-                ready_marker.touch()
-        else:
-            self.CELL = HocCell(
-                self.model_id,
-                threshold_current=threshold_current,
-                holding_current=self.holding_current
-                if self.holding_current is not None
-                else holding_current,
-            )
+        self.threshold_current = single_neuron.threshold_current
+
+        self.CELL = HocCell(
+            self.model_id,
+            threshold_current=single_neuron.threshold_current,
+            holding_current=self.holding_current
+            if self.holding_current is not None
+            else single_neuron.holding_current,
+        )
 
     def _generate_synapse(self, section_info: LocationData, seg_indices_to_include: list[int]):
         random_index = randint(0, len(seg_indices_to_include) - 1)
