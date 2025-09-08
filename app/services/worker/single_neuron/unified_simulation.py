@@ -19,7 +19,7 @@ class ExpandedSimulationConfig(NamedTuple):
     """Individual simulation configuration with single parameter values."""
 
     base_config: SingleNeuronSimulationConfig
-    amplitude: float
+    amplitude: float | None
     frequency: float | None
     synapse_generation_config: list[SynapseSeries] | None
 
@@ -85,6 +85,8 @@ def expand_simulation_config(
                 config, synaptome_details, model
             )
 
+            print(frequency_to_synapse_config)
+
             amplitude = config.current_injection.stimulus.amplitudes
             assert not isinstance(amplitude, list), (
                 "Amplitude must be single value for frequency varying"
@@ -94,7 +96,7 @@ def expand_simulation_config(
                 expanded_configs.append(
                     ExpandedSimulationConfig(
                         base_config=config,
-                        amplitude=amplitude,
+                        amplitude=None,
                         frequency=frequency,
                         synapse_generation_config=synapse_config,
                     )

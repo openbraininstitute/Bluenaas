@@ -388,21 +388,67 @@ def apply_simulation(
     with mp.Manager() as manager:
         simulation_queue = manager.Queue()
 
+        from bluecellulab.stimulus.factory import StimulusFactory
+
+        stim_factory = StimulusFactory(dt=1.0)
+
+        # Common simulation parameters
+        injection_segment = 0.5
+        cvode = True
+        add_hypamp = True
+        threshold_based = False
+
         # Prepare simulation parameters for all configs
         all_task_args = []
         for expanded_config in expanded_configs:
             config = expanded_config.base_config
 
-            task_args = _prepare_simulation_parameters(
-                realtime=realtime,
-                cell=cell,
-                config=config,
-                amplitude=expanded_config.amplitude,
-                frequency=expanded_config.frequency,
-                synapse_generation_config=expanded_config.synapse_generation_config,
-                simulation_queue=simulation_queue,
+            injection_section_name = (
+                config.current_injection.inject_to
+                if config.current_injection is not None
+                and config.current_injection.inject_to is not None
+                else DEFAULT_INJECTION_LOCATION
             )
-            all_task_args.extend(task_args)
+
+            # Determine stimulus and stimulus_name based on current_injection
+            if config.current_injection is None:
+                stimulus = None
+                stimulus_name = None
+            else:
+                stimulus_name = get_stimulus_name(
+                    config.current_injection.stimulus.stimulus_protocol
+                )
+
+                if threshold_based:
+                    thres_perc = expanded_config.amplitude
+                    amp = None
+                else:
+                    thres_perc = None
+                    amp = expanded_config.amplitude
+
+                stimulus = get_stimulus_from_name(
+                    stimulus_name, stim_factory, cell, thres_perc, amp
+                )
+
+            # Build task arguments tuple once
+            task_args = (
+                realtime,
+                cell.template_params,
+                stimulus,
+                injection_section_name,
+                injection_segment,
+                config.record_from,
+                expanded_config.synapse_generation_config,
+                config.conditions,
+                config.duration,
+                simulation_queue,
+                stimulus_name,
+                expanded_config.amplitude,
+                expanded_config.frequency,
+                cvode,
+                add_hypamp,
+            )
+            all_task_args.append(task_args)
 
         logger.debug(f"Applying simulation for {len(all_task_args)} parameter combinations")
 
@@ -435,83 +481,6 @@ def apply_simulation(
                     continue
 
         logger.info("Simulation completed")
-
-
-def _prepare_simulation_parameters(
-    realtime: bool,
-    cell,
-    config,
-    amplitude: float,
-    frequency: float | None,
-    synapse_generation_config: list[SynapseSeries] | None,
-    simulation_queue,
-    threshold_based: bool = False,
-    injection_segment: float = 0.5,
-    cvode: bool = True,
-    add_hypamp: bool = True,
-):
-    """Prepare stimulation parameters for simulation."""
-    from bluecellulab.stimulus.factory import StimulusFactory
-
-    stim_factory = StimulusFactory(dt=1.0)
-
-    injection_section_name = (
-        config.current_injection.inject_to
-        if config.current_injection is not None and config.current_injection.inject_to is not None
-        else DEFAULT_INJECTION_LOCATION
-    )
-
-    if config.current_injection is None:
-        return [
-            (
-                realtime,
-                cell.template_params,
-                None,
-                injection_section_name,
-                injection_segment,
-                config.record_from,
-                synapse_generation_config,
-                config.conditions,
-                config.duration,
-                simulation_queue,
-                None,
-                None,
-                frequency,
-                cvode,
-                add_hypamp,
-            )
-        ]
-
-    stimulus_name = get_stimulus_name(config.current_injection.stimulus.stimulus_protocol)
-
-    if threshold_based:
-        thres_perc = amplitude
-        amp = None
-    else:
-        thres_perc = None
-        amp = amplitude
-
-    stimulus = get_stimulus_from_name(stimulus_name, stim_factory, cell, thres_perc, amp)
-
-    return [
-        (
-            realtime,
-            cell.template_params,
-            stimulus,
-            injection_section_name,
-            injection_segment,
-            config.record_from,
-            synapse_generation_config,
-            config.conditions,
-            config.duration,
-            simulation_queue,
-            stimulus_name,
-            amplitude,
-            frequency,
-            cvode,
-            add_hypamp,
-        )
-    ]
 
 
 def queue_record_to_stream_record(record: dict, expanded_configs: list) -> dict:

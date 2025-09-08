@@ -178,7 +178,7 @@ class BaseCell:
         job_stream=None,
     ):
         """Unified simulation method that handles all simulation types."""
-        from app.core.stimulation import apply_simulation
+        from app.core.simulation import apply_simulation
 
         try:
             apply_simulation(
