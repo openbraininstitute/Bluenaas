@@ -190,12 +190,8 @@ def _run_simulation(
     recording_locations: list[RecordingLocation],
     synapse_generation_config: list[SynapseSeries] | None,
     experimental_setup: ExperimentSetupConfig,
-    simulation_duration: int,
     simulation_queue: mp.Queue,
-    stimulus_name: StimulusName,
-    amplitude: float,
-    frequency: float | None = None,
-    cvode: bool = True,
+    name: str,
     add_hypamp: bool = True,
 ):
     """Creates a cell and stimulates it with a given stimulus.
@@ -310,11 +306,9 @@ def _run_simulation(
         current: dict[str, np.ndarray] | None,
     ):
         """Create the payload dict for simulation queue."""
-        label_prefix = "Frequency" if frequency is not None else stimulus_name.name
         return {
-            "label": f"{label_prefix}_{amplitude}",
+            "name": name,
             "recording_name": cell_section,
-            "amplitude": amplitude,
             "time": time.tolist(),
             "voltage": voltage.tolist(),
             "current": {var: current[var].tolist() for var in current} if current else None,
@@ -363,7 +357,7 @@ def _run_simulation(
 
         logger.info("Simulation started")
         simulation.run(
-            tstop=simulation_duration,
+            tstop=experimental_setup.max_time,
             cvode=False,
             dt=experimental_setup.time_step,
             show_progress=True if realtime is True else False,
@@ -398,14 +392,12 @@ def run_simulation(
 
         # Common simulation parameters
         injection_segment = 0.5
-        cvode = True
         add_hypamp = True
         threshold_based = False
 
         # Prepare simulation parameters for all configs
         all_task_args = []
         for config in expanded_configs:
-            logger.info(config.current_injection.stimulus.amplitudes)
             injection_section_name = (
                 config.current_injection.inject_to
                 if config.current_injection is not None
@@ -433,6 +425,11 @@ def run_simulation(
                     stimulus_name, stim_factory, cell, thres_perc, amp
                 )
 
+            # TODO: Generate synapse configuration if needed
+            # This should be implemented based on the develop branch logic
+            # For now, setting to None as synapse functionality is not fully integrated
+            synapse_generation_config = None
+
             # Build task arguments tuple once
             task_args = (
                 realtime,
@@ -441,14 +438,10 @@ def run_simulation(
                 injection_section_name,
                 injection_segment,
                 config.record_from,
-                config.synaptome,
+                synapse_generation_config,
                 config.conditions,
-                config.duration,
                 simulation_queue,
-                stimulus_name,
-                config.current_injection.stimulus.amplitudes,
-                None,
-                cvode,
+                f"{stimulus_name}_{config.current_injection.stimulus.amplitudes}",
                 add_hypamp,
             )
             all_task_args.append(task_args)
@@ -469,12 +462,12 @@ def run_simulation(
                     if record != SUB_PROCESS_STOP_EVENT:
                         if realtime and job_stream:
                             # Transform record for streaming
-                            stream_record = queue_record_to_stream_record(record, expanded_configs)
+                            stream_record = queue_record_to_stream_record(record)
                             job_stream.send_data(stream_record)
                         else:
                             # For batch mode or non-streaming realtime
                             logger.debug(
-                                f"Received simulation record: {record.get('label', 'unknown')}"
+                                f"Received simulation record: {record.get('name', 'unknown')}"
                             )
                     else:
                         process_finished += 1
@@ -486,21 +479,13 @@ def run_simulation(
         logger.info("Simulation completed")
 
 
-def queue_record_to_stream_record(record: dict, expanded_configs: list) -> dict:
+def queue_record_to_stream_record(record: dict) -> dict:
     """Transform queue record to stream record format."""
-    # Determine if this is current varying (frequency is None for any config)
-    is_current_varying = any(config.frequency is None for config in expanded_configs)
-
     return {
         "x": record["time"],
         "y": record["voltage"],
         "type": "scatter",
-        "name": record["label"],
+        "name": record["name"],
         "recording": record["recording_name"],
-        "amplitude": record["amplitude"],
-        "frequency": record.get("frequency"),
         "current": record.get("current"),
-        "varying_key": record["amplitude"]
-        if is_current_varying
-        else record.get("frequency", record["amplitude"]),
     }

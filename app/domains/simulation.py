@@ -52,9 +52,9 @@ class SynapseSimulationConfig(ExpandableModel):
     weight_scalar: PositiveFloat
 
 
-class SimulationWithSynapseBody(ExpandableModel):
-    directCurrentConfig: CurrentInjectionConfig
-    synapseConfigs: list[SynapseSimulationConfig]
+# class SimulationWithSynapseBody(ExpandableModel):
+#     directCurrentConfig: CurrentInjectionConfig
+#     synapseConfigs: list[SynapseSimulationConfig]
 
 
 SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
