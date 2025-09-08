@@ -52,7 +52,7 @@ async def run_simulation(
             subtype=accounting_subtype,
             proj_id=project_context.project_id,
             user_id=auth.decoded_token.sub,
-            count=config.n_execs,
+            count=len(config.expand()),
         ):
             _job, stream = await dispatch(
                 job_queue,

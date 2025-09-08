@@ -3,9 +3,13 @@
 # pylint: disable=import-outside-toplevel
 import os
 import re
+from typing import List
 from uuid import UUID
+
 from loguru import logger
+
 from app.constants import SINGLE_NEURON_HOC_DIR, SINGLE_NEURON_MORPHOLOGY_DIR
+from app.domains.simulation import SingleNeuronSimulationConfig
 from app.infrastructure.storage import get_single_neuron_location
 from app.utils.util import (
     compile_mechanisms,
@@ -173,23 +177,23 @@ class BaseCell:
 
     def start_simulation(
         self,
-        expanded_configs: list,  # List of ExpandedSimulationConfig
+        expanded_configs: List[SingleNeuronSimulationConfig],
         realtime: bool = False,
         job_stream=None,
     ):
         """Unified simulation method that handles all simulation types."""
-        from app.core.simulation import apply_simulation
+        from app.core.simulation import run_simulation
 
         try:
-            apply_simulation(
+            run_simulation(
                 realtime=realtime,
                 cell=self._cell,
                 expanded_configs=expanded_configs,
                 job_stream=job_stream,
             )
         except Exception as e:
-            logger.exception(f"Apply Unified Simulation error: {e}")
-            raise Exception(f"Apply Unified Simulation error: {e}") from e
+            logger.exception(f"Running simulation failed: {e}")
+            raise Exception(f"Running simulation failed: {e}") from e
 
 
 class HocCell(BaseCell):

@@ -7,7 +7,7 @@ import os
 import queue
 from enum import Enum, auto
 from multiprocessing.synchronize import Event
-from typing import Dict, NamedTuple
+from typing import Dict, List, NamedTuple
 
 import neuron
 import numpy as np
@@ -18,6 +18,7 @@ from app.domains.morphology import SynapseSeries
 from app.domains.simulation import (
     ExperimentSetupConfig,
     RecordingLocation,
+    SingleNeuronSimulationConfig,
 )
 from app.utils.const import SUB_PROCESS_STOP_EVENT
 from app.utils.util import (
@@ -350,20 +351,25 @@ def _run_simulation(
             else:
                 payload = _create_record_payload(cell_section, voltage, time, current)
 
+            logger.info(f"Sending payload for {cell_section}")
             simulation_queue.put(payload)
 
     try:
+        logger.info("Starting simulation")
         simulation = Simulation(
             cell,
             custom_progress_function=process_simulation_recordings if realtime is True else None,
         )
 
+        logger.info("Simulation started")
         simulation.run(
             tstop=simulation_duration,
             cvode=False,
             dt=experimental_setup.time_step,
             show_progress=True if realtime is True else False,
         )
+
+        logger.info("Simulation finished")
 
         if realtime is False:
             process_simulation_recordings(enable_realtime=False)
@@ -374,15 +380,13 @@ def _run_simulation(
         simulation_queue.put(SUB_PROCESS_STOP_EVENT)
 
 
-def apply_simulation(
+def run_simulation(
     realtime: bool,
     cell,
-    expanded_configs: list,  # List of ExpandedSimulationConfig
+    expanded_configs: List[SingleNeuronSimulationConfig],
     job_stream=None,
     stop_event: Event | None = None,
 ):
-    # ctx = mp.get_context("fork")
-
     logger.info(f"Running Simulation with {len(expanded_configs)} configurations")
 
     with mp.Manager() as manager:
@@ -400,9 +404,8 @@ def apply_simulation(
 
         # Prepare simulation parameters for all configs
         all_task_args = []
-        for expanded_config in expanded_configs:
-            config = expanded_config.base_config
-
+        for config in expanded_configs:
+            logger.info(config.current_injection.stimulus.amplitudes)
             injection_section_name = (
                 config.current_injection.inject_to
                 if config.current_injection is not None
@@ -420,11 +423,11 @@ def apply_simulation(
                 )
 
                 if threshold_based:
-                    thres_perc = expanded_config.amplitude
+                    thres_perc = config.current_injection.stimulus.amplitudes
                     amp = None
                 else:
                     thres_perc = None
-                    amp = expanded_config.amplitude
+                    amp = config.current_injection.stimulus.amplitudes
 
                 stimulus = get_stimulus_from_name(
                     stimulus_name, stim_factory, cell, thres_perc, amp
@@ -438,13 +441,13 @@ def apply_simulation(
                 injection_section_name,
                 injection_segment,
                 config.record_from,
-                expanded_config.synapse_generation_config,
+                config.synaptome,
                 config.conditions,
                 config.duration,
                 simulation_queue,
                 stimulus_name,
-                expanded_config.amplitude,
-                expanded_config.frequency,
+                config.current_injection.stimulus.amplitudes,
+                None,
                 cvode,
                 add_hypamp,
             )

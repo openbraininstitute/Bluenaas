@@ -1,13 +1,15 @@
 from datetime import datetime
 from typing import Annotated, Generic, List, Literal, Optional, TypeVar
 
-from pydantic import BaseModel, Field, PositiveFloat, computed_field, field_validator
+from pydantic import BaseModel, Field, PositiveFloat, field_validator
+
+from app.domains.expandable_model import ExpandableModel, Scan
 
 
-class SimulationStimulusConfig(BaseModel):
+class SimulationStimulusConfig(ExpandableModel):
     stimulus_type: Literal["current_clamp", "voltage_clamp", "conductance"]
     stimulus_protocol: Optional[Literal["ap_waveform", "idrest", "iv", "fire_pattern"]]
-    amplitudes: list[float] | float
+    amplitudes: Scan[float]
 
     @field_validator("amplitudes")
     @classmethod
@@ -19,18 +21,18 @@ class SimulationStimulusConfig(BaseModel):
         return value
 
 
-class RecordingLocation(BaseModel):
+class RecordingLocation(ExpandableModel):
     section: str
     offset: Annotated[float, Field(ge=0, le=1)]
     record_currents: bool = False
 
 
-class CurrentInjectionConfig(BaseModel):
+class CurrentInjectionConfig(ExpandableModel):
     inject_to: str
     stimulus: SimulationStimulusConfig
 
 
-class ExperimentSetupConfig(BaseModel):
+class ExperimentSetupConfig(ExpandableModel):
     celsius: float
     vinit: float
     hypamp: float
@@ -42,15 +44,15 @@ class ExperimentSetupConfig(BaseModel):
 NonNegativeFloat = Annotated[float, Field(ge=0)]
 
 
-class SynapseSimulationConfig(BaseModel):
+class SynapseSimulationConfig(ExpandableModel):
     id: str
     delay: int
     duration: Annotated[int, Field(le=3000)]
-    frequency: NonNegativeFloat | list[NonNegativeFloat]
+    frequency: Scan[NonNegativeFloat]
     weight_scalar: PositiveFloat
 
 
-class SimulationWithSynapseBody(BaseModel):
+class SimulationWithSynapseBody(ExpandableModel):
     directCurrentConfig: CurrentInjectionConfig
     synapseConfigs: list[SynapseSimulationConfig]
 
@@ -58,57 +60,13 @@ class SimulationWithSynapseBody(BaseModel):
 SimulationType = Literal["single-neuron-simulation", "synaptome-simulation"]
 
 
-class SingleNeuronSimulationConfig(BaseModel):
+class SingleNeuronSimulationConfig(ExpandableModel):
     synaptome: list[SynapseSimulationConfig] | None = None
     current_injection: CurrentInjectionConfig
     record_from: list[RecordingLocation]
     conditions: ExperimentSetupConfig
     type: SimulationType
     duration: int
-
-    @field_validator("current_injection")
-    @classmethod
-    def validate_amplitudes(cls, value, simulation):
-        stuff = simulation.data
-
-        if isinstance(value.stimulus.amplitudes, list):
-            synapses = stuff.get("synaptome") or []
-            for synapse in synapses:
-                if isinstance(synapse.frequency, list):
-                    raise ValueError("Amplitude should be a constant float if frequency is a list")
-        elif isinstance(value.stimulus.amplitudes, float):
-            synapses = stuff.get("synaptome") or []
-            synapses_with_variable_frequencies = [
-                synapse for synapse in synapses if isinstance(synapse.frequency, list)
-            ]
-            if len(synapses_with_variable_frequencies) != 1:
-                raise ValueError(
-                    f"There should be exactly one synapse with variable frequencies when amplitude is constant. Current synapses with variable frequencies: {len(synapses_with_variable_frequencies)}"
-                )
-
-        return value
-
-    @computed_field(
-        description="Total number of simulation executions required by the configuration given all parameter combinations"
-    )
-    @property
-    def n_execs(self) -> int:
-        # Get current injection (patch clamp) dimensions
-        current_injection_dimensions = (
-            len(self.current_injection.stimulus.amplitudes)
-            if isinstance(self.current_injection.stimulus.amplitudes, list)
-            else 1
-        )
-
-        # Get synaptome dimensions
-        synaptome_dimensions = 1
-        if self.synaptome:
-            for synapse in self.synaptome:
-                synaptome_dimensions *= (
-                    len(synapse.frequency) if isinstance(synapse.frequency, list) else 1
-                )
-
-        return current_injection_dimensions * synaptome_dimensions
 
 
 class StimulationPlotConfig(BaseModel):

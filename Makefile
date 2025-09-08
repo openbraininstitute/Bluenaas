@@ -52,6 +52,9 @@ job-fn-reference-check:  ## Validate JobFn enum references
 
 check-all: format-check type-check job-fn-reference-check ## Run all checkers
 
+test: ## Run tests
+	uv run -m pytest
+
 PROGRESS_FLAG := $(if $(CI),--progress=plain,)
 
 build:  ## Build the Docker images

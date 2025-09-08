@@ -6,7 +6,7 @@ from loguru import logger
 from app.core.exceptions import AppError, AppErrorCode
 from app.domains.simulation import SingleNeuronSimulationConfig
 from app.external.entitycore.service import ProjectContext
-from app.services.worker.single_neuron.unified_simulation import run_unified_simulation
+from app.services.worker.single_neuron.simulation import run_simulation
 
 
 def run(
@@ -17,9 +17,9 @@ def run(
     access_token: str,
     project_context: ProjectContext,
 ):
-    """Unified simulation runner that handles both current and frequency varying simulations."""
+    """Simulation runner"""
     try:
-        run_unified_simulation(
+        run_simulation(
             model_id=model_id,
             config=config,
             realtime=realtime,
@@ -27,10 +27,10 @@ def run(
             project_context=project_context,
         )
     except Exception as ex:
-        logger.exception(f"running simulation failed {ex}")
+        logger.exception(f"Running simulation failed {ex}")
         raise AppError(
             http_status_code=status.INTERNAL_SERVER_ERROR,
             error_code=AppErrorCode.INTERNAL_SERVER_ERROR,
-            message="running simulation failed",
+            message="Running simulation failed",
             details=str(ex),
         ) from ex

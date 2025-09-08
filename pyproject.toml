@@ -37,6 +37,7 @@ worker = [
 dev = [
     "datamodel-code-generator==0.31.2",
     "pyright>=1.1.402",
+    "pytest>=8.4.2",
     "ruff==0.12.3",
 ]
 types = [
