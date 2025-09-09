@@ -83,7 +83,7 @@ wheels = [
 
 [[package]]
 name = "bluecellulab"
-version = "2.6.63"
+version = "2.6.68"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bluepysnap" },
@@ -97,9 +97,9 @@ dependencies = [
     { name = "seaborn" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/61/34/62eecb953c803b23223a715eeabc0caa9670868c228bc82aaf02347ac2bd/bluecellulab-2.6.63.tar.gz", hash = "sha256:9fcddf8769413ff91adf409e7423e13e7e202b32821a820c10504ea26b00a4a5", size = 530305, upload-time = "2025-07-16T14:43:32.039Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2f/f1/3beda3630aca8228d237d40f842c9338d28f0d35750dbbc06382c8000e70/bluecellulab-2.6.68.tar.gz", hash = "sha256:4084790d8b9d3156b0d440ffd1b97ed109c52c115d48f99e8e41e50871ccf6a1", size = 533097, upload-time = "2025-08-29T10:02:43.632Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/2a/98f6644027c0c9f21411f12494d655c1031ef94b5163aecff70e65525413/bluecellulab-2.6.63-py3-none-any.whl", hash = "sha256:f944ee33e5c96ba1f4ffb691a4ec420743ff4b9697c1d96539764be01f3d786c", size = 152459, upload-time = "2025-07-16T14:43:30.5Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/70/edfffdcdafc4a4ad77bec8a62aaa3f76020838fa58935a95629a2bc8abe9/bluecellulab-2.6.68-py3-none-any.whl", hash = "sha256:f46115708788035296b04fc353ca456ce1c15da27cb41d8daded65d9e0b8fc49", size = 155524, upload-time = "2025-08-29T10:02:42.379Z" },
 ]
 
 [[package]]
@@ -142,7 +142,7 @@ worker = [
 
 [package.metadata]
 requires-dist = [
-    { name = "entitysdk", specifier = "==0.7.8" },
+    { name = "entitysdk", specifier = "==0.7.9" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "pandas", specifier = "==2.3.0" },
     { name = "pydantic", specifier = "==2.11.7" },
@@ -166,7 +166,7 @@ dev = [
 ]
 types = [{ name = "types-requests", specifier = "==2.32.4.20250611" }]
 worker = [
-    { name = "bluecellulab", specifier = "==2.6.63" },
+    { name = "bluecellulab", specifier = "==2.6.68" },
     { name = "efel", specifier = "==5.7.18" },
     { name = "filelock", specifier = "==3.18.0" },
     { name = "pynwb", specifier = "==3.1.0" },
@@ -440,14 +440,14 @@ wheels = [
 
 [[package]]
 name = "entitysdk"
-version = "0.7.8"
+version = "0.7.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6a/dc/63a053b18701ba1cff1737a543b952264aaf35c7b469c2e06c5fd880b31b/entitysdk-0.7.8.tar.gz", hash = "sha256:89733483b8736e43cfce400f26aa89a5b7227330a04ad455aaa3f30be9069d2f", size = 1396123, upload-time = "2025-08-19T09:23:32.186Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d0/82/783a8818277c873c1452e34a565866466166bb4d9deee1cf2424e43c657a/entitysdk-0.7.9.tar.gz", hash = "sha256:c505e64462538bf108a38032aed3b1eeb00dce40c545a7c968a9fd1c725bfe8e", size = 1396557, upload-time = "2025-09-04T07:58:10.696Z" }
 
 [[package]]
 name = "fastapi"
