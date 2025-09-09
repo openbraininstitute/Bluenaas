@@ -157,7 +157,7 @@ class SingleNeuron:
     @property
     def threshold_current(self) -> float:
         calibration_result = self.metadata.calibration_result
-        return calibration_result.threshold_current if calibration_result else 0
+        return calibration_result.threshold_current if calibration_result else 0.1
 
     def is_fetched(self) -> bool:
         """Check if the circuit is in the storage"""

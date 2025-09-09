@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from app.external.entitycore.service import ProjectContext
+from entitysdk import ProjectContext
 
 from app.services.worker.single_neuron.calibration import run_single_neuron_calibration
 
