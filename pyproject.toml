@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = "==3.12.*"
 
 dependencies = [
-    "entitysdk==0.7.8",
+    "entitysdk==0.7.9",
     "loguru==0.7.3",
     "pandas==2.3.0",
     "pydantic-settings==2.10.1",
