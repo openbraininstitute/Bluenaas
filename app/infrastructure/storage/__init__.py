@@ -60,13 +60,3 @@ def get_single_neuron_location(uuid: UUID) -> Path:
 def get_single_neuron_validation_output_location(uuid: UUID) -> Path:
     path = settings.STORAGE_PATH / "single-neuron" / "validation-output" / uuid_subpath(uuid)
     return ensure_dir(path)
-
-
-def get_mesh_location(uuid: UUID) -> Path:
-    path = settings.STORAGE_PATH / "mesh" / "mesh" / uuid_subpath(uuid)
-    return ensure_dir(path)
-
-
-def get_mesh_skeletonization_output_location(uuid: UUID) -> Path:
-    path = settings.STORAGE_PATH / "mesh" / "skeletonization-output" / uuid_subpath(uuid)
-    return ensure_dir(path)

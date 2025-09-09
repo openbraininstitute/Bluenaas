@@ -21,19 +21,6 @@ WORKDIR /app
 # TODO: remove what's not needed
 RUN apt-get update \
   && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev git \
-  libabsl-dev \
-  cmake \
-  libeigen3-dev \
-  libnanoflann-dev \
-  libglm-dev \
-  libroaring-dev \
-  nlohmann-json3-dev \
-  libtiff-dev \
-  libhdf5-dev \
-  libfmt-dev \
-  zlib1g-dev \
-  libbz2-dev \
-  liblzma-dev \
   && rm -rf /var/lib/apt/lists/*
 
 ARG ENVIRONMENT
@@ -51,23 +38,13 @@ fi
 uv pip install --force-reinstall https://files.pythonhosted.org/packages/71/30/5498b6838cfac205f836bcb4dd906a9495f7ea46bd844ca8bd56ea46bf63/libsonata-0.1.29-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 EOT
 
-COPY build/Ultraliser/ /app/ultraliser
-RUN ls /app/ultraliser
-WORKDIR /app/ultraliser
-RUN cmake \
-  -DCMAKE_CXX_FLAGS="-mbmi" \
-  -DCOMPILE_FROM_SOURCE=TRUE \
-  -DCMAKE_BUILD_TYPE=Release \
-  . && cmake --build . --parallel $(nproc)
-RUN uv pip install .
-
 # run stage
 FROM python:$PYTHON_BASE
 SHELL ["bash", "-e", "-x", "-o", "pipefail", "-c"]
 
 # TODO: remove what's not needed
 RUN apt-get update \
-  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev libhdf5-dev libtiff6 libabsl20240722 libroaring0t64 \
+  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev libhdf5-dev \
   && rm -rf /var/lib/apt/lists/*
 
 ARG HOST_UID
