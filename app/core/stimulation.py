@@ -442,6 +442,8 @@ def _run_current_varying_stimulus(
                 experimental_setup=experimental_setup,
             )
 
+    i_rec_var_dict = {}
+
     for loc in recording_locations:
         sec, seg = cell.sections[loc.section], loc.offset
 
@@ -450,6 +452,9 @@ def _run_current_varying_stimulus(
             section=sec,
             segx=seg,
         )
+
+        if loc.record_currents:
+            i_rec_var_dict[loc.section] = cell.add_currents_recordings(section=sec, segx=seg)
 
     iclamp, _ = cell.inject_current_waveform(
         stimulus.time,
@@ -498,9 +503,10 @@ def _run_current_varying_stimulus(
                     {
                         "label": label,
                         "recording_name": cell_section,
-                        "amplitude": amplitude,
                         "time": time_diff.tolist(),
-                        "voltage": voltage_diff.tolist(),
+                        "values": voltage_diff.tolist(),
+                        "variable_name": "v",
+                        "unit": "mV",
                     }
                 )
             else:
@@ -508,9 +514,10 @@ def _run_current_varying_stimulus(
                     {
                         "label": label,
                         "recording_name": cell_section,
-                        "amplitude": amplitude,
                         "time": time.tolist(),
-                        "voltage": voltage.tolist(),
+                        "values": voltage.tolist(),
+                        "variable_name": "v",
+                        "unit": "mV",
                     }
                 )
 
