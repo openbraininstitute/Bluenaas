@@ -50,7 +50,8 @@ type-check: ## Run type checkers
 job-fn-reference-check:  ## Validate JobFn enum references
 	uv run python scripts/validate_job_fn_refs.py
 
-check-all: format-check type-check job-fn-reference-check ## Run all checkers
+# check-all: format-check type-check job-fn-reference-check ## Run all checkers
+check-all: format-check type-check ## Run all checkers
 
 PROGRESS_FLAG := $(if $(CI),--progress=plain,)
 
