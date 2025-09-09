@@ -314,6 +314,7 @@ def run_simulation(
         # Run unified simulation directly
         model.CELL.start_simulation(
             expanded_configs=expanded_configs,
+            synaptome_details=synaptome_details,
             realtime=realtime,
             job_stream=job_stream,
         )

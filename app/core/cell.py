@@ -9,6 +9,7 @@ from uuid import UUID
 from loguru import logger
 
 from app.constants import SINGLE_NEURON_HOC_DIR, SINGLE_NEURON_MORPHOLOGY_DIR
+from app.domains.neuron_model import SynaptomeDetails
 from app.domains.simulation import SingleNeuronSimulationConfig
 from app.infrastructure.storage import get_single_neuron_location
 from app.utils.util import (
@@ -32,6 +33,7 @@ class BaseCell:
         self._nrn = None
         self._init_params = {}
         self.template = None
+        self._model = None
         self.delta_t = None
         self._recording_position = 0.5  # 0.5 middle of the section
         self._cell = None
@@ -178,6 +180,7 @@ class BaseCell:
     def start_simulation(
         self,
         expanded_configs: List[SingleNeuronSimulationConfig],
+        synaptome_details: SynaptomeDetails | None,
         realtime: bool = False,
         job_stream=None,
     ):
@@ -189,7 +192,9 @@ class BaseCell:
                 realtime=realtime,
                 cell=self._cell,
                 expanded_configs=expanded_configs,
+                synaptome_details=synaptome_details,
                 job_stream=job_stream,
+                model=self._model,
             )
         except Exception as e:
             logger.exception(f"Running simulation failed: {e}")
@@ -205,8 +210,10 @@ class HocCell(BaseCell):
         *,
         threshold_current: float = 0,
         holding_current: float = 0,
+        model=None,
     ):
         super().__init__(model_id)
+        self._model = model
 
         logger.info(f"hoccell init: {model_id, threshold_current, holding_current}")
         self._load_by_model_uuid(model_id, threshold_current, holding_current)

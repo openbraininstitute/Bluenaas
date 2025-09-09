@@ -4,7 +4,7 @@ import json
 from enum import Enum
 from math import floor, modf
 from random import randint, random, seed
-from typing import List, NamedTuple
+from typing import List
 from uuid import UUID
 
 import numpy as np
@@ -33,6 +33,7 @@ from app.domains.morphology import (
     SynapseSeries,
     SynapsesPlacementConfig,
 )
+from app.domains.neuron_model import SynaptomeDetails
 from app.domains.simulation import SynapseSimulationConfig
 from app.external.entitycore.schemas import EntityRoute
 from app.external.entitycore.service import (
@@ -95,6 +96,7 @@ class Model:
             holding_current=self.holding_current
             if self.holding_current is not None
             else single_neuron.holding_current,
+            model=self,
         )
 
     def _generate_synapse(self, section_info: LocationData, seg_indices_to_include: list[int]):
@@ -354,11 +356,6 @@ def model_factory(
     model.build_model()
 
     return model
-
-
-class SynaptomeDetails(NamedTuple):
-    base_model_id: UUID
-    synaptome_placement_config: SynapsesPlacementConfig
 
 
 file_name = "single_neuron_synaptome_config"

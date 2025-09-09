@@ -6,6 +6,7 @@ import multiprocessing as mp
 import os
 import queue
 from enum import Enum, auto
+from itertools import chain
 from multiprocessing.synchronize import Event
 from typing import Dict, List, NamedTuple
 
@@ -14,7 +15,9 @@ import numpy as np
 from loguru import logger
 
 from app.core.exceptions import ChildSimulationError
+from app.core.model import Model
 from app.domains.morphology import SynapseSeries
+from app.domains.neuron_model import SynaptomeDetails
 from app.domains.simulation import (
     ExperimentSetupConfig,
     RecordingLocation,
@@ -140,6 +143,32 @@ def _add_single_synapse(
         cell.connections[synid] = connection
     except Exception:
         raise RuntimeError("Model not initialized")
+
+
+def _generate_synapse_series(
+    model: Model, config: SingleNeuronSimulationConfig, synaptome_details: SynaptomeDetails
+) -> list[SynapseSeries]:
+    """Generate synapse series based on config and synaptome details."""
+    if config.synaptome is None:
+        return []
+
+    placement_configs = {pc.id: pc for pc in synaptome_details.synaptome_placement_config.config}
+
+    synapse_series_list = []
+    for index, synapse_sim_config in enumerate(config.synaptome):
+        placement_config = placement_configs.get(synapse_sim_config.id)
+        if placement_config is None:
+            continue
+
+        synapse_series = model.get_synapse_series(
+            synapse_placement_config=placement_config,
+            synapse_simulation_config=synapse_sim_config,
+            offset=index,
+            frequencies_to_apply=[synapse_sim_config.frequency],  # type: ignore
+        )
+        synapse_series_list.append(synapse_series)
+
+    return list(chain.from_iterable(synapse_series_list))
 
 
 def get_stimulus_from_name(stimulus_name: StimulusName, stimulus_factory, cell, thres_perc, amp):
@@ -345,7 +374,6 @@ def _run_simulation(
             else:
                 payload = _create_record_payload(cell_section, voltage, time, current)
 
-            logger.info(f"Sending payload for {cell_section}")
             simulation_queue.put(payload)
 
     try:
@@ -378,8 +406,10 @@ def run_simulation(
     realtime: bool,
     cell,
     expanded_configs: List[SingleNeuronSimulationConfig],
+    synaptome_details: SynaptomeDetails | None = None,
     job_stream=None,
     stop_event: Event | None = None,
+    model: Model | None = None,
 ):
     logger.info(f"Running Simulation with {len(expanded_configs)} configurations")
 
@@ -425,10 +455,16 @@ def run_simulation(
                     stimulus_name, stim_factory, cell, thres_perc, amp
                 )
 
-            # TODO: Generate synapse configuration if needed
-            # This should be implemented based on the develop branch logic
-            # For now, setting to None as synapse functionality is not fully integrated
+            # Generate synapse configuration if needed
             synapse_generation_config = None
+            if synaptome_details is not None and config.synaptome is not None:
+                logger.info("Generating synapse series for config")
+                synapse_generation_config = _generate_synapse_series(
+                    model if model else cell, config, synaptome_details
+                )
+
+            logger.info("Finished generating synapse series for config")
+            logger.info(synapse_generation_config)
 
             # Build task arguments tuple once
             task_args = (
