@@ -1,11 +1,11 @@
 from uuid import UUID
 
+from entitysdk import ProjectContext
 from loguru import logger
 
 from app.core.job_stream import JobStream
 from app.core.model import model_factory
 from app.domains.morphology import SynapsePlacementBody
-from app.external.entitycore.service import ProjectContext
 from app.infrastructure.rq import get_job_stream_key
 
 

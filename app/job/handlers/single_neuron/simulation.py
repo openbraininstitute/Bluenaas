@@ -2,11 +2,11 @@ import multiprocessing as mp
 from http import HTTPStatus as status
 from uuid import UUID
 
+from entitysdk import ProjectContext
 from loguru import logger
 
 from app.core.exceptions import AppError, AppErrorCode
 from app.domains.simulation import SingleNeuronSimulationConfig
-from app.external.entitycore.service import ProjectContext
 from app.services.worker.single_neuron.simulation import (
     init_current_varying_simulation,
     init_frequency_varying_simulation,
