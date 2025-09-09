@@ -1,0 +1,527 @@
+# TODO: IMPORTANT: This methods is replicated from BlueCellab and any changes from the library should be updated here too
+
+from __future__ import annotations
+
+import multiprocessing as mp
+import os
+import queue
+from enum import Enum, auto
+from itertools import chain
+from multiprocessing.synchronize import Event
+from typing import Dict, List, NamedTuple
+
+import neuron
+import numpy as np
+from loguru import logger
+
+from app.core.exceptions import ChildSimulationError
+from app.core.model import Model
+from app.domains.morphology import SynapseSeries
+from app.domains.neuron_model import SynaptomeDetails
+from app.domains.simulation import (
+    ExperimentSetupConfig,
+    RecordingLocation,
+    SingleNeuronSimulationConfig,
+)
+from app.utils.const import SUB_PROCESS_STOP_EVENT
+from app.utils.util import (
+    diff_list,
+    generate_pre_spiketrain,
+)
+
+DEFAULT_INJECTION_LOCATION = "soma[0]"
+
+
+class Recording(NamedTuple):
+    """A tuple of the current, voltage and time recordings."""
+
+    current: np.ndarray
+    voltage: np.ndarray
+    time: np.ndarray
+
+
+class SynapseRecording(NamedTuple):
+    """A tuple of the current, voltage and time recordings."""
+
+    voltage: np.ndarray
+    time: np.ndarray
+
+
+class StimulusName(Enum):
+    """Allowed values for the StimulusName."""
+
+    AP_WAVEFORM = auto()
+    IDREST = auto()
+    IV = auto()
+    FIRE_PATTERN = auto()
+    POS_CHEOPS = auto()
+    NEG_CHEOPS = auto()
+
+
+StimulusRecordings = Dict[str, Recording]
+
+
+def is_valid_stimuls_result(value):
+    """Checks if the given value is a tuple of (str, Recording).
+
+    Args:
+      value: The value to check.
+
+    Returns:
+      True if the value is a valid tuple, False otherwise.
+    """
+
+    if not isinstance(value, tuple) or len(value) != 2:
+        return False
+
+    key, recording = value
+    return isinstance(key, str) and isinstance(recording, Recording)
+
+
+def get_stimulus_name(protocol_name):
+    protocol_mapping = {
+        "ap_waveform": StimulusName.AP_WAVEFORM,
+        "idrest": StimulusName.IDREST,
+        "iv": StimulusName.IV,
+        "fire_pattern": StimulusName.FIRE_PATTERN,
+    }
+
+    if protocol_name not in protocol_mapping:
+        raise Exception("Protocol does not have StimulusName assigned")
+
+    return protocol_mapping[protocol_name]
+
+
+def _add_single_synapse(
+    cell,
+    synapse: SynapseSeries,
+    experimental_setup: ExperimentSetupConfig,
+):
+    from bluecellulab import Connection
+    from bluecellulab.circuit.config.sections import Conditions  # type: ignore
+    from bluecellulab.synapse.synapse_types import SynapseID  # type: ignore
+
+    try:
+        condition_parameters = Conditions(
+            celsius=experimental_setup.celsius,
+            v_init=experimental_setup.vinit,
+            randomize_gaba_rise_time=True,
+        )
+        synid = SynapseID(f"{synapse['id']}", synapse["id"])
+        # A tuple containing source and target popids used by the random number generation.
+
+        # Should correspond to source_popid and target_popid
+        popids = (2126, 378)
+        connection_modifiers = {
+            "add_synapses": True,
+        }
+
+        cell.add_replay_synapse(
+            synapse_id=synid,
+            syn_description=synapse["series"],
+            connection_modifiers=connection_modifiers,
+            condition_parameters=condition_parameters,
+            popids=popids,
+            extracellular_calcium=None,  # may not be value used in circuit
+        )
+
+        cell_synapse = cell.synapses[synid]
+        spike_train = generate_pre_spiketrain(
+            duration=synapse["synapseSimulationConfig"].duration,
+            delay=synapse["synapseSimulationConfig"].delay,
+            frequencies=synapse["frequencies_to_apply"],
+        )
+        spike_threshold = -900.0  # TODO: Synapse - How to get spike threshold
+        connection = Connection(
+            cell_synapse,
+            pre_spiketrain=None if len(spike_train) == 0 else spike_train,
+            pre_cell=None,
+            stim_dt=cell.record_dt,
+            spike_threshold=spike_threshold,
+            spike_location="soma[0]",
+        )
+        cell.connections[synid] = connection
+    except Exception:
+        raise RuntimeError("Model not initialized")
+
+
+def _generate_synapse_series(
+    model: Model, config: SingleNeuronSimulationConfig, synaptome_details: SynaptomeDetails
+) -> list[SynapseSeries]:
+    """Generate synapse series based on config and synaptome details."""
+    if config.synaptome is None:
+        return []
+
+    placement_configs = {pc.id: pc for pc in synaptome_details.synaptome_placement_config.config}
+
+    synapse_series_list = []
+    for index, synapse_sim_config in enumerate(config.synaptome):
+        placement_config = placement_configs.get(synapse_sim_config.id)
+        if placement_config is None:
+            continue
+
+        synapse_series = model.get_synapse_series(
+            synapse_placement_config=placement_config,
+            synapse_simulation_config=synapse_sim_config,
+            offset=index,
+            frequencies_to_apply=[synapse_sim_config.frequency],  # type: ignore
+        )
+        synapse_series_list.append(synapse_series)
+
+    return list(chain.from_iterable(synapse_series_list))
+
+
+def get_stimulus_from_name(stimulus_name: StimulusName, stimulus_factory, cell, thres_perc, amp):
+    if stimulus_name == StimulusName.AP_WAVEFORM:
+        return stimulus_factory.ap_waveform(
+            threshold_current=cell.threshold,
+            threshold_percentage=thres_perc,
+            amplitude=amp,
+        )
+    elif stimulus_name == StimulusName.IDREST:
+        return stimulus_factory.idrest(
+            threshold_current=cell.threshold,
+            threshold_percentage=thres_perc,
+            amplitude=amp,
+        )
+    elif stimulus_name == StimulusName.IV:
+        return stimulus_factory.iv(
+            threshold_current=cell.threshold,
+            threshold_percentage=thres_perc,
+            amplitude=amp,
+        )
+    elif stimulus_name == StimulusName.FIRE_PATTERN:
+        return stimulus_factory.fire_pattern(
+            threshold_current=cell.threshold,
+            threshold_percentage=thres_perc,
+            amplitude=amp,
+        )
+    elif stimulus_name == StimulusName.POS_CHEOPS:
+        return stimulus_factory.pos_cheops(
+            threshold_current=cell.threshold,
+            threshold_percentage=thres_perc,
+            amplitude=amp,
+        )
+    elif stimulus_name == StimulusName.NEG_CHEOPS:
+        return stimulus_factory.neg_cheops(
+            threshold_current=cell.threshold,
+            threshold_percentage=thres_perc,
+            amplitude=amp,
+        )
+
+
+def _run_simulation(
+    realtime: bool,
+    template_params,
+    stimulus,
+    injection_section_name: str,
+    injection_segment: float,
+    recording_locations: list[RecordingLocation],
+    synapse_generation_config: list[SynapseSeries] | None,
+    experimental_setup: ExperimentSetupConfig,
+    simulation_queue: mp.Queue,
+    name: str,
+    add_hypamp: bool = True,
+):
+    """Creates a cell and stimulates it with a given stimulus.
+
+    Args:
+        template_params: The parameters to create the cell from a template.
+        stimulus: The input stimulus to inject into the cell.
+        section: Name of the section of cell where the stimulus is to be injected.
+        segment: The segment of the section where the stimulus is to be injected.
+        cvode: True to use variable time-steps. False for fixed time-steps.
+
+    Returns:
+        The voltage-time recording at the specified location.
+
+    Raises:
+        ValueError: If the time and voltage arrays are not the same length.
+    """
+
+    from bluecellulab.cell.core import Cell
+    from bluecellulab.rngsettings import RNGSettings
+    from bluecellulab.simulation.simulation import Simulation
+    from bluecellulab.stimulus.circuit_stimulus_definitions import Hyperpolarizing
+
+    rng = RNGSettings(
+        base_seed=experimental_setup.seed,
+        synapse_seed=experimental_setup.seed,
+        stimulus_seed=experimental_setup.seed,
+    )
+
+    rng.set_seeds(
+        base_seed=experimental_setup.seed,
+    )
+
+    cell = Cell.from_template_parameters(template_params)
+    injection_section = cell.sections[injection_section_name]
+
+    logger.info(f"""
+        [simulation stimulus/start]: {stimulus}
+        [simulation injection_section_name (provided)]: {injection_section_name}
+        [simulation injection_section (resolved)]: {injection_section}
+        [simulation recording_locations]: {recording_locations}
+    """)
+
+    if synapse_generation_config is not None:
+        for synapse in synapse_generation_config:
+            # Frequency should be constant in current varying simulation
+            # assert isinstance(synapse["synapseSimulationConfig"].frequency, float)
+            _add_single_synapse(
+                cell=cell,
+                synapse=synapse,
+                experimental_setup=experimental_setup,
+            )
+
+    i_rec_var_dict = {}
+
+    for loc in recording_locations:
+        sec, seg = cell.sections[loc.section], loc.offset
+
+        cell.add_variable_recording(
+            "v",
+            section=sec,
+            segx=seg,
+        )
+
+        if loc.record_currents:
+            i_rec_var_dict[loc.section] = cell.add_currents_recordings(section=sec, segx=seg)
+
+    iclamp, _ = cell.inject_current_waveform(
+        stimulus.time,
+        stimulus.current,
+        section=injection_section,
+        segx=injection_segment,
+    )
+    current_vector = neuron.h.Vector()
+    current_vector.record(iclamp._ref_i)
+    neuron.h.v_init = experimental_setup.vinit
+    neuron.h.celsius = experimental_setup.celsius
+
+    if add_hypamp:
+        hyp_stim = Hyperpolarizing(
+            target="",
+            delay=0.0,
+            duration=stimulus.stimulus_time,
+        )
+        cell.add_replay_hypamp(hyp_stim)
+
+    # Track previous values for realtime differential updates
+    previous_data = {}
+
+    def _extract_recording_data(loc: RecordingLocation):
+        """Extract voltage, time, and current data for a recording location."""
+        sec, seg = cell.sections[loc.section], loc.offset
+        cell_section = f"{loc.section}_{seg}"
+
+        voltage = cell.get_variable_recording("v", sec, seg)
+        time = cell.get_time()
+        current = (
+            {
+                var_name: cell.get_variable_recording(var_name, section=sec, segx=seg)
+                for var_name in i_rec_var_dict[loc.section]
+            }
+            if loc.record_currents
+            else None
+        )
+
+        return cell_section, voltage, time, current
+
+    def _create_record_payload(
+        cell_section: str,
+        voltage: np.ndarray,
+        time: np.ndarray,
+        current: dict[str, np.ndarray] | None,
+    ):
+        """Create the payload dict for simulation queue."""
+        return {
+            "name": name,
+            "recording_name": cell_section,
+            "time": time.tolist(),
+            "voltage": voltage.tolist(),
+            "current": {var: current[var].tolist() for var in current} if current else None,
+        }
+
+    def process_simulation_recordings(enable_realtime=True):
+        """Process and send recording data to simulation queue."""
+        for loc in recording_locations:
+            cell_section, voltage, time, current = _extract_recording_data(loc)
+
+            if enable_realtime:
+                # Calculate differential data for realtime updates
+                prev_data = previous_data.get(cell_section, {})
+
+                voltage_diff = diff_list(prev_data.get("voltage", np.array([])), voltage)
+                time_diff = diff_list(prev_data.get("time", np.array([])), time)
+
+                current_diff = None
+                if loc.record_currents and current:
+                    prev_current = prev_data.get("current", {})
+                    current_diff = {
+                        var_name: diff_list(
+                            prev_current.get(var_name, np.array([])), current[var_name]
+                        )
+                        for var_name in i_rec_var_dict[loc.section]
+                    }
+
+                # Update previous data for next iteration
+                previous_data[cell_section] = {"voltage": voltage, "time": time, "current": current}
+
+                payload = _create_record_payload(
+                    cell_section, voltage_diff, time_diff, current_diff
+                )
+            else:
+                payload = _create_record_payload(cell_section, voltage, time, current)
+
+            simulation_queue.put(payload)
+
+    try:
+        logger.info("Starting simulation")
+        simulation = Simulation(
+            cell,
+            custom_progress_function=process_simulation_recordings if realtime is True else None,
+        )
+
+        logger.info("Simulation started")
+        simulation.run(
+            tstop=experimental_setup.max_time,
+            cvode=False,
+            dt=experimental_setup.time_step,
+            show_progress=True if realtime is True else False,
+        )
+
+        logger.info("Simulation finished")
+
+        if realtime is False:
+            process_simulation_recordings(enable_realtime=False)
+    except Exception as ex:
+        logger.exception(f"child simulation failed {ex}")
+        raise ChildSimulationError from ex
+    finally:
+        simulation_queue.put(SUB_PROCESS_STOP_EVENT)
+
+
+def run_simulation(
+    realtime: bool,
+    cell,
+    expanded_configs: List[SingleNeuronSimulationConfig],
+    synaptome_details: SynaptomeDetails | None = None,
+    job_stream=None,
+    stop_event: Event | None = None,
+    model: Model | None = None,
+):
+    logger.info(f"Running Simulation with {len(expanded_configs)} configurations")
+
+    with mp.Manager() as manager:
+        simulation_queue = manager.Queue()
+
+        from bluecellulab.stimulus.factory import StimulusFactory
+
+        stim_factory = StimulusFactory(dt=1.0)
+
+        # Common simulation parameters
+        injection_segment = 0.5
+        add_hypamp = True
+        threshold_based = False
+
+        # Prepare simulation parameters for all configs
+        all_task_args = []
+        for config in expanded_configs:
+            injection_section_name = (
+                config.current_injection.inject_to
+                if config.current_injection is not None
+                and config.current_injection.inject_to is not None
+                else DEFAULT_INJECTION_LOCATION
+            )
+
+            # Determine stimulus and stimulus_name based on current_injection
+            if config.current_injection is None:
+                stimulus = None
+                stimulus_name = None
+            else:
+                stimulus_name = get_stimulus_name(
+                    config.current_injection.stimulus.stimulus_protocol
+                )
+
+                if threshold_based:
+                    thres_perc = config.current_injection.stimulus.amplitudes
+                    amp = None
+                else:
+                    thres_perc = None
+                    amp = config.current_injection.stimulus.amplitudes
+
+                stimulus = get_stimulus_from_name(
+                    stimulus_name, stim_factory, cell, thres_perc, amp
+                )
+
+            # Generate synapse configuration if needed
+            synapse_generation_config = None
+            if synaptome_details is not None and config.synaptome is not None:
+                logger.info("Generating synapse series for config")
+                synapse_generation_config = _generate_synapse_series(
+                    model if model else cell, config, synaptome_details
+                )
+
+            logger.info("Finished generating synapse series for config")
+            logger.info(synapse_generation_config)
+
+            # Build task arguments tuple once
+            task_args = (
+                realtime,
+                cell.template_params,
+                stimulus,
+                injection_section_name,
+                injection_segment,
+                config.record_from,
+                synapse_generation_config,
+                config.conditions,
+                simulation_queue,
+                f"{stimulus_name}_{config.current_injection.stimulus.amplitudes}",
+                add_hypamp,
+            )
+            all_task_args.append(task_args)
+
+        logger.debug(f"Applying simulation for {len(all_task_args)} parameter combinations")
+
+        with mp.Pool(
+            processes=min(len(all_task_args), os.cpu_count() or len(all_task_args)),
+            maxtasksperchild=1,
+        ) as pool:
+            pool.starmap_async(_run_simulation, all_task_args)
+
+            process_finished = 0
+
+            while stop_event is None or not stop_event.is_set():
+                try:
+                    record = simulation_queue.get(timeout=1)
+                    if record != SUB_PROCESS_STOP_EVENT:
+                        if realtime and job_stream:
+                            # Transform record for streaming
+                            stream_record = queue_record_to_stream_record(record)
+                            job_stream.send_data(stream_record)
+                        else:
+                            # For batch mode or non-streaming realtime
+                            logger.debug(
+                                f"Received simulation record: {record.get('name', 'unknown')}"
+                            )
+                    else:
+                        process_finished += 1
+                        if process_finished == len(all_task_args):
+                            break
+                except queue.Empty:
+                    continue
+
+        logger.info("Simulation completed")
+
+
+def queue_record_to_stream_record(record: dict) -> dict:
+    """Transform queue record to stream record format."""
+    return {
+        "x": record["time"],
+        "y": record["voltage"],
+        "type": "scatter",
+        "name": record["name"],
+        "recording": record["recording_name"],
+        "current": record.get("current"),
+    }

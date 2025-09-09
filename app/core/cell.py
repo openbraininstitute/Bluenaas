@@ -1,17 +1,16 @@
 """Cell module."""
 
 # pylint: disable=import-outside-toplevel
-import multiprocessing as mp
 import os
 import re
+from typing import List
 from uuid import UUID
+
 from loguru import logger
-from multiprocessing.synchronize import Event
+
 from app.constants import SINGLE_NEURON_HOC_DIR, SINGLE_NEURON_MORPHOLOGY_DIR
-from app.domains.morphology import SynapseSeries
-from app.domains.simulation import (
-    SingleNeuronSimulationConfig,
-)
+from app.domains.neuron_model import SynaptomeDetails
+from app.domains.simulation import SingleNeuronSimulationConfig
 from app.infrastructure.storage import get_single_neuron_location
 from app.utils.util import (
     compile_mechanisms,
@@ -34,6 +33,7 @@ class BaseCell:
         self._nrn = None
         self._init_params = {}
         self.template = None
+        self._model = None
         self.delta_t = None
         self._recording_position = 0.5  # 0.5 middle of the section
         self._cell = None
@@ -177,61 +177,28 @@ class BaseCell:
 
         return protocol_mapping[protocol_name]
 
-    def start_current_varying_simulation(
+    def start_simulation(
         self,
-        realtime: bool,
-        config: SingleNeuronSimulationConfig,
-        synapse_generation_config: list[SynapseSeries] | None,
-        simulation_queue: mp.Queue,
-        stop_event: Event,
+        expanded_configs: List[SingleNeuronSimulationConfig],
+        synaptome_details: SynaptomeDetails | None,
+        realtime: bool = False,
+        job_stream=None,
     ):
-        from app.core.stimulation import apply_multiple_stimulus
+        """Unified simulation method that handles all simulation types."""
+        from app.core.simulation import run_simulation
 
         try:
-            apply_multiple_stimulus(
+            run_simulation(
                 realtime=realtime,
                 cell=self._cell,
-                current_injection=config.current_injection,
-                recording_locations=config.record_from,
-                experiment_setup=config.conditions,
-                simulation_duration=config.duration,
-                synapse_generation_config=synapse_generation_config,
-                simulation_queue=simulation_queue,
-                stop_event=stop_event,
+                expanded_configs=expanded_configs,
+                synaptome_details=synaptome_details,
+                job_stream=job_stream,
+                model=self._model,
             )
         except Exception as e:
-            logger.exception(
-                f"Apply Generic Single Neuron Simulation error: {e}",
-            )
-            raise Exception(f"Apply Generic Single Neuron Simulation error: {e}") from e
-
-    def start_frequency_varying_simulation(
-        self,
-        realtime: bool,
-        config: SingleNeuronSimulationConfig,
-        frequency_to_synapse_series: dict[float, list[SynapseSeries]],
-        simulation_queue: mp.Queue,
-        stop_event: Event,
-    ):
-        from app.core.stimulation import apply_multiple_frequency
-
-        try:
-            apply_multiple_frequency(
-                realtime=realtime,
-                cell=self._cell,
-                current_injection=config.current_injection,
-                recording_locations=config.record_from,
-                experiment_setup=config.conditions,
-                simulation_duration=config.duration,
-                frequency_to_synapse_series=frequency_to_synapse_series,
-                simulation_queue=simulation_queue,
-                stop_event=stop_event,
-            )
-        except Exception as e:
-            logger.exception(
-                f"Apply Generic Single Neuron Simulation error: {e}",
-            )
-            raise Exception(f"Apply Generic Single Neuron Simulation error: {e}") from e
+            logger.exception(f"Running simulation failed: {e}")
+            raise Exception(f"Running simulation failed: {e}") from e
 
 
 class HocCell(BaseCell):
@@ -243,8 +210,10 @@ class HocCell(BaseCell):
         *,
         threshold_current: float = 0,
         holding_current: float = 0,
+        model=None,
     ):
         super().__init__(model_id)
+        self._model = model
 
         logger.info(f"hoccell init: {model_id, threshold_current, holding_current}")
         self._load_by_model_uuid(model_id, threshold_current, holding_current)

@@ -1,8 +1,9 @@
+from uuid import UUID
 from pydantic import BaseModel
-from typing import Optional, Literal
+from typing import NamedTuple, Optional, Literal
 from datetime import datetime
 
-from app.domains.morphology import SynapseConfig
+from app.domains.morphology import SynapseConfig, SynapsesPlacementConfig
 from app.domains.simulation import BrainRegion
 
 ModelType = Literal["me-model", "synaptome", "m-model", "e-model"]
@@ -39,3 +40,8 @@ class MEModelResponse(BaseModel):
     brain_region: BrainRegion
     m_model: UsedModel
     e_model: UsedModel
+
+
+class SynaptomeDetails(NamedTuple):
+    base_model_id: UUID
+    synaptome_placement_config: SynapsesPlacementConfig

@@ -1446,7 +1446,7 @@ class IonChannelModelExpanded(BaseModel):
     temperature_celsius: int = Field(..., title="Temperature Celsius")
     is_stochastic: Optional[bool] = Field(False, title="Is Stochastic")
     neuron_block: NeuronBlock
-    species: NestedSpeciesRead
+    species: Optional[NestedSpeciesRead]
     strain: Optional[NestedStrainRead]
     brain_region: BrainRegionRead
 
@@ -1487,7 +1487,7 @@ class IonChannelModelWAssets(BaseModel):
     temperature_celsius: int = Field(..., title="Temperature Celsius")
     is_stochastic: Optional[bool] = Field(False, title="Is Stochastic")
     neuron_block: NeuronBlock
-    species: NestedSpeciesRead
+    species: Optional[NestedSpeciesRead]
     strain: Optional[NestedStrainRead]
     brain_region: BrainRegionRead
 

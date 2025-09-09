@@ -10,5 +10,4 @@ SINGLE_NEURON_MORPHOLOGY_DIR = "morphology"
 
 LIBNRNMECH_PATH = "x86_64/lib/nrnmech.so"
 
-# TODO revert back to .ready once the cache storage is cleaned
-READY_MARKER_FILE_NAME = ".ready-v2"
+READY_MARKER_FILE_NAME = ".ready"
