@@ -350,9 +350,13 @@ def perpendicular_vector(v: np.ndarray) -> np.ndarray:
     # Get second perpendicular vector using cross product
     perp2 = np.cross(v, perp1)
 
-    # Random linear combination
+    # Normalize both perpendicular vectors to ensure uniform distribution
+    perp1_unit = perp1 / np.linalg.norm(perp1)
+    perp2_unit = perp2 / np.linalg.norm(perp2)
+
+    # Random linear combination of normalized vectors
     angle = np.random.uniform(0, 2 * np.pi)
-    return perp1 * np.cos(angle) + perp2 * np.sin(angle)
+    return perp1_unit * np.cos(angle) + perp2_unit * np.sin(angle)
 
 
 def set_vector_length(vector: np.ndarray, length: float) -> np.ndarray:
