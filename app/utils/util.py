@@ -322,13 +322,17 @@ def point_between_vectors(vec1: np.ndarray, vec2: np.ndarray, position: float) -
 
 def perpendicular_vector(v: np.ndarray) -> np.ndarray:
     """
-    Finds a perpendicular vector to the given vector v using component swapping.
+    Finds a random perpendicular vector to the given vector v.
+
+    Uses a two-vector linear combination method: first finds one perpendicular vector
+    using component swapping, then finds a second perpendicular vector using cross
+    product, and returns a random linear combination of the two.
 
     Args:
     v: numpy array, the input vector (must be 3D and non-zero).
 
     Returns:
-    numpy array, a vector perpendicular to v.
+    numpy array, a randomly oriented vector perpendicular to v.
 
     Raises:
     ValueError: If the input vector is zero.
@@ -337,13 +341,18 @@ def perpendicular_vector(v: np.ndarray) -> np.ndarray:
     if np.allclose(v, 0):
         raise ValueError("Cannot find perpendicular vector for zero vector")
 
-    # Use component swapping method
+    # Get first perpendicular vector using component swapping
     if abs(v[0]) > 1e-10 or abs(v[1]) > 1e-10:
-        # Swap x,y and negate one component
-        return np.array([-v[1], v[0], 0])
+        perp1 = np.array([-v[1], v[0], 0.0])
     else:
-        # If x,y are both ~0, use x,z instead
-        return np.array([-v[2], 0, v[0]])
+        perp1 = np.array([-v[2], 0.0, v[0]])
+
+    # Get second perpendicular vector using cross product
+    perp2 = np.cross(v, perp1)
+
+    # Random linear combination
+    angle = np.random.uniform(0, 2 * np.pi)
+    return perp1 * np.cos(angle) + perp2 * np.sin(angle)
 
 
 def set_vector_length(vector: np.ndarray, length: float) -> np.ndarray:
