@@ -1,8 +1,11 @@
 import unittest
 
+import numpy as np
+
 from app.domains.morphology import ExclusionRule
 from app.utils.util import (
     get_segments_satisfying_all_exclusion_rules,
+    perpendicular_vector,
 )
 
 
@@ -80,6 +83,82 @@ class TestExclusionRules(unittest.TestCase):
             ],
         )
         self.assertEqual(result, [2])
+
+
+class TestPerpendicularVector(unittest.TestCase):
+    def test_perpendicular_to_x_axis(self):
+        v = np.array([1, 0, 0])
+        result = perpendicular_vector(v)
+        expected = np.array([0, 1, 0])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_perpendicular_to_y_axis(self):
+        v = np.array([0, 1, 0])
+        result = perpendicular_vector(v)
+        expected = np.array([-1, 0, 0])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_perpendicular_to_z_axis(self):
+        v = np.array([0, 0, 1])
+        result = perpendicular_vector(v)
+        expected = np.array([-1, 0, 0])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_perpendicular_to_xy_vector(self):
+        v = np.array([3, 4, 0])
+        result = perpendicular_vector(v)
+        expected = np.array([-4, 3, 0])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_perpendicular_to_original_problem_vector(self):
+        v = np.array([0, 21.46288667, 0])
+        result = perpendicular_vector(v)
+        expected = np.array([-21.46288667, 0, 0])
+        np.testing.assert_array_almost_equal(result, expected)
+
+    def test_perpendicular_to_xyz_vector(self):
+        v = np.array([1, 2, 3])
+        result = perpendicular_vector(v)
+        expected = np.array([-2, 1, 0])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_result_is_perpendicular_xy_case(self):
+        v = np.array([5, 12, 0])
+        result = perpendicular_vector(v)
+        # Dot product should be zero
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_result_is_perpendicular_z_case(self):
+        v = np.array([0, 0, 7])
+        result = perpendicular_vector(v)
+        # Dot product should be zero
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_result_is_perpendicular_general_case(self):
+        v = np.array([1.5, -2.7, 3.9])
+        result = perpendicular_vector(v)
+        # Dot product should be zero
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_zero_vector_raises_error(self):
+        v = np.array([0, 0, 0])
+        with self.assertRaises(ValueError) as context:
+            perpendicular_vector(v)
+        self.assertIn("Cannot find perpendicular vector for zero vector", str(context.exception))
+
+    def test_near_zero_vector_raises_error(self):
+        v = np.array([1e-15, 1e-15, 1e-15])
+        with self.assertRaises(ValueError):
+            perpendicular_vector(v)
+
+    def test_small_but_valid_vector(self):
+        v = np.array([1e-5, 0, 0])
+        result = perpendicular_vector(v)
+        expected = np.array([0, 1e-5, 0])
+        np.testing.assert_array_equal(result, expected)
 
 
 if __name__ == "__main__":
