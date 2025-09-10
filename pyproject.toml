@@ -28,7 +28,7 @@ api = [
     "sentry-sdk[fastapi]==2.33.0",
 ]
 worker = [
-    "bluecellulab==2.6.63",
+    "bluecellulab==2.6.68",
     "efel==5.7.18",
     "filelock==3.18.0",
     "pynwb==3.1.0",
