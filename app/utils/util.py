@@ -3,7 +3,6 @@
 import json
 import re
 import subprocess
-from random import randint
 from typing import Any
 
 import numpy as np
@@ -323,34 +322,28 @@ def point_between_vectors(vec1: np.ndarray, vec2: np.ndarray, position: float) -
 
 def perpendicular_vector(v: np.ndarray) -> np.ndarray:
     """
-    Finds a perpendicular vector to the given vector v using the cross product method.
+    Finds a perpendicular vector to the given vector v using component swapping.
 
     Args:
-    v: numpy array, the input vector.
+    v: numpy array, the input vector (must be 3D and non-zero).
 
     Returns:
     numpy array, a vector perpendicular to v.
+
+    Raises:
+    ValueError: If the input vector is zero.
     """
-    # Choose an arbitrary vector that is not parallel to v.
-    coordinates = [0, 1, 2]  # corresponds to [x, y, z]
-    vArbitrary = [v[0], v[1], v[2]]
+    # Check for zero vector
+    if np.allclose(v, 0):
+        raise ValueError("Cannot find perpendicular vector for zero vector")
 
-    # Randomly choose 1 coordinate to be the same as v
-    same_coordinate = randint(0, 2)
-
-    # Assign a random integer to the remaining 2 coordinates
-    different_coordinates = [c for c in coordinates if c != same_coordinate]
-    for c in different_coordinates:
-        vArbitrary[c] = randint(-100, 100)
-
-    # If the vPerpendicular has same coordinates as v (very, very low chance of this happening), then simply change the x coordinate of vArbitrary.
-    if vArbitrary[0] == v[0] and vArbitrary[1] == v[1] and vArbitrary[2] == v[2]:
-        vArbitrary[0] = vArbitrary[0] + 1
-
-    # Compute the cross product to get a perpendicular vector
-    perp_vector = np.cross(v, np.array(vArbitrary))
-
-    return perp_vector
+    # Use component swapping method
+    if abs(v[0]) > 1e-10 or abs(v[1]) > 1e-10:
+        # Swap x,y and negate one component
+        return np.array([-v[1], v[0], 0])
+    else:
+        # If x,y are both ~0, use x,z instead
+        return np.array([-v[2], 0, v[0]])
 
 
 def set_vector_length(vector: np.ndarray, length: float) -> np.ndarray:
