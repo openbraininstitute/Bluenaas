@@ -1,10 +1,10 @@
 from uuid import UUID
 
+from entitysdk import ProjectContext
 from fastapi import Request
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from rq import Queue
 
-from app.external.entitycore.service import ProjectContext
 from app.job import JobFn
 from app.utils.api.streaming import x_ndjson_http_stream
 from app.utils.rq_job import dispatch, get_job_data

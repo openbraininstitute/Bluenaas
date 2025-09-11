@@ -7,6 +7,7 @@ from multiprocessing.synchronize import Event
 from queue import Empty as QueueEmptyException
 from uuid import UUID
 
+from entitysdk import ProjectContext
 from loguru import logger
 
 from app.core.exceptions import (
@@ -25,7 +26,6 @@ from app.domains.simulation import (
     SingleNeuronSimulationConfig,
     SynapseSimulationConfig,
 )
-from app.external.entitycore.service import ProjectContext
 from app.infrastructure.rq import get_job_stream_key
 from app.utils.const import QUEUE_STOP_EVENT
 from app.utils.util import log_stats_for_series_in_frequency

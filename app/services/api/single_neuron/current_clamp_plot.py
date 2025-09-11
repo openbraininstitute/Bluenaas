@@ -1,10 +1,10 @@
 from uuid import UUID
 
+from entitysdk import ProjectContext
 from fastapi.responses import JSONResponse
 from rq import Queue
 
 from app.domains.simulation import StimulationPlotConfig
-from app.external.entitycore.service import ProjectContext
 from app.job import JobFn
 from app.utils.rq_job import dispatch, get_job_data
 
