@@ -9,18 +9,20 @@ from uuid import UUID
 
 import numpy as np
 import pandas  # type: ignore
+from entitysdk import Client, ProjectContext
+from entitysdk.models import SingleNeuronSynaptome
 from entitysdk.types import AssetLabel
-from filelock import FileLock
 from loguru import logger
 from sympy import parse_expr, symbols  # type: ignore
 
-from app.constants import READY_MARKER_FILE_NAME
+from app.config.settings import settings
 from app.core.cell import HocCell
 from app.core.exceptions import (
     SimulationError,
     SingleNeuronSynaptomeConfigurationError,
     SynapseGenerationError,
 )
+from app.core.single_neuron.single_neuron import SingleNeuron
 from app.domains.morphology import (
     LocationData,
     SectionSynapses,
@@ -33,14 +35,6 @@ from app.domains.morphology import (
     SynapsesPlacementConfig,
 )
 from app.domains.simulation import SynapseSimulationConfig
-from app.external.entitycore.schemas import EntityRoute
-from app.external.entitycore.service import (
-    EntityCore,
-    ProjectContext,
-    download_asset,
-    fetch_one,
-)
-from app.infrastructure.storage import get_single_neuron_location
 from app.utils.util import (
     get_sections,
     get_segments_satisfying_all_exclusion_rules,
@@ -75,38 +69,24 @@ class Model:
     def build_model(self):
         """Prepare model."""
 
-        helper = EntityCore(
-            access_token=self.access_token,
-            model_id=self.model_id,
+        client = Client(
+            api_url=str(settings.ENTITYCORE_URI),
             project_context=self.project_context,
+            token_manager=self.access_token,
         )
 
-        [holding_current, threshold_current] = helper.get_currents()
-        self.threshold_current = threshold_current
+        single_neuron = SingleNeuron(self.model_id, client=client)
+        single_neuron.init()
 
-        model_path = get_single_neuron_location(self.model_id)
-        ready_marker = model_path / READY_MARKER_FILE_NAME
+        self.threshold_current = single_neuron.threshold_current
 
-        if not ready_marker.exists():
-            lock = FileLock(model_path / "dir.lock")
-            with lock.acquire(timeout=2 * 60):
-                helper.download_model()
-                self.CELL = HocCell(
-                    self.model_id,
-                    threshold_current=threshold_current,
-                    holding_current=self.holding_current
-                    if self.holding_current is not None
-                    else holding_current,
-                )
-                ready_marker.touch()
-        else:
-            self.CELL = HocCell(
-                self.model_id,
-                threshold_current=threshold_current,
-                holding_current=self.holding_current
-                if self.holding_current is not None
-                else holding_current,
-            )
+        self.CELL = HocCell(
+            self.model_id,
+            threshold_current=self.threshold_current,
+            holding_current=self.holding_current
+            if self.holding_current is not None
+            else single_neuron.holding_current,
+        )
 
     def _generate_synapse(self, section_info: LocationData, seg_indices_to_include: list[int]):
         random_index = randint(0, len(seg_indices_to_include) - 1)
@@ -382,15 +362,16 @@ def fetch_synaptome_model_details(
     1. The base me-model or e-model
     2. The configuration for all synapse groups added to the given synaptome model
     """
-    from app.external.entitycore.schemas import SingleNeuronSynaptomeRead
+    client = Client(
+        api_url=str(settings.ENTITYCORE_URI),
+        project_context=project_context,
+        token_manager=bearer_token,
+    )
 
     try:
-        single_neuron_synaptome = fetch_one(
-            id=model_id,
-            project_context=project_context,
-            response_class=SingleNeuronSynaptomeRead,
-            route=EntityRoute.single_neuron_synaptome,
-            token=bearer_token,
+        single_neuron_synaptome = client.get_entity(
+            model_id,
+            entity_type=SingleNeuronSynaptome,
         )
 
         if not single_neuron_synaptome.assets:
@@ -401,27 +382,23 @@ def fetch_synaptome_model_details(
                 item
                 for item in single_neuron_synaptome.assets
                 if item.label == AssetLabel.single_neuron_synaptome_config
-                or any(
-                    item.path.startswith(prefix)
-                    for prefix in ["single_neuron_synaptome_config", "synaptome_config"]
-                    if item.path
-                )
             ),
             None,
         )
 
         if asset:
-            config = download_asset(
+            config = client.download_content(
                 entity_id=model_id,
-                entity_route=EntityRoute.single_neuron_synaptome,
-                id=asset.id,
-                project_context=project_context,
-                token=bearer_token,
+                entity_type=SingleNeuronSynaptome,
+                asset_id=asset.id,
             )
+
             synapses_file = json.loads(config)
             synapse_placement_config = [
                 SynapseConfig.model_validate(synapse) for synapse in synapses_file["synapses"]
             ]
+
+            assert single_neuron_synaptome.me_model.id
 
             return SynaptomeDetails(
                 base_model_id=single_neuron_synaptome.me_model.id,
