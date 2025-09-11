@@ -50,7 +50,7 @@ class ValidationOutput:
         assert registered.id
 
         for fig_path in val_dict["figures"]:
-            if fig_path.suffix != ".pdf":
+            if fig_path.suffix not in [".pdf", ".png"]:
                 logger.warning(f"Unsupported figure format: {str(fig_path)}")
                 continue
 
@@ -58,7 +58,9 @@ class ValidationOutput:
                 entity_id=registered.id,
                 entity_type=ValidationResult,
                 file_path=fig_path,
-                file_content_type=ContentType.application_pdf,
+                file_content_type=ContentType.application_pdf
+                if fig_path.suffix == ".pdf"
+                else ContentType.image_png,
                 asset_label=AssetLabel.validation_result_figure,
             )
 

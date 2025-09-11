@@ -72,7 +72,3 @@ job-monitor: ## Run the RQ job/queue monitor
 
 kill:  ## Take down the application containers and remove the volumes
 	docker compose down --remove-orphans --volumes
-
-generate-entitycore-schemas: ## Generate entitycore schemas
-	curl -o openapi.json https://staging.openbraininstitute.org/api/entitycore/openapi.json \
-	&& uv run datamodel-codegen --input openapi.json --input-file-type openapi --output _schemas.py

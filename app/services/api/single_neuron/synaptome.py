@@ -2,13 +2,13 @@ from http import HTTPStatus as status
 from uuid import UUID
 
 import sympy as sp
+from entitysdk import ProjectContext
 from fastapi.responses import JSONResponse
 from loguru import logger
 from rq import Queue
 
 from app.core.exceptions import AppError, AppErrorCode
 from app.domains.morphology import SynapsePlacementBody
-from app.external.entitycore.service import ProjectContext
 from app.job import JobFn
 from app.utils.rq_job import dispatch, get_job_data
 

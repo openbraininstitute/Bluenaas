@@ -1,8 +1,11 @@
 import unittest
 
+import numpy as np
+
 from app.domains.morphology import ExclusionRule
 from app.utils.util import (
     get_segments_satisfying_all_exclusion_rules,
+    perpendicular_vector,
 )
 
 
@@ -80,6 +83,147 @@ class TestExclusionRules(unittest.TestCase):
             ],
         )
         self.assertEqual(result, [2])
+
+
+class TestPerpendicularVector(unittest.TestCase):
+    def test_perpendicular_to_x_axis_deterministic(self):
+        # Test with fixed random seed for deterministic results
+        np.random.seed(42)
+        v = np.array([1, 0, 0])
+        result = perpendicular_vector(v)
+        # Should be perpendicular
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_perpendicular_to_y_axis_deterministic(self):
+        # Test with fixed random seed for deterministic results
+        np.random.seed(42)
+        v = np.array([0, 1, 0])
+        result = perpendicular_vector(v)
+        # Should be perpendicular
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_perpendicular_to_z_axis_deterministic(self):
+        # Test with fixed random seed for deterministic results
+        np.random.seed(42)
+        v = np.array([0, 0, 1])
+        result = perpendicular_vector(v)
+        # Should be perpendicular
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_perpendicular_to_xy_vector_deterministic(self):
+        # Test with fixed random seed for deterministic results
+        np.random.seed(42)
+        v = np.array([3, 4, 0])
+        result = perpendicular_vector(v)
+        # Should be perpendicular
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_perpendicular_to_original_problem_vector_deterministic(self):
+        # Test with fixed random seed for deterministic results
+        np.random.seed(42)
+        v = np.array([0, 21.46288667, 0])
+        result = perpendicular_vector(v)
+        # Should be perpendicular
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_perpendicular_to_xyz_vector_deterministic(self):
+        # Test with fixed random seed for deterministic results
+        np.random.seed(42)
+        v = np.array([1, 2, 3])
+        result = perpendicular_vector(v)
+        # Should be perpendicular
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_result_is_perpendicular_xy_case(self):
+        v = np.array([5, 12, 0])
+        result = perpendicular_vector(v)
+        # Dot product should be zero
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_result_is_perpendicular_z_case(self):
+        v = np.array([0, 0, 7])
+        result = perpendicular_vector(v)
+        # Dot product should be zero
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_result_is_perpendicular_general_case(self):
+        v = np.array([1.5, -2.7, 3.9])
+        result = perpendicular_vector(v)
+        # Dot product should be zero
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_zero_vector_raises_error(self):
+        v = np.array([0, 0, 0])
+        with self.assertRaises(ValueError) as context:
+            perpendicular_vector(v)
+        self.assertIn("Cannot find perpendicular vector for zero vector", str(context.exception))
+
+    def test_near_zero_vector_raises_error(self):
+        v = np.array([1e-15, 1e-15, 1e-15])
+        with self.assertRaises(ValueError):
+            perpendicular_vector(v)
+
+    def test_small_but_valid_vector(self):
+        v = np.array([1e-5, 0, 0])
+        result = perpendicular_vector(v)
+        # Should be perpendicular
+        dot_product = np.dot(v, result)
+        self.assertAlmostEqual(dot_product, 0, places=10)
+
+    def test_randomization_produces_different_results(self):
+        v = np.array([1, 2, 3])
+        results = []
+        # Generate multiple results to check they're different
+        for _ in range(10):
+            result = perpendicular_vector(v)
+            # Each should be perpendicular
+            dot_product = np.dot(v, result)
+            self.assertAlmostEqual(dot_product, 0, places=10)
+            results.append(result.copy())
+        
+        # Check that not all results are identical (randomization works)
+        all_same = all(np.allclose(results[0], r) for r in results[1:])
+        self.assertFalse(all_same, "All results should not be identical - randomization should work")
+
+    def test_result_lies_in_perpendicular_plane(self):
+        # Test that the result lies in the 2D plane perpendicular to the input vector
+        v = np.array([1, 1, 1])
+        v_normalized = v / np.linalg.norm(v)
+        
+        for _ in range(5):
+            result = perpendicular_vector(v)
+            # Should be perpendicular to v
+            dot_product = np.dot(v_normalized, result)
+            self.assertAlmostEqual(dot_product, 0, places=10)
+            # Should be non-zero
+            self.assertGreater(np.linalg.norm(result), 1e-10)
+
+    def test_deterministic_behavior_with_seed(self):
+        v = np.array([2, 3, 5])
+        
+        # Same seed should give same result
+        np.random.seed(123)
+        result1 = perpendicular_vector(v)
+        
+        np.random.seed(123)
+        result2 = perpendicular_vector(v)
+        
+        np.testing.assert_array_almost_equal(result1, result2)
+        
+        # Different seed should give different result
+        np.random.seed(456)
+        result3 = perpendicular_vector(v)
+        
+        self.assertFalse(np.allclose(result1, result3))
 
 
 if __name__ == "__main__":

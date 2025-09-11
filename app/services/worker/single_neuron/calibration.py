@@ -1,12 +1,11 @@
 from uuid import UUID
 
-from entitysdk import Client
+from entitysdk import Client, ProjectContext
 
 from app.config.settings import settings
 from app.core.job_stream import JobStream
 from app.core.single_neuron.calibration import Calibration
 from app.domains.job import JobStatus
-from app.external.entitycore.service import ProjectContext
 from app.infrastructure.rq import get_job_stream_key
 
 

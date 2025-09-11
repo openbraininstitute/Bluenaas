@@ -39,7 +39,8 @@ class SectionTarget(Enum):
     basal = "basal"
     dendrite = "dend"
     soma = "soma"
-    axom = "axon"
+    axon = "axon"
+    myelin = "myelin"
 
     @classmethod
     def list(cls):
@@ -67,9 +68,7 @@ class SynapseConfig(BaseModel):
     def validate_soma_synapse_count(cls, value, info):
         if "target" in info.data and info.data.get("target") == SectionTarget.soma:
             if not value:
-                raise ValueError(
-                    "soma_section_count should be provided if target is soma"
-                )
+                raise ValueError("soma_section_count should be provided if target is soma")
 
             if value < 0 or value > 1000:
                 raise ValueError(
@@ -82,9 +81,7 @@ class SynapseConfig(BaseModel):
     def validate_formula_depends_on_distribution(cls, value, info):
         if "distribution" in info.data and info.data.get("distribution") == "formula":
             if not value or not isinstance(value, str):
-                raise ValueError(
-                    'Formula must be a valid string when distribution is "formula".'
-                )
+                raise ValueError('Formula must be a valid string when distribution is "formula".')
 
             try:
                 expr = sp.sympify(value)
@@ -95,9 +92,7 @@ class SynapseConfig(BaseModel):
                     raise ValueError("Formula can only contain the variable x or X.")
 
             except (sp.SympifyError, TypeError) as ex:
-                raise ValueError(
-                    f"Formula must be a valid mathematical expression. {ex}"
-                )
+                raise ValueError(f"Formula must be a valid mathematical expression. {ex}")
 
         return value
 
