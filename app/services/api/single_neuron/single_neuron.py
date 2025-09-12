@@ -3,13 +3,13 @@ from http import HTTPStatus
 from entitysdk import Client, ProjectContext
 from entitysdk._server_schemas import ValidationStatus
 from entitysdk.models import BrainRegion, EModel, MEModel, ReconstructionMorphology, Species, Strain
-from fastapi.responses import JSONResponse
 from loguru import logger
 from obp_accounting_sdk.constants import ServiceSubtype
 from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
 from rq import Queue
 
 from app.config.settings import settings
+from app.core.api import ApiResponse
 from app.core.exceptions import AppError, AppErrorCode
 from app.domains.neuron_model import MEModelCreateRequest
 from app.infrastructure.accounting.session import async_accounting_session_factory
@@ -17,7 +17,6 @@ from app.infrastructure.kc.auth import Auth
 from app.job import JobFn
 from app.utils.asyncio import run_async
 from app.utils.rq_job import dispatch
-from app.core.api import ApiResponse
 
 
 async def create_single_neuron_model(

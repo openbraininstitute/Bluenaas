@@ -2,7 +2,7 @@ from typing import Annotated, List
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Query, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from rq import Queue
 
 from app.domains.morphology import SynapsePlacementBody, SynapsePlacementResponse
