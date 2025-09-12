@@ -1,7 +1,5 @@
 import io
-import json
 from http import HTTPStatus
-from http import HTTPStatus as status
 from uuid import UUID
 
 import sympy as sp
@@ -152,7 +150,7 @@ def validate_synapse_generation_formula(formula: str):
     except Exception as ex:
         logger.error(f"validating synapse generation formula failed {ex}")
         raise AppError(
-            http_status_code=status.INTERNAL_SERVER_ERROR,
+            http_status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             error_code=AppErrorCode.INTERNAL_SERVER_ERROR,
             message="validating synapse generation formula failed",
             details=ex.__str__(),
