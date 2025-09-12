@@ -42,9 +42,7 @@ class CalibrationOutput:
         # if one exists with different values, delete the old one and register a new one
         iterator = self.client.search_entity(
             entity_type=MEModelCalibrationResult,
-            query={
-                "calibrated_entity_id": self.calibration_result.calibrated_entity_id
-            },
+            query={"calibrated_entity_id": self.calibration_result.calibrated_entity_id},
         )
         if iterator.first() is not None:
             logger.warning(

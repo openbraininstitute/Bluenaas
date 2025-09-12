@@ -272,9 +272,7 @@ def _prepare_stimulation_parameters_by_current(
     return task_args
 
 
-def get_stimulus_from_name(
-    stimulus_name: StimulusName, stimulus_factory, cell, thres_perc, amp
-):
+def get_stimulus_from_name(stimulus_name: StimulusName, stimulus_factory, cell, thres_perc, amp):
     if stimulus_name == StimulusName.AP_WAVEFORM:
         return stimulus_factory.ap_waveform(
             threshold_current=cell.threshold,
@@ -353,9 +351,7 @@ def _prepare_stimulation_parameters_by_frequency(
             thres_perc = None
             amp = amplitude
 
-        stimulus = get_stimulus_from_name(
-            stimulus_name, stim_factory, cell, thres_perc, amp
-        )
+        stimulus = get_stimulus_from_name(stimulus_name, stim_factory, cell, thres_perc, amp)
 
         task_args.append(
             (
@@ -520,9 +516,7 @@ def _run_current_varying_stimulus(
     try:
         simulation = Simulation(
             cell,
-            custom_progress_function=process_simulation_recordings
-            if realtime is True
-            else None,
+            custom_progress_function=process_simulation_recordings if realtime is True else None,
         )
 
         simulation.run(
@@ -685,9 +679,7 @@ def _run_frequency_varying_stimulus(
     try:
         simulation = Simulation(
             cell,
-            custom_progress_function=process_simulation_recordings
-            if realtime is True
-            else None,
+            custom_progress_function=process_simulation_recordings if realtime is True else None,
         )
 
         simulation.run(
