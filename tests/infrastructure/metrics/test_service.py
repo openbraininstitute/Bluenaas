@@ -292,23 +292,23 @@ class TestMetricsService(unittest.TestCase):
 
             # Check that we have queue_length and active_tasks for each queue
             metric_names = [metric["name"] for metric in call_args]
-            self.assertEqual(metric_names.count("queue_length"), 2)
-            self.assertEqual(metric_names.count("active_tasks"), 2)
+            self.assertEqual(metric_names.count("QueueLength"), 2)
+            self.assertEqual(metric_names.count("ActiveTasks"), 2)
 
             # Check dimensions
-            high_queue_metrics = [m for m in call_args if m["dimensions"]["queue_name"] == "high"]
+            high_queue_metrics = [m for m in call_args if m["dimensions"]["QueueName"] == "high"]
             medium_queue_metrics = [
-                m for m in call_args if m["dimensions"]["queue_name"] == "medium"
+                m for m in call_args if m["dimensions"]["QueueName"] == "medium"
             ]
 
             self.assertEqual(len(high_queue_metrics), 2)
             self.assertEqual(len(medium_queue_metrics), 2)
 
             # Check values
-            high_queue_length = next(m for m in high_queue_metrics if m["name"] == "queue_length")
+            high_queue_length = next(m for m in high_queue_metrics if m["name"] == "QueueLength")
             self.assertEqual(high_queue_length["value"], 5.0)
 
-            high_active_tasks = next(m for m in high_queue_metrics if m["name"] == "active_tasks")
+            high_active_tasks = next(m for m in high_queue_metrics if m["name"] == "ActiveTasks")
             self.assertEqual(high_active_tasks["value"], 2.0)
 
         asyncio.run(run_test())
