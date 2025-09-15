@@ -7,11 +7,13 @@ from app.infrastructure.metrics.cloudwatch import CloudWatchMetricsReporter
 
 
 class TestCloudWatchMetricsReporter(unittest.TestCase):
-    def setUp(self):
-        # Mock settings to avoid import issues
-        with patch("app.infrastructure.metrics.cloudwatch.settings") as mock_settings:
-            mock_settings.METRICS_AWS_REGION = None
-            self.reporter = CloudWatchMetricsReporter()
+    @patch("app.infrastructure.metrics.cloudwatch.boto3")
+    @patch("app.infrastructure.metrics.cloudwatch.settings")
+    def setUp(self, mock_settings, mock_boto3):
+        # Mock settings and boto3 to avoid import issues
+        mock_settings.METRICS_AWS_REGION = None
+        mock_boto3.client.return_value = MagicMock()
+        self.reporter = CloudWatchMetricsReporter()
 
     @patch("app.infrastructure.metrics.cloudwatch.boto3")
     @patch("app.infrastructure.metrics.cloudwatch.settings")
