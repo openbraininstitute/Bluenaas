@@ -71,13 +71,13 @@ class MetricsService:
             metrics.extend(
                 [
                     {
-                        "name": "queue_length",
+                        "name": "QueueLength",
                         "value": float(queue_length),
                         "timestamp": timestamp,
                         "dimensions": {"queue_name": queue_name.value},
                     },
                     {
-                        "name": "active_tasks",
+                        "name": "ActiveTasks",
                         "value": float(active_tasks),
                         "timestamp": timestamp,
                         "dimensions": {"queue_name": queue_name.value},
