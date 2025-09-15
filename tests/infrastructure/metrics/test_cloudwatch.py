@@ -27,7 +27,7 @@ class TestCloudWatchMetricsReporter(unittest.TestCase):
 
         mock_boto3.client.assert_called_once_with("cloudwatch", region_name="us-west-2")
         self.assertEqual(reporter.cloudwatch, mock_client)
-        self.assertEqual(reporter.namespace, "BlueNaaS/RQ")
+        self.assertEqual(reporter.namespace, "SmallScaleSimulator/JobQueue")
 
     @patch("app.infrastructure.metrics.cloudwatch.boto3")
     @patch("app.infrastructure.metrics.cloudwatch.settings")
@@ -89,7 +89,7 @@ class TestCloudWatchMetricsReporter(unittest.TestCase):
         ]
 
         self.reporter.cloudwatch.put_metric_data.assert_called_once_with(
-            Namespace="BlueNaaS/RQ", MetricData=expected_metric_data
+            Namespace="SmallScaleSimulator/JobQueue", MetricData=expected_metric_data
         )
 
         mock_logger.debug.assert_called_once_with("Sent metric test_metric=42.5 to CloudWatch")
@@ -122,7 +122,7 @@ class TestCloudWatchMetricsReporter(unittest.TestCase):
         ]
 
         self.reporter.cloudwatch.put_metric_data.assert_called_once_with(
-            Namespace="BlueNaaS/RQ", MetricData=expected_metric_data
+            Namespace="SmallScaleSimulator/JobQueue", MetricData=expected_metric_data
         )
 
     @patch("app.infrastructure.metrics.cloudwatch.run_async")
@@ -172,7 +172,7 @@ class TestCloudWatchMetricsReporter(unittest.TestCase):
         ]
 
         self.reporter.cloudwatch.put_metric_data.assert_called_once_with(
-            Namespace="BlueNaaS/RQ", MetricData=expected_metric_data
+            Namespace="SmallScaleSimulator/JobQueue", MetricData=expected_metric_data
         )
 
         mock_logger.debug.assert_called_once_with("Sent 1 metrics to CloudWatch")
@@ -305,7 +305,7 @@ class TestCloudWatchMetricsReporter(unittest.TestCase):
         ]
 
         self.reporter.cloudwatch.put_metric_data.assert_called_once_with(
-            Namespace="BlueNaaS/RQ", MetricData=expected_metric_data
+            Namespace="SmallScaleSimulator/JobQueue", MetricData=expected_metric_data
         )
 
     @patch("app.infrastructure.metrics.cloudwatch.run_async")

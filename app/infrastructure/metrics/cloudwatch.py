@@ -10,7 +10,7 @@ from .base import MetricsReporter
 
 
 class CloudWatchMetricsReporter(MetricsReporter):
-    def __init__(self, namespace: str = "BlueNaaS/RQ"):
+    def __init__(self, namespace: str = "SmallScaleSimulator/JobQueue"):
         client_config = {}
         if settings.METRICS_AWS_REGION:
             client_config["region_name"] = settings.METRICS_AWS_REGION
@@ -19,7 +19,11 @@ class CloudWatchMetricsReporter(MetricsReporter):
         self.namespace = namespace
 
     async def report_metric(
-        self, metric_name: str, value: float, timestamp: datetime, dimensions: Dict[str, str] | None = None
+        self,
+        metric_name: str,
+        value: float,
+        timestamp: datetime,
+        dimensions: Dict[str, str] | None = None,
     ) -> None:
         metric_data = {
             "MetricName": metric_name,
@@ -33,8 +37,7 @@ class CloudWatchMetricsReporter(MetricsReporter):
 
         await run_async(
             lambda: self.cloudwatch.put_metric_data(
-                Namespace=self.namespace,
-                MetricData=[metric_data]
+                Namespace=self.namespace, MetricData=[metric_data]
             )
         )
 
@@ -63,8 +66,7 @@ class CloudWatchMetricsReporter(MetricsReporter):
             batch = metric_data[i : i + 20]
             await run_async(
                 lambda b=batch: self.cloudwatch.put_metric_data(
-                    Namespace=self.namespace,
-                    MetricData=b
+                    Namespace=self.namespace, MetricData=b
                 )
             )
 
