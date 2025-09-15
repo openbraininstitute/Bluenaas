@@ -74,13 +74,13 @@ class MetricsService:
                         "name": "QueueLength",
                         "value": float(queue_length),
                         "timestamp": timestamp,
-                        "dimensions": {"queue_name": queue_name.value},
+                        "dimensions": {"QueueName": queue_name.value},
                     },
                     {
                         "name": "ActiveTasks",
                         "value": float(active_tasks),
                         "timestamp": timestamp,
-                        "dimensions": {"queue_name": queue_name.value},
+                        "dimensions": {"QueueName": queue_name.value},
                     },
                 ]
             )
