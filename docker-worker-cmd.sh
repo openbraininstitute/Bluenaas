@@ -19,8 +19,26 @@ if [ -z "$REDIS_URL" ]; then
   exit 1
 fi
 
+# Add burst flag based on EXIT_AFTER_JOBS_COMPLETE setting
+BURST_FLAG=""
+if [ -n "$EXIT_AFTER_JOBS_COMPLETE" ]; then
+  case "$EXIT_AFTER_JOBS_COMPLETE" in
+    "true"|"True"|"TRUE"|"1")
+      BURST_FLAG="--burst"
+      ;;
+    "false"|"False"|"FALSE"|"0")
+      BURST_FLAG=""
+      ;;
+    *)
+      echo "ERROR: EXIT_AFTER_JOBS_COMPLETE must be one of: true|True|TRUE|1 or false|False|FALSE|0"
+      exit 1
+      ;;
+  esac
+fi
+
 # Use exec to replace the shell and ensure that SIGINT is sent to the process
 # Start the RQ worker pool with specified queues, number of workers, and Redis URL
 exec rq worker-pool $QUEUES \
   --url $REDIS_URL \
-  --num-workers $NUM_WORKERS
+  --num-workers $NUM_WORKERS \
+  $BURST_FLAG
