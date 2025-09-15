@@ -22,7 +22,6 @@ class SimulationStimulusConfig(BaseModel):
 class RecordingLocation(BaseModel):
     section: str
     offset: Annotated[float, Field(ge=0, le=1)]
-    record_currents: bool = False
 
 
 class CurrentInjectionConfig(BaseModel):
