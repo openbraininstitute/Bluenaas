@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from app.domains.morphology import ExclusionRule
+from app.domains.morphology import ExclusionRule, LocationData
 from app.utils.util import (
     get_segments_satisfying_all_exclusion_rules,
     perpendicular_vector,
@@ -18,9 +18,37 @@ class TestExclusionRules(unittest.TestCase):
         109.70567418128812,
     ]
 
+    def _create_mock_location_data(self, nseg: int = 5) -> LocationData:
+        """Create a mock LocationData object for testing"""
+        return LocationData(
+            index=0,
+            nseg=nseg,
+            xstart=[0.0] * nseg,
+            xend=[1.0] * nseg,
+            xcenter=[0.5] * nseg,
+            xdirection=[1.0] * nseg,
+            ystart=[0.0] * nseg,
+            yend=[1.0] * nseg,
+            ycenter=[0.5] * nseg,
+            ydirection=[1.0] * nseg,
+            zstart=[0.0] * nseg,
+            zend=[1.0] * nseg,
+            zcenter=[0.5] * nseg,
+            zdirection=[1.0] * nseg,
+            segx=[0.0] * nseg,
+            diam=[1.0] * nseg,
+            length=[1.0] * nseg,
+            distance=[0.0] * nseg,
+            distance_from_soma=0.0,
+            sec_length=1.0,
+            neuron_segments_offset=[0.0] * nseg,
+            neuron_section_id=0,
+            segment_distance_from_soma=[0.0] * nseg,
+        )
+
     def test_returns_none_if_no_exclusion_rules(self):
         result = get_segments_satisfying_all_exclusion_rules(
-            rules=None, segment_distances=self.distances
+            rules=None, segment_distances=self.distances, section_info=self._create_mock_location_data()
         )
         self.assertEqual(result, [0, 1, 2, 3, 4])
 
@@ -28,6 +56,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_gte=29.122, distance_soma_lte=90.89)],
             segment_distances=self.distances,
+            section_info=self._create_mock_location_data()
         )
         self.assertEqual(result, [0, 4])
 
@@ -35,6 +64,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_gte=29.122)],
             segment_distances=self.distances,
+            section_info=self._create_mock_location_data()
         )
         self.assertEqual(result, [0])
 
@@ -42,6 +72,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_lte=90.67)],
             segment_distances=self.distances,
+            section_info=self._create_mock_location_data()
         )
         self.assertEqual(result, [4])
 
@@ -49,6 +80,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_gte=200.67)],
             segment_distances=self.distances,
+            section_info=self._create_mock_location_data()
         )
         self.assertEqual(result, [0, 1, 2, 3, 4])
 
@@ -56,6 +88,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_lte=5)],
             segment_distances=self.distances,
+            section_info=self._create_mock_location_data()
         )
         self.assertEqual(result, [0, 1, 2, 3, 4])
 
@@ -63,6 +96,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_lte=200)],
             segment_distances=self.distances,
+            section_info=self._create_mock_location_data()
         )
         self.assertEqual(result, None)
 
@@ -70,6 +104,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_lte=200)],
             segment_distances=self.distances,
+            section_info=self._create_mock_location_data()
         )
         self.assertEqual(result, None)
 
@@ -81,6 +116,7 @@ class TestExclusionRules(unittest.TestCase):
                 46.140226793353406,
                 55.08450786043035,
             ],
+            section_info=self._create_mock_location_data(3)
         )
         self.assertEqual(result, [2])
 
