@@ -11,6 +11,8 @@ load_dotenv("")
 
 _ENVS = Literal["development", "testing", "staging", "production"]
 
+_CLOUD_PROVIDER = Literal["aws", "azure"] | None
+
 
 def _is_valid_env(env: str | None) -> TypeGuard[_ENVS]:
     return env in get_args(_ENVS)
@@ -50,6 +52,10 @@ class Settings(BaseSettings):
     STORAGE_PATH: Path = Path("/app/storage")
 
     MAX_JOB_DURATION: int = 20 * 60  # 20 minutes
+
+    METRICS_CLOUD_PROVIDER: _CLOUD_PROVIDER = None
+    METRICS_INTERVAL: int = 60  # 1 minute
+    METRICS_AWS_REGION: str | None = None
 
     @model_validator(mode="after")
     def validate_accounting_config(self) -> Self:

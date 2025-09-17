@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Any, AsyncGenerator, Callable, TypeVar
+from typing import Any, AsyncGenerator, Callable, Iterable, TypeVar
 from uuid import uuid4
 
 from loguru import logger
@@ -98,7 +98,7 @@ async def dispatch(
     job_id: str | None = None,
     timeout: int = settings.MAX_JOB_DURATION,
     meta: dict | None = None,
-    depends_on: Job | None = None,
+    depends_on: Iterable[Job] | None = None,
     on_start: Callable[..., Any] | None = None,
     on_failure: Callable[..., Any] | None = None,
     on_success: Callable[..., Any] | None = None,

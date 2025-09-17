@@ -1,4 +1,5 @@
 import sentry_sdk
+from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
@@ -6,6 +7,7 @@ from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from starlette.middleware.cors import CORSMiddleware
 
 from app.config.settings import settings
+from app.infrastructure.metrics import metrics_service
 from app.core.exceptions import (
     AppError,
     AppErrorCode,
@@ -22,11 +24,22 @@ sentry_sdk.init(
     environment=settings.DEPLOYMENT_ENV,
 )
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await metrics_service.start()
+    yield
+    # Shutdown
+    await metrics_service.stop()
+
+
 app = FastAPI(
     debug=True,
     title=settings.APP_NAME,
     openapi_url=f"{settings.BASE_PATH}/openapi.json",
     docs_url=f"{settings.BASE_PATH}/docs",
+    lifespan=lifespan,
 )
 
 app.add_middleware(SentryAsgiMiddleware)

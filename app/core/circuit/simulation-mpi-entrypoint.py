@@ -27,9 +27,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-def save_results_to_nwb(
-    results: Dict[str, Any], execution_id: str, output_path: Union[str, Path]
-):
+def save_results_to_nwb(results: Dict[str, Any], execution_id: str, output_path: Union[str, Path]):
     """Save simulation results to NWB format"""
     nwbfile = NWBFile(
         session_description="Small Microcircuit Simulation results",
@@ -63,9 +61,7 @@ def save_results_to_nwb(
         # Compute time rate
         time_rate = 1 / (trace["time"][1] - trace["time"][0])
 
-        voltage_data = (
-            np.array(trace["voltage"], dtype=float) / 1000.0
-        )  # Convert mV to V
+        voltage_data = np.array(trace["voltage"], dtype=float) / 1000.0  # Convert mV to V
 
         # Create current clamp series
         ics = CurrentClampSeries(
@@ -86,9 +82,7 @@ def save_results_to_nwb(
     logger.info(f"Saved results to {output_path}")
 
 
-def plot_voltage_traces(
-    results: Dict[str, Any], output_path: Union[str, Path], max_cols: int = 3
-):
+def plot_voltage_traces(results: Dict[str, Any], output_path: Union[str, Path], max_cols: int = 3):
     """Plot voltage traces for all cells in a grid of subplots and save to file.
 
     Args:
@@ -357,18 +351,14 @@ def run_bluecellulab(
         # Get time trace once for all cells
         time_ms = sim.get_time_trace()
         if time_ms is None:
-            logger.error(
-                f"Rank {rank}: Time trace is None, cannot proceed with saving."
-            )
+            logger.error(f"Rank {rank}: Time trace is None, cannot proceed with saving.")
             return
 
         time_s = time_ms / 1000.0  # Convert ms to seconds
 
         # Get voltage traces and spikes for each cell on this rank
         results_traces: Dict[str, Any] = {}
-        results_spikes: Dict[str, Dict[int, list]] = defaultdict(
-            dict
-        )  # pop → gid → spikes
+        results_spikes: Dict[str, Dict[int, list]] = defaultdict(dict)  # pop → gid → spikes
         for cell_id in cell_ids_for_this_rank:
             gid_key = f"{cell_id[0]}_{cell_id[1]}"
 
@@ -465,9 +455,7 @@ def main():
         required=True,
         help="Path to the nrnmech library",
     )
-    parser.add_argument(
-        "--save-nwb", action="store_true", help="Save results in NWB format"
-    )
+    parser.add_argument("--save-nwb", action="store_true", help="Save results in NWB format")
 
     args = parser.parse_args()
 

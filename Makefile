@@ -47,10 +47,14 @@ format-check:  ## Run formatters and check that the code is formatted correctly
 
 type-check: ## Run type checkers
 	uv run pyright app
+
 job-fn-reference-check:  ## Validate JobFn enum references
 	uv run python scripts/validate_job_fn_refs.py
 
-check-all: format-check type-check job-fn-reference-check ## Run all checkers
+test:  ## Run unit tests
+	uv run python -m unittest discover
+
+check-all: format-check type-check job-fn-reference-check test ## Run all checkers
 
 PROGRESS_FLAG := $(if $(CI),--progress=plain,)
 

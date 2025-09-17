@@ -1,3 +1,4 @@
+from uuid import UUID
 from pydantic import BaseModel
 from typing import Optional, Literal
 from datetime import datetime
@@ -12,6 +13,10 @@ class UsedModel(BaseModel):
     id: str
     type: ModelType
     name: str
+
+
+class SynaptomeConfiguration(BaseModel):
+    synapses: list[SynapseConfig]
 
 
 class SynaptomeModelResponse(BaseModel):
@@ -39,3 +44,22 @@ class MEModelResponse(BaseModel):
     brain_region: BrainRegion
     m_model: UsedModel
     e_model: UsedModel
+
+
+class MEModelCreateRequest(BaseModel):
+    name: str
+    description: str
+    emodel_id: UUID
+    morphology_id: UUID
+    species_id: UUID
+    brain_region_id: UUID
+    strain_id: UUID | None = None
+
+
+class SingleNeuronSynaptomeCreateRequest(BaseModel):
+    name: str
+    description: str
+    memodel_id: UUID
+    brain_region_id: UUID
+    seed: int
+    config: SynaptomeConfiguration

@@ -53,9 +53,7 @@ class TestSpikeTrainGeneration(unittest.TestCase):
         result = generate_pre_spiketrain(duration, delay, frequencies)
 
         # Check that the result is sorted in ascending order
-        self.assertTrue(
-            np.all(np.diff(result) >= 0), "Spike times are not in ascending order"
-        )
+        self.assertTrue(np.all(np.diff(result) >= 0), "Spike times are not in ascending order")
 
     def test_empty_frequencies(self):
         duration = 1000

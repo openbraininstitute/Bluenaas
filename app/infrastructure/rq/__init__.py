@@ -14,8 +14,7 @@ class JobQueue(StrEnum):
 
 
 _queues: Dict[JobQueue, Queue] = {
-    queue_name: Queue(queue_name.value, connection=redis_client)
-    for queue_name in JobQueue
+    queue_name: Queue(queue_name.value, connection=redis_client) for queue_name in JobQueue
 }
 
 
@@ -24,6 +23,11 @@ def queue_factory(job_queue: JobQueue) -> Callable[[], Queue]:
         return _queues[job_queue]
 
     return get_queue
+
+
+def get_queue(job_queue: JobQueue) -> Queue:
+    """Get a queue instance by name."""
+    return _queues[job_queue]
 
 
 def get_job_stream_key() -> str:
