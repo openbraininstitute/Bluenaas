@@ -13,7 +13,9 @@ from app.services.api.circuit.simulation import (
 router = APIRouter(prefix="/circuit")
 
 
-@router.post("/simulation/run", tags=["circuit", "simulation"])
+@router.post(
+    "/simulation/run", tags=["circuit", "simulation"], description="Run a circuit simulation"
+)
 async def run_circuit_simulation(
     request: Request,
     simulation_id: UUID4,
