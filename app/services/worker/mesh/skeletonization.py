@@ -1,45 +1,45 @@
 from uuid import UUID
 
-import ultraliser  # pyright: ignore[reportMissingImports]
+from entitysdk import Client, ProjectContext
 from loguru import logger
 
-from app.core.mesh.mesh import Mesh
-from app.core.mesh.skeletonization_output import SkeletonizationOutput
+from app.config.settings import settings
+from app.core.mesh.skeletonization import Skeletonization
 from app.domains.mesh.skeletonization import SkeletonizationParams
-from app.utils.safe_process import SafeProcessExecutor, SafeProcessRuntimeError
+from app.utils.safe_process import SafeProcessRuntimeError
 
 
 def run_mesh_skeletonization(
-    mesh_id: UUID,
+    em_cell_mesh_id: UUID,
     params: SkeletonizationParams,
+    *,
+    execution_id: UUID,
+    access_token: str,
+    project_context: ProjectContext,
 ) -> None:
-    mesh = Mesh(mesh_id)
-    mesh.init()
-
-    output = SkeletonizationOutput(mesh_id)
-
-    params_dict = {k: v for k, v in params.model_dump().items() if v is not None}
-
-    logger.info(f"Running skeletonization for mesh {mesh_id}")
-    logger.info(f"Parameters: {params_dict}")
-
-    executor = SafeProcessExecutor()
+    client = Client(
+        api_url=str(settings.ENTITYCORE_URI),
+        project_context=project_context,
+        token_manager=access_token,
+    )
 
     try:
-        result = executor.execute(
-            ultraliser.skeletonizeNeuronMesh,
-            mesh=str(mesh.file_path),
-            output_directory=str(output.path),
-            **params_dict,
+        skeletonization = Skeletonization(
+            em_cell_mesh_id,
+            params,
+            client=client,
+            execution_id=execution_id,
         )
 
-        logger.info(f"Process logs:\n{result.logs}")
+        skeletonization.init()
+        skeletonization.run()
+        skeletonization.output.upload()
+        skeletonization.output.cleanup()
     except SafeProcessRuntimeError as e:
         logger.error(f"Skeletonization failed: {e}")
         raise
-    finally:
-        mesh.cleanup()
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        raise
 
-    logger.info(f"Skeletonization completed for mesh {mesh_id}")
-
-    logger.info(f"Output files: {output.list_files()}")
+    logger.info(f"Skeletonization completed for mesh {em_cell_mesh_id}")
