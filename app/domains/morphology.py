@@ -79,6 +79,10 @@ class SynapseConfig(BaseModel):
     @field_validator("formula", mode="before")
     @classmethod
     def validate_formula_depends_on_distribution(cls, value, info):
+        # TODO refactor to use formula field even for soma_synapse_count
+        if "target" in info.data and info.data.get("target") == SectionTarget.soma:
+            return value
+
         if "distribution" in info.data and info.data.get("distribution") == "formula":
             if not value or not isinstance(value, str):
                 raise ValueError('Formula must be a valid string when distribution is "formula".')

@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.12.*"
 
 [[package]]
@@ -54,10 +54,11 @@ wheels = [
 
 [[package]]
 name = "bluecellulab"
-version = "2.6.68"
+version = "2.6.70"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bluepysnap" },
+    { name = "efel" },
     { name = "h5py" },
     { name = "matplotlib" },
     { name = "networkx" },
@@ -68,9 +69,9 @@ dependencies = [
     { name = "seaborn" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2f/f1/3beda3630aca8228d237d40f842c9338d28f0d35750dbbc06382c8000e70/bluecellulab-2.6.68.tar.gz", hash = "sha256:4084790d8b9d3156b0d440ffd1b97ed109c52c115d48f99e8e41e50871ccf6a1", size = 533097, upload-time = "2025-08-29T10:02:43.632Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b9/c7/bfe84f7db8522132804549d9a36352a1767626c89520d1863d8f2151e9c5/bluecellulab-2.6.70.tar.gz", hash = "sha256:2797e03e236466edb4eb004659c236dab6a46f3f421615f6ebbd533c77ada27d", size = 533086, upload-time = "2025-09-17T13:18:33.812Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d0/70/edfffdcdafc4a4ad77bec8a62aaa3f76020838fa58935a95629a2bc8abe9/bluecellulab-2.6.68-py3-none-any.whl", hash = "sha256:f46115708788035296b04fc353ca456ce1c15da27cb41d8daded65d9e0b8fc49", size = 155524, upload-time = "2025-08-29T10:02:42.379Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/54/e919c3a8972cc816c434b984f598f85de1a51da0e2089c2ece0b80f0baa3/bluecellulab-2.6.70-py3-none-any.whl", hash = "sha256:cd653e7d3024949f6a59f65d2220a68d9d67524fd41a8e2a86ae942701644d04", size = 155542, upload-time = "2025-09-17T13:18:32.389Z" },
 ]
 
 [[package]]
@@ -137,8 +138,8 @@ dev = [
 ]
 types = [{ name = "types-requests", specifier = "==2.32.4.20250611" }]
 worker = [
-    { name = "bluecellulab", specifier = "==2.6.68" },
-    { name = "efel", specifier = "==5.7.18" },
+    { name = "bluecellulab", specifier = "==2.6.70" },
+    { name = "efel", specifier = "==5.7.19" },
     { name = "filelock", specifier = "==3.18.0" },
     { name = "pynwb", specifier = "==3.1.0" },
     { name = "requests", specifier = "==2.32.4" },
@@ -389,7 +390,7 @@ wheels = [
 
 [[package]]
 name = "efel"
-version = "5.7.18"
+version = "5.7.19"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "neo" },
@@ -398,11 +399,11 @@ dependencies = [
     { name = "scipy" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/09/8f/cb7bb95abb7b212afb48c8ae9b6816799afbf81953ff3633be8c4d477cc3/efel-5.7.18.tar.gz", hash = "sha256:9a87205f549d13faafc752c11ab523f3e5178b02cb0af0aad44b6e586c67f101", size = 109049, upload-time = "2025-07-09T09:10:45.387Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b0/fe/98ffbbe31cfb884e7187979b4baedc6620e86e72be0190213aaa39775947/efel-5.7.19.tar.gz", hash = "sha256:181f344c4182935205faeced94bd1d153f9454d95d46d1d8a60b779ecc0b182f", size = 109040, upload-time = "2025-07-30T08:16:58.089Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/35/28/98fc6c3edfbd6f7e23a8eea44d55d9e1472bb6a5aea01c4b943761b78b2c/efel-5.7.18-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:d5ec6e35a0200ed6a7b482ab5ad915b22e5ad6a5391c3baa5cc8634caa8fdf78", size = 260142, upload-time = "2025-07-09T09:10:37.163Z" },
-    { url = "https://files.pythonhosted.org/packages/46/f7/25a7995b4585e1871797bbd487e7b4c16af7f71cdfcff3987296c6c72849/efel-5.7.18-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:de9005104cde72d28275e80399425d2f7bac315376d1bc39e746582dbdebd771", size = 3018679, upload-time = "2025-07-09T09:10:38.881Z" },
-    { url = "https://files.pythonhosted.org/packages/f0/5d/66565d129cbb72da44a0ddc63338bcb87d288decb8aaf602a1af999e5ada/efel-5.7.18-cp312-cp312-win_amd64.whl", hash = "sha256:b4626d7ac596813ac9535f727fdb117cb0cd25be90ea0c5fc5131f1e1effd6c4", size = 237432, upload-time = "2025-07-09T09:10:40.254Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/e9/485a81047dda7cd41b4a51f23465e080e8088044670371e6fc68d82b0bd3/efel-5.7.19-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:ed51dde3492f9445fa9e2db4b6363475ffd43140fb05a3c4512ddfc9bd18d78e", size = 260195, upload-time = "2025-07-30T08:16:48.26Z" },
+    { url = "https://files.pythonhosted.org/packages/19/fe/99f4ee719e1f6a99d18c4ec60b31921e5f8e6167278c457f52d211c44556/efel-5.7.19-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7937a11b04c69f6fa217ed4a10842bdb050accb09bfd2c42a202c8036b8c7658", size = 3018731, upload-time = "2025-07-30T08:16:49.678Z" },
+    { url = "https://files.pythonhosted.org/packages/39/f8/9a13ced1b5ba6e591f1fb1e793917bd86f56f889b9ba7cadaab7b3fb37b8/efel-5.7.19-cp312-cp312-win_amd64.whl", hash = "sha256:ef0e3ac535911809e799eb271a625eb8d82584334981cd27cc2cf60230125dbd", size = 237668, upload-time = "2025-07-30T08:16:51.121Z" },
 ]
 
 [[package]]
