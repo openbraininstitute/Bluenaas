@@ -300,14 +300,16 @@ def is_current_varying_simulation(config: SingleNeuronSimulationConfig) -> bool:
 
 def queue_record_to_stream_record(record: dict, is_current_varying: bool) -> dict:
     return {
-        "x": record["time"],
-        "y": record["voltage"],
+        "x": record["time_data"],
+        "y": record["values_data"],
         "type": "scatter",
         "name": record["label"],
         "recording": record["recording_name"],
         "amplitude": record["amplitude"],
         "frequency": record.get("frequency"),
         "varying_key": record["amplitude"] if is_current_varying is True else record["frequency"],
+        "variable_name": record["variable_name"],
+        "unit": record["unit"],
     }
 
 
