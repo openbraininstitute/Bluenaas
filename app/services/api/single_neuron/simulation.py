@@ -54,7 +54,7 @@ async def run_simulation(
             user_id=auth.decoded_token.sub,
             count=config.n_execs,
         ):
-            _job, stream = await dispatch(
+            job, stream = await dispatch(
                 job_queue,
                 JobFn.RUN_SINGLE_NEURON_SIMULATION,
                 job_args=(model_id, config),
@@ -70,7 +70,7 @@ async def run_simulation(
                     http_stream, media_type="application/x-ndjson", status_code=HTTPStatus.ACCEPTED
                 )
             else:
-                return JSONResponse({"id": _job.id}, status_code=HTTPStatus.ACCEPTED)
+                return JSONResponse({"id": job.id}, status_code=HTTPStatus.ACCEPTED)
 
     except InsufficientFundsError as ex:
         logger.exception(f"Insufficient funds: {ex}")

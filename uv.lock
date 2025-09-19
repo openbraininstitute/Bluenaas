@@ -114,7 +114,7 @@ worker = [
 
 [package.metadata]
 requires-dist = [
-    { name = "entitysdk", specifier = "==0.7.9" },
+    { name = "entitysdk", specifier = "==0.7.10" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "pandas", specifier = "==2.3.0" },
     { name = "pydantic", specifier = "==2.11.7" },
@@ -421,14 +421,14 @@ wheels = [
 
 [[package]]
 name = "entitysdk"
-version = "0.7.9"
+version = "0.7.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d0/82/783a8818277c873c1452e34a565866466166bb4d9deee1cf2424e43c657a/entitysdk-0.7.9.tar.gz", hash = "sha256:c505e64462538bf108a38032aed3b1eeb00dce40c545a7c968a9fd1c725bfe8e", size = 1396557, upload-time = "2025-09-04T07:58:10.696Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/26/fda06db55a29c3c42ab3a92fa61472d1282f69625f8680bccecbf4fa32e8/entitysdk-0.7.10.tar.gz", hash = "sha256:c462b5032f4cde440725038c028524ee1361715e26ee1fcdbd59aec386713480", size = 1405733, upload-time = "2025-09-16T12:11:22.172Z" }
 
 [[package]]
 name = "fastapi"
