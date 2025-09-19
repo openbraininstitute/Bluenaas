@@ -35,7 +35,7 @@ jobs:
         with:
           repository: openbraininstitute/Ultraliser
           token: ${{ secrets.ULTRALIZER_REPO_PAT }}
-          path: build/Ultraliser
+          path: ext-deps/Ultraliser
           ref: release-v.2.0
 
       - name: Configure AWS credentials

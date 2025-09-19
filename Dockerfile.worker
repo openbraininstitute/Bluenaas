@@ -51,7 +51,7 @@ fi
 uv pip install --force-reinstall https://files.pythonhosted.org/packages/71/30/5498b6838cfac205f836bcb4dd906a9495f7ea46bd844ca8bd56ea46bf63/libsonata-0.1.29-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 EOT
 
-COPY build/Ultraliser/ /app/ultraliser
+COPY ext-deps/Ultraliser/ /app/ultraliser
 RUN ls /app/ultraliser
 WORKDIR /app/ultraliser
 RUN cmake \
