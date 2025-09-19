@@ -1,10 +1,11 @@
 from http import HTTPStatus
+from typing import cast
 from uuid import UUID, uuid4
 
 from entitysdk import Client
 from entitysdk.common import ProjectContext
 from entitysdk.models import EMCellMesh
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from loguru import logger
 from rq import Queue
 
@@ -30,7 +31,7 @@ async def run_mesh_skeletonization(
         token_manager=auth.access_token,
     )
 
-    em_cell_mesh = await run_async(
+    await run_async(
         lambda: client.get_entity(
             em_cell_mesh_id,
             entity_type=EMCellMesh,
@@ -64,12 +65,11 @@ async def get_mesh_skeletonization_status(
         return JSONResponse({"error": "Job not found"}, status_code=HTTPStatus.NOT_FOUND)
 
     status = job.get_status()
-    output = SkeletonizationOutput(job_id)
 
     res = {
         "id": job.id,
         "status": status,
         "queue_position": job.get_position(),
-        "output": None if status != "finished" else output.list_files(),
+        "output": job.latest_result(),
     }
     return JSONResponse(res, status_code=HTTPStatus.OK)

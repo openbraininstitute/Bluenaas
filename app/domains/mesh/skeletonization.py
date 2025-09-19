@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+from entitysdk.models import ReconstructionMorphology
+
 
 class SkeletonizationParams(BaseModel):
     # mesh: str | None = Field(
@@ -244,3 +246,7 @@ class SkeletonizationParams(BaseModel):
     #     False,
     #     description="Use acceleration data structures to improve the performance of the skeletonization operation. Note that this option requires more memory.",
     # )
+
+
+class SkeletonizationJobOutput(BaseModel):
+    reconstruction_morphology: ReconstructionMorphology
