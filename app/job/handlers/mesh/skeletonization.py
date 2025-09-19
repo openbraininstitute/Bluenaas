@@ -2,7 +2,7 @@ from uuid import UUID
 
 from entitysdk import ProjectContext
 
-from app.domains.mesh.skeletonization import SkeletonizationParams
+from app.domains.mesh.skeletonization import SkeletonizationParams, SkeletonizationJobOutput
 from app.services.worker.mesh.skeletonization import run_mesh_skeletonization
 
 
@@ -13,8 +13,8 @@ def run(
     access_token: str,
     execution_id: UUID,
     project_context: ProjectContext,
-) -> None:
-    run_mesh_skeletonization(
+) -> SkeletonizationJobOutput:
+    return run_mesh_skeletonization(
         em_cell_mesh_id,
         params,
         access_token=access_token,

@@ -42,3 +42,6 @@ venv/
 # Tmp files
 tmp/
 .tmp/
+
+# Test files
+tests/
