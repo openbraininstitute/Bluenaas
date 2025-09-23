@@ -35,10 +35,6 @@ jobs:
           mkdir -p ext-deps/ultraliser
           cd ext-deps/ultraliser
 
-          curl -H "Authorization: token ${{ secrets.ULTRALIZER_REPO_PAT }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/openbraininstitute/Ultraliser/releases/latest
-
           # Get release assets from GitHub API (latest release)
           assets=$(curl -H "Authorization: token ${{ secrets.ULTRALIZER_REPO_PAT }}" \
             -H "Accept: application/vnd.github.v3+json" \
@@ -52,6 +48,8 @@ jobs:
               -o "$(basename "$asset_url")" \
               "$asset_url"
           done
+
+          ls -la .
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
