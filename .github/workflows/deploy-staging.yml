@@ -44,7 +44,7 @@ jobs:
           # Download each wheel file
           for asset_url in $assets; do
             echo "Downloading $asset_url"
-            curl -v -LO -H "Authorization: Bearer ${{ secrets.ULTRALIZER_REPO_PAT }}" \
+            curl -v -L -H "Authorization: Bearer ${{ secrets.ULTRALIZER_REPO_PAT }}" \
               -H "Accept: application/octet-stream" \
               "$asset_url"
           done
