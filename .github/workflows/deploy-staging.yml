@@ -35,6 +35,10 @@ jobs:
           mkdir -p ext-deps/ultraliser
           cd ext-deps/ultraliser
 
+          curl -H "Authorization: token ${{ secrets.ULTRALIZER_REPO_PAT }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/openbraininstitute/Ultraliser/releases 
+
           # Get release assets from GitHub API (v2.0.0-rc.1 release)
           assets=$(curl -H "Authorization: token ${{ secrets.ULTRALIZER_REPO_PAT }}" \
             -H "Accept: application/vnd.github.v3+json" \
