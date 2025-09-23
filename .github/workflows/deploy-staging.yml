@@ -30,13 +30,24 @@ jobs:
       # - name: Set up Docker Buildx
       #   uses: docker/setup-buildx-action@v3
 
-      - name: Checkout Ultraliser repo
-        uses: actions/checkout@v4
-        with:
-          repository: openbraininstitute/Ultraliser
-          token: ${{ secrets.ULTRALIZER_REPO_PAT }}
-          path: ext-deps/Ultraliser
-          ref: release-v.2.0
+      - name: Download Ultraliser wheels
+        run: |
+          mkdir -p ext-deps/ultraliser
+          cd ext-deps/ultraliser
+
+          # Get release assets from GitHub API (v2.0.0-rc.1 release)
+          assets=$(curl -H "Authorization: token ${{ secrets.ULTRALIZER_REPO_PAT }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/openbraininstitute/Ultraliser/releases/v2.0.0-rc.1 \
+            | jq -r '.assets[] | select(.name | endswith(".whl")) | .browser_download_url')
+
+          # Download each wheel file
+          for asset_url in $assets; do
+            curl -L -H "Authorization: token ${{ secrets.ULTRALIZER_REPO_PAT }}" \
+              -H "Accept: application/octet-stream" \
+              -o "$(basename "$asset_url")" \
+              "$asset_url"
+          done
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

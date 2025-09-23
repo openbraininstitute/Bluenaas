@@ -23,6 +23,8 @@ ENV UV_LINK_MODE=copy \
 
 WORKDIR /app
 
+COPY ext-deps /app/ext-deps
+
 ARG ENVIRONMENT
 RUN --mount=type=cache,target=/root/.cache/uv \
   --mount=type=bind,source=uv.lock,target=uv.lock \
