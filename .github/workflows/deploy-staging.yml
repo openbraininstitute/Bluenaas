@@ -43,7 +43,7 @@ jobs:
           assets=$(curl -H "Authorization: token ${{ secrets.ULTRALIZER_REPO_PAT }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/openbraininstitute/Ultraliser/releases/latest \
-            | jq -r '.[].assets[] | select(.name | endswith(".whl")) | .browser_download_url')
+            | jq -r '.assets[] | select(.name | endswith(".whl")) | .browser_download_url')
 
           # Download each wheel file
           for asset_url in $assets; do
