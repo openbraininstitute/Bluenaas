@@ -24,29 +24,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # - name: Set up QEMU for ARM emulation
-      #   uses: docker/setup-qemu-action@v3
-
-      # - name: Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v3
-
       - name: Download Ultraliser wheels
-        run: |
-          mkdir -p ext-deps/ultraliser
-          cd ext-deps/ultraliser
-
-          # Get release assets from GitHub API (latest release) with both ID and name
-          curl -H "Authorization: Bearer ${{ secrets.ULTRALIZER_REPO_PAT }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/openbraininstitute/Ultraliser/releases/latest \
-            | jq -r '.assets[] | select(.name | endswith(".whl")) | "\(.id) \(.name)"' | \
-          while read asset_id asset_name; do
-            echo "Downloading $asset_name (ID: $asset_id)"
-            curl -L -H "Authorization: Bearer ${{ secrets.ULTRALIZER_REPO_PAT }}" \
-              -H "Accept: application/octet-stream" \
-              -o "$asset_name" \
-              "https://api.github.com/repos/openbraininstitute/Ultraliser/releases/assets/$asset_id"
-          done
+        uses: robinraju/release-downloader@v1.11
+        with:
+          repository: "openbraininstitute/Ultraliser"
+          tag: "v2.0.0-rc.1"
+          fileName: "*.whl"
+          out-file-path: "ext-deps/ultraliser"
+          token: ${{ secrets.ULTRALIZER_REPO_PAT }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -62,24 +47,6 @@ jobs:
 
       - name: Build and publish the Docker images to AWS ECR
         run: make publish
-
-      # - name: Build and push ARM64 api image
-      #   uses: docker/build-push-action@v5
-      #   with:
-      #     context: .
-      #     file: Dockerfile.api
-      #     platforms: linux/arm64
-      #     push: true
-      #     tags: ${{ vars.PUBLICECR_URI }}:api-staging
-
-      # - name: Build and push AMD64 worker image
-      #   uses: docker/build-push-action@v5
-      #   with:
-      #     context: .
-      #     file: Dockerfile.worker
-      #     platforms: linux/amd64
-      #     push: true
-      #     tags: ${{ vars.PUBLICECR_URI }}:worker-staging
 
       # - name: Authenticate with AWS ECS
       #   uses: aws-actions/configure-aws-credentials@v4
