@@ -2,22 +2,32 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 from loguru import logger
+from pydantic import BaseModel
 
 from entitysdk.client import Client
-from entitysdk.models import ReconstructionMorphology
+from entitysdk.models import ReconstructionMorphology, Species, BrainRegion
 from entitysdk.models.asset import ContentType, AssetLabel
 
 from app.infrastructure.storage import ensure_dir, get_mesh_skeletonization_output_location, rm_dir
+
+
+class Metadata(BaseModel):
+    name: str
+    description: str
+    species: Species
+    brain_region: BrainRegion
 
 
 class SkeletonizationOutput:
     output_id: UUID
     path: Path
     client: Client
+    metadata: Metadata
 
-    def __init__(self, output_id: UUID, client: Client) -> None:
+    def __init__(self, output_id: UUID, client: Client, metadata: Metadata) -> None:
         self.output_id = output_id
         self.client = client
+        self.metadata = metadata
         self.path = get_mesh_skeletonization_output_location(self.output_id)
 
     def init(self) -> None:
@@ -33,10 +43,10 @@ class SkeletonizationOutput:
             ReconstructionMorphology,
             self.client.register_entity(
                 ReconstructionMorphology(
-                    name="test",
-                    description="test",
-                    # subject
-                    brain_region=None,
+                    name=self.metadata.name,
+                    description=self.metadata.description,
+                    species=self.metadata.species,
+                    brain_region=self.metadata.brain_region,
                 )
             ),
         )
@@ -51,7 +61,7 @@ class SkeletonizationOutput:
             asset_label=AssetLabel.morphology,
         )
 
-        return morphology
+        return self.client.get_entity(morphology.id, entity_type=ReconstructionMorphology)
 
     def cleanup(self) -> None:
         """Cleanup the mesh"""

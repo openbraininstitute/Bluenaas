@@ -4,7 +4,10 @@ from entitysdk import Client
 from loguru import logger
 
 from app.core.mesh.em_cell_mesh import EMCellMesh
-from app.core.mesh.skeletonization_output import SkeletonizationOutput
+from app.core.mesh.skeletonization_output import (
+    SkeletonizationOutput,
+    Metadata as SkeletonizationOutputMetadata,
+)
 from app.domains.mesh.skeletonization import SkeletonizationParams
 from app.utils.safe_process import SafeProcessExecutor
 
@@ -29,7 +32,20 @@ class Skeletonization:
         self.execution_id = execution_id or uuid4()
 
         self.mesh = EMCellMesh(em_cell_mesh_id, client)
-        self.output = SkeletonizationOutput(self.execution_id, client)
+
+        assert self.mesh.metadata.subject
+        assert self.mesh.metadata.brain_region
+
+        self.output = SkeletonizationOutput(
+            self.execution_id,
+            client,
+            metadata=SkeletonizationOutputMetadata(
+                name="NA",
+                description="NA",
+                species=self.mesh.metadata.subject.species,
+                brain_region=self.mesh.metadata.brain_region,
+            ),
+        )
 
     def init(self):
         self.mesh.init()
