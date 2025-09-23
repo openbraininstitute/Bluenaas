@@ -37,12 +37,12 @@ jobs:
 
           curl -H "Authorization: token ${{ secrets.ULTRALIZER_REPO_PAT }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/openbraininstitute/Ultraliser/releases/v2.0.0-rc.1
+            https://api.github.com/repos/openbraininstitute/Ultraliser/releases/latest
 
-          # Get release assets from GitHub API (v2.0.0-rc.1 release)
+          # Get release assets from GitHub API (latest release)
           assets=$(curl -H "Authorization: token ${{ secrets.ULTRALIZER_REPO_PAT }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/openbraininstitute/Ultraliser/releases/v2.0.0-rc.1 \
+            https://api.github.com/repos/openbraininstitute/Ultraliser/releases/latest \
             | jq -r '.[].assets[] | select(.name | endswith(".whl")) | .browser_download_url')
 
           # Download each wheel file
