@@ -59,7 +59,7 @@ def _format_date(date: datetime | None) -> str | None:
 
 
 async def get_mesh_skeletonization_status(
-    job_id: UUID, *, job_queue: Queue, _project_context: ProjectContext
+    job_id: UUID, *, job_queue: Queue, project_context: ProjectContext
 ):
     job = await run_async(lambda: job_queue.fetch_job(str(job_id)))
 
