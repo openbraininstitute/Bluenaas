@@ -290,7 +290,7 @@ worker = [
     { name = "filelock", specifier = "==3.18.0" },
     { name = "pynwb", specifier = "==3.1.0" },
     { name = "requests", specifier = "==2.32.4" },
-    { name = "ultraliser", path = "ext-deps/ultraliser/ultraliser-2.0.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
+    { name = "ultraliser", path = "ext-deps/ultraliser/ultraliser-2.0.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
 ]
 
 [[package]]
@@ -2660,8 +2660,8 @@ wheels = [
 
 [[package]]
 name = "ultraliser"
-version = "2.0.0"
-source = { path = "ext-deps/ultraliser/ultraliser-2.0.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" }
+version = "2.0.1"
+source = { path = "ext-deps/ultraliser/ultraliser-2.0.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" }
 dependencies = [
     { name = "matplotlib" },
     { name = "morphio" },
@@ -2671,7 +2671,7 @@ dependencies = [
     { name = "trame" },
 ]
 wheels = [
-    { filename = "ultraliser-2.0.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:6d5a05854f85b6da336e8f2b2161139e7f3bf2afae3aab43376ccb4ef8aa044c" },
+    { filename = "ultraliser-2.0.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e3a1c4cf0ce7cd131f3e6d19c0da802443c021e0ae304ae4b4ffc040c500347e" },
 ]
 
 [package.metadata]
