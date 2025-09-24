@@ -2671,7 +2671,7 @@ dependencies = [
     { name = "trame" },
 ]
 wheels = [
-    { filename = "ultraliser-2.0.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e3a1c4cf0ce7cd131f3e6d19c0da802443c021e0ae304ae4b4ffc040c500347e" },
+    { filename = "ultraliser-2.0.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:299730dd9311c42c3b177b3ddd52be92130d635f76b6d29ecd302f6c9db99e5b" },
 ]
 
 [package.metadata]
