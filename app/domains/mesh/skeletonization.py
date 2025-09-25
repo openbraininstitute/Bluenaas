@@ -8,6 +8,10 @@ class SkeletonizationParams(BaseModel):
     #     None,
     #     description="The absolute path to the input mesh. Supported mesh types: .OBJ, .PLY, .STL, .OFF, .H5. The .H5 meshes are specified by the MICrONS Explorer.",
     # )
+    threads: int | None = Field(
+        None,
+        description="The number of threads to use for the skeletonization process. If not specified, the number of threads will be determined automatically.",
+    )
     export_swc_morphology: bool | None = Field(
         None, description="Exports the neuronal morphology to .SWC file."
     )
