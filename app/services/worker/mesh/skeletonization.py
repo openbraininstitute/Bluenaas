@@ -5,13 +5,18 @@ from loguru import logger
 
 from app.config.settings import settings
 from app.core.mesh.skeletonization import Skeletonization
-from app.domains.mesh.skeletonization import SkeletonizationJobOutput, SkeletonizationParams
+from app.domains.mesh.skeletonization import (
+    SkeletonizationInputParams,
+    SkeletonizationJobOutput,
+    SkeletonizationUltraliserParams,
+)
 from app.utils.safe_process import SafeProcessRuntimeError
 
 
 def run_mesh_skeletonization(
     em_cell_mesh_id: UUID,
-    params: SkeletonizationParams,
+    input_params: SkeletonizationInputParams,
+    ultraliser_params: SkeletonizationUltraliserParams,
     *,
     execution_id: UUID,
     access_token: str,
@@ -25,7 +30,8 @@ def run_mesh_skeletonization(
 
     skeletonization = Skeletonization(
         em_cell_mesh_id,
-        params,
+        input_params,
+        ultraliser_params,
         client=client,
         execution_id=execution_id,
     )

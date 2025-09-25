@@ -1,13 +1,21 @@
 from pathlib import Path
 from typing import cast
 from uuid import UUID
+
+from entitysdk.client import Client
+from entitysdk.models import (
+    BrainRegion,
+    Contribution,
+    License,
+    ReconstructionMorphology,
+    Role,
+    Species,
+)
+from entitysdk.models.asset import AssetLabel, ContentType
 from loguru import logger
 from pydantic import BaseModel
 
-from entitysdk.client import Client
-from entitysdk.models import ReconstructionMorphology, Species, BrainRegion
-from entitysdk.models.asset import ContentType, AssetLabel
-
+from app.constants import SKELETONIZATION_OUTPUT_LICENSE_LABEL, SKELETONIZATION_OUTPUT_ROLE_NAME
 from app.infrastructure.storage import ensure_dir, get_mesh_skeletonization_output_location, rm_dir
 
 
@@ -39,6 +47,21 @@ class SkeletonizationOutput:
         if not morph_path:
             raise FileNotFoundError(f"No SWC file found in Ultraliser output location {self.path}")
 
+        # TODO: Add query by label when supported in entitycore
+        licenses = cast(list[License], self.client.search_entity(entity_type=License))
+        license = next(
+            filter(lambda license: license.label == SKELETONIZATION_OUTPUT_LICENSE_LABEL, licenses),
+            None,
+        )
+        if not license:
+            raise ValueError(f"License {SKELETONIZATION_OUTPUT_LICENSE_LABEL} not found")
+
+        # TODO: Add query by name when supported in entitycore
+        roles = cast(list[Role], self.client.search_entity(entity_type=Role))
+        role = next(filter(lambda role: role.name == SKELETONIZATION_OUTPUT_ROLE_NAME, roles), None)
+        if not role:
+            raise ValueError(f"Role {SKELETONIZATION_OUTPUT_ROLE_NAME} not found")
+
         morphology = cast(
             ReconstructionMorphology,
             self.client.register_entity(
@@ -47,11 +70,21 @@ class SkeletonizationOutput:
                     description=self.metadata.description,
                     species=self.metadata.species,
                     brain_region=self.metadata.brain_region,
+                    license=license,
                 )
             ),
         )
 
         assert morphology.id
+        assert morphology.created_by
+
+        self.client.register_entity(
+            Contribution(
+                entity=morphology,
+                role=role,
+                agent=morphology.created_by,
+            )
+        )
 
         self.client.upload_file(
             entity_id=morphology.id,

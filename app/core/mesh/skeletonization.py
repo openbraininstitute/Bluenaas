@@ -4,31 +4,35 @@ from entitysdk import Client
 from loguru import logger
 
 from app.core.mesh.em_cell_mesh import EMCellMesh
-from app.core.mesh.skeletonization_output import (
-    SkeletonizationOutput,
-    Metadata as SkeletonizationOutputMetadata,
+from app.core.mesh.skeletonization_output import Metadata as SkeletonizationOutputMetadata
+from app.core.mesh.skeletonization_output import SkeletonizationOutput
+from app.domains.mesh.skeletonization import (
+    SkeletonizationInputParams,
+    SkeletonizationUltraliserParams,
 )
-from app.domains.mesh.skeletonization import SkeletonizationParams
 from app.utils.safe_process import SafeProcessExecutor
 
 
 class Skeletonization:
+    execution_id: UUID
+    initialized: bool = False
+    input_params: SkeletonizationInputParams
     mesh: EMCellMesh
     output: SkeletonizationOutput
-    initialized: bool = False
-    execution_id: UUID
-    params: SkeletonizationParams
+    ultraliser_params: SkeletonizationUltraliserParams
 
     def __init__(
         self,
         em_cell_mesh_id: UUID,
-        params: SkeletonizationParams,
+        input_params: SkeletonizationInputParams,
+        ultraliser_params: SkeletonizationUltraliserParams,
         *,
         client: Client,
         execution_id: UUID | None = None,
     ):
         self.em_cell_mesh_id = em_cell_mesh_id
-        self.params = params
+        self.input_params = input_params
+        self.ultraliser_params = ultraliser_params
         self.execution_id = execution_id or uuid4()
 
         self.mesh = EMCellMesh(em_cell_mesh_id, client)
@@ -40,8 +44,8 @@ class Skeletonization:
             self.execution_id,
             client,
             metadata=SkeletonizationOutputMetadata(
-                name="NA",
-                description="NA",
+                name=input_params.name,
+                description=input_params.description,
                 species=self.mesh.metadata.subject.species,
                 brain_region=self.mesh.metadata.brain_region,
             ),
@@ -54,7 +58,9 @@ class Skeletonization:
     def run(self):
         import ultraliser  # pyright: ignore[reportMissingImports]
 
-        params_dict = {k: v for k, v in self.params.model_dump().items() if v is not None}
+        params_dict = {
+            k: v for k, v in self.ultraliser_params.model_dump(exclude_none=True).items()
+        }
 
         logger.info(f"Running skeletonization for mesh {self.mesh.mesh_id}")
         logger.info(f"Parameters: {params_dict}")

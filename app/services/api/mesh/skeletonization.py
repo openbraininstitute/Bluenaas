@@ -9,7 +9,10 @@ from rq import Queue
 from datetime import datetime
 
 from app.config.settings import settings
-from app.domains.mesh.skeletonization import SkeletonizationParams
+from app.domains.mesh.skeletonization import (
+    SkeletonizationInputParams,
+    SkeletonizationUltraliserParams,
+)
 from app.job import JobFn
 from app.utils.rq_job import dispatch, run_async
 from app.infrastructure.kc.auth import Auth
@@ -17,7 +20,8 @@ from app.infrastructure.kc.auth import Auth
 
 async def run_mesh_skeletonization(
     em_cell_mesh_id: UUID,
-    params: SkeletonizationParams,
+    input_params: SkeletonizationInputParams,
+    ultraliser_params: SkeletonizationUltraliserParams,
     *,
     auth: Auth,
     job_queue: Queue,
@@ -43,7 +47,7 @@ async def run_mesh_skeletonization(
         JobFn.RUN_MESH_SKELETONIZATION,
         timeout=60 * 60 * 3,  # 3 hours
         result_ttl=60 * 60 * 24 * 30,  # 30 days
-        job_args=(em_cell_mesh_id, params),
+        job_args=(em_cell_mesh_id, input_params, ultraliser_params),
         job_kwargs={
             "access_token": auth.access_token,
             "project_context": project_context,

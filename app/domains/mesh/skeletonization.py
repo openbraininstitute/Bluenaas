@@ -3,11 +3,12 @@ from pydantic import BaseModel, Field
 from entitysdk.models import ReconstructionMorphology
 
 
-class SkeletonizationParams(BaseModel):
-    # mesh: str | None = Field(
-    #     None,
-    #     description="The absolute path to the input mesh. Supported mesh types: .OBJ, .PLY, .STL, .OFF, .H5. The .H5 meshes are specified by the MICrONS Explorer.",
-    # )
+class SkeletonizationInputParams(BaseModel):
+    name: str = Field(..., description="The name of the reconstructed morphology.")
+    description: str = Field(..., description="A description of the reconstructed morphology.")
+
+
+class SkeletonizationUltraliserParams(BaseModel):
     export_swc_morphology: bool | None = Field(
         None, description="Exports the neuronal morphology to .SWC file."
     )
@@ -242,10 +243,10 @@ class SkeletonizationParams(BaseModel):
     # skeletonization_stats: bool = Field(
     #     False, description="Write the statistics of the skeletonization process."
     # )
-    # use_acceleration: bool = Field(
-    #     False,
-    #     description="Use acceleration data structures to improve the performance of the skeletonization operation. Note that this option requires more memory.",
-    # )
+    use_acceleration: bool = Field(
+        False,
+        description="Use acceleration data structures to improve the performance of the skeletonization operation. Note that this option requires more memory.",
+    )
 
 
 class SkeletonizationJobOutput(BaseModel):
