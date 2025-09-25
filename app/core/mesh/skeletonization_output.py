@@ -3,14 +3,7 @@ from typing import cast
 from uuid import UUID
 
 from entitysdk.client import Client
-from entitysdk.models import (
-    BrainRegion,
-    Contribution,
-    License,
-    ReconstructionMorphology,
-    Role,
-    Species,
-)
+from entitysdk.models import BrainRegion, CellMorphology, Contribution, License, Role
 from entitysdk.models.asset import AssetLabel, ContentType
 from loguru import logger
 from pydantic import BaseModel
@@ -22,7 +15,6 @@ from app.infrastructure.storage import ensure_dir, get_mesh_skeletonization_outp
 class Metadata(BaseModel):
     name: str
     description: str
-    species: Species
     brain_region: BrainRegion
 
 
@@ -41,7 +33,7 @@ class SkeletonizationOutput:
     def init(self) -> None:
         ensure_dir(self.path)
 
-    def upload(self) -> ReconstructionMorphology:
+    def upload(self) -> CellMorphology:
         morph_path = next(self.path.rglob("*.swc"), None)
 
         if not morph_path:
@@ -63,12 +55,11 @@ class SkeletonizationOutput:
             raise ValueError(f"Role {SKELETONIZATION_OUTPUT_ROLE_NAME} not found")
 
         morphology = cast(
-            ReconstructionMorphology,
+            CellMorphology,
             self.client.register_entity(
-                ReconstructionMorphology(
+                CellMorphology(
                     name=self.metadata.name,
                     description=self.metadata.description,
-                    species=self.metadata.species,
                     brain_region=self.metadata.brain_region,
                     license=license,
                 )
@@ -88,13 +79,13 @@ class SkeletonizationOutput:
 
         self.client.upload_file(
             entity_id=morphology.id,
-            entity_type=ReconstructionMorphology,
+            entity_type=CellMorphology,
             file_path=morph_path,
             file_content_type=ContentType.application_swc,
             asset_label=AssetLabel.morphology,
         )
 
-        return self.client.get_entity(morphology.id, entity_type=ReconstructionMorphology)
+        return self.client.get_entity(morphology.id, entity_type=CellMorphology)
 
     def cleanup(self) -> None:
         """Cleanup the mesh"""

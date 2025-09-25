@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from entitysdk.models import ReconstructionMorphology
+from entitysdk.models import CellMorphology
 
 
 class SkeletonizationInputParams(BaseModel):
@@ -250,4 +250,4 @@ class SkeletonizationUltraliserParams(BaseModel, extra="forbid"):
 
 
 class SkeletonizationJobOutput(BaseModel):
-    reconstruction_morphology: ReconstructionMorphology
+    morphology: CellMorphology
