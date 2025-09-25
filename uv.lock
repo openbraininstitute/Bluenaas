@@ -261,7 +261,7 @@ worker = [
 
 [package.metadata]
 requires-dist = [
-    { name = "entitysdk", specifier = "==0.7.10" },
+    { name = "entitysdk", specifier = "==0.8.0" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "pandas", specifier = "==2.3.0" },
     { name = "pydantic", specifier = "==2.11.7" },
@@ -596,14 +596,14 @@ wheels = [
 
 [[package]]
 name = "entitysdk"
-version = "0.7.10"
+version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/85/26/fda06db55a29c3c42ab3a92fa61472d1282f69625f8680bccecbf4fa32e8/entitysdk-0.7.10.tar.gz", hash = "sha256:c462b5032f4cde440725038c028524ee1361715e26ee1fcdbd59aec386713480", size = 1405733, upload-time = "2025-09-16T12:11:22.172Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/25/11/fa8c10c34aa3ad06df747ecf71dcc1e8e066e1491eeb576e80dd724370ea/entitysdk-0.8.0.tar.gz", hash = "sha256:e02c8e2de364d96aae0f5f420f5b907f391055d8515a914bc10c49f9e59dbf2d", size = 1411264, upload-time = "2025-09-25T12:49:23.768Z" }
 
 [[package]]
 name = "executing"
@@ -2536,14 +2536,14 @@ wheels = [
 
 [[package]]
 name = "trame-client"
-version = "3.10.2"
+version = "3.10.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "trame-common" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3c/67/fe75a58c2e39c6d1f04dd7eb3289f4c21a7463eb150db4d651edc4c91967/trame_client-3.10.2.tar.gz", hash = "sha256:66c7d034e1263168a0d0da73636a15d0db76ed4163672c134dc609bee145fc90", size = 240442, upload-time = "2025-09-11T19:18:18.867Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c9/2c/730d0ca55489a0cbbc0ff234ec1eae5b5670e04c8d6e7fedab733d634fae/trame_client-3.10.4.tar.gz", hash = "sha256:a633ce2eca04ae04c5094fc09634132bb83cfe88c262b2cf0752c6d4d4b775fa", size = 240546, upload-time = "2025-09-23T20:06:33.393Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/a8/01854c57c7f59bd0fb40d6a4c2849e81b952442899460f27634ec71c5bdb/trame_client-3.10.2-py3-none-any.whl", hash = "sha256:93ab9d087a9b4259478676fbb8ff264141e5df382c8fd228ea5fc93ff5d8d5ed", size = 244806, upload-time = "2025-09-11T19:18:16.997Z" },
+    { url = "https://files.pythonhosted.org/packages/15/f1/4ead2b1efd42117ea38338862c322e825e1ebe53361d5cbfd5c658e8d1dc/trame_client-3.10.4-py3-none-any.whl", hash = "sha256:362d5c718615164906e7a49bd89594826d5da207034d3455378acc9b061293cc", size = 244709, upload-time = "2025-09-23T20:06:31.846Z" },
 ]
 
 [[package]]
