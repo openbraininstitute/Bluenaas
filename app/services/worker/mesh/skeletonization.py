@@ -23,24 +23,25 @@ def run_mesh_skeletonization(
         token_manager=access_token,
     )
 
-    try:
-        skeletonization = Skeletonization(
-            em_cell_mesh_id,
-            params,
-            client=client,
-            execution_id=execution_id,
-        )
+    skeletonization = Skeletonization(
+        em_cell_mesh_id,
+        params,
+        client=client,
+        execution_id=execution_id,
+    )
 
+    try:
         skeletonization.init()
         skeletonization.run()
         morphology = skeletonization.output.upload()
-        skeletonization.output.cleanup()
     except SafeProcessRuntimeError as e:
         logger.error(f"Skeletonization failed: {e}")
         raise
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         raise
+    finally:
+        skeletonization.output.cleanup()
 
     logger.info(f"Skeletonization completed for mesh {em_cell_mesh_id}")
 

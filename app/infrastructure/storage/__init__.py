@@ -68,5 +68,7 @@ def get_mesh_location(uuid: UUID) -> Path:
 
 
 def get_mesh_skeletonization_output_location(uuid: UUID) -> Path:
-    path = settings.STORAGE_PATH / "mesh" / "skeletonization-output" / uuid_subpath(uuid)
+    # TODO Revert back once Ultraliser has FS IO locking fixed.
+    # path = settings.STORAGE_PATH / "mesh" / "skeletonization-output" / uuid_subpath(uuid)
+    path = Path("/") / "mesh" / "skeletonization-output" / uuid_subpath(uuid)
     return ensure_dir(path)

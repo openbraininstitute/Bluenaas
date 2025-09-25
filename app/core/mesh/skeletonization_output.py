@@ -65,4 +65,5 @@ class SkeletonizationOutput:
 
     def cleanup(self) -> None:
         """Cleanup the mesh"""
+        logger.info(f"Cleaning up skeletonization output {self.path}")
         rm_dir(self.path)
