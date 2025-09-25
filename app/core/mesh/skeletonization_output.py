@@ -3,7 +3,7 @@ from typing import cast
 from uuid import UUID
 
 from entitysdk.client import Client
-from entitysdk.models import BrainRegion, CellMorphology, Contribution, License, Role
+from entitysdk.models import BrainRegion, CellMorphology, Contribution, License, Role, Subject
 from entitysdk.models.asset import AssetLabel, ContentType
 from loguru import logger
 from pydantic import BaseModel
@@ -16,6 +16,7 @@ class Metadata(BaseModel):
     name: str
     description: str
     brain_region: BrainRegion
+    subject: Subject
 
 
 class SkeletonizationOutput:
@@ -61,6 +62,7 @@ class SkeletonizationOutput:
                     name=self.metadata.name,
                     description=self.metadata.description,
                     brain_region=self.metadata.brain_region,
+                    subject=self.metadata.subject,
                     license=license,
                 )
             ),

@@ -52,5 +52,5 @@ def run_mesh_skeletonization(
     logger.info(f"Skeletonization completed for mesh {em_cell_mesh_id}")
 
     return SkeletonizationJobOutput(
-        reconstruction_morphology=morphology,
+        morphology=morphology,
     )

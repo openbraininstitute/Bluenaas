@@ -46,7 +46,7 @@ class Skeletonization:
             metadata=SkeletonizationOutputMetadata(
                 name=input_params.name,
                 description=input_params.description,
-                species=self.mesh.metadata.subject.species,
+                subject=self.mesh.metadata.subject,
                 brain_region=self.mesh.metadata.brain_region,
             ),
         )
