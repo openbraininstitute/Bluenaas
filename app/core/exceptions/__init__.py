@@ -113,3 +113,8 @@ class CircuitSimulationError(_BaseMessageException):
 class SingleNeuronInitError(_BaseMessageException):
     def __init__(self, message: str = "Single neuron model instantiation failed") -> None:
         super().__init__(message)
+
+
+class EMCellMeshInitError(_BaseMessageException):
+    def __init__(self, message: str = "EMCellMesh instantiation failed") -> None:
+        super().__init__(message)
