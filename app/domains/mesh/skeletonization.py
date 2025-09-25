@@ -8,7 +8,7 @@ class SkeletonizationInputParams(BaseModel):
     description: str = Field(..., description="A description of the reconstructed morphology.")
 
 
-class SkeletonizationUltraliserParams(BaseModel):
+class SkeletonizationUltraliserParams(BaseModel, extra="forbid"):
     export_swc_morphology: bool | None = Field(
         None, description="Exports the neuronal morphology to .SWC file."
     )
