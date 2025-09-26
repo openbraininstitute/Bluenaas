@@ -49,11 +49,15 @@ class SkeletonizationOutput:
         if not license:
             raise ValueError(f"License {SKELETONIZATION_OUTPUT_LICENSE_LABEL} not found")
 
+        logger.debug(f"Using license: {license}")
+
         # TODO: Add query by name when supported in entitycore
         roles = cast(list[Role], self.client.search_entity(entity_type=Role))
         role = next(filter(lambda role: role.name == SKELETONIZATION_OUTPUT_ROLE_NAME, roles), None)
         if not role:
             raise ValueError(f"Role {SKELETONIZATION_OUTPUT_ROLE_NAME} not found")
+
+        logger.debug(f"Using role: {role}")
 
         morphology = cast(
             CellMorphology,
@@ -71,13 +75,15 @@ class SkeletonizationOutput:
         assert morphology.id
         assert morphology.created_by
 
-        self.client.register_entity(
+        contribution = self.client.register_entity(
             Contribution(
                 entity=morphology,
                 role=role,
                 agent=morphology.created_by,
             )
         )
+
+        logger.debug(f"Created contribution: {contribution}")
 
         self.client.upload_file(
             entity_id=morphology.id,
