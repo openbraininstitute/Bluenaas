@@ -254,6 +254,7 @@ worker = [
     { name = "bluecellulab" },
     { name = "efel" },
     { name = "filelock" },
+    { name = "morphio" },
     { name = "pynwb" },
     { name = "requests" },
     { name = "ultraliser" },
@@ -261,7 +262,7 @@ worker = [
 
 [package.metadata]
 requires-dist = [
-    { name = "entitysdk", specifier = "==0.8.0" },
+    { name = "entitysdk", specifier = "==0.8.1" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "pandas", specifier = "==2.3.0" },
     { name = "pydantic", specifier = "==2.11.7" },
@@ -288,6 +289,7 @@ worker = [
     { name = "bluecellulab", specifier = "==2.6.70" },
     { name = "efel", specifier = "==5.7.19" },
     { name = "filelock", specifier = "==3.18.0" },
+    { name = "morphio", specifier = "==3.4.0" },
     { name = "pynwb", specifier = "==3.1.0" },
     { name = "requests", specifier = "==2.32.4" },
     { name = "ultraliser", path = "ext-deps/ultraliser/ultraliser-2.0.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
@@ -596,14 +598,14 @@ wheels = [
 
 [[package]]
 name = "entitysdk"
-version = "0.8.0"
+version = "0.8.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/25/11/fa8c10c34aa3ad06df747ecf71dcc1e8e066e1491eeb576e80dd724370ea/entitysdk-0.8.0.tar.gz", hash = "sha256:e02c8e2de364d96aae0f5f420f5b907f391055d8515a914bc10c49f9e59dbf2d", size = 1411264, upload-time = "2025-09-25T12:49:23.768Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f6/c0/09aae24a25f4514fc554f57c67d6f73626a46c61c1d00720ff3433bf7e18/entitysdk-0.8.1.tar.gz", hash = "sha256:285474c6c2ae005c489f49f390e37b1b6d5a39d9c33a49433218c73d5d3f73b9", size = 1449620, upload-time = "2025-09-26T14:03:04.139Z" }
 
 [[package]]
 name = "executing"
@@ -2671,7 +2673,7 @@ dependencies = [
     { name = "trame" },
 ]
 wheels = [
-    { filename = "ultraliser-2.0.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c01b2b5ba55aa2ca14df0013321f2d89949f69ed69bc7c4f57e39260f42dc949" },
+    { filename = "ultraliser-2.0.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3282e07f897190079e72d1b6a6ee1c9fc425399510fbdc12f4944f637e44b77f" },
 ]
 
 [package.metadata]

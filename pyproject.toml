@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = "==3.12.*"
 
 dependencies = [
-    "entitysdk==0.8.0",
+    "entitysdk==0.8.1",
     "loguru==0.7.3",
     "pandas==2.3.0",
     "pydantic-settings==2.10.1",
@@ -32,6 +32,7 @@ worker = [
     "bluecellulab==2.6.70",
     "efel==5.7.19",
     "filelock==3.18.0",
+    "morphio==3.4.0",
     "pynwb==3.1.0",
     "requests==2.32.4",
     "ultraliser",

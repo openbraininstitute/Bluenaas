@@ -58,20 +58,18 @@ class Skeletonization:
     def run(self):
         import ultraliser  # pyright: ignore[reportMissingImports]
 
-        params_dict = {
-            k: v for k, v in self.ultraliser_params.model_dump(exclude_none=True).items()
-        }
+        params = self.ultraliser_params.model_dump()
 
         logger.info(f"Running skeletonization for mesh {self.mesh.mesh_id}")
-        logger.info(f"Parameters: {params_dict}")
+        logger.info(f"Parameters: {params}")
 
         executor = SafeProcessExecutor()
 
         result = executor.execute(
-            ultraliser.skeletonizeNeuronMesh,
-            mesh=str(self.mesh.file_path),
-            output_directory=str(self.output.path),
-            **params_dict,
+            ultraliser.skeletonize_neuron_mesh,
+            mesh_path=str(self.mesh.file_path),
+            output_path=str(self.output.path),
+            **params,
         )
 
         logger.info(f"Process logs:\n{result.logs}")

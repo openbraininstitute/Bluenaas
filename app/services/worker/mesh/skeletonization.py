@@ -39,6 +39,7 @@ def run_mesh_skeletonization(
     try:
         skeletonization.init()
         skeletonization.run()
+        skeletonization.output.post_process()
         morphology = skeletonization.output.upload()
     except SafeProcessRuntimeError as e:
         logger.error(f"Skeletonization failed: {e}")
