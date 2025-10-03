@@ -23,6 +23,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # TODO Refactor
       - name: Download Ultraliser wheels
         uses: robinraju/release-downloader@v1.11
         with:
