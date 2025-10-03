@@ -2,16 +2,15 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
-from morphio import Morphology
 from entitysdk.client import Client
 from entitysdk.models import BrainRegion, CellMorphology, Contribution, License, Role, Subject
 from entitysdk.models.asset import AssetLabel, ContentType
 from loguru import logger
+from morphio.mut import Morphology
 from pydantic import BaseModel
 
 from app.constants import SKELETONIZATION_OUTPUT_LICENSE_LABEL, SKELETONIZATION_OUTPUT_ROLE_NAME
 from app.infrastructure.storage import ensure_dir, get_mesh_skeletonization_output_location, rm_dir
-
 
 SPINY_MORPH_PATH_SUFFIX = "_with_spines"
 
@@ -40,6 +39,11 @@ class SkeletonizationOutput:
         logger.debug(f"Initialized skeletonization output folder {self.path}")
 
     def post_process(self) -> None:
+        # Clean up *-morphology.h5 and *-spines.h5 files from the output
+        for pattern in ("*-morphology.h5", "*-spines.h5"):
+            for file in self.path.rglob(pattern):
+                file.unlink()
+
         spiny_morph_path = next(self.path.rglob("*.h5"), None)
         assert spiny_morph_path, "No combined morphology file found in the output location"
 
