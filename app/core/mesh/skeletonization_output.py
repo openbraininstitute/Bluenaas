@@ -2,16 +2,15 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
-from morphio import Morphology
 from entitysdk.client import Client
 from entitysdk.models import BrainRegion, CellMorphology, Contribution, License, Role, Subject
 from entitysdk.models.asset import AssetLabel, ContentType
 from loguru import logger
+from morphio.mut import Morphology
 from pydantic import BaseModel
 
 from app.constants import SKELETONIZATION_OUTPUT_LICENSE_LABEL, SKELETONIZATION_OUTPUT_ROLE_NAME
 from app.infrastructure.storage import ensure_dir, get_mesh_skeletonization_output_location, rm_dir
-
 
 SPINY_MORPH_PATH_SUFFIX = "_with_spines"
 
