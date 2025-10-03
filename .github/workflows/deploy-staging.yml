@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - develop
+      - fix/mesh-skeletonization
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -28,7 +29,7 @@ jobs:
         uses: robinraju/release-downloader@v1.11
         with:
           repository: "openbraininstitute/Ultraliser"
-          tag: "v2.0.1-rc.2"
+          tag: "v2.0.1-rc.3"
           fileName: "*.whl"
           out-file-path: "ext-deps/ultraliser"
           token: ${{ secrets.ULTRALIZER_REPO_PAT }}
