@@ -30,13 +30,15 @@ class JobStatusMessage(JobMessageBase):
     message_type: Literal[JobMessageType.status] = Field(
         default=JobMessageType.status, alias="type"
     )
+    ctx: dict[str, Any] | None = None
     status: JobStatus
     extra: str | None = None
 
 
 class JobDataMessage(JobMessageBase):
     message_type: Literal[JobMessageType.data] = Field(default=JobMessageType.data, alias="type")
-    data_type: str | None
+    ctx: dict[str, Any] | None = None
+    data_type: str | None = None
     data: Any
 
 
