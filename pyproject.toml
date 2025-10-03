@@ -39,7 +39,7 @@ worker = [
     "ultraliser",
 ]
 dev = [
-    "pyright>=1.1.402",
+    "pyright>=1.1.406",
     "ruff==0.12.3",
 ]
 types = [

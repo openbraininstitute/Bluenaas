@@ -1,4 +1,11 @@
+from typing import List
+from uuid import UUID as UUID4
+
 from pydantic import BaseModel, Field
+
+
+class RunBatchRequest(BaseModel):
+    simulation_ids: List[UUID4]
 
 
 class SimulationParams(BaseModel):

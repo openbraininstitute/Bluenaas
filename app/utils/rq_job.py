@@ -1,10 +1,10 @@
 import asyncio
 import time
-from typing import Any, AsyncGenerator, Callable, Iterable, TypeVar
+from typing import Any, AsyncGenerator, Callable, Dict, Iterable, TypeVar
 from uuid import uuid4
 
 from loguru import logger
-from rq import Queue
+from rq import Queue, get_current_job
 from rq.job import Job
 from rq.job import JobStatus as RQJobStatus
 
@@ -97,7 +97,8 @@ async def dispatch(
     job_args: tuple = (),
     job_id: str | None = None,
     job_kwargs: dict = {},
-    meta: dict | None = None,
+    meta: dict = {},
+    stream_ctx: Dict[str, Any] | None = None,
     on_failure: Callable[..., Any] | None = None,
     on_start: Callable[..., Any] | None = None,
     on_success: Callable[..., Any] | None = None,
@@ -110,7 +111,7 @@ async def dispatch(
     stream_key = compose_key(job_id)
     read_stream = redis_stream_reader(stream_key)
 
-    write_stream = JobStream(stream_key)
+    write_stream = JobStream(stream_key, ctx=stream_ctx)
 
     job = await run_async(
         lambda: job_queue.enqueue(
@@ -120,7 +121,10 @@ async def dispatch(
             depends_on=depends_on,
             job_id=job_id,
             job_timeout=timeout,
-            meta=meta,
+            meta={
+                **meta,
+                "stream_ctx": stream_ctx,
+            },
             result_ttl=result_ttl,
             # Default handlers only stream status updates
             on_failure=on_failure_default_handler,
@@ -181,3 +185,16 @@ async def wait_for_job(
         await asyncio.sleep(poll_interval)
 
     raise TimeoutError(f"Job {job.id} did not complete within {timeout} seconds")
+
+
+def get_current_job_stream() -> JobStream:
+    """Get the current job stream. Can be called only from a worker."""
+    job = get_current_job()
+
+    if job is None:
+        raise ValueError("No job found")
+
+    stream_key = compose_key(job.id)
+    job_ctx = job.meta.get("stream_ctx")
+
+    return JobStream(stream_key, ctx=job_ctx)
