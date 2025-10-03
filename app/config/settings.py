@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     MAX_JOB_DURATION: int = 20 * 60  # 20 minutes
 
     METRICS_CLOUD_PROVIDER: _CLOUD_PROVIDER = None
-    METRICS_INTERVAL: int = 60  # 60 seconds
+    METRICS_INTERVAL: int = 60  # 1 minute
     METRICS_AWS_REGION: str | None = None
 
     @model_validator(mode="after")
