@@ -40,6 +40,11 @@ class SkeletonizationOutput:
         logger.debug(f"Initialized skeletonization output folder {self.path}")
 
     def post_process(self) -> None:
+        # Clean up *-morphology.h5 and *-spines.h5 files from the output
+        for pattern in ("*-morphology.h5", "*-spines.h5"):
+            for file in self.path.rglob(pattern):
+                file.unlink()
+
         spiny_morph_path = next(self.path.rglob("*.h5"), None)
         assert spiny_morph_path, "No combined morphology file found in the output location"
 
