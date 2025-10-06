@@ -723,7 +723,7 @@ def _run_frequency_varying_stimulus(
             location_label = _location_label(loc.section, loc.offset)
             label = f"Frequency_{frequency}"
 
-            voltage = cell.cell.get_variable_recording("v", sec, seg)
+            voltage = cell.get_variable_recording("v", sec, seg)
             time = cell.get_time()
 
             if enable_realtime:
