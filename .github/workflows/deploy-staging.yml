@@ -23,11 +23,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # - name: Set up QEMU for ARM emulation
-      #   uses: docker/setup-qemu-action@v3
-
-      # - name: Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v3
+      # TODO Refactor
+      - name: Download Ultraliser wheels
+        uses: robinraju/release-downloader@v1.11
+        with:
+          repository: "openbraininstitute/Ultraliser"
+          tag: "v2.0.1-rc.2"
+          fileName: "*.whl"
+          out-file-path: "ext-deps/ultraliser"
+          token: ${{ secrets.ULTRALIZER_REPO_PAT }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -43,24 +47,6 @@ jobs:
 
       - name: Build and publish the Docker images to AWS ECR
         run: make publish
-
-      # - name: Build and push ARM64 api image
-      #   uses: docker/build-push-action@v5
-      #   with:
-      #     context: .
-      #     file: Dockerfile.api
-      #     platforms: linux/arm64
-      #     push: true
-      #     tags: ${{ vars.PUBLICECR_URI }}:api-staging
-
-      # - name: Build and push AMD64 worker image
-      #   uses: docker/build-push-action@v5
-      #   with:
-      #     context: .
-      #     file: Dockerfile.worker
-      #     platforms: linux/amd64
-      #     push: true
-      #     tags: ${{ vars.PUBLICECR_URI }}:worker-staging
 
       # - name: Authenticate with AWS ECS
       #   uses: aws-actions/configure-aws-credentials@v4

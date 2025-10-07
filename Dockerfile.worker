@@ -1,4 +1,4 @@
-ARG UV_VERSION=0.7
+ARG UV_VERSION=0.8
 ARG PYTHON_VERSION=3.12
 ARG PYTHON_BASE=${PYTHON_VERSION}-slim
 
@@ -22,6 +22,8 @@ WORKDIR /app
 RUN apt-get update \
   && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev git \
   && rm -rf /var/lib/apt/lists/*
+
+COPY ext-deps /app/ext-deps
 
 ARG ENVIRONMENT
 RUN --mount=type=cache,target=/root/.cache/uv \

@@ -2,7 +2,7 @@ from http import HTTPStatus
 
 from entitysdk import Client, ProjectContext
 from entitysdk._server_schemas import ValidationStatus
-from entitysdk.models import BrainRegion, EModel, MEModel, ReconstructionMorphology, Species, Strain
+from entitysdk.models import BrainRegion, CellMorphology, EModel, MEModel, Species, Strain
 from loguru import logger
 from obp_accounting_sdk.constants import ServiceSubtype
 from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
@@ -62,9 +62,7 @@ async def create_single_neuron_model(
     await accounting_session.start()
 
     morphology = await run_async(
-        lambda: client.get_entity(
-            entity_id=model.morphology_id, entity_type=ReconstructionMorphology
-        )
+        lambda: client.get_entity(entity_id=model.morphology_id, entity_type=CellMorphology)
     )
 
     emodel = await run_async(

@@ -15,6 +15,7 @@ from app.core.exceptions import (
 )
 from app.middleware.request_id import add_request_id_middleware
 from app.routes.circuit import router as circuit_router
+from app.routes.mesh import router as mesh_router
 from app.routes.single_neuron import router as single_neuron_router
 
 sentry_sdk.init(
@@ -92,7 +93,8 @@ def health() -> str:
     return "OK"
 
 
-base_router.include_router(single_neuron_router)
 base_router.include_router(circuit_router)
+base_router.include_router(mesh_router)
+base_router.include_router(single_neuron_router)
 
 app.include_router(base_router)

@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = "==3.12.*"
 
 dependencies = [
-    "entitysdk==0.7.9",
+    "entitysdk==0.8.2",
     "loguru==0.7.3",
     "pandas==2.3.0",
     "pydantic-settings==2.10.1",
@@ -32,8 +32,11 @@ worker = [
     "bluecellulab==2.6.70",
     "efel==5.7.19",
     "filelock==3.18.0",
+    "morphio==3.4.0",
     "pynwb==3.1.0",
     "requests==2.32.4",
+    "tables==3.10.2",
+    "ultraliser",
 ]
 dev = [
     "pyright>=1.1.402",
@@ -55,3 +58,4 @@ target-version = "py312"
 
 [tool.uv.sources]
 obp-accounting-sdk = { git = "https://github.com/openbraininstitute/accounting-sdk.git", rev = "feat/use-asyncio-in-async-hearbeat-sender" }
+ultraliser = { path = "./ext-deps/ultraliser/ultraliser-2.0.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" }

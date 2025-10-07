@@ -1,0 +1,75 @@
+from uuid import UUID, uuid4
+
+from entitysdk import Client
+from loguru import logger
+
+from app.core.mesh.em_cell_mesh import EMCellMesh
+from app.core.mesh.skeletonization_output import Metadata as SkeletonizationOutputMetadata
+from app.core.mesh.skeletonization_output import SkeletonizationOutput
+from app.domains.mesh.skeletonization import (
+    SkeletonizationInputParams,
+    SkeletonizationUltraliserParams,
+)
+from app.utils.safe_process import SafeProcessExecutor
+
+
+class Skeletonization:
+    execution_id: UUID
+    initialized: bool = False
+    input_params: SkeletonizationInputParams
+    mesh: EMCellMesh
+    output: SkeletonizationOutput
+    ultraliser_params: SkeletonizationUltraliserParams
+
+    def __init__(
+        self,
+        em_cell_mesh_id: UUID,
+        input_params: SkeletonizationInputParams,
+        ultraliser_params: SkeletonizationUltraliserParams,
+        *,
+        client: Client,
+        execution_id: UUID | None = None,
+    ):
+        self.em_cell_mesh_id = em_cell_mesh_id
+        self.input_params = input_params
+        self.ultraliser_params = ultraliser_params
+        self.execution_id = execution_id or uuid4()
+
+        self.mesh = EMCellMesh(em_cell_mesh_id, client)
+
+        assert self.mesh.metadata.subject
+        assert self.mesh.metadata.brain_region
+
+        self.output = SkeletonizationOutput(
+            self.execution_id,
+            client,
+            metadata=SkeletonizationOutputMetadata(
+                name=input_params.name,
+                description=input_params.description,
+                subject=self.mesh.metadata.subject,
+                brain_region=self.mesh.metadata.brain_region,
+            ),
+        )
+
+    def init(self):
+        self.mesh.init()
+        self.output.init()
+
+    def run(self):
+        import ultraliser  # pyright: ignore[reportMissingImports]
+
+        params = self.ultraliser_params.model_dump()
+
+        logger.info(f"Running skeletonization for mesh {self.mesh.mesh_id}")
+        logger.info(f"Parameters: {params}")
+
+        executor = SafeProcessExecutor()
+
+        result = executor.execute(
+            ultraliser.skeletonize_neuron_mesh,
+            mesh_path=str(self.mesh.file_path),
+            output_path=str(self.output.path),
+            **params,
+        )
+
+        logger.info(f"Process logs:\n{result.logs}")
