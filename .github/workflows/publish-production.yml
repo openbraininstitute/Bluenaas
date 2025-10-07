@@ -29,13 +29,15 @@ jobs:
         with:
           fetch-depth: 0 # Get full history to check existing tags
 
-      - name: Checkout Ultraliser repo
-        uses: actions/checkout@v4
+      # TODO Refactor
+      - name: Download Ultraliser wheels
+        uses: robinraju/release-downloader@v1.11
         with:
-          repository: openbraininstitute/Ultraliser
+          repository: "openbraininstitute/Ultraliser"
+          tag: "v2.0.1-rc.2"
+          fileName: "*.whl"
+          out-file-path: "ext-deps/ultraliser"
           token: ${{ secrets.ULTRALIZER_REPO_PAT }}
-          path: build/Ultraliser
-          ref: release-v.2.0
 
       - name: Set up Git
         run: |
