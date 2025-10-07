@@ -90,6 +90,29 @@ def get_stimulus_name(protocol_name):
     return protocol_mapping[protocol_name]
 
 
+def _create_recording_data(
+    label: str,
+    recording_name: str,
+    time_data: np.ndarray,
+    values_data: np.ndarray,
+    variable_name: str,
+    unit: str,
+    amplitude: float | None = None,
+    frequency: float | None = None,
+) -> dict[str, Any]:
+    """Create standardized recording data dictionary for queue."""
+    return {
+        "label": label,
+        "recording_name": recording_name,
+        "time_data": time_data.tolist(),
+        "values_data": values_data.tolist(),
+        "variable_name": variable_name,
+        "unit": unit,
+        "amplitude": amplitude,
+        "frequency": frequency,
+    }
+
+
 def init_process_worker(neuron_global_params):
     """Load global parameters for the NEURON environment in each worker
     process."""
@@ -375,6 +398,10 @@ def _prepare_stimulation_parameters_by_frequency(
     return task_args
 
 
+def _location_label(section: str, segment: float) -> str:
+    return f"{section}_{segment}"
+
+
 def _run_current_varying_stimulus(
     realtime: bool,
     template_params,
@@ -442,13 +469,20 @@ def _run_current_varying_stimulus(
                 experimental_setup=experimental_setup,
             )
 
+    i_rec_var_dict = {}
+
     for loc in recording_locations:
         sec, seg = cell.sections[loc.section], loc.offset
 
-        cell.add_voltage_recording(
+        cell.add_variable_recording(
+            "v",
             section=sec,
             segx=seg,
         )
+
+        if loc.record_currents:
+            location_label = _location_label(loc.section, loc.offset)
+            i_rec_var_dict[location_label] = cell.add_currents_recordings(section=sec, segx=seg)
 
     iclamp, _ = cell.inject_current_waveform(
         stimulus.time,
@@ -471,47 +505,89 @@ def _run_current_varying_stimulus(
 
     prev_voltage = {}
     prev_time = {}
+    prev_current = {}
 
     def process_simulation_recordings(enable_realtime=True):
         for loc in recording_locations:
             sec, seg = cell.sections[loc.section], loc.offset
-            cell_section = f"{loc.section}_{seg}"
+            location_label = _location_label(loc.section, loc.offset)
             label = f"{stimulus_name.name}_{amplitude}"
 
-            voltage = cell.get_voltage_recording(sec, seg)
+            voltage = cell.get_variable_recording("v", sec, seg)
             time = cell.get_time()
 
             if enable_realtime is True:
-                if cell_section not in prev_voltage:
-                    prev_voltage[cell_section] = np.array([])
-                if cell_section not in prev_time:
-                    prev_time[cell_section] = np.array([])
+                if location_label not in prev_voltage:
+                    prev_voltage[location_label] = np.array([])
+                if location_label not in prev_time:
+                    prev_time[location_label] = np.array([])
 
-                voltage_diff = diff_list(prev_voltage[cell_section], voltage)
-                time_diff = diff_list(prev_time[cell_section], time)
+                voltage_diff = diff_list(prev_voltage[location_label], voltage)
+                time_diff = diff_list(prev_time[location_label], time)
 
-                prev_voltage[cell_section] = voltage
-                prev_time[cell_section] = time
+                prev_voltage[location_label] = voltage
+                prev_time[location_label] = time
 
                 simulation_queue.put(
-                    {
-                        "label": label,
-                        "recording_name": cell_section,
-                        "amplitude": amplitude,
-                        "time": time_diff.tolist(),
-                        "voltage": voltage_diff.tolist(),
-                    }
+                    _create_recording_data(
+                        label=label,
+                        recording_name=location_label,
+                        time_data=time_diff,
+                        values_data=voltage_diff,
+                        variable_name="v",
+                        unit="mV",
+                        amplitude=amplitude,
+                    )
                 )
+
+                for i_var_name in i_rec_var_dict.get(location_label, []):
+                    if location_label not in prev_current:
+                        prev_current[location_label] = {}
+
+                    i_full_rec = cell.get_variable_recording(i_var_name, sec, seg)
+                    i_diff = diff_list(
+                        prev_current.get(location_label, {}).get(i_var_name, np.array([])),
+                        i_full_rec,
+                    )
+                    prev_current[location_label][i_var_name] = i_full_rec
+
+                    simulation_queue.put(
+                        _create_recording_data(
+                            label=label,
+                            recording_name=location_label,
+                            time_data=time_diff,
+                            values_data=i_diff,
+                            variable_name=i_var_name,
+                            unit="mA/cm²",
+                            amplitude=amplitude,
+                        )
+                    )
             else:
                 simulation_queue.put(
-                    {
-                        "label": label,
-                        "recording_name": cell_section,
-                        "amplitude": amplitude,
-                        "time": time.tolist(),
-                        "voltage": voltage.tolist(),
-                    }
+                    _create_recording_data(
+                        label=label,
+                        recording_name=location_label,
+                        time_data=time,
+                        values_data=voltage,
+                        variable_name="v",
+                        unit="mV",
+                        amplitude=amplitude,
+                    )
                 )
+
+                for i_var_name in i_rec_var_dict.get(loc.section, []):
+                    i_full_rec = cell.get_variable_recording(i_var_name, sec, seg)
+                    simulation_queue.put(
+                        _create_recording_data(
+                            label=label,
+                            recording_name=location_label,
+                            time_data=time,
+                            values_data=i_full_rec,
+                            variable_name=i_var_name,
+                            unit="mA/cm²",
+                            amplitude=amplitude,
+                        )
+                    )
 
     try:
         simulation = Simulation(
@@ -603,13 +679,20 @@ def _run_frequency_varying_stimulus(
                 experimental_setup=experimental_setup,
             )
 
+    i_rec_var_dict = {}
+
     for loc in recording_locations:
         sec, seg = cell.sections[loc.section], loc.offset
 
-        cell.add_voltage_recording(
+        cell.add_variable_recording(
+            "v",
             section=sec,
             segx=seg,
         )
+
+        if loc.record_currents:
+            location_label = _location_label(loc.section, loc.offset)
+            i_rec_var_dict[location_label] = cell.add_currents_recordings(section=sec, segx=seg)
 
     iclamp, _ = cell.inject_current_waveform(
         stimulus.time,
@@ -632,49 +715,91 @@ def _run_frequency_varying_stimulus(
 
     prev_voltage = {}
     prev_time = {}
+    prev_current = {}
 
     def process_simulation_recordings(enable_realtime=True):
         for loc in recording_locations:
             sec, seg = cell.sections[loc.section], loc.offset
-            cell_section = f"{loc.section}_{seg}"
+            location_label = _location_label(loc.section, loc.offset)
             label = f"Frequency_{frequency}"
 
-            voltage = cell.get_voltage_recording(sec, seg)
+            voltage = cell.get_variable_recording("v", sec, seg)
             time = cell.get_time()
 
-            if enable_realtime is True:
-                if cell_section not in prev_voltage:
-                    prev_voltage[cell_section] = np.array([])
-                if cell_section not in prev_time:
-                    prev_time[cell_section] = np.array([])
+            if enable_realtime:
+                if location_label not in prev_voltage:
+                    prev_voltage[location_label] = np.array([])
+                if location_label not in prev_time:
+                    prev_time[location_label] = np.array([])
 
-                voltage_diff = diff_list(prev_voltage[cell_section], voltage)
-                time_diff = diff_list(prev_time[cell_section], time)
+                voltage_diff = diff_list(prev_voltage[location_label], voltage)
+                time_diff = diff_list(prev_time[location_label], time)
 
-                prev_voltage[cell_section] = voltage
-                prev_time[cell_section] = time
+                prev_voltage[location_label] = voltage
+                prev_time[location_label] = time
 
                 simulation_queue.put(
-                    {
-                        "label": label,
-                        "recording_name": cell_section,
-                        "amplitude": amplitude,
-                        "frequency": frequency,
-                        "time": time_diff.tolist(),
-                        "voltage": voltage_diff.tolist(),
-                    }
+                    _create_recording_data(
+                        label=label,
+                        recording_name=location_label,
+                        time_data=time_diff,
+                        values_data=voltage_diff,
+                        variable_name="v",
+                        unit="mV",
+                        amplitude=amplitude,
+                        frequency=frequency,
+                    )
                 )
+
+                for i_var_name in i_rec_var_dict.get(location_label, []):
+                    if location_label not in prev_current:
+                        prev_current[location_label] = {}
+
+                    i_full_rec = cell.get_variable_recording(i_var_name, sec, seg)
+                    i_diff = diff_list(
+                        prev_current[location_label].get(i_var_name, np.array([])), i_full_rec
+                    )
+                    prev_current[location_label][i_var_name] = i_full_rec
+
+                    simulation_queue.put(
+                        _create_recording_data(
+                            label=label,
+                            recording_name=location_label,
+                            time_data=time_diff,
+                            values_data=i_diff,
+                            variable_name=i_var_name,
+                            unit="mA/cm²",
+                            amplitude=amplitude,
+                        )
+                    )
             else:
                 simulation_queue.put(
-                    {
-                        "label": label,
-                        "recording_name": cell_section,
-                        "frequency": frequency,
-                        "amplitude": amplitude,
-                        "time": time.tolist(),
-                        "voltage": voltage.tolist(),
-                    }
+                    _create_recording_data(
+                        label=label,
+                        recording_name=location_label,
+                        time_data=time,
+                        values_data=voltage,
+                        variable_name="v",
+                        unit="mV",
+                        amplitude=amplitude,
+                        frequency=frequency,
+                    )
                 )
+
+                for i_var_name in i_rec_var_dict.get(location_label, []):
+                    i_full_rec = cell.get_variable_recording(i_var_name, sec, seg)
+                    simulation_queue.put(
+                        _create_recording_data(
+                            label=label,
+                            recording_name=location_label,
+                            time_data=time,
+                            values_data=i_full_rec,
+                            variable_name=i_var_name,
+                            unit="mA/cm²",
+                            amplitude=amplitude,
+                            frequency=frequency,
+                        )
+                    )
 
     try:
         simulation = Simulation(
