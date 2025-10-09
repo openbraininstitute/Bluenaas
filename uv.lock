@@ -285,7 +285,7 @@ worker = [
 
 [package.metadata]
 requires-dist = [
-    { name = "entitysdk", specifier = "==0.8.2" },
+    { name = "entitysdk", specifier = "==0.8.3" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "pandas", specifier = "==2.3.0" },
     { name = "pydantic", specifier = "==2.11.7" },
@@ -644,14 +644,14 @@ wheels = [
 
 [[package]]
 name = "entitysdk"
-version = "0.8.2"
+version = "0.8.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/ad/ac7fef17aacb0791eb3e8697dc2f01242a747f65707d236fa04c4c26185c/entitysdk-0.8.2.tar.gz", hash = "sha256:e4ea5e660776c9db6e397ee1c216635f3a2f40c38da70ebe051bc7a113ffc04d", size = 1451743, upload-time = "2025-10-02T13:55:11.749Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0c/66/5c124735232c3bafdde67ce4518050d9eea6e9bc1733caa7a3085bbf67e4/entitysdk-0.8.3.tar.gz", hash = "sha256:48f4ed8e5719e2bbe730a3202ebf394464da5227b94c53a273cbb39904015568", size = 1424141, upload-time = "2025-10-08T12:43:09.897Z" }
 
 [[package]]
 name = "executing"
