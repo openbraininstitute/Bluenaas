@@ -1,4 +1,3 @@
-import json
 from uuid import UUID
 
 from entitysdk import ProjectContext
