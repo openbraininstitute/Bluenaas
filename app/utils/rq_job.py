@@ -141,9 +141,9 @@ async def dispatch(
     return job, read_stream
 
 
-async def get_job_data(stream: AsyncGenerator[str, None]):
-    async for message_str in stream:
-        message: JobMessage = JobMessageAdapter.validate_json(message_str)
+async def get_job_data(stream: AsyncGenerator[dict, None]):
+    async for message_dict in stream:
+        message: JobMessage = JobMessageAdapter.validate_python(message_dict)
 
         if message.message_type == JobMessageType.status and message.status == JobStatus.error:
             raise RuntimeError("Job failed")

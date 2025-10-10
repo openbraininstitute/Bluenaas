@@ -249,6 +249,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "entitysdk" },
     { name = "loguru" },
+    { name = "msgpack" },
     { name = "pandas" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -270,6 +271,7 @@ dev = [
     { name = "ruff" },
 ]
 types = [
+    { name = "msgpack-types" },
     { name = "types-requests" },
 ]
 worker = [
@@ -287,6 +289,7 @@ worker = [
 requires-dist = [
     { name = "entitysdk", specifier = "==0.8.3" },
     { name = "loguru", specifier = "==0.7.3" },
+    { name = "msgpack", specifier = ">=1.1.1" },
     { name = "pandas", specifier = "==2.3.0" },
     { name = "pydantic", specifier = "==2.11.7" },
     { name = "pydantic-settings", specifier = "==2.10.1" },
@@ -307,7 +310,10 @@ dev = [
     { name = "pyright", specifier = ">=1.1.406" },
     { name = "ruff", specifier = "==0.12.3" },
 ]
-types = [{ name = "types-requests", specifier = "==2.32.4.20250611" }]
+types = [
+    { name = "msgpack-types", specifier = ">=0.5.0" },
+    { name = "types-requests", specifier = "==2.32.4.20250611" },
+]
 worker = [
     { name = "bluecellulab", specifier = "==2.6.70" },
     { name = "efel", specifier = "==5.7.19" },
@@ -1438,6 +1444,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b8/d0/0cf4a6ecb9bc960d624c93effaeaae75cbf00b3bc4a54f35c8507273cda1/msgpack-1.1.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:bb29aaa613c0a1c40d1af111abf025f1732cab333f96f285d6a93b934738a68a", size = 419883, upload-time = "2025-06-13T06:52:12.806Z" },
     { url = "https://files.pythonhosted.org/packages/62/83/9697c211720fa71a2dfb632cad6196a8af3abea56eece220fde4674dc44b/msgpack-1.1.1-cp312-cp312-win32.whl", hash = "sha256:870b9a626280c86cff9c576ec0d9cbcc54a1e5ebda9cd26dab12baf41fee218c", size = 65406, upload-time = "2025-06-13T06:52:14.271Z" },
     { url = "https://files.pythonhosted.org/packages/c0/23/0abb886e80eab08f5e8c485d6f13924028602829f63b8f5fa25a06636628/msgpack-1.1.1-cp312-cp312-win_amd64.whl", hash = "sha256:5692095123007180dca3e788bb4c399cc26626da51629a31d40207cb262e67f4", size = 72558, upload-time = "2025-06-13T06:52:15.252Z" },
+]
+
+[[package]]
+name = "msgpack-types"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "msgpack" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7f/26/a15707f2af5681333cd598724bedd1948844ac2af45eafc4175af0671a8d/msgpack_types-0.5.0.tar.gz", hash = "sha256:aebd1b8da23f8f9966d66ebb1a43bd261b95751c6a267bd21a124d2ccac84201", size = 6702, upload-time = "2024-09-21T13:55:05.587Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/19/dd/cd9d2b0ef506f6164cd81d4e92e408095041f28523d751b9f7dabdc244eb/msgpack_types-0.5.0-py3-none-any.whl", hash = "sha256:8b633ed75e495a555fa0615843de559a74b1d176828d59bb393d266e51f6bda7", size = 8182, upload-time = "2024-09-21T13:55:04.232Z" },
 ]
 
 [[package]]

@@ -20,6 +20,7 @@ class JobMessageType(StrEnum):
 
     status = auto()
     data = auto()
+    ping = auto()
 
 
 class JobMessageBase(BaseModel):
@@ -40,6 +41,10 @@ class JobDataMessage(JobMessageBase):
     ctx: dict[str, Any] | None = None
     data_type: str | None = None
     data: Any
+
+
+class JobPingMessage(JobMessageBase):
+    message_type: Literal[JobMessageType.ping] = Field(default=JobMessageType.ping, alias="type")
 
 
 JobMessage = Annotated[Union[JobStatusMessage, JobDataMessage], Field(discriminator="message_type")]

@@ -22,7 +22,7 @@ from app.infrastructure.accounting.session import async_accounting_session_facto
 from app.infrastructure.kc.auth import Auth
 from app.infrastructure.rq import get_queue, JobQueue
 from app.job import JobFn
-from app.utils.api.streaming import x_ndjson_http_stream
+from app.core.http_stream import x_ndjson_http_stream
 from app.utils.asyncio import interleave_async_iterators, run_async
 from app.utils.rq_job import dispatch, get_job_data
 

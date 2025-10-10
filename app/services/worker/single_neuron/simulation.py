@@ -318,8 +318,7 @@ def stream_realtime_data(
     _process: SpawnProcess,
     is_current_varying: bool,
 ) -> None:
-    stream_key = get_job_stream_key()
-    job_stream = JobStream(stream_key)
+    job_stream = JobStream(get_job_stream_key())
 
     while True:
         try:
@@ -332,6 +331,7 @@ def stream_realtime_data(
             else:
                 logger.warning("Process is not alive and simulation queue is empty")
                 raise Exception("Child process died unexpectedly")
+
         if isinstance(record, SimulationError):
             errStr = json.dumps(
                 {
@@ -343,8 +343,13 @@ def stream_realtime_data(
             job_stream.send_status(job_status=JobStatus.error, extra=errStr)
             logger.debug("Parent stopping because of error")
             break
+
         if record == QUEUE_STOP_EVENT:
             logger.debug("Parent received queue_stop_event")
+
+            job_stream.send_status(job_status=JobStatus.done)
+            job_stream.close()
+
             break
 
         chunk = queue_record_to_stream_record(record, is_current_varying)

@@ -16,7 +16,7 @@ from app.domains.simulation import SingleNeuronSimulationConfig
 from app.infrastructure.accounting.session import accounting_session_factory
 from app.infrastructure.kc.auth import Auth
 from app.job import JobFn
-from app.utils.api.streaming import x_ndjson_http_stream
+from app.core.http_stream import x_ndjson_http_stream
 from app.utils.rq_job import dispatch
 
 
