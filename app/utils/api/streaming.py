@@ -1,3 +1,4 @@
+import json
 from typing import AsyncIterator
 
 from fastapi import Request
@@ -24,4 +25,4 @@ async def x_ndjson_http_stream(request: Request, json_data: AsyncIterator[str]):
         if await request.is_disconnected():
             return
 
-        yield f"{item}\n"
+        yield f"{json.dumps(item)}\n"

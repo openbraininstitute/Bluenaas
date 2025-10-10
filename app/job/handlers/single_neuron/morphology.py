@@ -6,7 +6,7 @@ from loguru import logger
 
 from app.core.job_stream import JobStream
 from app.core.model import model_factory
-from app.infrastructure.redis import stream_once
+from app.domains.job import JobStatus
 from app.infrastructure.rq import get_job_stream_key
 
 
@@ -16,8 +16,7 @@ def get_morphology(
     access_token: str,
     project_context: ProjectContext,
 ):
-    stream_key = get_job_stream_key()
-    job_stream = JobStream(stream_key)
+    job_stream = JobStream(get_job_stream_key(), ttl=20)
 
     try:
         model = model_factory(
@@ -32,8 +31,7 @@ def get_morphology(
 
         morphology = model.CELL.get_cell_morph()
 
-        job_stream.send_data(morphology)
-        job_stream.close()
+        job_stream.send_data_once(morphology)
 
     except Exception as ex:
         logger.exception(f"Morphology builder error: {ex}")
@@ -43,7 +41,7 @@ def get_morphology(
 def get_morphology_dendrogram(
     model_id: UUID, *, access_token: str, project_context: ProjectContext
 ):
-    stream_key = get_job_stream_key()
+    job_stream = JobStream(get_job_stream_key(), ttl=20)
 
     try:
         model = model_factory(
@@ -57,9 +55,9 @@ def get_morphology_dendrogram(
             raise RuntimeError("Model not initialized")
 
         morphology_dendrogram = model.CELL.get_dendrogram()
-        stream_once(stream_key, json.dumps(morphology_dendrogram))
+        job_stream.send_data_once(morphology_dendrogram)
 
     # TODO: propagate error to the stream
     except Exception as ex:
         logger.exception(f"Morphology dendrogram builder error: {ex}")
-        stream_once(stream_key, "error")
+        job_stream.send_status(JobStatus.error, str(ex))
