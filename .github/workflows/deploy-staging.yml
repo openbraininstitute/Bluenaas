@@ -8,7 +8,6 @@ on:
   push:
     branches:
       - develop
-      - chore/bump-ultraliser
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
