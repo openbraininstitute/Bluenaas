@@ -5,7 +5,7 @@ from typing import Any, AsyncIterator
 from fastapi import Request
 
 from app.config.settings import settings
-from app.domains.job import JobPingMessage
+from app.domains.stream_message import KeepAliveMessage
 
 
 def _create_x_ndjson_entry(data: dict) -> str:
@@ -15,18 +15,18 @@ def _create_x_ndjson_entry(data: dict) -> str:
 async def x_ndjson_http_stream(
     request: Request,
     messages: AsyncIterator[dict[str, Any]],
-    ping_interval: float = settings.HTTP_STREAM_PING_INTERVAL,
+    keep_alive_interval: float = settings.HTTP_STREAM_KEEP_ALIVE_INTERVAL,
 ):
     """
     Stream JSON data as newline-delimited JSON (NDJSON) over HTTP.
 
     Yields each JSON item as a separate line, handling client disconnection gracefully.
-    Sends periodic ping messages to prevent infrastructure timeouts (e.g., AWS ALB).
+    Sends periodic keep_alive messages to prevent infrastructure timeouts (e.g., AWS ALB).
 
     Args:
         request (Request): The incoming HTTP request.
         messages (AsyncIterator[dict[str, Any]]): An asynchronous iterator of items to stream.
-        ping_interval (float): Interval in seconds between ping messages when no data is sent.
+        keep_alive_interval (float): Interval in seconds between keep_alive messages when no data is sent.
             Defaults to 30.0 seconds to prevent ALB timeouts.
 
     Yields:
@@ -34,7 +34,7 @@ async def x_ndjson_http_stream(
 
     Notes:
         - Stops streaming if the client disconnects.
-        - Sends ping messages if no data is received within ping_interval seconds.
+        - Sends keep_alive messages if no data is received within keep_alive_interval seconds.
         - Suitable for streaming large or continuous datasets.
     """
 
@@ -46,10 +46,10 @@ async def x_ndjson_http_stream(
             next_message_task = asyncio.create_task(get_next_message())
 
             try:
-                message = await asyncio.wait_for(next_message_task, timeout=ping_interval)
+                message = await asyncio.wait_for(next_message_task, timeout=keep_alive_interval)
                 output = _create_x_ndjson_entry(message)
             except asyncio.TimeoutError:
-                output = _create_x_ndjson_entry(JobPingMessage().model_dump())
+                output = _create_x_ndjson_entry(KeepAliveMessage().model_dump())
 
             if await request.is_disconnected():
                 next_message_task.cancel()

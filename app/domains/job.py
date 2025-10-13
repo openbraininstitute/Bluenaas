@@ -1,8 +1,4 @@
 from enum import StrEnum, auto
-from typing import Annotated, Any, Literal, Union
-from pydantic import BaseModel, Field, TypeAdapter
-
-from app.utils.datetime import iso_now
 
 
 class JobStatus(StrEnum):
@@ -13,40 +9,3 @@ class JobStatus(StrEnum):
     running = auto()
     done = auto()
     error = auto()
-
-
-class JobMessageType(StrEnum):
-    """Message type."""
-
-    status = auto()
-    data = auto()
-    ping = auto()
-
-
-class JobMessageBase(BaseModel):
-    timestamp: str = Field(default_factory=lambda: iso_now())
-
-
-class JobStatusMessage(JobMessageBase):
-    message_type: Literal[JobMessageType.status] = Field(
-        default=JobMessageType.status, alias="type"
-    )
-    ctx: dict[str, Any] | None = None
-    status: JobStatus
-    extra: str | None = None
-
-
-class JobDataMessage(JobMessageBase):
-    message_type: Literal[JobMessageType.data] = Field(default=JobMessageType.data, alias="type")
-    ctx: dict[str, Any] | None = None
-    data_type: str | None = None
-    data: Any
-
-
-class JobPingMessage(JobMessageBase):
-    message_type: Literal[JobMessageType.ping] = Field(default=JobMessageType.ping, alias="type")
-
-
-JobMessage = Annotated[Union[JobStatusMessage, JobDataMessage], Field(discriminator="message_type")]
-
-JobMessageAdapter = TypeAdapter(JobMessage)

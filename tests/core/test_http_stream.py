@@ -20,7 +20,9 @@ class TestXNdjsonHttpStream(unittest.TestCase):
             request.is_disconnected = AsyncMock(return_value=False)
 
             results = []
-            async for item in x_ndjson_http_stream(request, create_iterator(), ping_interval=10.0):
+            async for item in x_ndjson_http_stream(
+                request, create_iterator(), keep_alive_interval=10.0
+            ):
                 results.append(item)
 
             self.assertEqual(len(results), 3)
@@ -50,7 +52,9 @@ class TestXNdjsonHttpStream(unittest.TestCase):
             request.is_disconnected = is_disconnected_fn
 
             results = []
-            async for item in x_ndjson_http_stream(request, create_iterator(), ping_interval=10.0):
+            async for item in x_ndjson_http_stream(
+                request, create_iterator(), keep_alive_interval=10.0
+            ):
                 results.append(item)
 
             # Should stop after disconnect
@@ -58,8 +62,8 @@ class TestXNdjsonHttpStream(unittest.TestCase):
 
         asyncio.run(test())
 
-    def test_stream_sends_ping_on_timeout(self):
-        """Test that ping messages are sent when no data arrives within timeout."""
+    def test_stream_sends_keep_alive_on_timeout(self):
+        """Test that keep_alive messages are sent when no data arrives within timeout."""
 
         async def slow_iterator():
             await asyncio.sleep(0.2)
@@ -70,16 +74,18 @@ class TestXNdjsonHttpStream(unittest.TestCase):
             request.is_disconnected = AsyncMock(return_value=False)
 
             results = []
-            async for item in x_ndjson_http_stream(request, slow_iterator(), ping_interval=0.05):
+            async for item in x_ndjson_http_stream(
+                request, slow_iterator(), keep_alive_interval=0.05
+            ):
                 results.append(item)
-                if len(results) >= 3:  # Get a few pings then stop
+                if len(results) >= 3:  # Get a few keep_alive messages then stop
                     break
 
-            # Should have received ping messages before the actual data
-            ping_count = sum(
-                1 for r in results if json.loads(r.strip()).get("message_type") == "ping"
+            # Should have received keep_alive messages before the actual data
+            keep_alive_count = sum(
+                1 for r in results if json.loads(r.strip()).get("message_type") == "keep_alive"
             )
-            self.assertGreater(ping_count, 0)
+            self.assertGreater(keep_alive_count, 0)
 
         asyncio.run(test())
 
@@ -95,7 +101,9 @@ class TestXNdjsonHttpStream(unittest.TestCase):
             request.is_disconnected = AsyncMock(return_value=False)
 
             results = []
-            async for item in x_ndjson_http_stream(request, empty_iterator(), ping_interval=10.0):
+            async for item in x_ndjson_http_stream(
+                request, empty_iterator(), keep_alive_interval=10.0
+            ):
                 results.append(item)
 
             self.assertEqual(results, [])
@@ -115,7 +123,9 @@ class TestXNdjsonHttpStream(unittest.TestCase):
             request.is_disconnected = AsyncMock(return_value=False)
 
             results = []
-            async for item in x_ndjson_http_stream(request, multi_iterator(), ping_interval=10.0):
+            async for item in x_ndjson_http_stream(
+                request, multi_iterator(), keep_alive_interval=10.0
+            ):
                 results.append(item)
 
             self.assertEqual(len(results), 3)
@@ -146,15 +156,17 @@ class TestXNdjsonHttpStream(unittest.TestCase):
             request.is_disconnected = is_disconnected_fn
 
             results = []
-            async for item in x_ndjson_http_stream(request, slow_iterator(), ping_interval=0.05):
+            async for item in x_ndjson_http_stream(
+                request, slow_iterator(), keep_alive_interval=0.05
+            ):
                 results.append(item)
 
-            # Should have stopped due to disconnect, possibly with some pings
+            # Should have stopped due to disconnect, possibly with some keep_alive messages
             # but should not have waited for the full 1 second
-            self.assertGreater(len(results), 0)  # At least some pings
-            # Verify we got pings, not the actual data
+            self.assertGreater(len(results), 0)  # At least some keep_alive messages
+            # Verify we got keep_alive messages, not the actual data
             last_item = json.loads(results[-1].strip())
-            self.assertEqual(last_item.get("message_type"), "ping")
+            self.assertEqual(last_item.get("message_type"), "keep_alive")
 
         asyncio.run(test())
 
@@ -170,7 +182,9 @@ class TestXNdjsonHttpStream(unittest.TestCase):
             request.is_disconnected = AsyncMock(return_value=False)
 
             results = []
-            async for item in x_ndjson_http_stream(request, create_iterator(), ping_interval=10.0):
+            async for item in x_ndjson_http_stream(
+                request, create_iterator(), keep_alive_interval=10.0
+            ):
                 results.append(item)
 
             # Each line should end with newline
