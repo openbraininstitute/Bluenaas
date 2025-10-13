@@ -10,7 +10,7 @@ from rq.job import JobStatus as RQJobStatus
 
 from app.config.settings import settings
 from app.core.job_stream import JobStatus, JobStream
-from app.domains.job import JobMessage, JobMessageAdapter, JobMessageType
+from app.domains.stream_message import Message, MessageAdapter, MessageType
 from app.infrastructure.redis.asyncio import redis_stream_reader
 from app.utils.asyncio import run_async
 from app.utils.streaming import compose_key
@@ -141,14 +141,14 @@ async def dispatch(
     return job, read_stream
 
 
-async def get_job_data(stream: AsyncGenerator[str, None]):
-    async for message_str in stream:
-        message: JobMessage = JobMessageAdapter.validate_json(message_str)
+async def get_job_data(stream: AsyncGenerator[dict, None]):
+    async for message_dict in stream:
+        message: Message = MessageAdapter.validate_python(message_dict)
 
-        if message.message_type == JobMessageType.status and message.status == JobStatus.error:
+        if message.message_type == MessageType.status and message.status == JobStatus.error:
             raise RuntimeError("Job failed")
 
-        if message.message_type == JobMessageType.data:
+        if message.message_type == MessageType.data:
             return message.data
 
     raise RuntimeError("Job never sent any data")

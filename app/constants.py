@@ -1,4 +1,4 @@
-STOP_MESSAGE = "__STOP__"
+STOP_MESSAGE = b"__STOP__"
 
 CIRCUIT_MOD_DIR = "mod"
 CIRCUIT_SIMULATION_CONFIG_NAME = "simulation_config.json"
