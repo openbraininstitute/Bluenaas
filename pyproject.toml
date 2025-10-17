@@ -58,6 +58,8 @@ exclude = [
 line-length = 100
 target-version = "py312"
 
+[tool.uv]
+find-links = ["ext-deps/ultraliser"]
+
 [tool.uv.sources]
 obp-accounting-sdk = { git = "https://github.com/openbraininstitute/accounting-sdk.git", rev = "feat/use-asyncio-in-async-hearbeat-sender" }
-ultraliser = { path = "./ext-deps/ultraliser/ultraliser-2.0.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" }

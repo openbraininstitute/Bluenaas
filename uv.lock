@@ -322,7 +322,7 @@ worker = [
     { name = "pynwb", specifier = "==3.1.0" },
     { name = "requests", specifier = "==2.32.4" },
     { name = "tables", specifier = "==3.10.2" },
-    { name = "ultraliser", path = "ext-deps/ultraliser/ultraliser-2.0.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
+    { name = "ultraliser" },
 ]
 
 [[package]]
@@ -2834,8 +2834,8 @@ wheels = [
 
 [[package]]
 name = "ultraliser"
-version = "2.0.3"
-source = { path = "ext-deps/ultraliser/ultraliser-2.0.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" }
+version = "2.0.4"
+source = { registry = "ext-deps/ultraliser" }
 dependencies = [
     { name = "connectome-utilities" },
     { name = "h5py" },
@@ -2851,24 +2851,8 @@ dependencies = [
     { name = "trame" },
 ]
 wheels = [
-    { filename = "ultraliser-2.0.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:72b0df4bf689ba46ec735345295704baa394fd4449cfefc78b192ae87eeeceb4" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "connectome-utilities" },
-    { name = "h5py" },
-    { name = "matplotlib" },
-    { name = "morphio" },
-    { name = "neurom" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "pillow" },
-    { name = "pyvista" },
-    { name = "pyvista", extras = ["jupyter"] },
-    { name = "scipy" },
-    { name = "tqdm" },
-    { name = "trame" },
+    { path = "ultraliser-2.0.4-cp312-cp312-macosx_15_0_arm64.whl" },
+    { path = "ultraliser-2.0.4-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
 ]
 
 [[package]]
