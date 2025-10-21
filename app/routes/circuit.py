@@ -53,6 +53,7 @@ async def run_circuit_simulation_batch(
 ):
     return await run_circuit_simulation_batch_service(
         run_batch_request.simulation_ids,
+        run_batch_request.circuit_origin,
         request=request,
         job_queue=job_queue,
         project_context=project_context,

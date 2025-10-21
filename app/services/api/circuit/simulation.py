@@ -17,6 +17,7 @@ from rq import Queue
 
 from app.config.settings import settings
 from app.core.exceptions import AppError, AppErrorCode
+from app.domains.circuit.circuit import CircuitOrigin
 from app.domains.circuit.simulation import SimulationParams
 from app.infrastructure.accounting.session import async_accounting_session_factory
 from app.infrastructure.kc.auth import Auth
@@ -162,12 +163,16 @@ async def run_circuit_simulation(
 
 
 async def _get_sim_params_map(
-    simulation_ids: List[UUID], *, auth: Auth, client: Client, project_context: ProjectContext
+    simulation_ids: List[UUID],
+    circuit_origin: CircuitOrigin,
+    *,
+    auth: Auth,
+    project_context: ProjectContext,
 ) -> Dict[UUID, SimulationParams]:
     _job, stream = await dispatch(
         get_queue(JobQueue.HIGH),
         JobFn.GET_CIRCUIT_SIMULATION_BATCH_PARAMS_MAP,
-        job_args=(simulation_ids,),
+        job_args=(simulation_ids, circuit_origin),
         job_kwargs={
             "access_token": auth.access_token,
             "project_context": project_context,
@@ -212,6 +217,7 @@ async def _cancel_reservations(
 
 async def run_circuit_simulation_batch(
     simulation_ids: List[UUID],
+    circuit_origin: CircuitOrigin,
     *,
     request: Request,
     job_queue: Queue,
@@ -234,8 +240,8 @@ async def run_circuit_simulation_batch(
 
     sim_params_map = await _get_sim_params_map(
         simulation_ids,
+        circuit_origin=circuit_origin,
         auth=auth,
-        client=client,
         project_context=project_context,
     )
 
@@ -321,7 +327,7 @@ async def run_circuit_simulation_batch(
             job_queue,
             JobFn.RUN_CIRCUIT_SIMULATION,
             job_id=str(exec_id),
-            job_args=(sim.id,),
+            job_args=(sim.id, circuit_origin),
             job_kwargs={
                 "circuit_id": sim.entity_id,
                 "execution_id": exec_id,
