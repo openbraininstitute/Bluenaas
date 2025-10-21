@@ -1,26 +1,44 @@
 import json
-from pathlib import Path
 import subprocess
+from abc import ABC, abstractmethod
+from pathlib import Path
 from uuid import UUID
+
 from entitysdk.client import Client
-from entitysdk.staging import stage_circuit
-from entitysdk.models.circuit import Circuit as EntitycoreCircuit
+from entitysdk.models import Circuit as EntitycoreCircuit
+from entitysdk.models import MEModel as EntitycoreMEModel
+from entitysdk.staging import stage_circuit, stage_sonata_from_memodel
 from filelock import FileLock
 from loguru import logger
 
 from app.constants import (
-    CIRCUIT_MOD_DIR,
     CIRCUIT_CONFIG_NAME,
+    CIRCUIT_MOD_DIR,
+    CIRCUIT_MEMODEL_MOD_DIR,
     READY_MARKER_FILE_NAME,
 )
 from app.core.exceptions import CircuitInitError
+from app.domains.circuit.circuit import CircuitOrigin
 from app.infrastructure.storage import get_circuit_location
 
 
-class Circuit:
+def create_circuit(
+    circuit_id: UUID,
+    circuit_origin: CircuitOrigin,
+    *,
+    client: Client,
+):
+    if circuit_origin == CircuitOrigin.CIRCUIT:
+        return Circuit(circuit_id, client=client)
+    elif circuit_origin == CircuitOrigin.MEMODEL:
+        return MEModelCircuit(circuit_id, client=client)
+    else:
+        raise ValueError(f"Unknown circuit type: {circuit_origin}")
+
+
+class CircuitBase(ABC):
     circuit_id: UUID
     initialized: bool = False
-    metadata: EntitycoreCircuit
     path: Path
 
     def __init__(self, circuit_id: UUID, *, client: Client):
@@ -31,34 +49,15 @@ class Circuit:
 
         self._fetch_metadata()
 
+    @abstractmethod
     def _fetch_metadata(self):
         """Fetch the circuit metadata from entitycore"""
-        self.metadata = self.client.get_entity(self.circuit_id, entity_type=EntitycoreCircuit)
+        pass
 
+    @abstractmethod
     def _fetch_assets(self):
         """Fetch the circuit files from entitycore and write to the disk storage"""
-        assert self.metadata.id is not None
-        stage_circuit(self.client, model=self.metadata, output_dir=self.path, max_concurrent=8)
-
-        # --------- TODO remove this ---------------------------------------------------------------
-        config_file = self.path / CIRCUIT_CONFIG_NAME
-        with open(config_file, "r") as f:
-            config_data = json.load(f)
-
-        config_data["networks"]["edges"] = [
-            edge
-            for edge in config_data["networks"]["edges"]
-            if not (
-                "hippocampus" in edge["edges_file"].lower()
-                and "projections" in edge["edges_file"].lower()
-            )
-        ]
-
-        with open(config_file, "w") as f:
-            json.dump(config_data, f, indent=2)
-        # ------------------------------------------------------------------------------------------
-
-        logger.info(f"Circuit {self.circuit_id} fetched")
+        pass
 
     def _compile_mod_files(self):
         """Compile MOD files"""
@@ -108,3 +107,51 @@ class Circuit:
         """Check if the circuit is in the storage"""
         ready_marker = self.path / READY_MARKER_FILE_NAME
         return ready_marker.exists()
+
+
+class Circuit(CircuitBase):
+    metadata: EntitycoreCircuit
+
+    def _fetch_metadata(self):
+        """Fetch the circuit metadata from entitycore"""
+        self.metadata = self.client.get_entity(self.circuit_id, entity_type=EntitycoreCircuit)
+
+    def _fetch_assets(self):
+        """Fetch the circuit files from entitycore and write to the disk storage"""
+        assert self.metadata.id is not None
+        stage_circuit(self.client, model=self.metadata, output_dir=self.path, max_concurrent=8)
+
+        # --------- TODO remove this ---------------------------------------------------------------
+        config_file = self.path / CIRCUIT_CONFIG_NAME
+        with open(config_file, "r") as f:
+            config_data = json.load(f)
+
+        config_data["networks"]["edges"] = [
+            edge
+            for edge in config_data["networks"]["edges"]
+            if not (
+                "hippocampus" in edge["edges_file"].lower()
+                and "projections" in edge["edges_file"].lower()
+            )
+        ]
+
+        with open(config_file, "w") as f:
+            json.dump(config_data, f, indent=2)
+        # ------------------------------------------------------------------------------------------
+
+        logger.info(f"Circuit {self.circuit_id} fetched")
+
+
+class MEModelCircuit(CircuitBase):
+    metadata: EntitycoreMEModel
+
+    def _fetch_metadata(self):
+        """Fetch the ME-model metadata from entitycore"""
+        self.metadata = self.client.get_entity(self.circuit_id, entity_type=EntitycoreMEModel)
+
+    def _fetch_assets(self):
+        """Fetch the ME-model files from entitycore and write to the disk storage"""
+        assert self.metadata.id is not None
+        stage_sonata_from_memodel(self.client, memodel=self.metadata, output_dir=self.path)
+        mod_path = self.path / CIRCUIT_MEMODEL_MOD_DIR
+        mod_path.rename(self.path / CIRCUIT_MOD_DIR)
