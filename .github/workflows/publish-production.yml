@@ -34,7 +34,7 @@ jobs:
         uses: robinraju/release-downloader@v1.11
         with:
           repository: "openbraininstitute/Ultraliser"
-          tag: "V2.0.5-rc.1"
+          tag: "V2.0.5-rc.2"
           fileName: "*.whl"
           out-file-path: "ext-deps/ultraliser"
           token: ${{ secrets.ULTRALIZER_REPO_PAT }}
