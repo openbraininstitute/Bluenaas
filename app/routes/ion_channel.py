@@ -32,7 +32,7 @@ async def run_ion_channel_build(
     auth: Auth = Depends(verify_jwt),
     job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
     stream: bool = Query(False, description="Return streaming x-ndjson response"),
-) -> JobInfo | StreamingResponse:
+):
     return await run_ion_channel_build_service(
         config,
         request=request,
