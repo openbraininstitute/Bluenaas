@@ -2,7 +2,6 @@ from http import HTTPStatus
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import StreamingResponse
 from rq import Queue
 
 from app.core.job import JobInfo
