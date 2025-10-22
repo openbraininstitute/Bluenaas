@@ -3521,7 +3521,7 @@ wheels = [
 
 [[package]]
 name = "ultraliser"
-version = "2.0.4"
+version = "2.0.5"
 source = { registry = "ext-deps/ultraliser" }
 dependencies = [
     { name = "connectome-utilities" },
@@ -3538,8 +3538,7 @@ dependencies = [
     { name = "trame" },
 ]
 wheels = [
-    { path = "ultraliser-2.0.4-cp312-cp312-macosx_15_0_arm64.whl" },
-    { path = "ultraliser-2.0.4-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
+    { path = "ultraliser-2.0.5-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
 ]
 
 [[package]]
