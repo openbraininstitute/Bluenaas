@@ -6,7 +6,6 @@ from entitysdk.common import ProjectContext
 from entitysdk.models import EMCellMesh
 from fastapi.responses import JSONResponse
 from rq import Queue
-from datetime import datetime
 
 from app.config.settings import settings
 from app.domains.mesh.skeletonization import (
@@ -14,6 +13,7 @@ from app.domains.mesh.skeletonization import (
     SkeletonizationUltraliserParams,
 )
 from app.job import JobFn
+from app.utils.datetime import safe_isoformat
 from app.utils.rq_job import dispatch, run_async
 from app.infrastructure.kc.auth import Auth
 
@@ -58,10 +58,6 @@ async def run_mesh_skeletonization(
     return JSONResponse({"id": job.id}, status_code=HTTPStatus.ACCEPTED)
 
 
-def _format_date(date: datetime | None) -> str | None:
-    return date.isoformat() if date else None
-
-
 async def get_mesh_skeletonization_status(
     job_id: UUID, *, job_queue: Queue, project_context: ProjectContext
 ):
@@ -75,10 +71,10 @@ async def get_mesh_skeletonization_status(
 
     res = {
         "id": str(job.id),
-        "created_at": _format_date(job.created_at),
-        "enqueued_at": _format_date(job.enqueued_at),
-        "started_at": _format_date(job.started_at),
-        "ended_at": _format_date(job.ended_at),
+        "created_at": safe_isoformat(job.created_at),
+        "enqueued_at": safe_isoformat(job.enqueued_at),
+        "started_at": safe_isoformat(job.started_at),
+        "ended_at": safe_isoformat(job.ended_at),
         "status": status,
         "queue_position": job_position,
         "error": job.exc_info,
