@@ -63,3 +63,4 @@ find-links = ["ext-deps/ultraliser"]
 
 [tool.uv.sources]
 obp-accounting-sdk = { git = "https://github.com/openbraininstitute/accounting-sdk.git", rev = "feat/use-asyncio-in-async-hearbeat-sender" }
+entitysdk = { git = "https://github.com/openbraininstitute/entitysdk.git", rev = "update-stage-simulation" }
