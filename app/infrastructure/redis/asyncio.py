@@ -1,12 +1,13 @@
 import time
 from loguru import logger
 
+import msgpack
 from redis.asyncio import Redis
 from app.config.settings import settings
 from app.constants import STOP_MESSAGE
 from app.core.exceptions import AppError, AppErrorCode
 
-redis_client = Redis.from_url(url=settings.REDIS_URL, decode_responses=True)
+redis_client = Redis.from_url(url=settings.REDIS_URL)
 
 
 async def redis_stream_reader(stream_key: str, timeout: int = settings.MAX_JOB_DURATION):
@@ -57,13 +58,13 @@ async def redis_stream_reader(stream_key: str, timeout: int = settings.MAX_JOB_D
         for stream_key, messages in response:
             for message_id, fields in messages:
                 last_id = message_id
-                data = fields.get("data")
+                raw_data = fields.get(b"data")
 
-                if data == STOP_MESSAGE:
+                if raw_data == STOP_MESSAGE:
                     logger.info(f"Received STOP_MESSAGE on Redis {stream_key}")
                     return
 
-                yield data
+                yield msgpack.unpackb(raw_data)
 
 
 async def stream(stream_key: str, data: str) -> None:
