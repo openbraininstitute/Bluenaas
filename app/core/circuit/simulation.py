@@ -2,6 +2,7 @@ import json
 import subprocess
 from os.path import relpath
 from pathlib import Path
+from typing import Self
 from uuid import UUID, uuid4
 
 from entitysdk.client import Client
@@ -38,20 +39,20 @@ class Simulation:
 
     def __init__(
         self,
-        circuit_id: UUID,
         simulation_id: UUID,
+        *,
         client: Client,
-        execution_id: UUID = uuid4(),
-    ):
+        execution_id: UUID | None = None,
+    ) -> None:
         self.simulation_id = simulation_id
-        self.execution_id = execution_id
+        self.execution_id = execution_id or uuid4()
         self.client = client
 
         self.path = get_circuit_simulation_location(self.execution_id)
 
-        self.circuit = Circuit(circuit_id, client=client)
-
         self._fetch_metadata()
+
+        self.circuit = Circuit(self.metadata.entity_id, client=client)
 
         # So that we can upload generated results, including logs even if circuit init fails.
         self._init_output()
@@ -145,7 +146,7 @@ class Simulation:
 
                 return SimulationParams(num_cells=num_cells, tstop=tstop)
 
-    def init(self, *, init_circuit: bool = True):
+    def init(self, *, init_circuit: bool = True) -> Self:
         if init_circuit:
             self._init_circuit()
 
@@ -153,6 +154,8 @@ class Simulation:
             self._init_simulation()
         except Exception:
             raise CircuitSimulationInitError()
+
+        return self
 
     def run(self, *, num_procs: int = 1) -> SimulationOutput:
         # Run the simulation via MPI entrypoint
@@ -180,9 +183,11 @@ class Simulation:
 
         return self.output
 
-    def cleanup(self):
+    def cleanup(self) -> Self:
         self.output.cleanup()
 
         # TODO: Make instance re-initializable
         self.initialized = False
         rm_dir(self.path)
+
+        return self

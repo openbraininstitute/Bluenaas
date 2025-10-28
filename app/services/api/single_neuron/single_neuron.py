@@ -2,7 +2,16 @@ from http import HTTPStatus
 
 from entitysdk import Client, ProjectContext
 from entitysdk._server_schemas import ValidationStatus
-from entitysdk.models import BrainRegion, CellMorphology, EModel, MEModel, Species, Strain
+from entitysdk.models import (
+    BrainRegion,
+    CellMorphology,
+    EModel,
+    MEModel,
+    Species,
+    Strain,
+    MTypeClassification,
+    ETypeClassification,
+)
 from loguru import logger
 from obp_accounting_sdk.constants import ServiceSubtype
 from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
@@ -86,18 +95,47 @@ async def create_single_neuron_model(
         )
     )
 
-    memodel = await run_async(
+    initial_memodel = await run_async(
         lambda: client.register_entity(
             MEModel(
-                name=model.name,
+                brain_region=brain_region,
                 description=model.description,
-                validation_status=ValidationStatus.created,
-                morphology=morphology,
                 emodel=emodel,
+                morphology=morphology,
+                name=model.name,
                 species=species,
                 strain=strain,
-                brain_region=brain_region,
+                validation_status=ValidationStatus.created,
             )
+        )
+    )
+
+    for etype in emodel.etypes or []:
+        await run_async(
+            lambda: client.register_entity(
+                ETypeClassification(
+                    etype_class_id=etype.id,  # type: ignore
+                    entity_id=initial_memodel.id,  # type: ignore
+                    authorized_public=True,
+                )
+            )
+        )
+
+    for mtype in morphology.mtypes or []:
+        await run_async(
+            lambda: client.register_entity(
+                MTypeClassification(
+                    mtype_class_id=mtype.id,  # type: ignore
+                    entity_id=initial_memodel.id,  # type: ignore
+                    authorized_public=True,
+                )
+            )
+        )
+
+    memodel = await run_async(
+        lambda: client.get_entity(
+            entity_id=initial_memodel.id,  # type: ignore
+            entity_type=MEModel,
         )
     )
 
@@ -124,4 +162,4 @@ async def create_single_neuron_model(
         },
     )
 
-    return ApiResponse[MEModel](message="Single neuron model created successfully", data=memodel)  # type: ignore
+    return ApiResponse[MEModel](message="Single neuron model created successfully", data=memodel)

@@ -48,7 +48,9 @@ class TestExclusionRules(unittest.TestCase):
 
     def test_returns_none_if_no_exclusion_rules(self):
         result = get_segments_satisfying_all_exclusion_rules(
-            rules=None, segment_distances=self.distances, section_info=self._create_mock_location_data()
+            rules=None,
+            segment_distances=self.distances,
+            section_info=self._create_mock_location_data(),
         )
         self.assertEqual(result, [0, 1, 2, 3, 4])
 
@@ -56,7 +58,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_gte=29.122, distance_soma_lte=90.89)],
             segment_distances=self.distances,
-            section_info=self._create_mock_location_data()
+            section_info=self._create_mock_location_data(),
         )
         self.assertEqual(result, [0, 4])
 
@@ -64,7 +66,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_gte=29.122)],
             segment_distances=self.distances,
-            section_info=self._create_mock_location_data()
+            section_info=self._create_mock_location_data(),
         )
         self.assertEqual(result, [0])
 
@@ -72,7 +74,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_lte=90.67)],
             segment_distances=self.distances,
-            section_info=self._create_mock_location_data()
+            section_info=self._create_mock_location_data(),
         )
         self.assertEqual(result, [4])
 
@@ -80,7 +82,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_gte=200.67)],
             segment_distances=self.distances,
-            section_info=self._create_mock_location_data()
+            section_info=self._create_mock_location_data(),
         )
         self.assertEqual(result, [0, 1, 2, 3, 4])
 
@@ -88,7 +90,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_lte=5)],
             segment_distances=self.distances,
-            section_info=self._create_mock_location_data()
+            section_info=self._create_mock_location_data(),
         )
         self.assertEqual(result, [0, 1, 2, 3, 4])
 
@@ -96,7 +98,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_lte=200)],
             segment_distances=self.distances,
-            section_info=self._create_mock_location_data()
+            section_info=self._create_mock_location_data(),
         )
         self.assertEqual(result, None)
 
@@ -104,7 +106,7 @@ class TestExclusionRules(unittest.TestCase):
         result = get_segments_satisfying_all_exclusion_rules(
             rules=[ExclusionRule(distance_soma_lte=200)],
             segment_distances=self.distances,
-            section_info=self._create_mock_location_data()
+            section_info=self._create_mock_location_data(),
         )
         self.assertEqual(result, None)
 
@@ -116,7 +118,7 @@ class TestExclusionRules(unittest.TestCase):
                 46.140226793353406,
                 55.08450786043035,
             ],
-            section_info=self._create_mock_location_data(3)
+            section_info=self._create_mock_location_data(3),
         )
         self.assertEqual(result, [2])
 

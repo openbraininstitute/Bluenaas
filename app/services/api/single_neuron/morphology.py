@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from rq import Queue
 
 from app.job import JobFn
-from app.utils.api.streaming import x_ndjson_http_stream
+from app.core.http_stream import x_ndjson_http_stream
 from app.utils.rq_job import dispatch, get_job_data
 
 

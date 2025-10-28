@@ -1,9 +1,11 @@
+from typing import List
 from uuid import UUID
 
 from entitysdk.common import ProjectContext
 
 from app.services.worker.circuit.simulation import (
     get_circuit_simulation_params,
+    get_batch_circuit_simulation_params_map,
     run_circuit_simulation,
 )
 
@@ -29,12 +31,23 @@ def get_params(
     simulation_id: UUID,
     *,
     access_token: str,
-    circuit_id: UUID,
     project_context: ProjectContext,
 ) -> None:
     get_circuit_simulation_params(
         simulation_id,
         access_token=access_token,
-        circuit_id=circuit_id,
+        project_context=project_context,
+    )
+
+
+def get_batch_params_map(
+    simulation_ids: List[UUID],
+    *,
+    access_token: str,
+    project_context: ProjectContext,
+) -> None:
+    get_batch_circuit_simulation_params_map(
+        simulation_ids,
+        access_token=access_token,
         project_context=project_context,
     )

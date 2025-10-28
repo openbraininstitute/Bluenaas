@@ -2,6 +2,7 @@ from uuid import UUID
 
 from entitysdk import Client, ProjectContext
 from loguru import logger
+from httpx import Client as HttpxClient, Timeout
 
 from app.config.settings import settings
 from app.core.mesh.skeletonization import Skeletonization
@@ -22,10 +23,13 @@ def run_mesh_skeletonization(
     access_token: str,
     project_context: ProjectContext,
 ) -> SkeletonizationJobOutput:
+    httpx_client = HttpxClient(timeout=Timeout(10, read=20))
+
     client = Client(
         api_url=str(settings.ENTITYCORE_URI),
         project_context=project_context,
         token_manager=access_token,
+        http_client=httpx_client,
     )
 
     skeletonization = Skeletonization(
@@ -49,6 +53,7 @@ def run_mesh_skeletonization(
         raise
     finally:
         skeletonization.output.cleanup()
+        httpx_client.close()
 
     logger.info(f"Skeletonization completed for mesh {em_cell_mesh_id}")
 

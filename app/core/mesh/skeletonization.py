@@ -65,6 +65,10 @@ class Skeletonization:
 
         executor = SafeProcessExecutor()
 
+        logger.info("Ultraliser version")
+        executor.execute(ultraliser.version)  # type: ignore
+        executor.execute(ultraliser.build)  # type: ignore
+
         result = executor.execute(
             ultraliser.skeletonize_neuron_mesh,
             mesh_path=str(self.mesh.file_path),

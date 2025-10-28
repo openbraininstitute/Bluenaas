@@ -1,48 +1,39 @@
+import msgpack
+
+from typing import Any, cast
+from redis import ConnectionPool, Redis
+
 from app.config.settings import settings
 from app.constants import STOP_MESSAGE
-from redis import ConnectionPool, Redis
 
 MAX_REDIS_CONNECTIONS = 20
 
 connection_pool = ConnectionPool.from_url(settings.REDIS_URL, max_connections=MAX_REDIS_CONNECTIONS)
-redis_client = Redis(connection_pool=connection_pool, decode_responses=True)
+redis_client = Redis(connection_pool=connection_pool)
 
 
 class Stream:
     stream_key: str
+    ttl: int
 
-    def __init__(self, stream_key: str):
+    def __init__(self, stream_key: str, *, ttl: int | None = None):
         self.stream_key = stream_key
+        self.ttl = ttl or settings.DEFAULT_REDIS_STREAM_TTL
 
-    def _send(self, data: str):
+    def set_ttl(self):
+        redis_client.expire(self.stream_key, self.ttl)
+
+    def _send(self, data: bytes):
         redis_client.xadd(self.stream_key, {"data": data})
-        redis_client.expire(self.stream_key, settings.MAX_JOB_DURATION, nx=True)
+        self.set_ttl()
 
     def _receive(self):
         pass
 
     def close(self):
         redis_client.xadd(self.stream_key, {"data": STOP_MESSAGE})
-        redis_client.expire(self.stream_key, settings.MAX_JOB_DURATION, nx=True)
+        self.set_ttl()
 
-    def send(self, data: str):
-        self._send(data)
-
-    def send_once(self, data: str):
-        self._send(data)
-        self.close()
-
-
-def stream(stream_key: str, data: str) -> None:
-    redis_client.xadd(stream_key, {"data": data})
-
-    redis_client.expire(stream_key, settings.MAX_JOB_DURATION, nx=True)
-
-
-def close_stream(stream_key: str) -> None:
-    redis_client.xadd(stream_key, {"data": STOP_MESSAGE})
-
-
-def stream_once(stream_key: str, data: str) -> None:
-    stream(stream_key, data)
-    close_stream(stream_key)
+    def send(self, data: dict[str, Any]):
+        binary_data = cast(bytes, msgpack.packb(data))
+        self._send(binary_data)
