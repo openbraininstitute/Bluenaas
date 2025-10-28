@@ -295,6 +295,7 @@ async def run_circuit_simulation_batch(
 
         async def on_start() -> None:
             await accounting_session.start()
+            logger.info("Accounting session started successfully")
 
         async def on_success() -> None:
             await accounting_session.finish()
@@ -314,6 +315,7 @@ async def run_circuit_simulation_batch(
 
             # TODO fix the exc_type type below.
             await accounting_session.finish(exc_type=exc_type)  # type: ignore
+            logger.info("Accounting session with provided exception finished successfully")
 
         _job, stream = await dispatch(
             job_queue,
