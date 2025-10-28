@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     STORAGE_PATH: Path = Path("/app/storage")
 
     MAX_JOB_DURATION: int = 20 * 60  # 20 minutes
+    DEFAULT_REDIS_STREAM_TTL: int = 60  # 1 minute
+
+    HTTP_STREAM_KEEP_ALIVE_INTERVAL: int = 30  # 30 seconds
 
     METRICS_CLOUD_PROVIDER: _CLOUD_PROVIDER = None
     METRICS_INTERVAL: int = 60  # 1 minute

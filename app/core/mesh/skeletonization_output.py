@@ -2,16 +2,15 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
-from morphio import Morphology
 from entitysdk.client import Client
 from entitysdk.models import BrainRegion, CellMorphology, Contribution, License, Role, Subject
 from entitysdk.models.asset import AssetLabel, ContentType
 from loguru import logger
+from morphio.mut import Morphology
 from pydantic import BaseModel
 
 from app.constants import SKELETONIZATION_OUTPUT_LICENSE_LABEL, SKELETONIZATION_OUTPUT_ROLE_NAME
 from app.infrastructure.storage import ensure_dir, get_mesh_skeletonization_output_location, rm_dir
-
 
 SPINY_MORPH_PATH_SUFFIX = "_with_spines"
 
@@ -40,6 +39,11 @@ class SkeletonizationOutput:
         logger.debug(f"Initialized skeletonization output folder {self.path}")
 
     def post_process(self) -> None:
+        # Clean up *-morphology.h5 and *-spines.h5 files from the output
+        for pattern in ("*-morphology.h5", "*-spines.h5"):
+            for file in self.path.rglob(pattern):
+                file.unlink()
+
         spiny_morph_path = next(self.path.rglob("*.h5"), None)
         assert spiny_morph_path, "No combined morphology file found in the output location"
 
@@ -80,24 +84,31 @@ class SkeletonizationOutput:
             f"No spiny H5 morphology file found in the output location: {spiny_morph_path}"
         )
 
-        # TODO: Add query by label when supported in entitycore
-        licenses = cast(list[License], self.client.search_entity(entity_type=License))
-        license = next(
-            filter(lambda license: license.label == SKELETONIZATION_OUTPUT_LICENSE_LABEL, licenses),
-            None,
+        license = cast(
+            License | None,
+            next(
+                self.client.search_entity(
+                    entity_type=License,
+                    query={"label": SKELETONIZATION_OUTPUT_LICENSE_LABEL},
+                ),
+                None,
+            ),
         )
         if not license:
             raise ValueError(f"License {SKELETONIZATION_OUTPUT_LICENSE_LABEL} not found")
 
-        logger.debug(f"Using license: {license}")
-
-        # TODO: Add query by name when supported in entitycore
-        roles = cast(list[Role], self.client.search_entity(entity_type=Role))
-        role = next(filter(lambda role: role.name == SKELETONIZATION_OUTPUT_ROLE_NAME, roles), None)
+        role = cast(
+            Role | None,
+            next(
+                self.client.search_entity(
+                    entity_type=Role,
+                    query={"name": SKELETONIZATION_OUTPUT_ROLE_NAME},
+                ),
+                None,
+            ),
+        )
         if not role:
             raise ValueError(f"Role {SKELETONIZATION_OUTPUT_ROLE_NAME} not found")
-
-        logger.debug(f"Using role: {role}")
 
         morphology = cast(
             CellMorphology,
@@ -115,15 +126,13 @@ class SkeletonizationOutput:
         assert morphology.id
         assert morphology.created_by
 
-        contribution = self.client.register_entity(
+        self.client.register_entity(
             Contribution(
                 entity=morphology,
                 role=role,
                 agent=morphology.created_by,
             )
         )
-
-        logger.debug(f"Created contribution: {contribution}")
 
         self.client.upload_file(
             entity_id=morphology.id,
