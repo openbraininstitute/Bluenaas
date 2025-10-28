@@ -3,27 +3,26 @@ from http import HTTPStatus
 from typing import Dict, List
 from uuid import UUID
 
-from obp_accounting_sdk import AsyncOneshotSession
 from entitysdk.client import Client
 from entitysdk.common import ProjectContext
-from entitysdk.models import Simulation, SimulationExecution, SimulationCampaign
+from entitysdk.models import Simulation, SimulationCampaign, SimulationExecution
 from entitysdk.types import SimulationExecutionStatus
 from fastapi import Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
+from obp_accounting_sdk import AsyncOneshotSession
 from obp_accounting_sdk.constants import ServiceSubtype
 from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
 from rq import Queue
 
 from app.config.settings import settings
 from app.core.exceptions import AppError, AppErrorCode
-from app.domains.circuit.circuit import CircuitOrigin
+from app.core.http_stream import x_ndjson_http_stream
 from app.domains.circuit.simulation import SimulationParams
 from app.infrastructure.accounting.session import async_accounting_session_factory
 from app.infrastructure.kc.auth import Auth
-from app.infrastructure.rq import get_queue, JobQueue
+from app.infrastructure.rq import JobQueue, get_queue
 from app.job import JobFn
-from app.core.http_stream import x_ndjson_http_stream
 from app.utils.asyncio import interleave_async_iterators, run_async
 from app.utils.rq_job import dispatch, get_job_data
 
@@ -164,7 +163,6 @@ async def run_circuit_simulation(
 
 async def _get_sim_params_map(
     simulation_ids: List[UUID],
-    circuit_origin: CircuitOrigin,
     *,
     auth: Auth,
     project_context: ProjectContext,
@@ -172,7 +170,7 @@ async def _get_sim_params_map(
     _job, stream = await dispatch(
         get_queue(JobQueue.HIGH),
         JobFn.GET_CIRCUIT_SIMULATION_BATCH_PARAMS_MAP,
-        job_args=(simulation_ids, circuit_origin),
+        job_args=(simulation_ids,),
         job_kwargs={
             "access_token": auth.access_token,
             "project_context": project_context,
@@ -217,7 +215,6 @@ async def _cancel_reservations(
 
 async def run_circuit_simulation_batch(
     simulation_ids: List[UUID],
-    circuit_origin: CircuitOrigin,
     *,
     request: Request,
     job_queue: Queue,
@@ -240,7 +237,6 @@ async def run_circuit_simulation_batch(
 
     sim_params_map = await _get_sim_params_map(
         simulation_ids,
-        circuit_origin=circuit_origin,
         auth=auth,
         project_context=project_context,
     )
@@ -327,7 +323,7 @@ async def run_circuit_simulation_batch(
             job_queue,
             JobFn.RUN_CIRCUIT_SIMULATION,
             job_id=str(exec_id),
-            job_args=(sim.id, circuit_origin),
+            job_args=(sim.id,),
             job_kwargs={
                 "circuit_id": sim.entity_id,
                 "execution_id": exec_id,
