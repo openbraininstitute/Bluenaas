@@ -304,6 +304,7 @@ dependencies = [
     { name = "entitysdk" },
     { name = "loguru" },
     { name = "msgpack" },
+    { name = "obp-accounting-sdk" },
     { name = "pandas" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -316,7 +317,6 @@ dependencies = [
 api = [
     { name = "boto3" },
     { name = "fastapi", extra = ["standard"] },
-    { name = "obp-accounting-sdk" },
     { name = "python-keycloak" },
     { name = "sentry-sdk", extra = ["fastapi"] },
 ]
@@ -344,6 +344,7 @@ requires-dist = [
     { name = "entitysdk", specifier = "==0.9.0" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "msgpack", specifier = ">=1.1.1" },
+    { name = "obp-accounting-sdk", specifier = "==0.4.1" },
     { name = "pandas", specifier = "==2.3.1" },
     { name = "pydantic", specifier = "==2.11.7" },
     { name = "pydantic-settings", specifier = "==2.10.1" },
@@ -356,7 +357,6 @@ requires-dist = [
 api = [
     { name = "boto3", specifier = ">=1.40.29" },
     { name = "fastapi", extras = ["standard"], specifier = "==0.116.1" },
-    { name = "obp-accounting-sdk", specifier = "==0.4.1" },
     { name = "python-keycloak", specifier = "==5.6.0" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = "==2.33.0" },
 ]
