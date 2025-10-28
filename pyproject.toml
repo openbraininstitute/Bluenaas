@@ -13,6 +13,7 @@ dependencies = [
     "entitysdk==0.8.3",
     "loguru==0.7.3",
     "msgpack>=1.1.1",
+    "obp-accounting-sdk==0.4.0",
     "pandas==2.3.0",
     "pydantic-settings==2.10.1",
     "pydantic==2.11.7",
@@ -25,7 +26,7 @@ dependencies = [
 api = [
     "boto3>=1.40.29",
     "fastapi[standard]==0.116.1",
-    "obp-accounting-sdk",
+    "obp-accounting-sdk==0.4.0",
     "python-keycloak==5.6.0",
     "sentry-sdk[fastapi]==2.33.0",
 ]
@@ -62,4 +63,3 @@ target-version = "py312"
 find-links = ["ext-deps/ultraliser"]
 
 [tool.uv.sources]
-obp-accounting-sdk = { git = "https://github.com/openbraininstitute/accounting-sdk.git", rev = "feat/use-asyncio-in-async-hearbeat-sender" }
