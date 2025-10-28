@@ -8,7 +8,7 @@ from entitysdk.models import SimulationExecution
 from loguru import logger
 
 from app.config.settings import settings
-from app.core.circuit.circuit import Circuit
+from app.core.circuit.circuit import create_circuit
 from app.core.circuit.simulation import Simulation
 from app.core.job_stream import JobStream
 from app.domains.job import JobStatus
@@ -41,7 +41,7 @@ def run_circuit_simulation(
         },
     )
 
-    circuit = Circuit(circuit_id, client=client)
+    circuit = create_circuit(circuit_id, client=client)
 
     simulation = Simulation(
         client=client,
