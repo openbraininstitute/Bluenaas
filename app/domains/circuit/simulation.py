@@ -3,12 +3,9 @@ from uuid import UUID as UUID4
 
 from pydantic import BaseModel, Field
 
-from app.domains.circuit.circuit import CircuitOrigin
-
 
 class RunBatchRequest(BaseModel):
     simulation_ids: List[UUID4]
-    circuit_origin: CircuitOrigin = CircuitOrigin.CIRCUIT
 
 
 class SimulationParams(BaseModel):

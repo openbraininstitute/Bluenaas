@@ -7,14 +7,15 @@ from uuid import UUID
 from entitysdk.client import Client
 from entitysdk.models import Circuit as EntitycoreCircuit
 from entitysdk.models import MEModel as EntitycoreMEModel
+from entitysdk.models.entity import Entity
 from entitysdk.staging import stage_circuit, stage_sonata_from_memodel
 from filelock import FileLock
 from loguru import logger
 
 from app.constants import (
     CIRCUIT_CONFIG_NAME,
-    CIRCUIT_MOD_DIR,
     CIRCUIT_MEMODEL_MOD_DIR,
+    CIRCUIT_MOD_DIR,
     READY_MARKER_FILE_NAME,
 )
 from app.core.exceptions import CircuitInitError
@@ -24,16 +25,17 @@ from app.infrastructure.storage import get_circuit_location
 
 def create_circuit(
     circuit_id: UUID,
-    circuit_origin: CircuitOrigin,
     *,
     client: Client,
 ):
-    if circuit_origin == CircuitOrigin.CIRCUIT:
+    model_entity = client.get_entity(entity_id=circuit_id, entity_type=Entity)
+
+    if model_entity.type == CircuitOrigin.CIRCUIT.value:
         return Circuit(circuit_id, client=client)
-    elif circuit_origin == CircuitOrigin.MEMODEL:
+    elif model_entity.type == CircuitOrigin.MEMODEL.value:
         return MEModelCircuit(circuit_id, client=client)
     else:
-        raise ValueError(f"Unknown circuit type: {circuit_origin}")
+        raise ValueError(f"Unknown circuit type: {model_entity.type}")
 
 
 class CircuitBase(ABC):
