@@ -38,7 +38,7 @@ worker = [
     "pynwb==3.1.0",
     "requests==2.32.4",
     "tables==3.10.2",
-    "ultraliser",
+    "ultraliser; sys_platform == 'linux'",
 ]
 dev = [
     "pyright>=1.1.406",
