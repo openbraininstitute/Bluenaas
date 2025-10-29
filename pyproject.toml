@@ -31,14 +31,13 @@ api = [
 ]
 worker = [
     "bluecellulab==2.6.71",
-    "efel==5.7.20",
+    "efel==5.7.19",
     "filelock==3.18.0",
     "morphio==3.4.0",
     "obi-one",
     "pynwb==3.1.0",
     "requests==2.32.4",
-    "ultraliser==2.0.5",
-    "ion-channel-builder==0.0.4",
+    "ultraliser",
 ]
 dev = [
     "pyright>=1.1.406",
@@ -60,7 +59,7 @@ line-length = 100
 target-version = "py312"
 
 [tool.uv]
-find-links = ["ext-deps"]
+find-links = ["ext-deps/ultraliser"]
 
 [tool.uv.sources]
 obp-accounting-sdk = { git = "https://github.com/openbraininstitute/accounting-sdk.git", rev = "feat/use-asyncio-in-async-hearbeat-sender" }

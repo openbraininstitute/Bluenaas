@@ -337,7 +337,6 @@ worker = [
     { name = "bluecellulab" },
     { name = "efel" },
     { name = "filelock" },
-    { name = "ion-channel-builder" },
     { name = "morphio" },
     { name = "obi-one" },
     { name = "pynwb" },
@@ -376,14 +375,13 @@ types = [
 ]
 worker = [
     { name = "bluecellulab", specifier = "==2.6.71" },
-    { name = "efel", specifier = "==5.7.20" },
+    { name = "efel", specifier = "==5.7.19" },
     { name = "filelock", specifier = "==3.18.0" },
-    { name = "ion-channel-builder", specifier = "==0.0.4" },
     { name = "morphio", specifier = "==3.4.0" },
     { name = "obi-one", git = "https://github.com/openbraininstitute/obi-one.git?rev=ic-testing" },
     { name = "pynwb", specifier = "==3.1.0" },
     { name = "requests", specifier = "==2.32.4" },
-    { name = "ultraliser", specifier = "==2.0.5" },
+    { name = "ultraliser" },
 ]
 
 [[package]]
@@ -847,7 +845,7 @@ wheels = [
 
 [[package]]
 name = "efel"
-version = "5.7.20"
+version = "5.7.19"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "neo" },
@@ -856,11 +854,11 @@ dependencies = [
     { name = "scipy" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/34/b81c91b1392adfcaf9de31a842694d780fafb44488a257b9303374664c6b/efel-5.7.20.tar.gz", hash = "sha256:0cfb56abf9fdb0199f3bcfc8dc0037cb86f06623b528cd9d896a25c1f9df4089", size = 140504, upload-time = "2025-10-21T12:55:11.018Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b0/fe/98ffbbe31cfb884e7187979b4baedc6620e86e72be0190213aaa39775947/efel-5.7.19.tar.gz", hash = "sha256:181f344c4182935205faeced94bd1d153f9454d95d46d1d8a60b779ecc0b182f", size = 109040, upload-time = "2025-07-30T08:16:58.089Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/fa/ee67d9225d69725f124694daaa9a9a5c60a67ac0aa38f3c564221e5f1632/efel-5.7.20-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:473c753f62f3e82766e13639b6591e9e61e0653b554bb376ec1184f64888bda0", size = 260223, upload-time = "2025-10-21T12:55:00.834Z" },
-    { url = "https://files.pythonhosted.org/packages/aa/00/6cdcb6ffc2e9195aac8d1d4602ceb8fd105c974226c7da4aa7715ebf48b2/efel-5.7.20-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ce9ca3f0c831afe5ea1c17784c46b105b6beaf1f194d542d6e832c3e35eafe0d", size = 3018759, upload-time = "2025-10-21T12:55:02.155Z" },
-    { url = "https://files.pythonhosted.org/packages/97/e8/37d9708a4b39f4c923eb43d174fc3325bf11ba6dba6f0f9f523ffe0f4d5f/efel-5.7.20-cp312-cp312-win_amd64.whl", hash = "sha256:80507ab9984fb77d2c68e45c084e67aa0b042603e7a84c56896308329bebf44c", size = 237699, upload-time = "2025-10-21T12:55:04.552Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/e9/485a81047dda7cd41b4a51f23465e080e8088044670371e6fc68d82b0bd3/efel-5.7.19-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:ed51dde3492f9445fa9e2db4b6363475ffd43140fb05a3c4512ddfc9bd18d78e", size = 260195, upload-time = "2025-07-30T08:16:48.26Z" },
+    { url = "https://files.pythonhosted.org/packages/19/fe/99f4ee719e1f6a99d18c4ec60b31921e5f8e6167278c457f52d211c44556/efel-5.7.19-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7937a11b04c69f6fa217ed4a10842bdb050accb09bfd2c42a202c8036b8c7658", size = 3018731, upload-time = "2025-07-30T08:16:49.678Z" },
+    { url = "https://files.pythonhosted.org/packages/39/f8/9a13ced1b5ba6e591f1fb1e793917bd86f56f889b9ba7cadaab7b3fb37b8/efel-5.7.19-cp312-cp312-win_amd64.whl", hash = "sha256:ef0e3ac535911809e799eb271a625eb8d82584334981cd27cc2cf60230125dbd", size = 237668, upload-time = "2025-07-30T08:16:51.121Z" },
 ]
 
 [[package]]
@@ -1207,21 +1205,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cf/8c/f834fbf984f691b4f7ff60f50b514cc3de5cc08abfc3295564dd89c5e2e7/importlib_resources-6.5.2.tar.gz", hash = "sha256:185f87adef5bcc288449d98fb4fba07cea78bc036455dd44c5fc4a2fe78fed2c", size = 44693, upload-time = "2025-01-03T18:51:56.698Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a4/ed/1f1afb2e9e7f38a545d628f864d562a5ae64fe6f7a10e28ffb9b185b4e89/importlib_resources-6.5.2-py3-none-any.whl", hash = "sha256:789cfdc3ed28c78b67a06acb8126751ced69a3d5f79c095a98298cd8a760ccec", size = 37461, upload-time = "2025-01-03T18:51:54.306Z" },
-]
-
-[[package]]
-name = "ion-channel-builder"
-version = "0.0.4"
-source = { registry = "ext-deps" }
-dependencies = [
-    { name = "efel" },
-    { name = "jinja2" },
-    { name = "neuron" },
-    { name = "numpy" },
-    { name = "palettable" },
-]
-wheels = [
-    { path = "ion_channel_builder-0.0.4-py3-none-any.whl" },
 ]
 
 [[package]]
@@ -2276,15 +2259,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a1/d4/1fc4078c65507b51b96ca8f8c3ba19e6a61c8253c72794544580a7b6c24d/packaging-25.0.tar.gz", hash = "sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f", size = 165727, upload-time = "2025-04-19T11:48:59.673Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl", hash = "sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484", size = 66469, upload-time = "2025-04-19T11:48:57.875Z" },
-]
-
-[[package]]
-name = "palettable"
-version = "3.3.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/dc/3d/a5854d60850485bff12f28abfe0e17f503e866763bed61aed4990b604530/palettable-3.3.3.tar.gz", hash = "sha256:094dd7d9a5fc1cca4854773e5c1fc6a315b33bd5b3a8f47064928facaf0490a8", size = 106639, upload-time = "2023-04-19T23:13:35.864Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/cf/f7/3367feadd4ab56783b0971c9b7edfbdd68e0c70ce877949a5dd2117ed4a0/palettable-3.3.3-py2.py3-none-any.whl", hash = "sha256:74e9e7d7fe5a9be065e02397558ed1777b2df0b793a6f4ce1a5ee74f74fb0caa", size = 332251, upload-time = "2023-04-19T23:13:33.996Z" },
 ]
 
 [[package]]
@@ -3548,7 +3522,7 @@ wheels = [
 [[package]]
 name = "ultraliser"
 version = "2.0.5"
-source = { registry = "ext-deps" }
+source = { registry = "ext-deps/ultraliser" }
 dependencies = [
     { name = "connectome-utilities" },
     { name = "h5py" },

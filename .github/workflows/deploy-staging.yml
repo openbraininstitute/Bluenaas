@@ -30,17 +30,7 @@ jobs:
           repository: "openbraininstitute/Ultraliser"
           tag: "V2.0.5-rc.2"
           fileName: "*.whl"
-          out-file-path: "ext-deps"
-          token: ${{ secrets.ULTRALIZER_REPO_PAT }}
-
-      # TODO Switch to Github pypi repo
-      - name: Download ion-channel-builder wheels
-        uses: robinraju/release-downloader@v1.11
-        with:
-          repository: "openbraininstitute/ion-channel-builder"
-          tag: "0.0.4"
-          fileName: "*.whl"
-          out-file-path: "ext-deps"
+          out-file-path: "ext-deps/ultraliser"
           token: ${{ secrets.ULTRALIZER_REPO_PAT }}
 
       - name: Configure AWS credentials
