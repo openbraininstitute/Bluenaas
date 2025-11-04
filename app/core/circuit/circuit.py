@@ -70,7 +70,7 @@ class CircuitBase(ABC):
 
         # TODO: add additional arg to ensure custom mod files compilation
         # Check with Darshan
-        cmd = ["nrnivmodl", CIRCUIT_MOD_DIR]
+        cmd = ["nrnivmodl", "-incflags", "-DDISABLE_REPORTINGLIB", CIRCUIT_MOD_DIR]
         compilation_output = subprocess.check_output(cmd, cwd=self.path)
         logger.debug(compilation_output.decode())
 
