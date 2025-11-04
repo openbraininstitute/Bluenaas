@@ -3,26 +3,26 @@ from http import HTTPStatus
 from typing import Dict, List
 from uuid import UUID
 
-from obp_accounting_sdk import AsyncOneshotSession
 from entitysdk.client import Client
 from entitysdk.common import ProjectContext
-from entitysdk.models import Simulation, SimulationExecution, SimulationCampaign
+from entitysdk.models import Simulation, SimulationCampaign, SimulationExecution
 from entitysdk.types import SimulationExecutionStatus
 from fastapi import Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
+from obp_accounting_sdk import AsyncOneshotSession
 from obp_accounting_sdk.constants import ServiceSubtype
 from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
 from rq import Queue
 
 from app.config.settings import settings
 from app.core.exceptions import AppError, AppErrorCode
+from app.core.http_stream import x_ndjson_http_stream
 from app.domains.circuit.simulation import SimulationParams
 from app.infrastructure.accounting.session import async_accounting_session_factory
 from app.infrastructure.kc.auth import Auth
-from app.infrastructure.rq import get_queue, JobQueue
+from app.infrastructure.rq import JobQueue, get_queue
 from app.job import JobFn
-from app.core.http_stream import x_ndjson_http_stream
 from app.utils.asyncio import interleave_async_iterators, run_async
 from app.utils.rq_job import dispatch, get_job_data
 
@@ -162,7 +162,10 @@ async def run_circuit_simulation(
 
 
 async def _get_sim_params_map(
-    simulation_ids: List[UUID], *, auth: Auth, client: Client, project_context: ProjectContext
+    simulation_ids: List[UUID],
+    *,
+    auth: Auth,
+    project_context: ProjectContext,
 ) -> Dict[UUID, SimulationParams]:
     _job, stream = await dispatch(
         get_queue(JobQueue.HIGH),
@@ -235,7 +238,6 @@ async def run_circuit_simulation_batch(
     sim_params_map = await _get_sim_params_map(
         simulation_ids,
         auth=auth,
-        client=client,
         project_context=project_context,
     )
 
