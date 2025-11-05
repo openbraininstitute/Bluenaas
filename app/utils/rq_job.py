@@ -9,10 +9,12 @@ from rq.job import Job
 from rq.job import JobStatus as RQJobStatus
 
 from app.config.settings import settings
+from app.core.job import JobInfo
 from app.core.job_stream import JobStatus, JobStream
 from app.domains.stream_message import Message, MessageAdapter, MessageType
 from app.infrastructure.redis.asyncio import redis_stream_reader
 from app.utils.asyncio import run_async
+from app.utils.datetime import safe_isoformat
 from app.utils.streaming import compose_key
 
 FunctionReferenceType = TypeVar("FunctionReferenceType", str, Callable[..., Any])
@@ -48,14 +50,14 @@ async def _job_status_monitor(
                         stream.send_status(JobStatus.pending, str(position))
                         last_queue_position = position
                 case RQJobStatus.STARTED:
-                    if on_start:
+                    if on_start and status != last_status:
                         await on_start()
                 case RQJobStatus.FAILED:
                     if on_failure:
                         await on_failure()
                     break
                 case RQJobStatus.FINISHED:
-                    if on_success and status != last_status:
+                    if on_success:
                         await on_success()
                     break
                 case _:
@@ -198,3 +200,22 @@ def get_current_job_stream() -> JobStream:
     job_ctx = job.meta.get("stream_ctx")
 
     return JobStream(stream_key, ctx=job_ctx)
+
+
+async def get_job_info(job: Job) -> JobInfo:
+    """Serialize a job to a dictionary."""
+    status = job.get_status(refresh=False)
+    job_position = await run_async(lambda: job.get_position())
+
+    return JobInfo(
+        id=str(job.id),
+        status=status,
+        queue_position=job_position,
+        created_at=safe_isoformat(job.created_at),
+        enqueued_at=safe_isoformat(job.enqueued_at),
+        started_at=safe_isoformat(job.started_at),
+        ended_at=safe_isoformat(job.ended_at),
+        # TODO Rename output -> result to be more consistent with other tools
+        output=job.result,
+        error=job.exc_info,
+    )

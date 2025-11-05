@@ -43,7 +43,7 @@ def compile_mechanisms(model_path):
             f"Folder not found! Expecting '{SINGLE_NEURON_MOD_DIR}' folder in the model!"
         )
     else:
-        cmd = ["nrnivmodl", SINGLE_NEURON_MOD_DIR]
+        cmd = ["nrnivmodl", "-incflags", "-DDISABLE_REPORTINGLIB", SINGLE_NEURON_MOD_DIR]
         compilation_output = subprocess.check_output(cmd, cwd=model_path)
         L.info(compilation_output.decode())
 

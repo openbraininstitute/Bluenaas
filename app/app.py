@@ -17,6 +17,7 @@ from app.middleware.request_id import add_request_id_middleware
 from app.routes.circuit import router as circuit_router
 from app.routes.mesh import router as mesh_router
 from app.routes.single_neuron import router as single_neuron_router
+from app.routes.ion_channel import router as ion_channel_router
 
 sentry_sdk.init(
     dsn=settings.SENTRY_DSN,
@@ -96,5 +97,6 @@ def health() -> str:
 base_router.include_router(circuit_router)
 base_router.include_router(mesh_router)
 base_router.include_router(single_neuron_router)
+base_router.include_router(ion_channel_router)
 
 app.include_router(base_router)

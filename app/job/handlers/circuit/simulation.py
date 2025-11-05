@@ -4,8 +4,8 @@ from uuid import UUID
 from entitysdk.common import ProjectContext
 
 from app.services.worker.circuit.simulation import (
-    get_circuit_simulation_params,
     get_batch_circuit_simulation_params_map,
+    get_circuit_simulation_params,
     run_circuit_simulation,
 )
 

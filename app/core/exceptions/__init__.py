@@ -46,6 +46,10 @@ class AppError(Exception):
         return f'{class_name}(message="{self.message}", error_code={self.error_code}, details={self.details}, http_status_code={self.http_status_code})'
 
 
+class NotInitializedError(RuntimeError):
+    pass
+
+
 class AppErrorResponse(BaseModel):
     """The format of an error response"""
 
@@ -117,4 +121,9 @@ class SingleNeuronInitError(_BaseMessageException):
 
 class EMCellMeshInitError(_BaseMessageException):
     def __init__(self, message: str = "EMCellMesh instantiation failed") -> None:
+        super().__init__(message)
+
+
+class IonChannelBuildError(_BaseMessageException):
+    def __init__(self, message: str = "Ion channel build failed") -> None:
         super().__init__(message)

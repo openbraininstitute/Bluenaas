@@ -25,3 +25,6 @@ class JobFn(StrEnum):
 
     # Mesh
     RUN_MESH_SKELETONIZATION = "app.job.handlers.mesh.skeletonization.run"
+
+    # Ion channel
+    RUN_ION_CHANNEL_BUILD = "app.job.handlers.ion_channel.build.run"
