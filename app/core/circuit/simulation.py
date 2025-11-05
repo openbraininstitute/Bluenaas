@@ -17,7 +17,7 @@ from app.constants import (
     LIBNRNMECH_PATH,
     READY_MARKER_FILE_NAME,
 )
-from app.core.circuit.circuit import Circuit
+from app.core.circuit.circuit import Circuit, MEModelCircuit, create_circuit
 from app.core.circuit.simulation_output import SimulationOutput
 from app.core.exceptions import CircuitSimulationError, CircuitSimulationInitError
 from app.domains.circuit.simulation import SimulationParams
@@ -29,7 +29,7 @@ from app.infrastructure.storage import (
 
 
 class Simulation:
-    circuit: Circuit
+    circuit: Circuit | MEModelCircuit
     output: SimulationOutput
     initialized: bool = False
     metadata: EntitycoreSimulation
@@ -52,7 +52,7 @@ class Simulation:
 
         self._fetch_metadata()
 
-        self.circuit = Circuit(self.metadata.entity_id, client=client)
+        self.circuit = create_circuit(self.metadata.entity_id, client=client)
 
         # So that we can upload generated results, including logs even if circuit init fails.
         self._init_output()
