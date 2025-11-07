@@ -421,16 +421,16 @@ def run_bluecellulab(
     except Exception as e:
         logger.error(f"Rank {rank} failed: {str(e)}", exc_info=True)
         raise
-    finally:
-        try:
-            # Ensure proper cleanup
-            logger.info(f"Rank {rank}: Cleaning up...")
-            pc.barrier()
-            h.quit()
-            if rank == 0:
-                logger.info("All ranks completed. Simulation finished.")
-        except Exception as e:
-            logger.error(f"Error during cleanup in rank {rank}: {str(e)}")
+
+    try:
+        # Ensure proper cleanup for successful runs
+        logger.info(f"Rank {rank}: Cleaning up...")
+        pc.barrier()
+        h.quit()
+        if rank == 0:
+            logger.info("All ranks completed. Simulation finished.")
+    except Exception as e:
+        logger.error(f"Error during cleanup in rank {rank}: {str(e)}")
 
 
 def main():
@@ -462,8 +462,7 @@ def main():
     # Validate simulation config exists
     config_path = Path(args.simulation_config)
     if not config_path.exists():
-        logger.error(f"Configuration file not found: {config_path}")
-        return 1
+        raise RuntimeError(f"Simulation config file not found: {config_path}")
 
     # Run the simulation
     run_bluecellulab(
@@ -472,7 +471,6 @@ def main():
         save_nwb=args.save_nwb,
         libnrnmech_path=args.libnrnmech_path,
     )
-    return 0
 
 
 if __name__ == "__main__":
