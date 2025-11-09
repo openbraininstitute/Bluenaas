@@ -27,6 +27,9 @@ export GID
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-23s\033[0m %s\n", $$1, $$2}'
 
+init-repo-config: ## Initialize repo config to enable fetching private packages via SSH
+	git config url."ssh://git@github.com/".insteadOf "https://github.com/"
+
 install:  ## Install dependencies into .venv
 	uv sync --no-install-project --all-groups
 
