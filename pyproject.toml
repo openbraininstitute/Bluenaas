@@ -31,8 +31,9 @@ api = [
 ]
 worker = [
     "bluecellulab==2.6.71",
-    "efel==5.7.19",
+    "efel==5.7.20",
     "filelock==3.18.0",
+    "ion-channel-builder",
     "morphio==3.4.0",
     "obi-one==2025.10.9",
     "pynwb==3.1.0",
@@ -62,3 +63,5 @@ target-version = "py312"
 find-links = ["ext-deps/ultraliser"]
 
 [tool.uv.sources]
+obi-one = { git = "https://github.com/openbraininstitute/obi-one.git", rev = "ion-channel-entitysdk" }
+ion-channel-builder = { git = "https://github.com/openbraininstitute/ion-channel-builder.git" }
