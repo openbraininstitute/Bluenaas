@@ -50,14 +50,14 @@ async def _job_status_monitor(
                         stream.send_status(JobStatus.pending, str(position))
                         last_queue_position = position
                 case RQJobStatus.STARTED:
-                    if on_start:
+                    if on_start and status != last_status:
                         await on_start()
                 case RQJobStatus.FAILED:
                     if on_failure:
                         await on_failure()
                     break
                 case RQJobStatus.FINISHED:
-                    if on_success and status != last_status:
+                    if on_success:
                         await on_success()
                     break
                 case _:
