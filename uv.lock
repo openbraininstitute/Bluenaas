@@ -362,7 +362,7 @@ api = [
     { name = "sentry-sdk", extras = ["fastapi"], specifier = "==2.33.0" },
 ]
 dev = [
-    { name = "pyright", specifier = ">=1.1.406" },
+    { name = "pyright", specifier = ">=1.1.407" },
     { name = "ruff", specifier = "==0.12.3" },
 ]
 types = [
