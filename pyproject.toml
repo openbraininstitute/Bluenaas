@@ -18,7 +18,7 @@ dependencies = [
     "pydantic-settings==2.10.1",
     "pydantic==2.11.7",
     "redis[hiredis]==6.2.0",
-    "rq==2.4.0",
+    "rq==2.6.0",
     "sympy==1.14.0",
 ]
 

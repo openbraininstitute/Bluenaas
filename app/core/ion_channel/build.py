@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import cast
 from uuid import UUID, uuid4
-from loguru import logger
 
 from entitysdk import Client
 from entitysdk.models import IonChannelModelingCampaign
@@ -43,11 +42,13 @@ class Build:
             raise NotInitializedError("Build not initialized")
 
         try:
-            run_task_for_single_configs(
+            ion_channel_models = run_task_for_single_configs(
                 single_configs=self.grid_scan.single_configs, db_client=self.client
             )
         except Exception as e:
             raise IonChannelBuildError() from e
+
+        return ion_channel_models
 
     def cleanup(self) -> None:
         """Cleanup"""
