@@ -37,7 +37,7 @@ services:
     build:
       dockerfile: Dockerfile.worker
       ssh:
-        - github_ssh=$SSH_AUTH_SOCK
+        - github_ssh=${SSH_AUTH_SOCK:-}
       secrets:
         - GITHUB_ACTOR
         - GITHUB_TOKEN
