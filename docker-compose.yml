@@ -38,6 +38,9 @@ services:
       dockerfile: Dockerfile.worker
       ssh:
         - github_ssh=$SSH_AUTH_SOCK
+      secrets:
+        - GITHUB_ACTOR
+        - GITHUB_TOKEN
       args:
         - ENVIRONMENT
         - IMAGE_TAG_SUFFIX
@@ -79,3 +82,9 @@ services:
       interval: 3s
       timeout: 1s
       retries: 10
+
+secrets:
+  GITHUB_ACTOR:
+    environment: GITHUB_ACTOR
+  GITHUB_TOKEN:
+    environment: GITHUB_TOKEN
