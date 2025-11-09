@@ -36,8 +36,6 @@ services:
     image: "${IMAGE_NAME}:worker-${IMAGE_TAG_SUFFIX}"
     build:
       dockerfile: Dockerfile.worker
-      ssh:
-        - github_ssh=${SSH_AUTH_SOCK:-}
       secrets:
         - GITHUB_ACTOR
         - GITHUB_TOKEN

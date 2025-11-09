@@ -62,11 +62,12 @@ check-all: format-check type-check job-fn-reference-check test ## Run all checke
 PROGRESS_FLAG := $(if $(CI),--progress=plain,)
 
 build:  ## Build the Docker images
-	@if [ "$(CI)" != "true" ] && [ -z "$$SSH_AUTH_SOCK" ]; then \
-		echo "Warning: SSH_AUTH_SOCK not set. SSH agent may not be available for private repos."; \
-	fi
 	docker compose $(PROGRESS_FLAG) build api
-	docker compose $(PROGRESS_FLAG) build worker
+	@if [ -n "$$SSH_AUTH_SOCK" ]; then \
+		docker compose $(PROGRESS_FLAG) build --ssh github_ssh=$$SSH_AUTH_SOCK worker; \
+	else \
+		docker compose $(PROGRESS_FLAG) build worker; \
+	fi
 
 publish: build  ## Publish the Docker images to DockerHub
 	docker compose push api
