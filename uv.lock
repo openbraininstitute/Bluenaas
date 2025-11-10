@@ -2235,8 +2235,8 @@ sdist = { url = "https://files.pythonhosted.org/packages/99/7d/2d652962ee61c9e5a
 
 [[package]]
 name = "obi-one"
-version = "2025.11.1.dev18"
-source = { git = "https://github.com/openbraininstitute/obi-one.git?rev=ion-channel-entitysdk#74d9b2b1384ffb07a8ac829b921e333c5f37fb92" }
+version = "2025.11.1.dev19"
+source = { git = "https://github.com/openbraininstitute/obi-one.git?rev=ion-channel-entitysdk#27dd9cf21f424620e8de8876eafaebac7067f9cb" }
 dependencies = [
     { name = "aiofiles" },
     { name = "bluecellulab" },

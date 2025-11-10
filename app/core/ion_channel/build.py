@@ -33,9 +33,9 @@ class Build:
         self.grid_scan.multiple_value_parameters(display=True)
         self.grid_scan.coordinate_parameters(display=True)
 
-        campaign = self.grid_scan.execute(db_client=self.client)
+        self.grid_scan.execute(db_client=self.client)
 
-        return cast(IonChannelModelingCampaign, campaign)
+        return cast(IonChannelModelingCampaign, self.grid_scan.form.campaign)
 
     def run(self):
         if not self.config or not self.grid_scan:
