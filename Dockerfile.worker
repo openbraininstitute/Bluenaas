@@ -42,8 +42,8 @@ if [[ -S "/run/buildkit/ssh_agent.0" ]]; then
 elif [[ -f /run/secrets/GITHUB_TOKEN ]]; then
   echo "Using HTTPS + GITHUB_TOKEN for private repos"
   GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN);
-  git config --global url."https://git:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/";
-  git config --global url."https://git:${GITHUB_TOKEN}@github.com".insteadOf "https://github.com";
+  git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/";
+  git config --global url."https://${GITHUB_TOKEN}@github.com".insteadOf "https://github.com";
 else
   echo "No Git credentials found — public repos only"
 fi
