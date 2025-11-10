@@ -71,13 +71,17 @@ def run_ion_channel_build(
         model_ids = build.run()
     except Exception as e:
         logger.error(f"Ion channel build failed: {e}")
-        client.update_entity(
+        error_execution = client.update_entity(
             entity_id=execution.id,
             entity_type=IonChannelModelingExecution,
             attrs_or_entity={
                 "end_time": datetime.now(UTC),
                 "status": IonChannelModelingExecutionStatus.error,
             },
+        )
+        job_stream.send_data(
+            BuildOutputStreamData(execution=error_execution),
+            data_type=StreamDataType.build_output,
         )
         raise
     finally:
@@ -88,7 +92,7 @@ def run_ion_channel_build(
 
     ion_channel_model = client.get_entity(model_id, entity_type=IonChannelModel)
 
-    client.update_entity(
+    done_execution = client.update_entity(
         entity_id=execution.id,
         entity_type=IonChannelModelingExecution,
         attrs_or_entity={
@@ -99,5 +103,6 @@ def run_ion_channel_build(
     )
 
     job_stream.send_data(
-        BuildOutputStreamData(model=ion_channel_model), data_type=StreamDataType.build_output
+        BuildOutputStreamData(model=ion_channel_model, execution=done_execution),
+        data_type=StreamDataType.build_output,
     )

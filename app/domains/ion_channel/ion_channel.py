@@ -21,4 +21,5 @@ class BuildInputStreamData(BaseModel):
 
 
 class BuildOutputStreamData(BaseModel):
-    model: IonChannelModel
+    model: IonChannelModel | None = None
+    execution: IonChannelModelingExecution
