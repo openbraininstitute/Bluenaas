@@ -33,17 +33,17 @@ RUN --mount=type=cache,target=/root/.cache/uv \
   --mount=type=secret,id=GITHUB_TOKEN,required=false \
   --mount=type=ssh,id=github_ssh,required=false <<EOT
 set -e
-if [[ -f /run/secrets/GITHUB_TOKEN ]]; then
-  echo "Using HTTPS + GITHUB_TOKEN for private repos"
-  GITHUB_ACTOR=$(cat /run/secrets/GITHUB_ACTOR);
-  GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN);
-  git config --global url."https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/";
-elif [[ -S "/run/buildkit/ssh_agent.0" ]]; then
+if [[ -S "/run/buildkit/ssh_agent.0" ]]; then
   export SSH_AUTH_SOCK=/run/buildkit/ssh_agent.0
   echo "Using SSH for private repos"
   mkdir -p ~/.ssh
   ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
   git config --global url."ssh://git@github.com/".insteadOf "https://github.com/";
+elif [[ -f /run/secrets/GITHUB_TOKEN ]]; then
+  echo "Using HTTPS + GITHUB_TOKEN for private repos"
+  GITHUB_ACTOR=$(cat /run/secrets/GITHUB_ACTOR);
+  GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN);
+  git config --global url."https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/";
 else
   echo "No Git credentials found — public repos only"
 fi
