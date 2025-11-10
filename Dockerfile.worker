@@ -29,7 +29,6 @@ ARG ENVIRONMENT
 RUN --mount=type=cache,target=/root/.cache/uv \
   --mount=type=bind,source=uv.lock,target=uv.lock \
   --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-  --mount=type=secret,id=GITHUB_ACTOR,required=false \
   --mount=type=secret,id=GITHUB_TOKEN,required=false \
   --mount=type=ssh,id=github_ssh,required=false <<EOT
 set -e
@@ -43,7 +42,6 @@ elif [[ -f /run/secrets/GITHUB_TOKEN ]]; then
   echo "Using HTTPS + GITHUB_TOKEN for private repos"
   GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN);
   git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/";
-  git config --global url."https://${GITHUB_TOKEN}@github.com".insteadOf "https://github.com";
 else
   echo "No Git credentials found — public repos only"
 fi

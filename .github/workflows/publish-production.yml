@@ -83,5 +83,4 @@ jobs:
         env:
           IMAGE_TAG_SUFFIX: ${{ env.NEW_TAG }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
         run: make publish
