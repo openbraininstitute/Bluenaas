@@ -13,12 +13,12 @@ dependencies = [
     "entitysdk==0.9.0",
     "loguru==0.7.3",
     "msgpack>=1.1.1",
-    "obp-accounting-sdk==0.4.1",
+    "obp-accounting-sdk==0.4.2",
     "pandas==2.3.1",
     "pydantic-settings==2.10.1",
     "pydantic==2.11.7",
     "redis[hiredis]==6.2.0",
-    "rq==2.4.0",
+    "rq==2.6.0",
     "sympy==1.14.0",
 ]
 
@@ -30,18 +30,19 @@ api = [
     "sentry-sdk[fastapi]==2.33.0",
 ]
 worker = [
-    "bluecellulab==2.6.71",
-    "efel==5.7.19",
+    "bluecellulab==2.6.73",
+    "efel==5.7.20",
     "filelock==3.18.0",
+    "ion-channel-builder",
     "morphio==3.4.0",
     "obi-one==2025.10.9",
-    "pynwb==3.1.0",
+    "pynwb==3.1.2",
     "requests==2.32.4",
     "ultraliser; sys_platform == 'linux'",
 ]
 dev = [
-    "pyright>=1.1.406",
-    "ruff==0.12.3",
+    "pyright>=1.1.407",
+    "ruff==0.14.4",
 ]
 types = [
     "msgpack-types>=0.5.0",
@@ -53,6 +54,7 @@ exclude = [
     "app/core/circuit/simulation-mpi-entrypoint.py",
     "app/utils/util.test.py"
 ]
+reportCallIssue = "warning"
 
 [tool.ruff]
 line-length = 100
@@ -62,3 +64,5 @@ target-version = "py312"
 find-links = ["ext-deps/ultraliser"]
 
 [tool.uv.sources]
+obi-one = { git = "https://github.com/openbraininstitute/obi-one.git", rev = "ion-channel-entitysdk" }
+ion-channel-builder = { git = "https://github.com/openbraininstitute/ion-channel-builder.git" }

@@ -28,7 +28,25 @@ COPY ext-deps /app/ext-deps
 ARG ENVIRONMENT
 RUN --mount=type=cache,target=/root/.cache/uv \
   --mount=type=bind,source=uv.lock,target=uv.lock \
-  --mount=type=bind,source=pyproject.toml,target=pyproject.toml <<EOT
+  --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+  --mount=type=secret,id=GH_PRIVATE_REPO_TOKEN,required=false \
+  --mount=type=ssh,id=github_ssh,required=false <<EOT
+set -e
+if [[ -S "/run/buildkit/ssh_agent.0" ]]; then
+  export SSH_AUTH_SOCK=/run/buildkit/ssh_agent.0
+  echo "Using SSH for private repos"
+  mkdir -p ~/.ssh
+  ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+  git config --global url."ssh://git@github.com/".insteadOf "https://github.com/";
+elif [[ -f /run/secrets/GH_PRIVATE_REPO_TOKEN ]]; then
+  echo "Using HTTPS + GH_PRIVATE_REPO_TOKEN for private repos"
+  GH_PRIVATE_REPO_TOKEN=$(cat /run/secrets/GH_PRIVATE_REPO_TOKEN);
+  git config --global url."https://${GH_PRIVATE_REPO_TOKEN}@github.com/".insteadOf "https://github.com/";
+else
+  echo "No Git credentials found — public repos only"
+fi
+
+
 if [ "${ENVIRONMENT}" = "prod" ]; then
   uv sync --locked --no-install-project --no-dev --group worker
 elif [ "${ENVIRONMENT}" = "dev" ]; then
@@ -37,7 +55,7 @@ else
   echo "Invalid ENVIRONMENT"; exit 1
 fi
 # There are conflicting versions of glibc in NEURON and Libsonata, this is a tmp workaround.
-uv pip install --force-reinstall https://files.pythonhosted.org/packages/71/30/5498b6838cfac205f836bcb4dd906a9495f7ea46bd844ca8bd56ea46bf63/libsonata-0.1.29-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+uv pip install --force-reinstall https://files.pythonhosted.org/packages/b2/00/ef646065a525811a41251bfcf6a019d4fd1d94a8b3a4a9f07d8f2729682f/libsonata-0.1.31-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
 EOT
 
 # run stage
