@@ -29,11 +29,11 @@ help:  ## Show this help
 
 init-repo-config: ## Initialize repo config to enable fetching private packages
 	@if [ -n "$$SSH_AUTH_SOCK" ]; then \
-		git config url."ssh://git@github.com/".insteadOf "https://github.com/"
-	elif [ -n "$GH_PRIVATE_REPO_TOKEN" ]; then \
-		git config url."https://${GH_PRIVATE_REPO_TOKEN}@github.com/".insteadOf "https://github.com/";
+		git config url."ssh://git@github.com/".insteadOf "https://github.com/"; \
+	elif [ -n "$$GH_PRIVATE_REPO_TOKEN" ]; then \
+		git config url."https://$$GH_PRIVATE_REPO_TOKEN@github.com/".insteadOf "https://github.com/"; \
 	else \
-		echo "Warning: neither of GH_PRIVATE_REPO_TOKEN or SSH_AUTH_SOCK is provided"
+		echo "Warning: neither of GH_PRIVATE_REPO_TOKEN or SSH_AUTH_SOCK is provided"; \
 	fi
 
 install:  ## Install dependencies into .venv
