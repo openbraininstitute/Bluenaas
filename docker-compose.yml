@@ -37,7 +37,7 @@ services:
     build:
       dockerfile: Dockerfile.worker
       secrets:
-        - GITHUB_TOKEN
+        - GH_PRIVATE_REPO_TOKEN
       args:
         - ENVIRONMENT
         - IMAGE_TAG_SUFFIX
@@ -81,5 +81,5 @@ services:
       retries: 10
 
 secrets:
-  GITHUB_TOKEN:
-    environment: GITHUB_TOKEN
+  GH_PRIVATE_REPO_TOKEN:
+    environment: GH_PRIVATE_REPO_TOKEN

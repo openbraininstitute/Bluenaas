@@ -29,7 +29,7 @@ ARG ENVIRONMENT
 RUN --mount=type=cache,target=/root/.cache/uv \
   --mount=type=bind,source=uv.lock,target=uv.lock \
   --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-  --mount=type=secret,id=GITHUB_TOKEN,required=false \
+  --mount=type=secret,id=GH_PRIVATE_REPO_TOKEN,required=false \
   --mount=type=ssh,id=github_ssh,required=false <<EOT
 set -e
 if [[ -S "/run/buildkit/ssh_agent.0" ]]; then
@@ -38,10 +38,10 @@ if [[ -S "/run/buildkit/ssh_agent.0" ]]; then
   mkdir -p ~/.ssh
   ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
   git config --global url."ssh://git@github.com/".insteadOf "https://github.com/";
-elif [[ -f /run/secrets/GITHUB_TOKEN ]]; then
-  echo "Using HTTPS + GITHUB_TOKEN for private repos"
-  GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN);
-  git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/";
+elif [[ -f /run/secrets/GH_PRIVATE_REPO_TOKEN ]]; then
+  echo "Using HTTPS + GH_PRIVATE_REPO_TOKEN for private repos"
+  GH_PRIVATE_REPO_TOKEN=$(cat /run/secrets/GH_PRIVATE_REPO_TOKEN);
+  git config --global url."https://${GH_PRIVATE_REPO_TOKEN}@github.com/".insteadOf "https://github.com/";
 else
   echo "No Git credentials found — public repos only"
 fi

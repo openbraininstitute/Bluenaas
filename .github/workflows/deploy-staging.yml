@@ -32,7 +32,7 @@ jobs:
           tag: "V2.0.5-rc.3"
           fileName: "*.whl"
           out-file-path: "ext-deps/ultraliser"
-          token: ${{ secrets.ULTRALIZER_REPO_PAT }}
+          token: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -48,5 +48,5 @@ jobs:
 
       - name: Build and publish the Docker images to AWS ECR
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PRIVATE_REPO_TOKEN: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
         run: make publish

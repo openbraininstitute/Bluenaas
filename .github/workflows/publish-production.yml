@@ -37,7 +37,7 @@ jobs:
           tag: "V2.0.5-rc.3"
           fileName: "*.whl"
           out-file-path: "ext-deps/ultraliser"
-          token: ${{ secrets.ULTRALIZER_REPO_PAT }}
+          token: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
 
       - name: Set up Git
         run: |
@@ -82,5 +82,5 @@ jobs:
       - name: Build and publish the Docker images to AWS ECR
         env:
           IMAGE_TAG_SUFFIX: ${{ env.NEW_TAG }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PRIVATE_REPO_TOKEN: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
         run: make publish
