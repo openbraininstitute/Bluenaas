@@ -375,7 +375,7 @@ worker = [
     { name = "filelock", specifier = "==3.18.0" },
     { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git" },
     { name = "morphio", specifier = "==3.4.0" },
-    { name = "obi-one", git = "https://github.com/openbraininstitute/obi-one.git?rev=ion-channel-entitysdk" },
+    { name = "obi-one", specifier = "==2025.11.1" },
     { name = "pynwb", specifier = "==3.1.2" },
     { name = "requests", specifier = "==2.32.4" },
     { name = "ultraliser", marker = "sys_platform == 'linux'" },
@@ -2235,8 +2235,8 @@ sdist = { url = "https://files.pythonhosted.org/packages/99/7d/2d652962ee61c9e5a
 
 [[package]]
 name = "obi-one"
-version = "2025.11.1.dev19"
-source = { git = "https://github.com/openbraininstitute/obi-one.git?rev=ion-channel-entitysdk#27dd9cf21f424620e8de8876eafaebac7067f9cb" }
+version = "2025.11.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
     { name = "bluecellulab" },
@@ -2268,6 +2268,7 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/e3/d0/f75595e13b088d54289f24216ff02552fc603952d08f785034f1cc9a6fd1/obi_one-2025.11.1.tar.gz", hash = "sha256:59f52d2f96368d3937655e3feee7de46fcdf6dc4656647a041b66417b9983d1d", size = 10000730, upload-time = "2025-11-11T13:07:55.516Z" }
 
 [[package]]
 name = "obp-accounting-sdk"
