@@ -27,6 +27,14 @@ export GID
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-23s\033[0m %s\n", $$1, $$2}'
 
+init-repo-config: ## Initialize repo config to enable fetching private packages via SSH
+	@if [ -n "$$SSH_AUTH_SOCK" ]; then \
+		echo "Using SSH_AUTH_SOCK" \
+		git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"; \
+	else \
+		echo "Warning: SSH_AUTH_SOCK is not provided"; \
+	fi
+
 install:  ## Install dependencies into .venv
 	uv sync --no-install-project --all-groups
 
@@ -60,7 +68,11 @@ PROGRESS_FLAG := $(if $(CI),--progress=plain,)
 
 build:  ## Build the Docker images
 	docker compose $(PROGRESS_FLAG) build api
-	docker compose $(PROGRESS_FLAG) build worker
+	@if [ -n "$$SSH_AUTH_SOCK" ]; then \
+		docker compose $(PROGRESS_FLAG) build --ssh github_ssh=$$SSH_AUTH_SOCK worker; \
+	else \
+		docker compose $(PROGRESS_FLAG) build worker; \
+	fi
 
 publish: build  ## Publish the Docker images to DockerHub
 	docker compose push api
