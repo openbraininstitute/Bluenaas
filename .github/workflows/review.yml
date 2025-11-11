@@ -37,7 +37,7 @@ jobs:
         env:
           GH_PRIVATE_REPO_TOKEN: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
         run: |
-          make init-repo-config
+          git config --global url."https://$GH_PRIVATE_REPO_TOKEN@github.com/".insteadOf "https://github.com/"
           make install
 
       - name: Run checks
