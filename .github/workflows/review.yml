@@ -34,6 +34,8 @@ jobs:
         run: make check-deps
 
       - name: Install requirements
+        env:
+          GH_PRIVATE_REPO_TOKEN: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
         run: make install
 
       - name: Run checks
