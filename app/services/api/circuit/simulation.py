@@ -153,6 +153,7 @@ async def run_circuit_simulation(
         on_failure=on_failure,
         on_start=on_start,
         on_success=on_success,
+        timeout=60 * 60,  # one hour
     )
     http_stream = x_ndjson_http_stream(request, stream)
 
