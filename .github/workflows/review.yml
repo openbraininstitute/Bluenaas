@@ -33,10 +33,12 @@ jobs:
       - name: Check requirements
         run: make check-deps
 
-      - name: Install requirements
+      - name: Configure git and install requirements
         env:
           GH_PRIVATE_REPO_TOKEN: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
-        run: make install
+        run: |
+          make init-repo-config
+          make install
 
       - name: Run checks
         run: make check-all
