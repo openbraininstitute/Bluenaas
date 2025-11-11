@@ -20,7 +20,7 @@ WORKDIR /app
 
 # TODO: remove what's not needed
 RUN apt-get update \
-  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev git \
+  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev git openssh-client \
   && rm -rf /var/lib/apt/lists/*
 
 COPY ext-deps /app/ext-deps
