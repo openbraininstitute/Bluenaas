@@ -38,7 +38,8 @@ fi
 
 # Use exec to replace the shell and ensure that SIGINT is sent to the process
 # Start the RQ worker pool with specified queues, number of workers, and Redis URL
-exec rq worker-pool $QUEUES \
+exec rq worker-pool \
   --url $REDIS_URL \
   --num-workers $NUM_WORKERS \
-  $BURST_FLAG
+  ${BURST_FLAG} \
+  $QUEUES

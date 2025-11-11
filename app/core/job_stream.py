@@ -24,10 +24,10 @@ class JobStream(Stream):
         self.send_status(job_status, extra)
         self.close()
 
-    def send_data(self, data: Any, data_type: str | None = None):
+    def send_data(self, data: Any, *, data_type: str | None = None):
         data_message = DataMessage(data=data, data_type=data_type, ctx=self.ctx)
         self.send(data_message.model_dump(mode="json"))
 
-    def send_data_once(self, data: Any, data_type: str | None = None):
-        self.send_data(data, data_type)
+    def send_data_once(self, data: Any, *, data_type: str | None = None):
+        self.send_data(data, data_type=data_type)
         self.close()

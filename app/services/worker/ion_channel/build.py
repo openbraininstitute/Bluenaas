@@ -1,10 +1,18 @@
+from datetime import UTC, datetime
 from typing import Any
 
 from entitysdk import Client, ProjectContext
+from entitysdk.models import IonChannelModel, IonChannelModelingConfig, IonChannelModelingExecution
+from entitysdk.types import IonChannelModelingExecutionStatus
 from loguru import logger
 
 from app.config.settings import settings
 from app.core.ion_channel.build import Build
+from app.domains.ion_channel.ion_channel import (
+    BuildInputStreamData,
+    BuildOutputStreamData,
+    StreamDataType,
+)
 from app.domains.job import JobStatus
 from app.utils.rq_job import get_current_job_stream
 
@@ -26,15 +34,75 @@ def run_ion_channel_build(
     build = Build(config, client=client)
 
     job_stream.send_status(JobStatus.running, "Initializing ion channel build")
-    build.init()
+    campaign = build.init()
 
-    logger.debug(f"Running ion channel build with config: {config}")
+    logger.debug(f"Created ion channel build campaign {campaign}")
+
+    config = client.search_entity(
+        entity_type=IonChannelModelingConfig,
+        query={"ion_channel_modeling_campaign_id": campaign.id},
+    ).first()
+
+    logger.debug(f"Created ion channel build config {config}")
+
+    execution = client.register_entity(
+        IonChannelModelingExecution(
+            used=[config],
+            start_time=datetime.now(UTC),
+            status=IonChannelModelingExecutionStatus.pending,
+        )
+    )
+    assert execution.id
+
+    logger.debug(f"Created ion channel build execution {execution}")
+
+    job_stream.send_data(
+        BuildInputStreamData(
+            config=config,
+            campaign=campaign,
+            execution=execution,
+        ),
+        data_type=StreamDataType.build_input,
+    )
+
     job_stream.send_status(JobStatus.running, "Running ion channel build")
 
     try:
-        build.run()
+        model_ids = build.run()
     except Exception as e:
         logger.error(f"Ion channel build failed: {e}")
+        error_execution = client.update_entity(
+            entity_id=execution.id,
+            entity_type=IonChannelModelingExecution,
+            attrs_or_entity={
+                "end_time": datetime.now(UTC),
+                "status": IonChannelModelingExecutionStatus.error,
+            },
+        )
+        job_stream.send_data(
+            BuildOutputStreamData(execution=error_execution),
+            data_type=StreamDataType.build_output,
+        )
         raise
     finally:
         build.cleanup()
+
+    model_id = model_ids[0]
+    assert model_id
+
+    ion_channel_model = client.get_entity(model_id, entity_type=IonChannelModel)
+
+    done_execution = client.update_entity(
+        entity_id=execution.id,
+        entity_type=IonChannelModelingExecution,
+        attrs_or_entity={
+            "end_time": datetime.now(UTC),
+            "status": IonChannelModelingExecutionStatus.done,
+            "generated": [ion_channel_model],
+        },
+    )
+
+    job_stream.send_data(
+        BuildOutputStreamData(model=ion_channel_model, execution=done_execution),
+        data_type=StreamDataType.build_output,
+    )
