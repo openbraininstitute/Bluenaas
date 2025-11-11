@@ -37,7 +37,6 @@ services:
     build:
       dockerfile: Dockerfile.worker
       secrets:
-        - GITHUB_ACTOR
         - GITHUB_TOKEN
       args:
         - ENVIRONMENT
