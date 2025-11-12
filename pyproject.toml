@@ -35,7 +35,7 @@ worker = [
     "filelock==3.18.0",
     "ion-channel-builder",
     "morphio==3.4.0",
-    "obi-one==2025.11.1",
+    "obi-one==2025.11.2",
     "pynwb==3.1.2",
     "requests==2.32.4",
     "ultraliser; sys_platform == 'linux'",
