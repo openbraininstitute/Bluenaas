@@ -375,7 +375,7 @@ worker = [
     { name = "filelock", specifier = "==3.18.0" },
     { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git" },
     { name = "morphio", specifier = "==3.4.0" },
-    { name = "obi-one", specifier = "==2025.11.1" },
+    { name = "obi-one", specifier = "==2025.11.2" },
     { name = "pynwb", specifier = "==3.1.2" },
     { name = "requests", specifier = "==2.32.4" },
     { name = "ultraliser", marker = "sys_platform == 'linux'" },
@@ -518,6 +518,28 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cc/7e/b975b5814bd36faf009faebe22c1072a1fa1168db34d285ef0ba071ad78c/cachetools-6.2.1.tar.gz", hash = "sha256:3f391e4bd8f8bf0931169baf7456cc822705f4e2a31f840d218f445b9a854201", size = 31325, upload-time = "2025-10-12T14:55:30.139Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/96/c5/1e741d26306c42e2bf6ab740b2202872727e0f606033c9dd713f8b93f5a8/cachetools-6.2.1-py3-none-any.whl", hash = "sha256:09868944b6dde876dfd44e1d47e18484541eaf12f26f29b7af91b26cc892d701", size = 11280, upload-time = "2025-10-12T14:55:28.382Z" },
+]
+
+[[package]]
+name = "caveclient"
+version = "8.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs" },
+    { name = "cachetools" },
+    { name = "ipython" },
+    { name = "jsonschema" },
+    { name = "networkx" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "requests" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8e/9b/752887622cb7575208424f1876abcd215e03795bb5fc9bb8a2f2bf1702e0/caveclient-8.0.0.tar.gz", hash = "sha256:83996df1b4aa6a2c456ef8601514c224c559369a311d72a019a124b7ac6cda2b", size = 3297475, upload-time = "2025-11-02T18:33:13.522Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/af/0b/ecff6a59b21526ef106af2389a78b7c24496ec004d5be0670adc54671e96/caveclient-8.0.0-py3-none-any.whl", hash = "sha256:7cbe5eabcd07e65ea9b31bc9966fa0bcef37ae55e79409ba5b14b785f637a55c", size = 91014, upload-time = "2025-11-02T18:33:11.514Z" },
 ]
 
 [[package]]
@@ -1862,6 +1884,25 @@ wheels = [
 ]
 
 [[package]]
+name = "morph-spines"
+version = "0.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "h5py" },
+    { name = "morphio" },
+    { name = "neurom" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "scipy" },
+    { name = "tables" },
+    { name = "trimesh" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ba/6c/126c1c1a1692f500b2c885ffaa30dd66e65ba30abe494cf501199785c16e/morph_spines-0.2.2.tar.gz", hash = "sha256:f3bf2c853ab1af961868b494431ce57c1ae3526f01fb192c8f9b5075af42c6d6", size = 869353, upload-time = "2025-11-03T14:41:20.629Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/ce/46996d398b909aa5807ed8320331d2984f8167a87b41f905dd83ce497fe4/morph_spines-0.2.2-py3-none-any.whl", hash = "sha256:4c3805910776fdb7e7d2671f1ad1bc94371c724428ac2fba7d537d015cca786b", size = 11096, upload-time = "2025-11-03T14:41:19.117Z" },
+]
+
+[[package]]
 name = "morph-tool"
 version = "2.11.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2235,7 +2276,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/99/7d/2d652962ee61c9e5a
 
 [[package]]
 name = "obi-one"
-version = "2025.11.1"
+version = "2025.11.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -2245,6 +2286,7 @@ dependencies = [
     { name = "bluepysnap" },
     { name = "brainbuilder" },
     { name = "cachetools" },
+    { name = "caveclient" },
     { name = "connectome-manipulator" },
     { name = "connectome-utilities" },
     { name = "entitysdk" },
@@ -2253,6 +2295,7 @@ dependencies = [
     { name = "ipykernel" },
     { name = "jupyter" },
     { name = "jupyterlab" },
+    { name = "morph-spines" },
     { name = "morph-tool" },
     { name = "networkx" },
     { name = "neurom" },
@@ -2268,7 +2311,7 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e3/d0/f75595e13b088d54289f24216ff02552fc603952d08f785034f1cc9a6fd1/obi_one-2025.11.1.tar.gz", hash = "sha256:59f52d2f96368d3937655e3feee7de46fcdf6dc4656647a041b66417b9983d1d", size = 10000730, upload-time = "2025-11-11T13:07:55.516Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/24/0e/2c82801ee7af00274647f8efda4bab320bee5f34fb609e240614f9e2654f/obi_one-2025.11.2.tar.gz", hash = "sha256:d5d199e9f5f2127587240ff530c46e3d043580a836a585c152c826c8bbf7d3cf", size = 10016597, upload-time = "2025-11-12T09:45:46.832Z" }
 
 [[package]]
 name = "obp-accounting-sdk"
@@ -3476,6 +3519,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/02/9a/a74decfd43ff7dedc2b3a32417ac88d1f105a2415d13ca85645b66bed144/trame_vuetify-3.1.0.tar.gz", hash = "sha256:be7d53da7fd755ce0bf74ecd52b9dc324c3ceac1a60442f8d371ecf9c9abe046", size = 5070287, upload-time = "2025-09-25T14:59:30.52Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/68/4c/4cc9ab46f231997dbcc6a4f05bb9fe80e842d52ac16ca963fb6747531560/trame_vuetify-3.1.0-py3-none-any.whl", hash = "sha256:1700c993c526aa6095a1bba62431dc5c95f2c302d19a6422a2cd5aab74ec5e77", size = 5097605, upload-time = "2025-09-25T14:59:28.466Z" },
+]
+
+[[package]]
+name = "trimesh"
+version = "4.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1e/f1/110f6ed138a4a2ea77da2b5bc47d04ef80b7ccc41c2bdf3af6542520bd77/trimesh-4.9.0.tar.gz", hash = "sha256:ad907a223867f614ef1598d85a4c978845f39365cb7ccc93fa5800901fba3ef9", size = 832474, upload-time = "2025-10-22T17:42:25.809Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fc/73/719ce8e11262d1fd42d0d24a98cee862c05d5f40b7869ad463c0912ea5d4/trimesh-4.9.0-py3-none-any.whl", hash = "sha256:934265a1de4b472bee21094c4e88d0a7522054b9911adb06e9b8062bb8757178", size = 736524, upload-time = "2025-10-22T17:42:23.436Z" },
 ]
 
 [[package]]
