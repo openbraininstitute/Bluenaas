@@ -342,7 +342,7 @@ worker = [
 
 [package.metadata]
 requires-dist = [
-    { name = "entitysdk", specifier = "==0.9.0" },
+    { name = "entitysdk", specifier = "==0.10.0" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "msgpack", specifier = ">=1.1.1" },
     { name = "obp-accounting-sdk", specifier = "==0.4.2" },
@@ -919,14 +919,14 @@ wheels = [
 
 [[package]]
 name = "entitysdk"
-version = "0.9.0"
+version = "0.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/84/30a9c250de8b36113c67566d595b86cca18e6478f0d361f2211d2bd45fe7/entitysdk-0.9.0.tar.gz", hash = "sha256:ab1745fee34bb35d45231ee4d2a5cd817343d67136b2a11f91d40b6b6fa3ae3c", size = 1458179, upload-time = "2025-11-04T08:45:31.589Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ef/d0/674d2f6a77149b8b9a54bcc291a6dceefdccea52e2226f7976d2f668ead7/entitysdk-0.10.0.tar.gz", hash = "sha256:9e42e52f44873f08a83a2fc796ea76e447df7bed5ea36c6a044e1042c26c270b", size = 1460031, upload-time = "2025-11-13T08:03:52.105Z" }
 
 [[package]]
 name = "executing"
