@@ -4,8 +4,8 @@ from entitysdk import ProjectContext
 
 from app.domains.mesh.skeletonization import (
     SkeletonizationInputParams,
-    SkeletonizationUltraliserParams,
     SkeletonizationJobOutput,
+    SkeletonizationUltraliserParams,
 )
 from app.services.worker.mesh.skeletonization import run_mesh_skeletonization
 

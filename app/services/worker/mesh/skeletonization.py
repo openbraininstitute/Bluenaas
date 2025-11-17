@@ -1,8 +1,9 @@
 from uuid import UUID
 
 from entitysdk import Client, ProjectContext
+from httpx import Client as HttpxClient
+from httpx import Timeout
 from loguru import logger
-from httpx import Client as HttpxClient, Timeout
 
 from app.config.settings import settings
 from app.core.mesh.skeletonization import Skeletonization
