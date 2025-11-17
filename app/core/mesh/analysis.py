@@ -38,7 +38,7 @@ class Analysis:
 
         result = executor.execute(
             ultraliser.evaluate_neuron_skeletonization_pricing_params,
-            mesh_path=str(self.mesh.file_path),
+            mesh=str(self.mesh.file_path),
         )
 
         return AnalysisResult(**result.result)
