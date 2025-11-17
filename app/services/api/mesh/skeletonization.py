@@ -13,7 +13,7 @@ from rq import Queue
 from app.config.settings import settings
 from app.core.exceptions import AppError, AppErrorCode
 from app.core.job import JobInfo
-from app.core.mesh.analysis import AnalysisResult
+from app.domains.mesh.analysis import AnalysisResult
 from app.domains.mesh.skeletonization import (
     SkeletonizationInputParams,
     SkeletonizationUltraliserParams,
