@@ -7,6 +7,7 @@ from app.domains.mesh.skeletonization import (
     SkeletonizationJobOutput,
     SkeletonizationUltraliserParams,
 )
+from app.domains.auth import Auth
 from app.services.worker.mesh.skeletonization import run_mesh_skeletonization
 
 
@@ -15,7 +16,7 @@ def run(
     input_params: SkeletonizationInputParams,
     ultraliser_params: SkeletonizationUltraliserParams,
     *,
-    access_token: str,
+    auth: Auth,
     execution_id: UUID,
     project_context: ProjectContext,
 ) -> SkeletonizationJobOutput:
@@ -23,7 +24,7 @@ def run(
         em_cell_mesh_id,
         input_params,
         ultraliser_params,
-        access_token=access_token,
+        auth=auth,
         execution_id=execution_id,
         project_context=project_context,
     )

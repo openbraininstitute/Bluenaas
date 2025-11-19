@@ -34,8 +34,8 @@ class Analysis:
         executor = SafeProcessExecutor()
 
         execution = executor.execute(
-            ultraliser.estimate_mesh_volume,
-            mesh=self.mesh.file_path,
+            ultraliser.estimate_mesh_scanning_volume_nm3_um3,
+            mesh_path=str(self.mesh.file_path),
         )
 
         return AnalysisResult(approximate_volume=int(execution.result))
