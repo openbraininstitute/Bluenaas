@@ -34,7 +34,7 @@ class Analysis:
         executor = SafeProcessExecutor()
 
         execution = executor.execute(
-            ultraliser.estimate_mesh_scanning_volume_nm3_um3,
+            ultraliser.estimate_mesh_scanning_volume_nm3_um3,  # type: ignore[attr-defined]
             mesh_path=str(self.mesh.file_path),
         )
 
