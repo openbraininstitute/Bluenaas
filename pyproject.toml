@@ -33,7 +33,7 @@ worker = [
     "bluecellulab==2.6.73",
     "efel==5.7.20",
     "filelock==3.18.0",
-    "ion-channel-builder",
+    "ion-channel-builder>=0.0.7",
     "morphio==3.4.0",
     "obi-one==2025.11.2",
     "pynwb==3.1.2",
