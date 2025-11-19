@@ -18,6 +18,8 @@ def run_mesh_analysis(
 ) -> None:
     job_stream = JobStream(get_job_stream_key())
 
+    logger.info(f"Starting analysis for mesh {em_cell_mesh_id}")
+
     client = Client(
         api_url=str(settings.ENTITYCORE_URI),
         project_context=project_context,
@@ -33,5 +35,8 @@ def run_mesh_analysis(
     except Exception as e:
         logger.exception(e)
         job_stream.send_status(JobStatus.error, str(e))
+        raise
     finally:
         job_stream.close()
+
+    logger.info(f"Analysis completed for mesh {em_cell_mesh_id}")

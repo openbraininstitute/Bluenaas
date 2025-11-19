@@ -1,11 +1,10 @@
 from uuid import UUID
 
 from entitysdk import Client
-from loguru import logger
 
 from app.core.mesh.em_cell_mesh import EMCellMesh
-from app.utils.safe_process import SafeProcessExecutor
 from app.domains.mesh.analysis import AnalysisResult
+from app.utils.safe_process import SafeProcessExecutor
 
 
 class Analysis:
@@ -32,13 +31,11 @@ class Analysis:
 
         import ultraliser  # pyright: ignore[reportMissingImports]
 
-        logger.info(f"Running analysis for mesh {self.mesh.mesh_id}")
-
         executor = SafeProcessExecutor()
 
-        result = executor.execute(
-            ultraliser.evaluate_neuron_skeletonization_pricing_params,
-            mesh=str(self.mesh.file_path),
+        execution = executor.execute(
+            ultraliser.estimate_mesh_volume,
+            mesh=self.mesh.file_path,
         )
 
-        return AnalysisResult(**result.result)
+        return AnalysisResult(approximate_volume=int(execution.result))

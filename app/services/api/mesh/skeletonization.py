@@ -20,6 +20,7 @@ from app.domains.mesh.skeletonization import (
 )
 from app.infrastructure.accounting.session import async_accounting_session_factory
 from app.infrastructure.kc.auth import Auth
+from app.infrastructure.rq import JobQueue, get_queue
 from app.job import JobFn
 from app.utils.rq_job import dispatch, get_job_data, get_job_info, run_async
 
@@ -48,7 +49,7 @@ async def run_mesh_skeletonization(
 
     # Estimate accounting task size in neuron seconds.
     _job, run_analysis_job_stream = await dispatch(
-        job_queue,
+        get_queue(JobQueue.HIGH),
         JobFn.RUN_MESH_ANALYSIS,
         job_args=(em_cell_mesh_id,),
         job_kwargs={
