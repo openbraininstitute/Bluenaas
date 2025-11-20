@@ -4,8 +4,12 @@ Script to validate that all JobFn enum values reference actual module functions.
 """
 
 import importlib
+import os
 import sys
 from pathlib import Path
+
+# Set minimal env vars needed for imports
+os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))

@@ -1,17 +1,25 @@
+from http import HTTPStatus
 from uuid import UUID
 
 from entitysdk import Client, ProjectContext
+from httpx import Client as HttpxClient
+from httpx import Timeout
 from loguru import logger
-from httpx import Client as HttpxClient, Timeout
+from obp_accounting_sdk.constants import ServiceSubtype
+from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
 
 from app.config.settings import settings
+from app.core.exceptions import AppError, AppErrorCode
+from app.core.mesh.analysis import Analysis
 from app.core.mesh.skeletonization import Skeletonization
 from app.domains.mesh.skeletonization import (
     SkeletonizationInputParams,
     SkeletonizationJobOutput,
     SkeletonizationUltraliserParams,
 )
+from app.domains.auth import Auth
 from app.utils.safe_process import SafeProcessRuntimeError
+from app.infrastructure.accounting.session import accounting_session_factory
 
 
 def run_mesh_skeletonization(
@@ -20,7 +28,7 @@ def run_mesh_skeletonization(
     ultraliser_params: SkeletonizationUltraliserParams,
     *,
     execution_id: UUID,
-    access_token: str,
+    auth: Auth,
     project_context: ProjectContext,
 ) -> SkeletonizationJobOutput:
     httpx_client = HttpxClient(timeout=Timeout(10, read=20))
@@ -28,9 +36,24 @@ def run_mesh_skeletonization(
     client = Client(
         api_url=str(settings.ENTITYCORE_URI),
         project_context=project_context,
-        token_manager=access_token,
+        token_manager=auth.access_token,
         http_client=httpx_client,
     )
+
+    logger.info(f"Starting analysis for mesh {em_cell_mesh_id}")
+
+    analysis = Analysis(em_cell_mesh_id, client=client)
+
+    try:
+        analysis.init()
+        analysis_result = analysis.run()
+    except Exception as e:
+        logger.exception(e)
+        raise
+
+    logger.info(f"Analysis completed for mesh {em_cell_mesh_id}")
+
+    accounting_count = analysis_result.approximate_volume
 
     skeletonization = Skeletonization(
         em_cell_mesh_id,
@@ -39,6 +62,37 @@ def run_mesh_skeletonization(
         client=client,
         execution_id=execution_id,
     )
+    skeletonization.init()
+
+    logger.info("Making accounting reservation for neuron mesh skeletonization")
+    logger.info(f"Accounting mesh factor: {accounting_count}")
+
+    accounting_session = accounting_session_factory.oneshot_session(
+        subtype=ServiceSubtype.NEURON_MESH_SKELETONIZATION,
+        proj_id=project_context.project_id,
+        user_id=auth.decoded_token.sub,
+        count=accounting_count,
+        name=skeletonization.mesh.metadata.name,
+    )
+
+    try:
+        accounting_session.make_reservation()
+    except InsufficientFundsError as ex:
+        logger.warning(f"Insufficient funds: {ex}")
+        raise AppError(
+            http_status_code=HTTPStatus.FORBIDDEN,
+            error_code=AppErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
+            message="The project does not have enough funds to run the neuron mesh skeletonization",
+            details=ex.__str__(),
+        ) from ex
+    except BaseAccountingError as ex:
+        logger.warning(f"Accounting service error: {ex}")
+        raise AppError(
+            http_status_code=HTTPStatus.BAD_GATEWAY,
+            error_code=AppErrorCode.ACCOUNTING_GENERIC_ERROR,
+            message="Accounting service error",
+            details=ex.__str__(),
+        ) from ex
 
     try:
         skeletonization.init()
@@ -47,15 +101,24 @@ def run_mesh_skeletonization(
         morphology = skeletonization.output.upload()
     except SafeProcessRuntimeError as e:
         logger.error(f"Skeletonization failed: {e}")
+        accounting_session.finish(exc_type=e)  # type: ignore
         raise
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
+        accounting_session.finish(exc_type=e)  # type: ignore
         raise
     finally:
         skeletonization.output.cleanup()
         httpx_client.close()
 
     logger.info(f"Skeletonization completed for mesh {em_cell_mesh_id}")
+
+    try:
+        accounting_session.finish()
+        logger.debug("Accounting session finished successfully")
+    except Exception as e:
+        # TODO Report to Sentry
+        logger.error(f"Accounting session closure failed: {e}")
 
     return SkeletonizationJobOutput(
         morphology=morphology,
