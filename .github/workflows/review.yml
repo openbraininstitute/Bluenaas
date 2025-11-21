@@ -28,7 +28,7 @@ jobs:
           tag: "v2.0.8"
           fileName: "*.whl"
           out-file-path: "ext-deps/ultraliser"
-          token: ${{ secrets.ULTRALIZER_REPO_PAT }}
+          token: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
 
       - name: Check requirements
         run: make check-deps
