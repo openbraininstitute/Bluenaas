@@ -35,10 +35,10 @@ worker = [
     "filelock==3.18.0",
     "ion-channel-builder",
     "morphio==3.4.0",
-    "obi-one==2025.11.2",
+    "obi-one==2025.11.3",
     "pynwb==3.1.2",
     "requests==2.32.4",
-    "ultraliser; sys_platform == 'linux'",
+    "ultraliser",
 ]
 dev = [
     "pyright>=1.1.407",
@@ -64,4 +64,4 @@ target-version = "py312"
 find-links = ["ext-deps/ultraliser"]
 
 [tool.uv.sources]
-ion-channel-builder = { git = "https://github.com/openbraininstitute/ion-channel-builder.git", tag = "0.0.7" }
+ion-channel-builder = { git = "https://github.com/openbraininstitute/ion-channel-builder.git", tag = "0.0.8" }
