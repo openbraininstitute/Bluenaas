@@ -378,7 +378,7 @@ worker = [
     { name = "bluecellulab", specifier = "==2.6.73" },
     { name = "efel", specifier = "==5.7.20" },
     { name = "filelock", specifier = "==3.18.0" },
-    { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.9" },
+    { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.10" },
     { name = "morphio", specifier = "==3.4.0" },
     { name = "obi-one", specifier = "==2025.11.3" },
     { name = "pynwb", specifier = "==3.1.2" },
@@ -1259,8 +1259,8 @@ wheels = [
 
 [[package]]
 name = "ion-channel-builder"
-version = "0.0.9"
-source = { git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.9#d1fb8bfd8506583a8b20d22452f275af3fcb86c6" }
+version = "0.0.10"
+source = { git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.10#61cc8f8191969a3dc04097b88c4dfd7082515c10" }
 dependencies = [
     { name = "efel" },
     { name = "jinja2" },
