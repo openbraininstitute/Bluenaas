@@ -10,13 +10,13 @@ readme = "README.md"
 requires-python = "==3.12.12"
 
 dependencies = [
-    "entitysdk==0.10.0",
+    "entitysdk==0.10.2",
     "loguru==0.7.3",
     "msgpack>=1.1.1",
     "obp-accounting-sdk==0.4.2",
     "pandas==2.3.1",
     "pydantic-settings==2.10.1",
-    "pydantic==2.11.7",
+    "pydantic==2.12.0",
     "redis[hiredis]==6.2.0",
     "rq==2.6.0",
     "sympy==1.14.0",
@@ -64,4 +64,4 @@ target-version = "py312"
 find-links = ["ext-deps/ultraliser"]
 
 [tool.uv.sources]
-ion-channel-builder = { git = "https://github.com/openbraininstitute/ion-channel-builder.git", tag = "0.0.8" }
+ion-channel-builder = { git = "https://github.com/openbraininstitute/ion-channel-builder.git", tag = "0.0.10" }
