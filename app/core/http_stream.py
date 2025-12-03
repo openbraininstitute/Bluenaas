@@ -41,18 +41,29 @@ async def x_ndjson_http_stream(
     async def get_next_message() -> dict[str, Any]:
         return await anext(messages)
 
+    next_message_task: asyncio.Task[dict[str, Any]] | None = None
+
     while True:
         try:
-            next_message_task = asyncio.create_task(get_next_message())
+            if next_message_task is None:
+                next_message_task = asyncio.create_task(get_next_message())
 
-            try:
-                message = await asyncio.wait_for(next_message_task, timeout=keep_alive_interval)
+            done, _pending = await asyncio.wait(
+                {next_message_task},
+                timeout=keep_alive_interval,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+            if done:
+                message = next_message_task.result()
+                next_message_task = None
                 output = _create_x_ndjson_entry(message)
-            except asyncio.TimeoutError:
+            else:
                 output = _create_x_ndjson_entry(KeepAliveMessage().model_dump())
 
             if await request.is_disconnected():
-                next_message_task.cancel()
+                if next_message_task and not next_message_task.done():
+                    next_message_task.cancel()
                 return
 
             yield output
