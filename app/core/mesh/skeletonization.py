@@ -48,6 +48,7 @@ class Skeletonization:
                 description=input_params.description,
                 subject=self.mesh.metadata.subject,
                 brain_region=self.mesh.metadata.brain_region,
+                em_dense_reconstruction_dataset=self.mesh.em_dense_reconstruction_dataset,
             ),
         )
 

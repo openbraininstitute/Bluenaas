@@ -1,7 +1,10 @@
+from datetime import UTC, datetime
 from http import HTTPStatus
 from uuid import UUID
 
 from entitysdk import Client, ProjectContext
+from entitysdk.models import SkeletonizationExecution
+from entitysdk.types import SkeletonizationExecutionStatus
 from httpx import Client as HttpxClient
 from httpx import Timeout
 from loguru import logger
@@ -12,14 +15,14 @@ from app.config.settings import settings
 from app.core.exceptions import AppError, AppErrorCode
 from app.core.mesh.analysis import Analysis
 from app.core.mesh.skeletonization import Skeletonization
+from app.domains.auth import Auth
 from app.domains.mesh.skeletonization import (
     SkeletonizationInputParams,
     SkeletonizationJobOutput,
     SkeletonizationUltraliserParams,
 )
-from app.domains.auth import Auth
-from app.utils.safe_process import SafeProcessRuntimeError
 from app.infrastructure.accounting.session import accounting_session_factory
+from app.utils.safe_process import SafeProcessRuntimeError
 
 
 def run_mesh_skeletonization(
@@ -39,6 +42,27 @@ def run_mesh_skeletonization(
         token_manager=auth.access_token,
         http_client=httpx_client,
     )
+
+    def set_activity_status(status: SkeletonizationExecutionStatus):
+        client.update_entity(
+            entity_id=execution_id,
+            entity_type=SkeletonizationExecution,
+            attrs_or_entity={
+                "status": status,
+            },
+        )
+
+    def set_error_activity_state():
+        client.update_entity(
+            entity_id=execution_id,
+            entity_type=SkeletonizationExecution,
+            attrs_or_entity={
+                "end_time": datetime.now(UTC),
+                "status": SkeletonizationExecutionStatus.error,
+            },
+        )
+
+    set_activity_status(SkeletonizationExecutionStatus.pending)
 
     logger.info(f"Starting analysis for mesh {em_cell_mesh_id}")
 
@@ -75,10 +99,18 @@ def run_mesh_skeletonization(
         name=skeletonization.mesh.metadata.name,
     )
 
+    def cleanup_execution_entity():
+        logger.warning("Cleaning up execution entity due to a pre-run exception")
+        client.delete_entity(
+            entity_id=execution_id,
+            entity_type=SkeletonizationExecution,
+        )
+
     try:
         accounting_session.make_reservation()
     except InsufficientFundsError as ex:
         logger.warning(f"Insufficient funds: {ex}")
+        cleanup_execution_entity()
         raise AppError(
             http_status_code=HTTPStatus.FORBIDDEN,
             error_code=AppErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
@@ -87,6 +119,7 @@ def run_mesh_skeletonization(
         ) from ex
     except BaseAccountingError as ex:
         logger.warning(f"Accounting service error: {ex}")
+        cleanup_execution_entity()
         raise AppError(
             http_status_code=HTTPStatus.BAD_GATEWAY,
             error_code=AppErrorCode.ACCOUNTING_GENERIC_ERROR,
@@ -94,17 +127,31 @@ def run_mesh_skeletonization(
             details=ex.__str__(),
         ) from ex
 
+    set_activity_status(SkeletonizationExecutionStatus.running)
+
     try:
         skeletonization.init()
         skeletonization.run()
         skeletonization.output.post_process()
         morphology = skeletonization.output.upload()
+
+        client.update_entity(
+            entity_id=execution_id,
+            entity_type=SkeletonizationExecution,
+            attrs_or_entity={
+                "generated_ids": [morphology.id],
+                "end_time": datetime.now(UTC),
+                "status": SkeletonizationExecutionStatus.done,
+            },
+        )
     except SafeProcessRuntimeError as e:
         logger.error(f"Skeletonization failed: {e}")
+        set_error_activity_state()
         accounting_session.finish(exc_type=e)  # type: ignore
         raise
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
+        set_error_activity_state()
         accounting_session.finish(exc_type=e)  # type: ignore
         raise
     finally:
