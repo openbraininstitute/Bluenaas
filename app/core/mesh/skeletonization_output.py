@@ -4,11 +4,11 @@ from uuid import UUID
 
 from entitysdk.client import Client
 from entitysdk.models import BrainRegion, CellMorphology, Contribution, License, Role, Subject
-from entitysdk.models.cell_morphology_protocol import (
-    PlaceholderCellMorphologyProtocol,
-    CellMorphologyProtocol,
-)
 from entitysdk.models.asset import AssetLabel, ContentType
+from entitysdk.models.cell_morphology_protocol import (
+    CellMorphologyProtocol,
+    PlaceholderCellMorphologyProtocol,
+)
 from loguru import logger
 from morphio.mut import Morphology
 from pydantic import BaseModel

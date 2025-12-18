@@ -15,14 +15,14 @@ from app.config.settings import settings
 from app.core.exceptions import AppError, AppErrorCode
 from app.core.mesh.analysis import Analysis
 from app.core.mesh.skeletonization import Skeletonization
+from app.domains.auth import Auth
 from app.domains.mesh.skeletonization import (
     SkeletonizationInputParams,
     SkeletonizationJobOutput,
     SkeletonizationUltraliserParams,
 )
-from app.domains.auth import Auth
-from app.utils.safe_process import SafeProcessRuntimeError
 from app.infrastructure.accounting.session import accounting_session_factory
+from app.utils.safe_process import SafeProcessRuntimeError
 
 
 def run_mesh_skeletonization(
