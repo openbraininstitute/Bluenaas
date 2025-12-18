@@ -3,11 +3,21 @@ from typing import cast
 from uuid import UUID
 
 from entitysdk.client import Client
-from entitysdk.models import BrainRegion, CellMorphology, Contribution, License, Role, Subject
+from entitysdk.models import (
+    BrainRegion,
+    CellMorphology,
+    Contribution,
+    EMDenseReconstructionDataset,
+    License,
+    Role,
+    Subject,
+)
 from entitysdk.models.asset import AssetLabel, ContentType
 from entitysdk.models.cell_morphology_protocol import (
     CellMorphologyProtocol,
-    PlaceholderCellMorphologyProtocol,
+    CellMorphologyProtocolDesign,
+    DigitalReconstructionCellMorphologyProtocol,
+    StainingType,
 )
 from loguru import logger
 from morphio.mut import Morphology
@@ -29,6 +39,7 @@ class Metadata(BaseModel):
     description: str
     brain_region: BrainRegion
     subject: Subject
+    em_dense_reconstruction_dataset: EMDenseReconstructionDataset | None
 
 
 class SkeletonizationOutput:
@@ -119,24 +130,34 @@ class SkeletonizationOutput:
         if not role:
             raise ValueError(f"Role {ROLE_NAME} not found")
 
-        protocol = cast(
-            PlaceholderCellMorphologyProtocol | None,
-            next(
-                self.client.search_entity(
-                    entity_type=CellMorphologyProtocol,
-                    query={"name": CELL_MORPHOLOGY_PROTOCOL_NAME},
+        # Create a cell morphology protocol if there are enough details
+        protocol = None
+
+        em_dense_rec_ds = self.metadata.em_dense_reconstruction_dataset
+        if em_dense_rec_ds and em_dense_rec_ds.slicing_thickness:
+            protocol = cast(
+                DigitalReconstructionCellMorphologyProtocol | None,
+                next(
+                    self.client.search_entity(
+                        entity_type=CellMorphologyProtocol,
+                        query={"name": CELL_MORPHOLOGY_PROTOCOL_NAME},
+                    ),
+                    None,
                 ),
-                None,
-            ),
-        )
-        if not protocol:
-            logger.debug(f"Creating cell morphology protocol: {CELL_MORPHOLOGY_PROTOCOL_NAME}")
-            protocol = self.client.register_entity(
-                PlaceholderCellMorphologyProtocol(
-                    name=CELL_MORPHOLOGY_PROTOCOL_NAME,
-                    description=CELL_MORPHOLOGY_PROTOCOL_DESCRIPTION,
-                )
             )
+            if not protocol:
+                logger.debug(f"Creating cell morphology protocol: {CELL_MORPHOLOGY_PROTOCOL_NAME}")
+                protocol = self.client.register_entity(
+                    DigitalReconstructionCellMorphologyProtocol(
+                        name=CELL_MORPHOLOGY_PROTOCOL_NAME,
+                        description=CELL_MORPHOLOGY_PROTOCOL_DESCRIPTION,
+                        protocol_design=CellMorphologyProtocolDesign.electron_microscopy,
+                        slicing_direction=em_dense_rec_ds.slicing_direction,
+                        slicing_thickness=em_dense_rec_ds.slicing_thickness,
+                        staining_type=StainingType.other,
+                        tissue_shrinkage=em_dense_rec_ds.tissue_shrinkage,
+                    )
+                )
 
         morphology = cast(
             CellMorphology,

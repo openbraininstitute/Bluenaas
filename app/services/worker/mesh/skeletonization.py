@@ -100,6 +100,7 @@ def run_mesh_skeletonization(
     )
 
     def cleanup_execution_entity():
+        logger.warning("Cleaning up execution entity due to a pre-run exception")
         client.delete_entity(
             entity_id=execution_id,
             entity_type=SkeletonizationExecution,
