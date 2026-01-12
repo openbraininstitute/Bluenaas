@@ -3,7 +3,12 @@ from uuid import UUID
 
 from entitysdk import Client
 from entitysdk._server_schemas import AssetLabel
-from entitysdk.models import EMCellMesh as EntitycoreEMCellMesh
+from entitysdk.models import (
+    EMCellMesh as EntitycoreEMCellMesh,
+)
+from entitysdk.models import (
+    EMDenseReconstructionDataset as EntitycoreEMDenseReconstructionDataset,
+)
 from entitysdk.models.asset import Asset
 from filelock import FileLock
 from loguru import logger
@@ -17,6 +22,7 @@ class EMCellMesh:
     mesh_id: UUID
     initialized: bool = False
     metadata: EntitycoreEMCellMesh
+    em_dense_reconstruction_dataset: None | EntitycoreEMDenseReconstructionDataset = None
     path: Path
 
     def __init__(self, em_cell_mesh_id: UUID, client: Client) -> None:
@@ -28,8 +34,16 @@ class EMCellMesh:
         self._fetch_metadata()
 
     def _fetch_metadata(self):
-        """Fetch the EMCellMesh metadata from entitycore"""
+        """Fetch the EMCellMesh and EMDenseReconstructionDasatet metadata from entitycore"""
         self.metadata = self.client.get_entity(self.mesh_id, entity_type=EntitycoreEMCellMesh)
+
+        if self.metadata.em_dense_reconstruction_dataset:
+            assert self.metadata.em_dense_reconstruction_dataset.id
+
+            self.em_dense_reconstruction_dataset = self.client.get_entity(
+                self.metadata.em_dense_reconstruction_dataset.id,
+                entity_type=EntitycoreEMDenseReconstructionDataset,
+            )
 
     @property
     def mesh_asset(self) -> Asset:
