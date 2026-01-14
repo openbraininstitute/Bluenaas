@@ -339,9 +339,9 @@ worker = [
     { name = "filelock" },
     { name = "ion-channel-builder" },
     { name = "morphio" },
+    { name = "numpy" },
     { name = "obi-one" },
     { name = "pynwb" },
-    { name = "quantities" },
     { name = "requests" },
     { name = "ultraliser" },
 ]
@@ -381,9 +381,9 @@ worker = [
     { name = "filelock", specifier = "==3.18.0" },
     { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.10" },
     { name = "morphio", specifier = "==3.4.0" },
+    { name = "numpy", specifier = ">=2.0.0,<2.4" },
     { name = "obi-one", specifier = "==2026.1.2" },
     { name = "pynwb", specifier = "==3.1.2" },
-    { name = "quantities", git = "https://github.com/python-quantities/python-quantities.git?rev=master" },
     { name = "requests", specifier = "==2.32.4" },
     { name = "ultraliser" },
 ]
@@ -2884,10 +2884,14 @@ wheels = [
 
 [[package]]
 name = "quantities"
-version = "0.16.3.dev12+gcb64663fe"
-source = { git = "https://github.com/python-quantities/python-quantities.git?rev=master#cb64663fe1fb6668b3b7eed4ed832baa4897e4e3" }
+version = "0.16.2"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/40/b4/a14dbeebf8ab08600152f157344fd88db961a3afdfd0eddc25958c5182a1/quantities-0.16.2.tar.gz", hash = "sha256:1f7c24f10d9ff57ddf751a358ea2fdfa9914516722f06a788ef4a2924c77d21c", size = 101862, upload-time = "2025-04-11T14:16:12.154Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/17/0c/b4ee3f929bbe564101f110080dcdd33d1181a6f8a041cc9e21d992509b52/quantities-0.16.2-py3-none-any.whl", hash = "sha256:bd5b1ed422770b7cd8952ccfccaf67a89024ae0ecb31b1eacbc7ff966899ab34", size = 103021, upload-time = "2025-04-11T14:16:10.524Z" },
 ]
 
 [[package]]
