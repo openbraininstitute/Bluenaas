@@ -55,7 +55,7 @@ else
   echo "Invalid ENVIRONMENT"; exit 1
 fi
 # There are conflicting versions of glibc in NEURON and Libsonata, this is a tmp workaround.
-uv pip install --force-reinstall https://files.pythonhosted.org/packages/b2/00/ef646065a525811a41251bfcf6a019d4fd1d94a8b3a4a9f07d8f2729682f/libsonata-0.1.31-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+uv pip install --force-reinstall --no-deps https://files.pythonhosted.org/packages/b2/00/ef646065a525811a41251bfcf6a019d4fd1d94a8b3a4a9f07d8f2729682f/libsonata-0.1.31-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
 EOT
 
 # run stage
