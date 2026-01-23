@@ -242,8 +242,6 @@ async def run_circuit_simulation_batch(
         project_context=project_context,
     )
 
-    # TODO Next below
-
     accounting_session_map: Dict[UUID, AsyncOneshotSession] = {}
     try:
         for sim_id in simulation_ids:
@@ -296,18 +294,22 @@ async def run_circuit_simulation_batch(
         exec_id = simulation_execution_entity.id
         accounting_session = accounting_session_map[sim.id]  # type: ignore
 
-        async def on_start() -> None:
-            await accounting_session.start()
+        async def on_start(session=accounting_session) -> None:
+            await session.start()
             logger.info("Accounting session started successfully")
 
-        async def on_success() -> None:
-            await accounting_session.finish()
+        async def on_success(session=accounting_session) -> None:
+            await session.finish()
             logger.info("Accounting session finished successfully")
 
-        async def on_failure(exc_type: type[BaseException] | None) -> None:
+        async def on_failure(
+            exc_type: type[BaseException] | None,
+            session=accounting_session,
+            execution_id=exec_id,
+        ) -> None:
             await run_async(
                 lambda: client.update_entity(
-                    entity_id=exec_id,  # type: ignore
+                    entity_id=execution_id,  # type: ignore
                     entity_type=SimulationExecution,
                     attrs_or_entity={
                         "end_time": datetime.now(UTC),
@@ -317,7 +319,7 @@ async def run_circuit_simulation_batch(
             )
 
             # TODO fix the exc_type type below.
-            await accounting_session.finish(exc_type=exc_type)  # type: ignore
+            await session.finish(exc_type=exc_type)  # type: ignore
             logger.info("Accounting session with provided exception finished successfully")
 
         _job, stream = await dispatch(
