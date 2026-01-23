@@ -29,6 +29,7 @@ class DecodedKeycloakToken(BaseModel):
     given_name: Optional[str] = Field(description="User's first name", default=None)
     family_name: Optional[str] = Field(description="User's last name", default=None)
     email: str = Field(description="User's email address")
+    groups: Optional[List[str]] = Field(description="User's Keycloak groups", default=None)
 
     # Keycloak-Specific Fields
     auth_time: Optional[int] = Field(

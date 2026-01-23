@@ -8,9 +8,8 @@ from app.domains.mesh.skeletonization import (
     SkeletonizationInputParams,
     SkeletonizationUltraliserParams,
 )
-from app.infrastructure.kc.auth import Auth, verify_jwt
 from app.infrastructure.rq import JobQueue, queue_factory
-from app.routes.dependencies import ProjectContextDep
+from app.routes.dependencies import ProjectContextDep, UserAuthDep
 from app.services.api.mesh.skeletonization import (
     get_mesh_skeletonization_status as get_mesh_skeletonization_status_service,
 )
@@ -28,7 +27,7 @@ async def run_mesh_skeletonization(
     em_cell_mesh_id: UUID,
     project_context: ProjectContextDep,
     input_params: SkeletonizationInputParams,
-    auth: Auth = Depends(verify_jwt),
+    auth: UserAuthDep,
     job_queue: Queue = Depends(queue_factory(JobQueue.MESH_SKELETONIZATION)),
     ultraliser_params: SkeletonizationUltraliserParams = Depends(),
 ) -> JobInfo:
@@ -46,7 +45,7 @@ async def run_mesh_skeletonization(
 async def get_mesh_skeletonization_status(
     job_id: UUID,
     _project_context: ProjectContextDep,
-    _auth: Auth = Depends(verify_jwt),
+    _auth: UserAuthDep,
     job_queue: Queue = Depends(queue_factory(JobQueue.MESH_SKELETONIZATION)),
 ) -> JobInfo:
     return await get_mesh_skeletonization_status_service(job_id=job_id, job_queue=job_queue)
