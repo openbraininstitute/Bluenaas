@@ -4,10 +4,10 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID, uuid4
 
-from app.services.api.circuit.simulation import run_circuit_simulation_batch
-
 # Set minimal env vars needed for imports
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
+
+from app.services.api.circuit.simulation import run_circuit_simulation_batch
 
 
 class TestCircuitSimulationBatchClosures(unittest.TestCase):
