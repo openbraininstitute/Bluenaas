@@ -244,24 +244,26 @@ wheels = [
 
 [[package]]
 name = "bluecellulab"
-version = "2.6.74"
+version = "2.6.77"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bluepysnap" },
     { name = "efel" },
     { name = "h5py" },
     { name = "matplotlib" },
+    { name = "neo" },
     { name = "networkx" },
     { name = "neuron" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "pydantic" },
+    { name = "quantities" },
     { name = "seaborn" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/39/1f9fbcbb618f1184c7399d8b507c6c1b77077081718f0afed6f575866320/bluecellulab-2.6.74.tar.gz", hash = "sha256:3176a3e98fae34ee8db30c25f2227764f8c00f0db2656aaab91427516a247f27", size = 535441, upload-time = "2025-11-26T15:47:23.56Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/7e/0f803eb0ce49fbc4cea82696d1444399cf6f1131d7fee4ba9d135afed436/bluecellulab-2.6.77.tar.gz", hash = "sha256:8ecddadc9a8c7a1007ba44bda247688529727f53c1748e966d6fe749609b580b", size = 538840, upload-time = "2026-01-22T16:26:57.817Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/af/7130c0b4ba1589b62f8f08c183409987f64ca42779548c49d9a676f27c30/bluecellulab-2.6.74-py3-none-any.whl", hash = "sha256:6b87b08f45df61f6257d1ca9d884d03e02821fd9d14816c416245542a6e0d179", size = 157807, upload-time = "2025-11-26T15:47:21.836Z" },
+    { url = "https://files.pythonhosted.org/packages/37/55/ac02a34a8ff336bd2cb152cb11252449cf426f71712c4db145c12cfa78e0/bluecellulab-2.6.77-py3-none-any.whl", hash = "sha256:de73bf33ad6e9bafffdaadbcf4ed4b0356fa84bda7abde6da021aa10b3dbcd9b", size = 160895, upload-time = "2026-01-22T16:26:56.431Z" },
 ]
 
 [[package]]
@@ -348,9 +350,9 @@ worker = [
 
 [package.metadata]
 requires-dist = [
-    { name = "entitysdk", specifier = "==0.11.1" },
+    { name = "entitysdk", specifier = "==0.11.2" },
     { name = "loguru", specifier = "==0.7.3" },
-    { name = "msgpack", specifier = ">=1.1.1" },
+    { name = "msgpack", specifier = ">=1.1.2" },
     { name = "obp-accounting-sdk", specifier = "==0.4.2" },
     { name = "pandas", specifier = "==2.3.1" },
     { name = "pydantic", specifier = "==2.12.0" },
@@ -376,13 +378,13 @@ types = [
     { name = "types-requests", specifier = "==2.32.4.20250611" },
 ]
 worker = [
-    { name = "bluecellulab", specifier = "==2.6.74" },
+    { name = "bluecellulab", specifier = "==2.6.77" },
     { name = "efel", specifier = "==5.7.20" },
     { name = "filelock", specifier = "==3.18.0" },
-    { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.10" },
+    { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.11" },
     { name = "morphio", specifier = "==3.4.0" },
     { name = "numpy", specifier = ">=2.0.0,<2.4" },
-    { name = "obi-one", specifier = "==2026.1.2" },
+    { name = "obi-one", specifier = "==2026.1.3" },
     { name = "pynwb", specifier = "==3.1.2" },
     { name = "requests", specifier = "==2.32.4" },
     { name = "ultraliser" },
@@ -926,14 +928,14 @@ wheels = [
 
 [[package]]
 name = "entitysdk"
-version = "0.11.1"
+version = "0.11.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8e/aa/f6b6532f1d977f2e11ea0289ee7844d61c3604e7fe393514932a25ca1eb8/entitysdk-0.11.1.tar.gz", hash = "sha256:7a388c62a16d75a857674146ff45b51f5193861ec7ea1413c2e13291cd146737", size = 68163, upload-time = "2026-01-13T13:51:37.555Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/97/368003af2911250e3e44a3695e427ef545e51df86573b8a4d0dc9ff922b2/entitysdk-0.11.2.tar.gz", hash = "sha256:7afd7573df331bad5f7765ce0473dbeee5dd8260c049fa4b1be5cd402e75e4f2", size = 68780, upload-time = "2026-01-20T17:05:07.677Z" }
 
 [[package]]
 name = "executing"
@@ -1261,11 +1263,12 @@ wheels = [
 
 [[package]]
 name = "ion-channel-builder"
-version = "0.0.10"
-source = { git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.10#61cc8f8191969a3dc04097b88c4dfd7082515c10" }
+version = "0.0.11"
+source = { git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.11#7b53a33334f8fa7a84f3f42e43fabc4c66598432" }
 dependencies = [
     { name = "efel" },
     { name = "jinja2" },
+    { name = "matplotlib" },
     { name = "neuron" },
     { name = "numpy" },
     { name = "palettable" },
@@ -2295,7 +2298,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/99/7d/2d652962ee61c9e5a
 
 [[package]]
 name = "obi-one"
-version = "2026.1.2"
+version = "2026.1.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -2330,7 +2333,7 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/be/c5/60b95f607228d6008a1a3a4c838abf8ef02a6a6620b51744dcc99297cb43/obi_one-2026.1.2.tar.gz", hash = "sha256:6f5261d122400db1cab9e6bcc6565d819825b3a487788a7e109fe842ba3a3769", size = 10028703, upload-time = "2026-01-14T10:29:49.768Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a0/97/ff3a9ce18098a16632a2b1e55d17e7d25ed5d557ea6f3e1af72ca9ac52ab/obi_one-2026.1.3.tar.gz", hash = "sha256:90223668ee426ea1e3a2841612c79fe9d30414763d2a5e4d6289ef182d6b8bc9", size = 10166628, upload-time = "2026-01-16T13:35:45.309Z" }
 
 [[package]]
 name = "obp-accounting-sdk"
