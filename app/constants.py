@@ -1,5 +1,7 @@
 STOP_MESSAGE = b"__STOP__"
 
+SERVICE_NAME = "small-scale-simulator"
+
 CIRCUIT_MOD_DIR = "mod"
 CIRCUIT_MEMODEL_MOD_DIR = "mechanisms"  # TODO To be replaced with CIRCUIT_MOD_DIR
 CIRCUIT_SIMULATION_CONFIG_NAME = "simulation_config.json"

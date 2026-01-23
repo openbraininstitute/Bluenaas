@@ -12,9 +12,8 @@ from app.domains.simulation import (
     StimulationItemResponse,
     StimulationPlotConfig,
 )
-from app.infrastructure.kc.auth import Auth, verify_jwt
 from app.infrastructure.rq import JobQueue, queue_factory
-from app.routes.dependencies import ProjectContextDep
+from app.routes.dependencies import ProjectContextDep, UserAuthDep
 from app.services.api.single_neuron.current_clamp_plot import (
     get_current_clamp_plot_data_response,
 )
@@ -40,7 +39,7 @@ router = APIRouter(prefix="/single-neuron")
 async def create_single_neuron_model(
     model: MEModelCreateRequest,
     project_context: ProjectContextDep,
-    auth: Auth = Depends(verify_jwt),
+    auth: UserAuthDep,
     job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
 ):
     return await create_single_neuron_model_service(
@@ -58,7 +57,7 @@ async def run_simulation(
     model_id: UUID,
     config: SingleNeuronSimulationConfig,
     project_context: ProjectContextDep,
-    auth: Auth = Depends(verify_jwt),
+    auth: UserAuthDep,
     job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
 ):
     return await run_simulation_service(
@@ -78,7 +77,7 @@ async def run_simulation(
 async def create_synaptome_model(
     model: SingleNeuronSynaptomeCreateRequest,
     project_context: ProjectContextDep,
-    auth: Auth = Depends(verify_jwt),
+    auth: UserAuthDep,
 ):
     return await create_synaptome_model_service(model, project_context=project_context, auth=auth)
 
@@ -92,8 +91,8 @@ async def create_synaptome_model(
 async def place_synapses(
     params: SynapsePlacementBody,
     project_context: ProjectContextDep,
+    auth: UserAuthDep,
     model_id: UUID = Query(),
-    auth: Auth = Depends(verify_jwt),
     job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
 ) -> JSONResponse:
     return await generate_synapses(
@@ -112,8 +111,8 @@ async def place_synapses(
     description="Validate a synapse placement formula",
 )
 def validate_synapse_formula(
+    _: UserAuthDep,
     formula: str = Body(embed=True),
-    _: Auth = Depends(verify_jwt),
 ) -> SynapsePlacementResponse:
     return validate_synapse_generation_formula(formula=formula)  # type: ignore
 
@@ -125,7 +124,7 @@ def validate_synapse_formula(
 )
 async def retrieve_morphology(
     model_id: UUID,
-    auth: Annotated[Auth, Depends(verify_jwt)],
+    auth: UserAuthDep,
     project_context: ProjectContextDep,
     job_queue: Annotated[Queue, Depends(queue_factory(JobQueue.HIGH))],
 ):
@@ -147,7 +146,7 @@ async def retrieve_stimulation_plot(
     model_id: UUID,
     config: StimulationPlotConfig,
     project_context: ProjectContextDep,
-    auth: Auth = Depends(verify_jwt),
+    auth: UserAuthDep,
     job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
 ):
     return await get_current_clamp_plot_data_response(

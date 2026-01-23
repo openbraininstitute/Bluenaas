@@ -15,6 +15,7 @@ from app.core.exceptions import (
 )
 from app.infrastructure.metrics import metrics_service
 from app.middleware.request_id import add_request_id_middleware
+from app.routes.admin import router as admin_router
 from app.routes.circuit import router as circuit_router
 from app.routes.ion_channel import router as ion_channel_router
 from app.routes.mesh import router as mesh_router
@@ -95,6 +96,7 @@ def health() -> str:
     return "OK"
 
 
+base_router.include_router(admin_router)
 base_router.include_router(circuit_router)
 base_router.include_router(mesh_router)
 base_router.include_router(single_neuron_router)

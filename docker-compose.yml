@@ -27,6 +27,9 @@ services:
       - ${PWD}/.app-storage:/app/storage
     ports:
       - "8001:8000"
+    env_file:
+      - path: .env.local
+        required: false
     depends_on:
       redis:
         condition: service_healthy
