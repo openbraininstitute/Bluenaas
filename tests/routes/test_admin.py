@@ -36,9 +36,7 @@ class TestAdminRoutes(unittest.TestCase):
             "preferred_username": "admin",
             "email": "admin@example.com",
         }
-        mock_kc_auth.userinfo.return_value = {
-            "groups": ["/service/small-scale-simulator/admin"]
-        }
+        mock_kc_auth.userinfo.return_value = {"groups": ["/service/small-scale-simulator/admin"]}
 
         response = self.client.delete(
             "/admin/cache/circuit", headers={"Authorization": "Bearer admin-token"}
@@ -58,9 +56,7 @@ class TestAdminRoutes(unittest.TestCase):
             "preferred_username": "admin",
             "email": "admin@example.com",
         }
-        mock_kc_auth.userinfo.return_value = {
-            "groups": ["/service/small-scale-simulator/admin"]
-        }
+        mock_kc_auth.userinfo.return_value = {"groups": ["/service/small-scale-simulator/admin"]}
 
         response = self.client.delete(
             "/admin/cache/single-neuron", headers={"Authorization": "Bearer admin-token"}
@@ -80,9 +76,7 @@ class TestAdminRoutes(unittest.TestCase):
             "preferred_username": "admin",
             "email": "admin@example.com",
         }
-        mock_kc_auth.userinfo.return_value = {
-            "groups": ["/service/small-scale-simulator/admin"]
-        }
+        mock_kc_auth.userinfo.return_value = {"groups": ["/service/small-scale-simulator/admin"]}
 
         response = self.client.delete(
             "/admin/cache/mesh", headers={"Authorization": "Bearer admin-token"}
@@ -102,9 +96,7 @@ class TestAdminRoutes(unittest.TestCase):
             "preferred_username": "admin",
             "email": "admin@example.com",
         }
-        mock_kc_auth.userinfo.return_value = {
-            "groups": ["/service/small-scale-simulator/admin"]
-        }
+        mock_kc_auth.userinfo.return_value = {"groups": ["/service/small-scale-simulator/admin"]}
 
         response = self.client.delete(
             "/admin/cache/ion-channel", headers={"Authorization": "Bearer admin-token"}
