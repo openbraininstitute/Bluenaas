@@ -244,7 +244,7 @@ wheels = [
 
 [[package]]
 name = "bluecellulab"
-version = "2.6.77"
+version = "2.6.78"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bluepysnap" },
@@ -261,9 +261,9 @@ dependencies = [
     { name = "seaborn" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/79/7e/0f803eb0ce49fbc4cea82696d1444399cf6f1131d7fee4ba9d135afed436/bluecellulab-2.6.77.tar.gz", hash = "sha256:8ecddadc9a8c7a1007ba44bda247688529727f53c1748e966d6fe749609b580b", size = 538840, upload-time = "2026-01-22T16:26:57.817Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/8e/1c80414a9a8a1330034470789a11b546e279a7f3aa722695922369146016/bluecellulab-2.6.78.tar.gz", hash = "sha256:31775bbe71fd05e66837182dcc5529ca9e303cab2185265b2860285c7c189dbd", size = 538668, upload-time = "2026-01-29T16:22:03.764Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/37/55/ac02a34a8ff336bd2cb152cb11252449cf426f71712c4db145c12cfa78e0/bluecellulab-2.6.77-py3-none-any.whl", hash = "sha256:de73bf33ad6e9bafffdaadbcf4ed4b0356fa84bda7abde6da021aa10b3dbcd9b", size = 160895, upload-time = "2026-01-22T16:26:56.431Z" },
+    { url = "https://files.pythonhosted.org/packages/30/e0/cb5b40fd7202f3cc969e178bf5f5794de32ea7d8d81da5702959d291d7d7/bluecellulab-2.6.78-py3-none-any.whl", hash = "sha256:08964a9c12acabdb9151591f1ebe7280504d2f01c2d2a02c09ff94377805748a", size = 160846, upload-time = "2026-01-29T16:22:02.065Z" },
 ]
 
 [[package]]
@@ -378,7 +378,7 @@ types = [
     { name = "types-requests", specifier = "==2.32.4.20250611" },
 ]
 worker = [
-    { name = "bluecellulab", specifier = "==2.6.77" },
+    { name = "bluecellulab", specifier = "==2.6.78" },
     { name = "efel", specifier = "==5.7.20" },
     { name = "filelock", specifier = "==3.18.0" },
     { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.11" },
@@ -3641,7 +3641,6 @@ dependencies = [
     { name = "trame" },
 ]
 wheels = [
-    { path = "ultraliser-2.0.8-cp312-cp312-macosx_15_0_arm64.whl" },
     { path = "ultraliser-2.0.8-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
 ]
 
