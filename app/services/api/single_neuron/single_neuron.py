@@ -106,6 +106,12 @@ async def create_single_neuron_model(
                 species=species,
                 strain=strain,
                 validation_status=ValidationStatus.created,
+                contributions=[{
+                    "agent": {
+                        "given_name": "Mickey Mouse"
+                    },
+                    # "role": ""
+                }]
             )
         )
     )
