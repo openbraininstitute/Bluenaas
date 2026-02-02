@@ -1,7 +1,6 @@
 import datetime
 
 from http import HTTPStatus
-from uuid import UUID
 
 from entitysdk import Client, ProjectContext
 from entitysdk._server_schemas import ValidationStatus
