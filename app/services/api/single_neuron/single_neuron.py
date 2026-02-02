@@ -1,5 +1,3 @@
-import datetime
-
 from http import HTTPStatus
 
 from entitysdk import Client, ProjectContext
