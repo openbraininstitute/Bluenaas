@@ -1,4 +1,7 @@
+import datetime
+
 from http import HTTPStatus
+from uuid import UUID
 
 from entitysdk import Client, ProjectContext
 from entitysdk._server_schemas import ValidationStatus
@@ -11,6 +14,9 @@ from entitysdk.models import (
     Strain,
     MTypeClassification,
     ETypeClassification,
+    Person,
+    Role,
+    Contribution
 )
 from loguru import logger
 from obp_accounting_sdk.constants import ServiceSubtype
@@ -106,15 +112,18 @@ async def create_single_neuron_model(
                 species=species,
                 strain=strain,
                 validation_status=ValidationStatus.created,
-                contributions=[{
-                    "agent": {
-                        "given_name": "Mickey Mouse"
-                    },
-                    # "role": ""
-                }]
             )
         )
     )
+
+    agent = client.get_entity(entity_id=initial_memodel.created_by.id, entity_type=Person)
+    role = client.search_entity(entity_type=Role, limit=1, query={"name": "creator role"}).one()
+    contribution = Contribution(
+        agent=agent,
+        role=role,
+        entity=initial_memodel,
+    )
+    contribution = client.register_entity(contribution)
 
     for etype in emodel.etypes or []:
         await run_async(
