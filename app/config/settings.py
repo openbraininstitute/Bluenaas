@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     APP_DEBUG: bool = False
     DEPLOYMENT_ENV: _ENVS = _DEPLOYMENT_ENV
     BASE_PATH: str = ""
-    CORS_ORIGINS: list[str] = ["http://localhost:8081"]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     CORS_ORIGIN_REGEX: str | None = None
     ENTITYCORE_URI: Url = Url("https://staging.openbraininstitute.org/api/entitycore")
 
