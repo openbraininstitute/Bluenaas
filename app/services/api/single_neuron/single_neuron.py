@@ -113,7 +113,15 @@ async def create_single_neuron_model(
         )
     )
 
-    agent = client.get_entity(entity_id=initial_memodel.created_by.id, entity_type=Person)
+    entity_id = initial_memodel.created_by.id
+    if entity_id == None:
+        logger.warning(f"Unable to create ME-Model: {model.name}")
+        raise AppError(
+            http_status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            error_code=AppErrorCode.MORPHOLOGY_GENERATION_ERROR,
+            message=f"Unable to create ME-Model: {model.name}",
+        )
+    agent = client.get_entity(entity_id=entity_id, entity_type=Person)
     role = client.search_entity(entity_type=Role, limit=1, query={"name": "creator role"}).one()
     contribution = Contribution(
         agent=agent,
