@@ -114,7 +114,7 @@ async def create_single_neuron_model(
     )
 
     entity_id = initial_memodel.created_by.id
-    if entity_id == None:
+    if entity_id is None:
         logger.warning(f"Unable to create ME-Model: {model.name}")
         raise AppError(
             http_status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
