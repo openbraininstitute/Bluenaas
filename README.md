@@ -10,7 +10,7 @@ compartments.
 
 ## Examples
 
-You can use the application on the EBRAINS platform at https://ebrains-cls-interactive.github.io/online-use-cases.html by selecting "Single Cell InSilico Experiments". You can also follow this [direct link](https://blue-naas-bsp-epfl.apps.hbp.eu/#/url/hippocampus_optimization/rat/CA1/v4.0.5/optimizations_Python3/CA1_pyr_cACpyr_mpg141208_B_idA_20190328144006/CA1_pyr_cACpyr_mpg141208_B_idA_20190328144006.zip?use_cell=cell_seed3_0.hoc&bluenaas=true).
+You can use the application on the EBRAINS platform at <https://ebrains-cls-interactive.github.io/online-use-cases.html> by selecting "Single Cell InSilico Experiments". You can also follow this [direct link](https://blue-naas-bsp-epfl.apps.hbp.eu/#/url/hippocampus_optimization/rat/CA1/v4.0.5/optimizations_Python3/CA1_pyr_cACpyr_mpg141208_B_idA_20190328144006/CA1_pyr_cACpyr_mpg141208_B_idA_20190328144006.zip?use_cell=cell_seed3_0.hoc&bluenaas=true).
 
 <img src="images/output.png" width="800"/>
 
@@ -24,21 +24,30 @@ To get the code for legacy (neuron) version check out [v1 branch](https://bbpgit
 
 ## Development
 
-1. After cloning or forking the repository, you can use UV to install the dependencies:
+After cloning or forking the repository, you need to download the 2 wheel files for Ultraliser 2.0.8 from here:
+<https://github.com/openbraininstitute/Ultraliser/releases/tag/v2.0.8>
+
+```bash
+mkdir ext-deps/ultraliser
+```
+
+And copy those wheel files into `ext-deps/ultraliser`.
+
+Use UV to install the dependencies:
 
 ```bash
 uv sync
 ```
 
-2. To start the backend server run the following command. This starts some docker services and then brings up the fastapi server:
-
-## Run dev backend
+To start the backend server run the following command. This starts some docker services and then brings up the fastapi server:
 
 ```bash
 make run
 ```
 
-## Simulate your own models.
+The server is now listening on port **8001**.
+
+## Simulate your own models
 
 You can upload your own models and run single cell simulations. The `.zip` file format must be:
 model_name.zip
