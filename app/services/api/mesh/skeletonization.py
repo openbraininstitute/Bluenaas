@@ -5,7 +5,7 @@ from uuid import UUID
 from entitysdk import Client
 from entitysdk.common import ProjectContext
 from entitysdk.models import EMCellMesh, SkeletonizationExecution
-from entitysdk.types import SkeletonizationExecutionStatus
+from entitysdk.types import ActivityStatus
 from fastapi import HTTPException
 from rq import Queue
 
@@ -47,7 +47,7 @@ async def run_mesh_skeletonization(
             SkeletonizationExecution(
                 used=[em_cell_mesh],
                 start_time=datetime.now(UTC),
-                status=SkeletonizationExecutionStatus.created,
+                status=ActivityStatus.created,
             )
         )
     )
@@ -63,7 +63,7 @@ async def run_mesh_skeletonization(
                     entity_type=SkeletonizationExecution,
                     attrs_or_entity={
                         "end_time": datetime.now(UTC),
-                        "status": SkeletonizationExecutionStatus.error,
+                        "status": ActivityStatus.error,
                     },
                 )
             )

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from entitysdk import Client, ProjectContext
 from entitysdk.models import SkeletonizationExecution
-from entitysdk.types import SkeletonizationExecutionStatus
+from entitysdk.types import ActivityStatus
 from httpx import Client as HttpxClient
 from httpx import Timeout
 from loguru import logger
@@ -43,7 +43,7 @@ def run_mesh_skeletonization(
         http_client=httpx_client,
     )
 
-    def set_activity_status(status: SkeletonizationExecutionStatus):
+    def set_activity_status(status: ActivityStatus):
         client.update_entity(
             entity_id=execution_id,
             entity_type=SkeletonizationExecution,
@@ -58,11 +58,11 @@ def run_mesh_skeletonization(
             entity_type=SkeletonizationExecution,
             attrs_or_entity={
                 "end_time": datetime.now(UTC),
-                "status": SkeletonizationExecutionStatus.error,
+                "status": ActivityStatus.error,
             },
         )
 
-    set_activity_status(SkeletonizationExecutionStatus.pending)
+    set_activity_status(ActivityStatus.pending)
 
     logger.info(f"Starting analysis for mesh {em_cell_mesh_id}")
 
@@ -127,7 +127,7 @@ def run_mesh_skeletonization(
             details=ex.__str__(),
         ) from ex
 
-    set_activity_status(SkeletonizationExecutionStatus.running)
+    set_activity_status(ActivityStatus.running)
 
     try:
         skeletonization.init()
@@ -141,7 +141,7 @@ def run_mesh_skeletonization(
             attrs_or_entity={
                 "generated_ids": [morphology.id],
                 "end_time": datetime.now(UTC),
-                "status": SkeletonizationExecutionStatus.done,
+                "status": ActivityStatus.done,
             },
         )
     except SafeProcessRuntimeError as e:

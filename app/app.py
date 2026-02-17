@@ -4,7 +4,6 @@ import sentry_sdk
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
-from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from starlette.middleware.cors import CORSMiddleware
 
 from app.config.settings import settings
@@ -45,8 +44,6 @@ app = FastAPI(
     docs_url=f"{settings.BASE_PATH}/docs",
     lifespan=lifespan,
 )
-
-app.add_middleware(SentryAsgiMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
