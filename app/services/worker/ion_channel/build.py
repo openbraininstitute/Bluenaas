@@ -3,7 +3,7 @@ from typing import Any
 
 from entitysdk import Client, ProjectContext
 from entitysdk.models import IonChannelModel, IonChannelModelingConfig, IonChannelModelingExecution
-from entitysdk.types import IonChannelModelingExecutionStatus
+from entitysdk.types import ActivityStatus
 from loguru import logger
 
 from app.config.settings import settings
@@ -49,7 +49,7 @@ def run_ion_channel_build(
         IonChannelModelingExecution(
             used=[config],
             start_time=datetime.now(UTC),
-            status=IonChannelModelingExecutionStatus.pending,
+            status=ActivityStatus.pending,
         )
     )
     assert execution.id
@@ -76,7 +76,7 @@ def run_ion_channel_build(
             entity_type=IonChannelModelingExecution,
             attrs_or_entity={
                 "end_time": datetime.now(UTC),
-                "status": IonChannelModelingExecutionStatus.error,
+                "status": ActivityStatus.error,
             },
         )
         job_stream.send_data(
@@ -97,7 +97,7 @@ def run_ion_channel_build(
         entity_type=IonChannelModelingExecution,
         attrs_or_entity={
             "end_time": datetime.now(UTC),
-            "status": IonChannelModelingExecutionStatus.done,
+            "status": ActivityStatus.done,
             "generated": [ion_channel_model],
         },
     )

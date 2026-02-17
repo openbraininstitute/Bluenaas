@@ -13,7 +13,7 @@ from entitysdk.models import (
     ETypeClassification,
     Person,
     Role,
-    Contribution
+    Contribution,
 )
 from loguru import logger
 from obp_accounting_sdk.constants import ServiceSubtype
