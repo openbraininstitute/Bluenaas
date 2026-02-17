@@ -83,9 +83,6 @@ RUN mkdir -p /app/storage
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app:$PYTHONPATH"
 
-ENV MPLCONFIGDIR="/tmp/matplotlib"
-ENV XDG_CACHE_HOME="/tmp/.cache"
-
 # TODO: Double check if this is needed
 ENV HDF5_USE_FILE_LOCKING=FALSE
 
