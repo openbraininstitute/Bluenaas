@@ -1,3 +1,4 @@
+import json
 from http import HTTPStatus as status
 from typing import Annotated
 
@@ -53,7 +54,13 @@ UserAuthDep = Annotated[Auth, Depends(verify_jwt)]
 def verify_admin(auth: UserAuthDep) -> Auth:
     try:
         # Fetch user info from Keycloak which includes groups
-        user_info = kc_auth.userinfo(token=auth.access_token)
+        user_info_raw = kc_auth.userinfo(token=auth.access_token)
+        
+        # Handle both bytes and dict return types from python-keycloak
+        if isinstance(user_info_raw, bytes):
+            user_info = json.loads(user_info_raw)
+        else:
+            user_info = user_info_raw
 
         # Extract groups from userinfo
         group_paths = user_info.get("groups", [])

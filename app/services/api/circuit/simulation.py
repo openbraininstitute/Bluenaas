@@ -6,7 +6,7 @@ from uuid import UUID
 from entitysdk.client import Client
 from entitysdk.common import ProjectContext
 from entitysdk.models import Simulation, SimulationCampaign, SimulationExecution
-from entitysdk.types import SimulationExecutionStatus
+from entitysdk.types import ActivityStatus
 from fastapi import Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
@@ -109,7 +109,7 @@ async def run_circuit_simulation(
             SimulationExecution(
                 used=[simulation],
                 start_time=datetime.now(UTC),
-                status=SimulationExecutionStatus.pending,
+                status=ActivityStatus.pending,
             )
         )
     )
@@ -131,7 +131,7 @@ async def run_circuit_simulation(
                 entity_type=SimulationExecution,
                 attrs_or_entity={
                     "end_time": datetime.now(UTC),
-                    "status": SimulationExecutionStatus.error,
+                    "status": ActivityStatus.error,
                 },
             )
         )
@@ -200,7 +200,7 @@ async def _create_sim_exec_entity(sim: Simulation, client: Client) -> Simulation
             SimulationExecution(
                 used=[sim],
                 start_time=datetime.now(UTC),
-                status=SimulationExecutionStatus.pending,
+                status=ActivityStatus.pending,
             )
         )
     )
@@ -313,7 +313,7 @@ async def run_circuit_simulation_batch(
                     entity_type=SimulationExecution,
                     attrs_or_entity={
                         "end_time": datetime.now(UTC),
-                        "status": SimulationExecutionStatus.error,
+                        "status": ActivityStatus.error,
                     },
                 )
             )
