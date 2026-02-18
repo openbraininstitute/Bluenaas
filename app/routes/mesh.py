@@ -24,6 +24,7 @@ from app.services.api.mesh.skeletonization import (
 router = APIRouter(prefix="/mesh")
 
 
+# Used by Jupyter notebooks
 @router.post(
     "/skeletonization/run", tags=["mesh", "skeletonization"], status_code=status.HTTP_202_ACCEPTED
 )
@@ -45,6 +46,7 @@ async def run_mesh_skeletonization(
     )
 
 
+# Used by core web app
 @router.post(
     "/skeletonization/run-batch",
     tags=["mesh", "skeletonization"],
