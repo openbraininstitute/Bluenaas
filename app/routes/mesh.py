@@ -5,6 +5,7 @@ from rq import Queue
 
 from app.core.job import JobInfo
 from app.domains.mesh.skeletonization import (
+    SkeletonizationBatchRequest,
     SkeletonizationInputParams,
     SkeletonizationUltraliserParams,
 )
@@ -15,6 +16,9 @@ from app.services.api.mesh.skeletonization import (
 )
 from app.services.api.mesh.skeletonization import (
     run_mesh_skeletonization as run_mesh_skeletonization_service,
+)
+from app.services.api.mesh.skeletonization import (
+    run_mesh_skeletonization_batch as run_mesh_skeletonization_batch_service,
 )
 
 router = APIRouter(prefix="/mesh")
@@ -35,6 +39,25 @@ async def run_mesh_skeletonization(
         em_cell_mesh_id,
         input_params,
         ultraliser_params,
+        job_queue=job_queue,
+        project_context=project_context,
+        auth=auth,
+    )
+
+
+@router.post(
+    "/skeletonization/run-batch",
+    tags=["mesh", "skeletonization"],
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def run_mesh_skeletonization_batch(
+    batch_request: SkeletonizationBatchRequest,
+    project_context: ProjectContextDep,
+    auth: UserAuthDep,
+    job_queue: Queue = Depends(queue_factory(JobQueue.MESH_SKELETONIZATION)),
+) -> list[JobInfo]:
+    return await run_mesh_skeletonization_batch_service(
+        batch_request.skeletonization_config_ids,
         job_queue=job_queue,
         project_context=project_context,
         auth=auth,
