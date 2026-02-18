@@ -59,7 +59,7 @@ async def run_mesh_skeletonization_batch(
     job_queue: Queue = Depends(queue_factory(JobQueue.MESH_SKELETONIZATION)),
 ) -> list[JobInfo]:
     return await run_mesh_skeletonization_batch_service(
-        batch_request.skeletonization_config_ids,
+        batch_request.config_ids,
         job_queue=job_queue,
         project_context=project_context,
         auth=auth,

@@ -25,9 +25,7 @@ class SkeletonizationUltraliserParams(BaseModel):
 
 
 class SkeletonizationBatchRequest(BaseModel):
-    skeletonization_config_ids: list[UUID] = Field(
-        ..., description="List of skeletonization config IDs to process"
-    )
+    config_ids: list[UUID] = Field(..., description="List of skeletonization config IDs to process")
 
 
 class SkeletonizationJobOutput(BaseModel):

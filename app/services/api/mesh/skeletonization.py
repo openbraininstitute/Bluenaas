@@ -56,7 +56,7 @@ async def run_mesh_skeletonization(
     execution_id = execution_entity.id
     assert execution_id
 
-    async def on_failure(exc_type: type[BaseException] | None) -> None:
+    async def on_failure(exc_type: type[BaseException] | None = None) -> None:
         try:
             await run_async(
                 lambda: client.update_entity(
@@ -179,26 +179,25 @@ async def run_mesh_skeletonization_batch(
             )
         )
 
-        execution_id = execution_entity.id
-        assert execution_id
+        exec_id = execution_entity.id
+        assert exec_id
 
-        def make_on_failure(exec_id: UUID):
-            async def on_failure(exc_type: type[BaseException] | None) -> None:
-                try:
-                    await run_async(
-                        lambda: client.update_entity(
-                            entity_id=exec_id,
-                            entity_type=SkeletonizationExecution,
-                            attrs_or_entity={
-                                "end_time": datetime.now(UTC),
-                                "status": ActivityStatus.error,
-                            },
-                        )
+        async def on_failure(
+            _exc_type: type[BaseException] | None = None, execution_id=exec_id
+        ) -> None:
+            try:
+                await run_async(
+                    lambda: client.update_entity(
+                        entity_id=execution_id,
+                        entity_type=SkeletonizationExecution,
+                        attrs_or_entity={
+                            "end_time": datetime.now(UTC),
+                            "status": ActivityStatus.error,
+                        },
                     )
-                except Exception:
-                    pass
-
-            return on_failure
+                )
+            except Exception:
+                pass
 
         # Dispatch job
         job, _stream = await dispatch(
@@ -210,9 +209,9 @@ async def run_mesh_skeletonization_batch(
             job_kwargs={
                 "auth": auth,
                 "project_context": project_context,
-                "execution_id": execution_id,
+                "execution_id": exec_id,
             },
-            on_failure=make_on_failure(execution_id),
+            on_failure=on_failure,
         )
 
         job_infos.append(await get_job_info(job))
