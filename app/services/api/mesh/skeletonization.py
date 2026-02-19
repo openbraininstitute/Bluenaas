@@ -136,31 +136,12 @@ async def run_mesh_skeletonization_batch(
             description="Reconstructed morphology from an EM surface mesh",
         )
 
-        # Get config assets and extract ultraliser params
-        assets = await run_async(
-            lambda: list(
-                client.get_entity_assets(
-                    entity_id=config_id,
-                    entity_type=SkeletonizationConfig,
-                )
-            )
-        )
-
-        if not assets:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail={
-                    "message": "SkeletonizationConfig has no assets",
-                    "config_id": str(config_id),
-                },
-            )
-
         # Download and parse config
         content = await run_async(
             lambda: client.download_content(
                 entity_id=config_id,
                 entity_type=SkeletonizationConfig,
-                asset_id=assets[0].id,
+                asset_id=config.assets[0].id,
             )
         )
         config_json = json.loads(content)
