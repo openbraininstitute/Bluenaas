@@ -198,6 +198,11 @@ async def run_mesh_skeletonization_batch(
                 "project_context": project_context,
                 "execution_id": exec_id,
             },
+            stream_ctx={
+                "em_cell_mesh_id": em_cell_mesh_id,
+                "execution_id": exec_id,
+                "skeletonization_config_id": config.id,
+            },
             on_failure=on_failure,
         )
 
