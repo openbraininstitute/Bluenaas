@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from rq import Queue
 
 from app.core.job import JobInfo
@@ -57,14 +57,16 @@ async def run_mesh_skeletonization_batch(
     batch_request: SkeletonizationBatchRequest,
     project_context: ProjectContextDep,
     auth: UserAuthDep,
+    stream: bool = Query(False, description="Return streaming x-ndjson response"),
     job_queue: Queue = Depends(queue_factory(JobQueue.MESH_SKELETONIZATION)),
 ):
     return await run_mesh_skeletonization_batch_service(
         batch_request.config_ids,
-        request=request,
+        auth=auth,
         job_queue=job_queue,
         project_context=project_context,
-        auth=auth,
+        request=request,
+        stream=stream,
     )
 
 
