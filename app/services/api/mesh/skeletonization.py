@@ -7,10 +7,12 @@ from entitysdk import Client
 from entitysdk.common import ProjectContext
 from entitysdk.models import EMCellMesh, SkeletonizationConfig, SkeletonizationExecution
 from entitysdk.types import ActivityStatus
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
+from fastapi.responses import StreamingResponse
 from rq import Queue
 
 from app.config.settings import settings
+from app.core.http_stream import x_ndjson_http_stream
 from app.core.job import JobInfo
 from app.domains.mesh.skeletonization import (
     SkeletonizationInputParams,
@@ -18,6 +20,7 @@ from app.domains.mesh.skeletonization import (
 )
 from app.infrastructure.kc.auth import Auth
 from app.job import JobFn
+from app.utils.asyncio import interleave_async_iterators
 from app.utils.rq_job import dispatch, get_job_info, run_async
 
 
@@ -106,8 +109,10 @@ async def run_mesh_skeletonization_batch(
     *,
     auth: Auth,
     job_queue: Queue,
+    request: Request,
     project_context: ProjectContext,
-) -> list[JobInfo]:
+    stream: bool = False,
+) -> list[JobInfo] | StreamingResponse:
     client = Client(
         api_url=str(settings.ENTITYCORE_URI),
         project_context=project_context,
@@ -115,6 +120,7 @@ async def run_mesh_skeletonization_batch(
     )
 
     job_infos = []
+    job_streams = []
 
     for config_id in skeletonization_config_ids:
         # Fetch config
@@ -181,7 +187,7 @@ async def run_mesh_skeletonization_batch(
                 pass
 
         # Dispatch job
-        job, _stream = await dispatch(
+        job, job_stream = await dispatch(
             job_queue,
             JobFn.RUN_MESH_SKELETONIZATION,
             timeout=60 * 60 * 3,  # 3 hours
@@ -196,5 +202,11 @@ async def run_mesh_skeletonization_batch(
         )
 
         job_infos.append(await get_job_info(job))
+        job_streams.append(job_stream)
 
-    return job_infos
+    if stream is True:
+        job_stream = interleave_async_iterators(job_streams)
+        http_stream = x_ndjson_http_stream(request, job_stream)
+        return StreamingResponse(http_stream, media_type="application/x-ndjson")
+    else:
+        return job_infos

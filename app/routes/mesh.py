@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from rq import Queue
 
 from app.core.job import JobInfo
@@ -53,13 +53,15 @@ async def run_mesh_skeletonization(
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def run_mesh_skeletonization_batch(
+    request: Request,
     batch_request: SkeletonizationBatchRequest,
     project_context: ProjectContextDep,
     auth: UserAuthDep,
     job_queue: Queue = Depends(queue_factory(JobQueue.MESH_SKELETONIZATION)),
-) -> list[JobInfo]:
+):
     return await run_mesh_skeletonization_batch_service(
         batch_request.config_ids,
+        request=request,
         job_queue=job_queue,
         project_context=project_context,
         auth=auth,
