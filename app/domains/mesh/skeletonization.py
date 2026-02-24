@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 from entitysdk.models import CellMorphology
@@ -8,7 +10,7 @@ class SkeletonizationInputParams(BaseModel):
     description: str = Field(..., description="A description of the reconstructed morphology.")
 
 
-class SkeletonizationUltraliserParams(BaseModel, extra="forbid"):
+class SkeletonizationUltraliserParams(BaseModel):
     neuron_voxel_size: float | None = Field(
         0.1, description="Neuron skeletonization resolution (in microns)."
     )
@@ -20,6 +22,10 @@ class SkeletonizationUltraliserParams(BaseModel, extra="forbid"):
     segment_spines: bool | None = Field(
         True, description="Set this flag to segment the spines or not."
     )
+
+
+class SkeletonizationBatchRequest(BaseModel):
+    config_ids: list[UUID] = Field(..., description="List of skeletonization config IDs to process")
 
 
 class SkeletonizationJobOutput(BaseModel):
