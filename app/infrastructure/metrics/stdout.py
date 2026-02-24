@@ -20,7 +20,7 @@ class StdoutMetricsReporter(MetricsReporter):
             "timestamp": timestamp.isoformat(),
             "dimensions": dimensions or {},
         }
-        logger.info(f"METRIC: {json.dumps(metric_data)}")
+        logger.debug(f"METRIC: {json.dumps(metric_data)}")
 
     async def report_batch(self, metrics: list[Dict[str, Any]]) -> None:
         for metric in metrics:
