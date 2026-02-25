@@ -161,7 +161,7 @@ async def run_mesh_skeletonization_batch(
                 SkeletonizationExecution(
                     used=[config],
                     start_time=datetime.now(UTC),
-                    status=ActivityStatus.created,
+                    status=ActivityStatus.pending,
                 )
             )
         )
