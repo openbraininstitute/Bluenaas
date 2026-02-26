@@ -3,10 +3,10 @@ from http import HTTPStatus
 from typing import Dict, List
 from uuid import UUID
 
-from entitysdk.client import Client
+from entitysdk.client import Client, Entity
 from entitysdk.common import ProjectContext
-from entitysdk.models import Simulation, SimulationCampaign, SimulationExecution
-from entitysdk.types import ActivityStatus
+from entitysdk.models import Circuit, MEModel, Simulation, SimulationCampaign, SimulationExecution
+from entitysdk.types import ActivityStatus, CircuitScale
 from fastapi import Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
@@ -16,6 +16,7 @@ from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsErro
 from rq import Queue
 
 from app.config.settings import settings
+from app.domains.circuit.circuit import CircuitOrigin
 from app.core.exceptions import AppError, AppErrorCode
 from app.core.http_stream import x_ndjson_http_stream
 from app.domains.circuit.simulation import SimulationParams
@@ -25,6 +26,17 @@ from app.infrastructure.rq import JobQueue, get_queue
 from app.job import JobFn
 from app.utils.asyncio import interleave_async_iterators, run_async
 from app.utils.rq_job import dispatch, get_job_data
+
+service_subtype_map = {
+    CircuitScale.single: ServiceSubtype.SINGLE_SIM,
+    CircuitScale.pair: ServiceSubtype.PAIR_SIM,
+    CircuitScale.small: ServiceSubtype.SMALL_SIM,
+    # The types below are used only with the task manager
+    CircuitScale.microcircuit: ServiceSubtype.MICROCIRCUIT_SIM,
+    CircuitScale.region: ServiceSubtype.REGION_SIM,
+    CircuitScale.system: ServiceSubtype.SYSTEM_SIM,
+    CircuitScale.whole_brain: ServiceSubtype.WHOLE_BRAIN_SIM,
+}
 
 
 async def run_circuit_simulation(
@@ -188,6 +200,17 @@ async def _fetch_sim(simulation_id: UUID, client: Client) -> Simulation:
     return await run_async(lambda: client.get_entity(simulation_id, entity_type=Simulation))
 
 
+async def _fetch_model(model_id: UUID, client: Client) -> Circuit | MEModel:
+    model_entity = client.get_entity(entity_id=model_id, entity_type=Entity)
+
+    if model_entity.type == CircuitOrigin.CIRCUIT.value:
+        return await run_async(lambda: client.get_entity(model_id, entity_type=Circuit))
+    elif model_entity.type == CircuitOrigin.MEMODEL.value:
+        return await run_async(lambda: client.get_entity(model_id, entity_type=MEModel))
+    else:
+        raise ValueError(f"Unknown model type: {model_entity.type}")
+
+
 async def _fetch_sim_campaign(sim_campaign_id: UUID, client: Client) -> SimulationCampaign:
     return await run_async(
         lambda: client.get_entity(sim_campaign_id, entity_type=SimulationCampaign)
@@ -236,6 +259,10 @@ async def run_circuit_simulation_batch(
         for sim_campaign_id in sim_campaign_ids
     }
 
+    model_map = {
+        sim.entity_id: await _fetch_model(sim.entity_id, client) for sim in sim_map.values()
+    }
+
     sim_params_map = await _get_sim_params_map(
         simulation_ids,
         auth=auth,
@@ -246,13 +273,20 @@ async def run_circuit_simulation_batch(
     try:
         for sim_id in simulation_ids:
             sim = sim_map[sim_id]
+            model = model_map[sim.entity_id]
             sim_campaign = sim_campaign_map[sim.simulation_campaign_id]
 
             sim_params = sim_params_map[sim_id]
             accounting_count = sim_params.num_cells * max(1, round(sim_params.tstop / 1000))
 
+            service_subtype = (
+                service_subtype_map[model.scale]
+                if isinstance(model, Circuit)
+                else ServiceSubtype.SINGLE_CELL_SIM
+            )
+
             accounting_session = async_accounting_session_factory.oneshot_session(
-                subtype=ServiceSubtype.SMALL_CIRCUIT_SIM,
+                subtype=service_subtype,
                 proj_id=project_context.project_id,
                 user_id=auth.decoded_token.sub,
                 count=accounting_count,
