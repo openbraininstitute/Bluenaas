@@ -16,12 +16,14 @@ from app.core.exceptions import AppError, AppErrorCode
 from app.core.mesh.analysis import Analysis
 from app.core.mesh.skeletonization import Skeletonization
 from app.domains.auth import Auth
+from app.domains.job import JobStatus
 from app.domains.mesh.skeletonization import (
     SkeletonizationInputParams,
     SkeletonizationJobOutput,
     SkeletonizationUltraliserParams,
 )
 from app.infrastructure.accounting.session import accounting_session_factory
+from app.utils.rq_job import get_current_job_stream
 from app.utils.safe_process import SafeProcessRuntimeError
 
 
@@ -34,6 +36,8 @@ def run_mesh_skeletonization(
     auth: Auth,
     project_context: ProjectContext,
 ) -> SkeletonizationJobOutput:
+    job_stream = get_current_job_stream()
+
     httpx_client = HttpxClient(timeout=Timeout(10, read=20))
 
     client = Client(
@@ -61,8 +65,6 @@ def run_mesh_skeletonization(
                 "status": ActivityStatus.error,
             },
         )
-
-    set_activity_status(ActivityStatus.pending)
 
     logger.info(f"Starting analysis for mesh {em_cell_mesh_id}")
 
@@ -128,6 +130,7 @@ def run_mesh_skeletonization(
         ) from ex
 
     set_activity_status(ActivityStatus.running)
+    job_stream.send_status(JobStatus.running)
 
     try:
         skeletonization.init()
