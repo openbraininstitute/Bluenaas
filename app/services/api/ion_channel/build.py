@@ -4,10 +4,15 @@ from uuid import UUID
 from entitysdk.common import ProjectContext
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
+from loguru import logger
+from obp_accounting_sdk.constants import ServiceSubtype
+from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
 from rq import Queue
 
+from app.core.exceptions import AppError, AppErrorCode
 from app.core.http_stream import x_ndjson_http_stream
 from app.core.job import JobInfo
+from app.infrastructure.accounting.session import async_accounting_session_factory
 from app.infrastructure.kc.auth import Auth
 from app.job import JobFn
 from app.utils.rq_job import dispatch, get_job_info, run_async
@@ -22,11 +27,52 @@ async def run_ion_channel_build(
     job_queue: Queue,
     stream: bool = False,
 ) -> JobInfo | StreamingResponse:
+    logger.info("Making accounting reservation for ion channel build")
+    accounting_session = async_accounting_session_factory.oneshot_session(
+        subtype=ServiceSubtype.SMALL_CIRCUIT_SIM,
+        proj_id=project_context.project_id,
+        user_id=auth.decoded_token.sub,
+        count=1,
+    )
+
+    try:
+        await accounting_session.make_reservation()
+        logger.info("Accounting reservation success")
+    except InsufficientFundsError as ex:
+        logger.warning(f"Insufficient funds: {ex}")
+        raise AppError(
+            http_status_code=HTTPStatus.FORBIDDEN,
+            error_code=AppErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
+            message="The project does not have enough funds to run the simulation",
+            details=ex.__str__(),
+        ) from ex
+    except BaseAccountingError as ex:
+        logger.warning(f"Accounting service error: {ex}")
+        raise AppError(
+            http_status_code=HTTPStatus.BAD_GATEWAY,
+            error_code=AppErrorCode.ACCOUNTING_GENERIC_ERROR,
+            message="Accounting service error",
+            details=ex.__str__(),
+        ) from ex
+
+    async def on_start() -> None:
+        await accounting_session.start()
+
+    async def on_success() -> None:
+        await accounting_session.finish()
+        logger.info("Accounting session finished successfully")
+
+    async def on_failure(exc_type: type[BaseException] | None) -> None:
+        await accounting_session.finish(exc_type=exc_type)  # type: ignore
+
     job, job_stream = await dispatch(
         job_queue,
         JobFn.RUN_ION_CHANNEL_BUILD,
         timeout=60 * 10,  # 10 minutes
         job_args=(config,),
+        on_start=on_start,
+        on_success=on_success,
+        on_failure=on_failure,
         job_kwargs={
             "access_token": auth.access_token,
             "project_context": project_context,
