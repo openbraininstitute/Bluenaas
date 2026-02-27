@@ -24,6 +24,7 @@ from app.infrastructure.accounting.session import async_accounting_session_facto
 from app.infrastructure.kc.auth import Auth
 from app.infrastructure.rq import JobQueue, get_queue
 from app.job import JobFn
+from app.utils.accounting import make_accounting_reservation_async
 from app.utils.asyncio import interleave_async_iterators, run_async
 from app.utils.rq_job import dispatch, get_job_data
 
@@ -96,25 +97,7 @@ async def run_circuit_simulation(
         name=f"{simulation_campaign.name} - {simulation.name}",
     )
 
-    try:
-        await accounting_session.make_reservation()
-        logger.info("Accounting reservation success")
-    except InsufficientFundsError as ex:
-        logger.warning(f"Insufficient funds: {ex}")
-        raise AppError(
-            http_status_code=HTTPStatus.FORBIDDEN,
-            error_code=AppErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
-            message="The project does not have enough funds to run the simulation",
-            details=ex.__str__(),
-        ) from ex
-    except BaseAccountingError as ex:
-        logger.warning(f"Accounting service error: {ex}")
-        raise AppError(
-            http_status_code=HTTPStatus.BAD_GATEWAY,
-            error_code=AppErrorCode.ACCOUNTING_GENERIC_ERROR,
-            message="Accounting service error",
-            details=ex.__str__(),
-        ) from ex
+    await make_accounting_reservation_async(accounting_session)
 
     simulation_execution_entity = await run_async(
         lambda: client.register_entity(

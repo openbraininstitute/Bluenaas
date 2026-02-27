@@ -1,5 +1,3 @@
-from http import HTTPStatus
-
 from entitysdk import Client, ProjectContext
 from entitysdk._server_schemas import ValidationStatus
 from entitysdk.models import (
@@ -15,18 +13,16 @@ from entitysdk.models import (
     Role,
     Contribution,
 )
-from loguru import logger
 from obp_accounting_sdk.constants import ServiceSubtype
-from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
 from rq import Queue
 
 from app.config.settings import settings
 from app.core.api import ApiResponse
-from app.core.exceptions import AppError, AppErrorCode
 from app.domains.neuron_model import MEModelCreateRequest
 from app.infrastructure.accounting.session import async_accounting_session_factory
 from app.infrastructure.kc.auth import Auth
 from app.job import JobFn
+from app.utils.accounting import make_accounting_reservation_async
 from app.utils.asyncio import run_async
 from app.utils.rq_job import dispatch
 
@@ -45,25 +41,7 @@ async def create_single_neuron_model(
         count=1,
     )
 
-    try:
-        await accounting_session.make_reservation()
-        logger.info("Accounting reservation success")
-    except InsufficientFundsError as ex:
-        logger.warning(f"Insufficient funds: {ex}")
-        raise AppError(
-            http_status_code=HTTPStatus.FORBIDDEN,
-            error_code=AppErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
-            message="The project does not have enough funds to run the simulation",
-            details=ex.__str__(),
-        ) from ex
-    except BaseAccountingError as ex:
-        logger.warning(f"Accounting service error: {ex}")
-        raise AppError(
-            http_status_code=HTTPStatus.BAD_GATEWAY,
-            error_code=AppErrorCode.ACCOUNTING_GENERIC_ERROR,
-            message="Accounting service error",
-            details=ex.__str__(),
-        ) from ex
+    await make_accounting_reservation_async(accounting_session)
 
     client = Client(
         api_url=str(settings.ENTITYCORE_URI),

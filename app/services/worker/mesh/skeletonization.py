@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from http import HTTPStatus
 from uuid import UUID
 
 from entitysdk import Client, ProjectContext
@@ -9,10 +8,9 @@ from httpx import Client as HttpxClient
 from httpx import Timeout
 from loguru import logger
 from obp_accounting_sdk.constants import ServiceSubtype
-from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsError
 
 from app.config.settings import settings
-from app.core.exceptions import AppError, AppErrorCode
+from app.core.exceptions import AppError
 from app.core.mesh.analysis import Analysis
 from app.core.mesh.skeletonization import Skeletonization
 from app.domains.auth import Auth
@@ -23,6 +21,7 @@ from app.domains.mesh.skeletonization import (
     SkeletonizationUltraliserParams,
 )
 from app.infrastructure.accounting.session import accounting_session_factory
+from app.utils.accounting import make_accounting_reservation_sync
 from app.utils.rq_job import get_current_job_stream
 from app.utils.safe_process import SafeProcessRuntimeError
 
@@ -109,25 +108,10 @@ def run_mesh_skeletonization(
         )
 
     try:
-        accounting_session.make_reservation()
-    except InsufficientFundsError as ex:
-        logger.warning(f"Insufficient funds: {ex}")
+        make_accounting_reservation_sync(accounting_session)
+    except AppError:
         cleanup_execution_entity()
-        raise AppError(
-            http_status_code=HTTPStatus.FORBIDDEN,
-            error_code=AppErrorCode.ACCOUNTING_INSUFFICIENT_FUNDS_ERROR,
-            message="The project does not have enough funds to run the neuron mesh skeletonization",
-            details=ex.__str__(),
-        ) from ex
-    except BaseAccountingError as ex:
-        logger.warning(f"Accounting service error: {ex}")
-        cleanup_execution_entity()
-        raise AppError(
-            http_status_code=HTTPStatus.BAD_GATEWAY,
-            error_code=AppErrorCode.ACCOUNTING_GENERIC_ERROR,
-            message="Accounting service error",
-            details=ex.__str__(),
-        ) from ex
+        raise
 
     set_activity_status(ActivityStatus.running)
     job_stream.send_status(JobStatus.running)
