@@ -28,7 +28,7 @@ async def run_ion_channel_build(
 ) -> JobInfo | StreamingResponse:
     logger.info("Making accounting reservation for ion channel build")
     accounting_session = async_accounting_session_factory.oneshot_session(
-        subtype=ServiceSubtype.SMALL_CIRCUIT_SIM,
+        subtype=ServiceSubtype.ION_CHANNEL_BUILD,
         proj_id=project_context.project_id,
         user_id=auth.decoded_token.sub,
         count=1,
