@@ -98,7 +98,7 @@ def run_ion_channel_build(
         attrs_or_entity={
             "end_time": datetime.now(UTC),
             "status": ActivityStatus.done,
-            "generated": [ion_channel_model],
+            "generated_ids": [ion_channel_model.id],
         },
     )
 
