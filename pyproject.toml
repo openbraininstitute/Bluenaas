@@ -4,44 +4,46 @@ version = "0.1.0"
 description = "Service to launch and manage single cell and small network neuron simulations"
 license = "Apache-2.0"
 authors = [
-    "Open Brain Institute <info@openbraininstitute.org>",
+    { name = "Open Brain Institute", email = "info@openbraininstitute.org" }
 ]
 readme = "README.md"
 requires-python = "==3.12.12"
 
 dependencies = [
-    "entitysdk==0.9.0",
+    "entitysdk==0.11.4",
     "loguru==0.7.3",
-    "msgpack>=1.1.1",
-    "obp-accounting-sdk==0.4.1",
+    "msgpack>=1.1.2",
+    "obp-accounting-sdk==0.5.0",
     "pandas==2.3.1",
-    "pydantic-settings==2.10.1",
-    "pydantic==2.11.7",
-    "redis[hiredis]==6.2.0",
-    "rq==2.4.0",
+    "pydantic-settings==2.13.0",
+    "pydantic==2.12.5",
+    "redis[hiredis]==6.4.0",
+    "rq==2.6.1",
     "sympy==1.14.0",
 ]
 
 [dependency-groups]
 api = [
-    "boto3>=1.40.29",
-    "fastapi[standard]==0.116.1",
-    "python-keycloak==5.6.0",
-    "sentry-sdk[fastapi]==2.33.0",
+    "boto3==1.42.50",
+    "fastapi[standard]==0.129.0",
+    "python-keycloak==7.1.1",
+    "sentry-sdk[fastapi]==2.53.0",
 ]
 worker = [
-    "bluecellulab==2.6.71",
-    "efel==5.7.19",
-    "filelock==3.18.0",
+    "bluecellulab==2.6.81",
+    "efel==5.7.20",
+    "filelock==3.24.2",
+    "ion-channel-builder",
     "morphio==3.4.0",
-    "obi-one==2025.10.9",
-    "pynwb==3.1.0",
+    "numpy>=2.0.0,<2.4",
+    "obi-one==2026.2.3",
+    "pynwb==3.1.3",
     "requests==2.32.4",
-    "ultraliser; sys_platform == 'linux'",
+    "ultraliser",
 ]
 dev = [
-    "pyright>=1.1.406",
-    "ruff==0.12.3",
+    "pyright>=1.1.408",
+    "ruff==0.15.1",
 ]
 types = [
     "msgpack-types>=0.5.0",
@@ -53,6 +55,7 @@ exclude = [
     "app/core/circuit/simulation-mpi-entrypoint.py",
     "app/utils/util.test.py"
 ]
+reportCallIssue = "warning"
 
 [tool.ruff]
 line-length = 100
@@ -62,3 +65,4 @@ target-version = "py312"
 find-links = ["ext-deps/ultraliser"]
 
 [tool.uv.sources]
+ion-channel-builder = { git = "https://github.com/openbraininstitute/ion-channel-builder.git", tag = "0.0.12" }

@@ -5,9 +5,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from rq import Queue
 
 from app.core.job import JobInfo
-from app.infrastructure.kc.auth import Auth, verify_jwt
 from app.infrastructure.rq import JobQueue, queue_factory
-from app.routes.dependencies import ProjectContextDep
+from app.routes.dependencies import ProjectContextDep, UserAuthDep
 from app.services.api.ion_channel.build import (
     get_ion_channel_build_status as get_ion_channel_build_status_service,
 )
@@ -28,7 +27,7 @@ async def run_ion_channel_build(
     request: Request,
     config: dict,
     project_context: ProjectContextDep,
-    auth: Auth = Depends(verify_jwt),
+    auth: UserAuthDep,
     job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
     stream: bool = Query(False, description="Return streaming x-ndjson response"),
 ):
@@ -46,7 +45,7 @@ async def run_ion_channel_build(
 async def get_ion_channel_build_status(
     job_id: UUID,
     _project_context: ProjectContextDep,
-    _auth: Auth = Depends(verify_jwt),
+    _auth: UserAuthDep,
     job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
 ) -> JobInfo:
     return await get_ion_channel_build_status_service(job_id=job_id, job_queue=job_queue)

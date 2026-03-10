@@ -27,6 +27,9 @@ services:
       - ${PWD}/.app-storage:/app/storage
     ports:
       - "8001:8000"
+    env_file:
+      - path: .env.local
+        required: false
     depends_on:
       redis:
         condition: service_healthy
@@ -36,6 +39,8 @@ services:
     image: "${IMAGE_NAME}:worker-${IMAGE_TAG_SUFFIX}"
     build:
       dockerfile: Dockerfile.worker
+      secrets:
+        - GH_PRIVATE_REPO_TOKEN
       args:
         - ENVIRONMENT
         - IMAGE_TAG_SUFFIX
@@ -49,7 +54,7 @@ services:
     environment:
       DEBUG: True
       PYTHONUNBUFFERED: 1
-      ACCOUNTING_DISABLED: True
+      ACCOUNTING_DISABLED: 1
       REDIS_URL: redis://redis:6379/0
       QUEUES: high medium low mesh_skeletonization
       NUM_WORKERS: 4
@@ -77,3 +82,7 @@ services:
       interval: 3s
       timeout: 1s
       retries: 10
+
+secrets:
+  GH_PRIVATE_REPO_TOKEN:
+    environment: GH_PRIVATE_REPO_TOKEN

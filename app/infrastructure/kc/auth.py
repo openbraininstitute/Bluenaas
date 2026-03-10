@@ -1,5 +1,6 @@
+import json
 from http import HTTPStatus as status
-from typing import List, Optional
+from typing import Annotated
 
 from fastapi import Depends
 from fastapi.security import (
@@ -8,57 +9,16 @@ from fastapi.security import (
     OAuth2AuthorizationCodeBearer,
 )
 from loguru import logger
-from pydantic import BaseModel, Field
 
 from app.config.settings import settings
+from app.constants import SERVICE_NAME
 from app.core.exceptions import AppError, AppErrorCode
+from app.domains.auth import Auth, DecodedKeycloakToken
 from app.infrastructure.kc.config import kc_auth
 
 auth_header: HTTPBearer | OAuth2AuthorizationCodeBearer = HTTPBearer(auto_error=False)
 
 KC_SUBJECT: str = f"service-account-{settings.KC_CLIENT_ID}"
-
-
-class DecodedKeycloakToken(BaseModel):
-    # JWT Standard Fields (RFC 7519)
-    exp: int = Field(description="Expiration timestamp of the token")
-    iat: Optional[int] = Field(description="Timestamp when the token was issued", default=None)
-    jti: Optional[str] = Field(description="Unique identifier for the token", default=None)
-    iss: str = Field(description="URL of the authentication server that issued the token")
-    sub: str = Field(description="Unique identifier for the user")
-    aud: Optional[List[str] | str] = Field(
-        description="Intended recipient of the token", default=None
-    )
-
-    # OIDC Standard Fields
-    typ: Optional[str] = Field(description="Token type, usually 'Bearer'", default=None)
-    azp: Optional[str] = Field(
-        description="Authorized party - the client that requested the token",
-        default=None,
-    )
-    scope: Optional[str] = Field(description="Space-separated list of granted scopes", default=None)
-    email_verified: Optional[bool] = Field(
-        description="Indicates if the user's email is verified", default=None
-    )
-    name: Optional[str] = Field(description="Full name of the user", default=None)
-    preferred_username: str = Field(description="User's preferred username")
-    given_name: Optional[str] = Field(description="User's first name", default=None)
-    family_name: Optional[str] = Field(description="User's last name", default=None)
-    email: str = Field(description="User's email address")
-
-    # Keycloak-Specific Fields
-    auth_time: Optional[int] = Field(
-        description="Timestamp of the original authentication", default=None
-    )
-    session_state: Optional[str] = Field(description="Keycloak's session identifier", default=None)
-    acr: Optional[str] = Field(description="Authentication Context Class Reference", default=None)
-    sid: Optional[str] = Field(description="Keycloak session ID", default=None)
-    # * Add realm_access and resource_access fields if necessary.
-
-
-class Auth(BaseModel):
-    access_token: str
-    decoded_token: DecodedKeycloakToken
 
 
 def get_public_key() -> str:
@@ -73,8 +33,7 @@ def verify_jwt(
 ) -> Auth:
     try:
         access_token = header.credentials
-        # decoded_token_dict = kc_auth.decode_token(token=token, validate=True)
-        decoded_token_dict = kc_auth.decode_token(token=access_token, validate=False)
+        decoded_token_dict = kc_auth.decode_token(token=access_token, validate=True)
         decoded_token = DecodedKeycloakToken.model_validate(decoded_token_dict)
         return Auth(
             access_token=access_token,
@@ -87,3 +46,48 @@ def verify_jwt(
             error_code=AppErrorCode.AUTHORIZATION_ERROR,
             http_status_code=status.UNAUTHORIZED,
         )
+
+
+UserAuthDep = Annotated[Auth, Depends(verify_jwt)]
+
+
+def verify_admin(auth: UserAuthDep) -> Auth:
+    try:
+        # Fetch user info from Keycloak which includes groups
+        user_info_raw = kc_auth.userinfo(token=auth.access_token)
+        
+        # Handle both bytes and dict return types from python-keycloak
+        if isinstance(user_info_raw, bytes):
+            user_info = json.loads(user_info_raw)
+        else:
+            user_info = user_info_raw
+
+        # Extract groups from userinfo
+        group_paths = user_info.get("groups", [])
+
+        required_groups = [
+            f"/service/{SERVICE_NAME}/admin",
+            "/service/*/admin",
+        ]
+
+        if not any(group in group_paths for group in required_groups):
+            raise AppError(
+                message="User is not authorized to access this resource",
+                error_code=AppErrorCode.AUTHORIZATION_ERROR,
+                http_status_code=status.FORBIDDEN,
+            )
+
+        auth.decoded_token.groups = group_paths
+        return auth
+    except AppError:
+        raise
+    except Exception as ex:
+        logger.error(ex)
+        raise AppError(
+            message="Failed to verify admin authorization",
+            error_code=AppErrorCode.AUTHORIZATION_ERROR,
+            http_status_code=status.UNAUTHORIZED,
+        )
+
+
+AdminAuthDep = Annotated[Auth, Depends(verify_admin)]

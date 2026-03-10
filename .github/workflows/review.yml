@@ -25,16 +25,20 @@ jobs:
         uses: robinraju/release-downloader@v1.11
         with:
           repository: "openbraininstitute/Ultraliser"
-          tag: "V2.0.5-rc.3"
+          tag: "v2.0.8"
           fileName: "*.whl"
           out-file-path: "ext-deps/ultraliser"
-          token: ${{ secrets.ULTRALIZER_REPO_PAT }}
+          token: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
 
       - name: Check requirements
         run: make check-deps
 
-      - name: Install requirements
-        run: make install
+      - name: Configure git and install requirements
+        env:
+          GH_PRIVATE_REPO_TOKEN: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
+        run: |
+          git config --global url."https://$GH_PRIVATE_REPO_TOKEN@github.com/".insteadOf "https://github.com/"
+          make install
 
       - name: Run checks
         run: make check-all

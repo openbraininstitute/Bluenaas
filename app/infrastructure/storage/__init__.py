@@ -75,3 +75,19 @@ def get_mesh_skeletonization_output_location(uuid: UUID) -> Path:
 def get_ion_channel_build_location(uuid: UUID) -> Path:
     path = settings.STORAGE_PATH / "ion-channel" / "build" / uuid_subpath(uuid)
     return ensure_dir(path)
+
+
+def clear_circuit_cache() -> None:
+    rm_dir(settings.STORAGE_PATH / "circuit")
+
+
+def clear_single_neuron_cache() -> None:
+    rm_dir(settings.STORAGE_PATH / "single-neuron")
+
+
+def clear_mesh_cache() -> None:
+    rm_dir(settings.STORAGE_PATH / "mesh")
+
+
+def clear_ion_channel_cache() -> None:
+    rm_dir(settings.STORAGE_PATH / "ion-channel")

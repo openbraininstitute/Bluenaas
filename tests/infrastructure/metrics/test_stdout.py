@@ -22,8 +22,8 @@ class TestStdoutMetricsReporter(unittest.TestCase):
 
         asyncio.run(run_test())
 
-        mock_logger.info.assert_called_once()
-        logged_message = mock_logger.info.call_args[0][0]
+        mock_logger.debug.assert_called_once()
+        logged_message = mock_logger.debug.call_args[0][0]
         self.assertTrue(logged_message.startswith("METRIC: "))
 
         json_part = logged_message[8:]
@@ -47,8 +47,8 @@ class TestStdoutMetricsReporter(unittest.TestCase):
 
         asyncio.run(run_test())
 
-        mock_logger.info.assert_called_once()
-        logged_message = mock_logger.info.call_args[0][0]
+        mock_logger.debug.assert_called_once()
+        logged_message = mock_logger.debug.call_args[0][0]
         json_part = logged_message[8:]
         metric_data = json.loads(json_part)
 
@@ -70,8 +70,8 @@ class TestStdoutMetricsReporter(unittest.TestCase):
 
         asyncio.run(run_test())
 
-        mock_logger.info.assert_called_once()
-        logged_message = mock_logger.info.call_args[0][0]
+        mock_logger.debug.assert_called_once()
+        logged_message = mock_logger.debug.call_args[0][0]
         json_part = logged_message[8:]
         metric_data = json.loads(json_part)
 
@@ -111,8 +111,8 @@ class TestStdoutMetricsReporter(unittest.TestCase):
 
         asyncio.run(run_test())
 
-        mock_logger.info.assert_called_once()
-        logged_message = mock_logger.info.call_args[0][0]
+        mock_logger.debug.assert_called_once()
+        logged_message = mock_logger.debug.call_args[0][0]
         json_part = logged_message[8:]
         metric_data = json.loads(json_part)
 
@@ -154,10 +154,10 @@ class TestStdoutMetricsReporter(unittest.TestCase):
 
         asyncio.run(run_test())
 
-        self.assertEqual(mock_logger.info.call_count, 3)
+        self.assertEqual(mock_logger.debug.call_count, 3)
 
         # Verify each call
-        calls = mock_logger.info.call_args_list
+        calls = mock_logger.debug.call_args_list
         for i, metric in enumerate(
             [
                 {"name": "queue_length", "value": 5.0, "dimensions": {"queue": "high"}},
@@ -188,8 +188,8 @@ class TestStdoutMetricsReporter(unittest.TestCase):
 
         asyncio.run(run_test())
 
-        mock_logger.info.assert_called_once()
-        logged_message = mock_logger.info.call_args[0][0]
+        mock_logger.debug.assert_called_once()
+        logged_message = mock_logger.debug.call_args[0][0]
         json_part = logged_message[8:]
         metric_data = json.loads(json_part)
 

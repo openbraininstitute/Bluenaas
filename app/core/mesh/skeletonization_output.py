@@ -3,15 +3,34 @@ from typing import cast
 from uuid import UUID
 
 from entitysdk.client import Client
-from entitysdk.models import BrainRegion, CellMorphology, Contribution, License, Role, Subject
+from entitysdk.models import (
+    BrainRegion,
+    CellMorphology,
+    Contribution,
+    EMDenseReconstructionDataset,
+    License,
+    Role,
+    Subject,
+)
 from entitysdk.models.asset import AssetLabel, ContentType
+from entitysdk.models.cell_morphology_protocol import (
+    CellMorphologyProtocol,
+    CellMorphologyProtocolDesign,
+    DigitalReconstructionCellMorphologyProtocol,
+    StainingType,
+)
 from loguru import logger
 from morphio.mut import Morphology
 from pydantic import BaseModel
 
-from app.constants import SKELETONIZATION_OUTPUT_LICENSE_LABEL, SKELETONIZATION_OUTPUT_ROLE_NAME
 from app.infrastructure.storage import ensure_dir, get_mesh_skeletonization_output_location, rm_dir
 
+CELL_MORPHOLOGY_PROTOCOL_DESCRIPTION = (
+    "Skeletonization of a cell surface mesh with optional extraction of spines"
+)
+CELL_MORPHOLOGY_PROTOCOL_NAME = "Ultraliser skeletonization"
+LICENSE_LABEL = "CC BY-NC 4.0"
+ROLE_NAME = "data modeling role"
 SPINY_MORPH_PATH_SUFFIX = "_with_spines"
 
 
@@ -20,6 +39,7 @@ class Metadata(BaseModel):
     description: str
     brain_region: BrainRegion
     subject: Subject
+    em_dense_reconstruction_dataset: EMDenseReconstructionDataset | None
 
 
 class SkeletonizationOutput:
@@ -89,26 +109,55 @@ class SkeletonizationOutput:
             next(
                 self.client.search_entity(
                     entity_type=License,
-                    query={"label": SKELETONIZATION_OUTPUT_LICENSE_LABEL},
+                    query={"label": LICENSE_LABEL},
                 ),
                 None,
             ),
         )
         if not license:
-            raise ValueError(f"License {SKELETONIZATION_OUTPUT_LICENSE_LABEL} not found")
+            raise ValueError(f"License {LICENSE_LABEL} not found")
 
         role = cast(
             Role | None,
             next(
                 self.client.search_entity(
                     entity_type=Role,
-                    query={"name": SKELETONIZATION_OUTPUT_ROLE_NAME},
+                    query={"name": ROLE_NAME},
                 ),
                 None,
             ),
         )
         if not role:
-            raise ValueError(f"Role {SKELETONIZATION_OUTPUT_ROLE_NAME} not found")
+            raise ValueError(f"Role {ROLE_NAME} not found")
+
+        # Create a cell morphology protocol if there are enough details
+        protocol = None
+
+        em_dense_rec_ds = self.metadata.em_dense_reconstruction_dataset
+        if em_dense_rec_ds and em_dense_rec_ds.slicing_thickness:
+            protocol = cast(
+                DigitalReconstructionCellMorphologyProtocol | None,
+                next(
+                    self.client.search_entity(
+                        entity_type=CellMorphologyProtocol,
+                        query={"name": CELL_MORPHOLOGY_PROTOCOL_NAME},
+                    ),
+                    None,
+                ),
+            )
+            if not protocol:
+                logger.debug(f"Creating cell morphology protocol: {CELL_MORPHOLOGY_PROTOCOL_NAME}")
+                protocol = self.client.register_entity(
+                    DigitalReconstructionCellMorphologyProtocol(
+                        name=CELL_MORPHOLOGY_PROTOCOL_NAME,
+                        description=CELL_MORPHOLOGY_PROTOCOL_DESCRIPTION,
+                        protocol_design=CellMorphologyProtocolDesign.electron_microscopy,
+                        slicing_direction=em_dense_rec_ds.slicing_direction,
+                        slicing_thickness=em_dense_rec_ds.slicing_thickness,
+                        staining_type=StainingType.other,
+                        tissue_shrinkage=em_dense_rec_ds.tissue_shrinkage,
+                    )
+                )
 
         morphology = cast(
             CellMorphology,
@@ -116,6 +165,7 @@ class SkeletonizationOutput:
                 CellMorphology(
                     name=self.metadata.name,
                     description=self.metadata.description,
+                    cell_morphology_protocol=protocol,
                     brain_region=self.metadata.brain_region,
                     subject=self.metadata.subject,
                     license=license,

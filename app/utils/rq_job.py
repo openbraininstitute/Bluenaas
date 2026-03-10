@@ -73,7 +73,7 @@ async def _job_status_monitor(
 
 
 def on_failure_default_handler(job, connection, exc_type, exc_value, traceback):
-    stream = JobStream(compose_key(job.id))
+    stream = JobStream(compose_key(job.id), ctx=job.meta.get("stream_ctx", None))
 
     logger.error(
         f"Job {job.id} failed with {exc_type.__name__}: {exc_value}",
@@ -85,7 +85,7 @@ def on_failure_default_handler(job, connection, exc_type, exc_value, traceback):
 
 
 def on_success_default_handler(job, connection, result):
-    stream = JobStream(compose_key(job.id))
+    stream = JobStream(compose_key(job.id), ctx=job.meta.get("stream_ctx", None))
 
     stream.send_status(JobStatus.done)
     stream.close()

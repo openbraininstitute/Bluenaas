@@ -1,5 +1,7 @@
 STOP_MESSAGE = b"__STOP__"
 
+SERVICE_NAME = "small-scale-simulator"
+
 CIRCUIT_MOD_DIR = "mod"
 CIRCUIT_MEMODEL_MOD_DIR = "mechanisms"  # TODO To be replaced with CIRCUIT_MOD_DIR
 CIRCUIT_SIMULATION_CONFIG_NAME = "simulation_config.json"
@@ -13,6 +15,3 @@ LIBNRNMECH_PATH = "x86_64/lib/nrnmech.so"
 
 READY_MARKER_FILE_NAME = ".ready"
 DIR_LOCK_FILE_NAME = ".dir-lock"
-
-SKELETONIZATION_OUTPUT_ROLE_NAME = "data modeling role"
-SKELETONIZATION_OUTPUT_LICENSE_LABEL = "CC BY-NC 4.0"
