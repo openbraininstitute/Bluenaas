@@ -60,7 +60,6 @@ def _get_report_metadata(simulation_config_data: Dict[str, Any]) -> Dict[str, Di
 
     return out
 
-
 def _build_nwb_results_from_cells(
     cells: Dict[Any, Any],
     simulation_config_data: Dict[str, Any],
@@ -121,7 +120,6 @@ def _build_nwb_results_from_cells(
 def _has_seclamp_input(simulation_config_data: Dict[str, Any]) -> bool:
     inputs = simulation_config_data.get("inputs", {}) or {}
     return any(str(v.get("module", "")).lower() == "seclamp" for v in inputs.values())
-
 
 def _get_seclamp_input_def(simulation_config_data: Dict[str, Any]) -> Dict[str, Any] | None:
     inputs = simulation_config_data.get("inputs", {}) or {}
@@ -252,6 +250,7 @@ def save_voltage_results_to_nwb(
         logger.warning(f"No voltage traces found for NWB export: {output_path}")
         return
 
+    # Save to file
     with NWBHDF5IO(str(output_path), "w") as io:
         io.write(nwbfile)
 
@@ -433,13 +432,6 @@ def plot_voltage_traces(results: Dict[str, Any], output_path: Union[str, Path], 
     plt.close(fig)
     logger.info(f"Saved voltage traces plot to {output_path}")
 
-
-def _merge_dicts(list_of_dicts):
-    merged: Dict[Any, Any] = {}
-    for d in list_of_dicts:
-        merged.update(d)
-    return merged
-
 def get_instantiate_gids_params(
     simulation_config_data: Dict[str, Any],
 ) -> Dict[str, Any]:
@@ -517,10 +509,7 @@ def get_instantiate_gids_params(
                 break
 
     params["add_projections"] = params["add_synapses"] or params["add_replay"]
-
-
     return params
-
 
 def run_bluecellulab(
     simulation_config: Union[str, Path],
@@ -686,6 +675,7 @@ def run_bluecellulab(
                     simulation_config_data,
                 )
 
+                # Save voltage traces plot
                 plot_path = output_dir / "voltage_traces.png"
                 plot_voltage_traces(all_cell_results, plot_path)
                 logger.info(f"Successfully saved voltage traces plot to {plot_path}")
@@ -705,6 +695,7 @@ def run_bluecellulab(
 
 
 def main():
+    # Parse command line arguments
     parser = argparse.ArgumentParser(description="Run a BlueCelluLab simulation.")
     parser.add_argument(
         "--simulation_config",
@@ -732,8 +723,7 @@ def main():
     # Validate simulation config exists
     config_path = Path(args.simulation_config)
     if not config_path.exists():
-        logger.error(f"Configuration file not found: {config_path}")
-        return 1
+        raise RuntimeError(f"Simulation config file not found: {config_path}")
 
     # Run the simulation
     run_bluecellulab(
@@ -742,7 +732,6 @@ def main():
         save_nwb=args.save_nwb,
         libnrnmech_path=args.libnrnmech_path,
     )
-    return 0
 
 
 if __name__ == "__main__":
