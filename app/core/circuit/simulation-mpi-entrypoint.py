@@ -171,6 +171,10 @@ def _reconstruct_seclamp_command(
             stop = cumulative[idx + 1] if idx + 1 < len(cumulative) else duration_total
             cmd[(t_ms >= start) & (t_ms < stop)] = level
 
+        # ensure last level holds until duration_total
+        if voltages:
+            cmd[t_ms >= cumulative[len(voltages) - 1]] = voltages[-1]
+
     return cmd
 
 def save_voltage_results_to_nwb(
