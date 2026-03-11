@@ -78,7 +78,7 @@ class SimulationOutput:
             raise_on_missing=False,
         )
 
-        # Upload NWB voltage report
+        # Upload NWB voltage report if it exists
         self._upload_file(
             client=self.client,
             path=self.output_path / "voltage_report.nwb",
@@ -88,7 +88,17 @@ class SimulationOutput:
             raise_on_missing=False,
         )
 
-        # Upload the rest of HDF5 files, witch are mostly voltage reports
+        # Upload NWB current report if it exists
+        self._upload_file(
+            client=self.client,
+            path=self.output_path / "current_report.nwb",
+            content_type=ContentType.application_nwb,
+            asset_label=AssetLabel.voltage_report,
+            entity_id=simulation_result.id,
+            raise_on_missing=False,
+        )
+
+        # Upload the rest of HDF5 files, which are mostly voltage reports
         for h5_file in self.output_path.glob("*.h5"):
             if h5_file.name == "spikes.h5":
                 continue

@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     BASE_PATH: str = ""
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     CORS_ORIGIN_REGEX: str | None = None
-    ENTITYCORE_URI: Url = Url("https://staging.openbraininstitute.org/api/entitycore")
+    ENTITYCORE_URI: Url = Url("https://staging.cell-a.openbraininstitute.org/api/entitycore")
 
     KC_SERVER_URI: str = "http://localhost:9090/"
     KC_CLIENT_ID: str = "obpapp"
