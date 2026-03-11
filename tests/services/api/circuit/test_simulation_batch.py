@@ -17,6 +17,7 @@ class TestCircuitSimulationBatchClosures(unittest.TestCase):
     @patch("app.services.api.circuit.simulation.Client")
     @patch("app.services.api.circuit.simulation._fetch_sim")
     @patch("app.services.api.circuit.simulation._fetch_sim_campaign")
+    @patch("app.services.api.circuit.simulation._fetch_model")
     @patch("app.services.api.circuit.simulation._get_sim_params_map")
     @patch("app.services.api.circuit.simulation._create_sim_exec_entity")
     @patch("app.services.api.circuit.simulation.async_accounting_session_factory")
@@ -33,6 +34,7 @@ class TestCircuitSimulationBatchClosures(unittest.TestCase):
         mock_accounting_factory,
         mock_create_exec,
         mock_get_params,
+        mock_fetch_model,
         mock_fetch_campaign,
         mock_fetch_sim,
         mock_client_class,
@@ -101,37 +103,19 @@ class TestCircuitSimulationBatchClosures(unittest.TestCase):
 
             mock_accounting_factory.oneshot_session.side_effect = oneshot_session_side_effect
 
-            # Mock circuits
+            # Mock _fetch_model to return Circuit instances
+            from entitysdk.models import Circuit
+
             mock_circuits = {}
             for sim_id in sim_ids:
-                circuit = Mock()
+                circuit = Mock(spec=Circuit)
                 circuit.scale = CircuitScale.small
                 mock_circuits[circuit_ids[sim_id]] = circuit
 
-            # Mock client.get_entity to return circuits
-            def get_entity_side_effect(entity_id, entity_type):
-                from entitysdk.models import Circuit, Simulation
-                from entitysdk.client import Entity
-                from app.core.circuit.circuit import CircuitOrigin
+            async def fetch_model_side_effect(model_id, client):
+                return mock_circuits[model_id]
 
-                if entity_type == Circuit and entity_id in mock_circuits:
-                    return mock_circuits[entity_id]
-                if entity_type == Simulation and entity_id in mock_sims:
-                    return mock_sims[entity_id]
-                if entity_type == Entity and entity_id in circuit_ids.values():
-                    # Return entity with type set to CIRCUIT
-                    entity = Mock()
-                    entity.type = CircuitOrigin.CIRCUIT.value
-                    return entity
-                return Mock()
-
-            mock_client_class.return_value.get_entity.side_effect = get_entity_side_effect
-
-            # Mock run_async to execute the lambda
-            async def run_async_side_effect(func):
-                return func()
-
-            mock_run_async.side_effect = run_async_side_effect
+            mock_fetch_model.side_effect = fetch_model_side_effect
 
             # Mock execution entities
             mock_exec_entities = {}

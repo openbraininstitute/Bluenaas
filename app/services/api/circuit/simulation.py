@@ -233,7 +233,7 @@ async def _cancel_reservations(
         await session.finish()
 
 
-async def _get_accounting_service_subtype(
+def _get_accounting_service_subtype(
     model: Circuit | MEModel | IonChannelModel,
 ) -> ServiceSubtype:
     if isinstance(model, Circuit):
