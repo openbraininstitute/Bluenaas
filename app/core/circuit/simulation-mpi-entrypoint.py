@@ -281,14 +281,17 @@ def save_current_results_to_nwb(
 
     has_seclamp = _has_seclamp_input(simulation_config_data)
     wrote_any = False
+    sweep_no = 0
 
     for cell_id, cell_result in results.items():
         time_s = np.asarray(cell_result["time"], dtype=float)
         if len(time_s) < 2:
+            logger.warning(f"Skipping {cell_id}: not enough time points")
             continue
 
         dt_s = time_s[1] - time_s[0]
         if dt_s <= 0:
+            logger.warning(f"Skipping {cell_id}: non-positive dt")
             continue
 
         rate_hz = 1.0 / dt_s
@@ -306,7 +309,7 @@ def save_current_results_to_nwb(
             cmd_mv = _reconstruct_seclamp_command(simulation_config_data, time_s)
             if cmd_mv is not None:
                 stim_ts = VoltageClampStimulusSeries(
-                    name=f"{cell_id}__SEClamp",
+                    name=f"{cell_id}__vcss__sweep__{sweep_no:03d}",
                     data=H5DataIO(data=(cmd_mv / 1000.0), compression="gzip"),
                     electrode=electrode,
                     rate=rate_hz,
@@ -314,7 +317,7 @@ def save_current_results_to_nwb(
                     unit="volts",
                     description="SEClamp",
                     stimulus_description="SEClamp",
-
+                    sweep_number=sweep_no,
                 )
                 nwbfile.add_stimulus(stim_ts)
 
@@ -324,6 +327,9 @@ def save_current_results_to_nwb(
                 continue
 
             values = np.asarray(rec["values"], dtype=float)
+            if values.size == 0:
+                logger.warning(f"Skipping empty recording '{rec_key}' for {cell_id}")
+                continue
 
             section_name = rec["section"]
             segment = rec["segment"]
@@ -342,7 +348,7 @@ def save_current_results_to_nwb(
             location = f"{section_name}({seg})"
 
             ts = VoltageClampSeries(
-                name=f"{cell_id}__{nwb_var_name}__{location}",
+                name=f"{cell_id}__vcs__{nwb_var_name}__{location}__sweep__{sweep_no:03d}",
                 data=H5DataIO(data=values_nA * 1e-9, compression="gzip"),
                 electrode=electrode,
                 rate=rate_hz,
@@ -350,10 +356,10 @@ def save_current_results_to_nwb(
                 unit="amperes",
                 description=nwb_var_name,
                 stimulus_description="SEClamp" if has_seclamp else "unknown",
+                sweep_number=sweep_no,
             )
 
             nwbfile.add_acquisition(ts)
-
             wrote_any = True
 
     if not wrote_any:
