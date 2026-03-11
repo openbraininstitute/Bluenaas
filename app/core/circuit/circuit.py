@@ -6,11 +6,22 @@ from uuid import UUID
 
 from entitysdk.client import Client
 from entitysdk.models import Circuit as EntitycoreCircuit
+from entitysdk.models import Entity
+from entitysdk.models import IonChannelModel as EntitycoreIonChannelModel
 from entitysdk.models import MEModel as EntitycoreMEModel
-from entitysdk.models.entity import Entity
+from entitysdk.models import Simulation as EntitycoreSimulation
 from entitysdk.staging import stage_circuit, stage_sonata_from_memodel
+from entitysdk.staging.ion_channel_model import (
+    stage_sonata_from_config as stage_sonata_from_ionchannelmodel,
+)
+from entitysdk.types import AssetLabel
 from filelock import FileLock
 from loguru import logger
+from obi_one import IonChannelModelSimulationSingleConfig
+from obi_one.scientific.blocks.ion_channel_model import (
+    IonChannelModelWithConductance,
+    IonChannelModelWithMaxPermeability,
+)
 
 from app.constants import (
     CIRCUIT_CONFIG_NAME,
@@ -20,22 +31,7 @@ from app.constants import (
 )
 from app.core.exceptions import CircuitInitError
 from app.domains.circuit.circuit import CircuitOrigin
-from app.infrastructure.storage import get_circuit_location
-
-
-def create_circuit(
-    circuit_id: UUID,
-    *,
-    client: Client,
-):
-    model_entity = client.get_entity(entity_id=circuit_id, entity_type=Entity)
-
-    if model_entity.type == CircuitOrigin.CIRCUIT.value:
-        return Circuit(circuit_id, client=client)
-    elif model_entity.type == CircuitOrigin.MEMODEL.value:
-        return MEModelCircuit(circuit_id, client=client)
-    else:
-        raise ValueError(f"Unknown circuit type: {model_entity.type}")
+from app.infrastructure.storage import get_circuit_location, rm_dir
 
 
 class CircuitBase(ABC):
@@ -43,9 +39,9 @@ class CircuitBase(ABC):
     initialized: bool = False
     path: Path
 
-    def __init__(self, circuit_id: UUID, *, client: Client):
+    def __init__(self, circuit_id: UUID, *, client: Client, cache_entry_id: UUID | None = None):
         self.circuit_id = circuit_id
-        self.path = get_circuit_location(self.circuit_id)
+        self.path = get_circuit_location(cache_entry_id or self.circuit_id)
 
         self.client = client
 
@@ -105,6 +101,10 @@ class CircuitBase(ABC):
         except Exception:
             raise CircuitInitError()
 
+    def cleanup(self) -> None:
+        """Remove circuit files from storage. No-op by default."""
+        pass
+
     def is_fetched(self) -> bool:
         """Check if the circuit is in the storage"""
         ready_marker = self.path / READY_MARKER_FILE_NAME
@@ -157,3 +157,118 @@ class MEModelCircuit(CircuitBase):
         stage_sonata_from_memodel(self.client, memodel=self.metadata, output_dir=self.path)
         mod_path = self.path / CIRCUIT_MEMODEL_MOD_DIR
         mod_path.rename(self.path / CIRCUIT_MOD_DIR)
+
+
+class IonChannelModelCircuit(CircuitBase):
+    metadata: EntitycoreIonChannelModel
+    simulation_id: UUID
+    simulation: EntitycoreSimulation
+
+    def __init__(self, circuit_id: UUID, *, client: Client, simulation_id: UUID):
+        self.simulation_id = simulation_id
+        super().__init__(circuit_id, client=client, cache_entry_id=simulation_id)
+
+    def _fetch_metadata(self):
+        """Fetch the Ion Channel Model metadata from entitycore"""
+        self.metadata = self.client.get_entity(
+            self.circuit_id, entity_type=EntitycoreIonChannelModel
+        )
+
+        self.simulation = self.client.get_entity(
+            self.simulation_id, entity_type=EntitycoreSimulation
+        )
+
+    def _fetch_assets(self):
+        """Fetch the Ion Channel Model files from entitycore and write to the disk storage"""
+        assert self.metadata.id is not None
+
+        task_config_asset = next(
+            (
+                asset
+                for asset in self.simulation.assets
+                if asset.label == AssetLabel.simulation_generation_config
+            ),
+            None,
+        )
+        assert task_config_asset is not None, "Task config asset not found in the simulation assets"
+
+        task_config_content = self.client.download_content(
+            entity_id=self.simulation_id,
+            entity_type=EntitycoreSimulation,
+            asset_id=task_config_asset.id,
+        )
+
+        task_config = json.loads(task_config_content)
+
+        config = IonChannelModelSimulationSingleConfig.model_validate(task_config)
+
+        # TODO: this logic will be eventually moved to obi-one, clean up when that happens.
+        ion_channel_model_data = {}
+        for key, ic_data in config.ion_channel_models.items():
+            conductance = {}
+            if isinstance(
+                ic_data, IonChannelModelWithConductance
+            ) and ic_data.ion_channel_model.has_conductance(db_client=self.client):
+                conductance = {
+                    ic_data.ion_channel_model.get_conductance_name(
+                        db_client=self.client
+                    ): ic_data.conductance
+                }
+            elif isinstance(
+                ic_data, IonChannelModelWithMaxPermeability
+            ) and ic_data.ion_channel_model.has_max_permeability(db_client=self.client):
+                conductance = {
+                    ic_data.ion_channel_model.get_max_permeability_name(
+                        db_client=self.client
+                    ): ic_data.max_permeability
+                }
+            ion_channel_model_data[key] = {
+                "id": ic_data.ion_channel_model.id_str,
+            }
+            ion_channel_model_data[key].update(conductance)
+
+        stage_sonata_from_ionchannelmodel(
+            self.client,
+            ion_channel_model_data=ion_channel_model_data,
+            output_dir=self.path,
+            radius=12.6157 / 2.0,
+        )
+
+        # Move mod files to the expected location for compilation
+        mod_path = self.path / CIRCUIT_MEMODEL_MOD_DIR
+        mod_path.rename(self.path / CIRCUIT_MOD_DIR)
+
+    def cleanup(self) -> None:
+        """
+        Circuits staged from ion channel models are simulation scoped,
+        so have to be removed from the storage after their use.
+        """
+        self.initialized = False
+        rm_dir(self.path)
+
+
+_CIRCUIT_REGISTRY: dict[CircuitOrigin, type[CircuitBase]] = {
+    CircuitOrigin.CIRCUIT: Circuit,
+    CircuitOrigin.MEMODEL: MEModelCircuit,
+    CircuitOrigin.ION_CHANNEL_MODEL: IonChannelModelCircuit,
+}
+
+
+def create_circuit(
+    circuit_id: UUID,
+    *,
+    client: Client,
+    simulation_id: UUID | None = None,
+) -> CircuitBase:
+    model_entity = client.get_entity(entity_id=circuit_id, entity_type=Entity)
+
+    cls = _CIRCUIT_REGISTRY.get(CircuitOrigin(model_entity.type))
+
+    if cls is None:
+        raise ValueError(f"Unknown circuit type: {model_entity.type}")
+
+    if cls is IonChannelModelCircuit:
+        assert simulation_id is not None, "simulation_id is required for IonChannelModelCircuit"
+        return cls(circuit_id, client=client, simulation_id=simulation_id)
+
+    return cls(circuit_id, client=client)

@@ -113,7 +113,7 @@ class TestCircuitSimulationBatchClosures(unittest.TestCase):
                 from entitysdk.models import Circuit, Simulation
                 from entitysdk.client import Entity
                 from app.core.circuit.circuit import CircuitOrigin
-                
+
                 if entity_type == Circuit and entity_id in mock_circuits:
                     return mock_circuits[entity_id]
                 if entity_type == Simulation and entity_id in mock_sims:

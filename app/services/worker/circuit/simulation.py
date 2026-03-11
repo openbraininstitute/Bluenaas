@@ -41,7 +41,7 @@ def run_circuit_simulation(
         },
     )
 
-    circuit = create_circuit(circuit_id, client=client)
+    circuit = create_circuit(circuit_id, client=client, simulation_id=simulation_id)
 
     simulation = Simulation(
         client=client,

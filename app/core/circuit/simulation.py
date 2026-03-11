@@ -17,7 +17,7 @@ from app.constants import (
     LIBNRNMECH_PATH,
     READY_MARKER_FILE_NAME,
 )
-from app.core.circuit.circuit import Circuit, MEModelCircuit, create_circuit
+from app.core.circuit.circuit import CircuitBase, create_circuit
 from app.core.circuit.simulation_output import SimulationOutput
 from app.core.exceptions import CircuitSimulationError, CircuitSimulationInitError
 from app.domains.circuit.simulation import SimulationParams
@@ -29,7 +29,7 @@ from app.infrastructure.storage import (
 
 
 class Simulation:
-    circuit: Circuit | MEModelCircuit
+    circuit: CircuitBase
     output: SimulationOutput
     initialized: bool = False
     metadata: EntitycoreSimulation
@@ -52,7 +52,9 @@ class Simulation:
 
         self._fetch_metadata()
 
-        self.circuit = create_circuit(self.metadata.entity_id, client=client)
+        self.circuit = create_circuit(
+            self.metadata.entity_id, client=client, simulation_id=simulation_id
+        )
 
         # So that we can upload generated results, including logs even if circuit init fails.
         self._init_output()
@@ -90,7 +92,9 @@ class Simulation:
         for input_name, input_value in config_data.get("inputs", {}).items():
             if "spike_file" in input_value:
                 spike_f_path = str(self.path / input_value["spike_file"])
-                logger.info(f"Overwriting spike file location for {input_name} with {spike_f_path}")
+                logger.info(
+                    f"Overwriting spike file location for {input_name} from {input_value['spike_file']} to {spike_f_path}"
+                )
                 input_value["spike_file"] = spike_f_path
 
         with open(config_file, "w") as f:
@@ -189,5 +193,6 @@ class Simulation:
         # TODO: Make instance re-initializable
         self.initialized = False
         rm_dir(self.path)
+        self.circuit.cleanup()
 
         return self
