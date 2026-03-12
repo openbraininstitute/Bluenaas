@@ -19,7 +19,7 @@ from bluecellulab.reports.manager import ReportManager
 from loguru import logger
 from neuron import h
 from pynwb import NWBHDF5IO, H5DataIO, NWBFile
-from pynwb.icephys import CurrentClampSeries, IntracellularElectrode, VoltageClampSeries
+from pynwb.icephys import CurrentClampSeries, IntracellularElectrode, VoltageClampSeries, VoltageClampStimulusSeries
 
 from bluecellulab.reports.utils import (
     collect_local_payload,
@@ -29,7 +29,6 @@ from bluecellulab.reports.utils import (
     gather_recording_sites,
     prepare_recordings_for_reports,
 )
-from pynwb.icephys import VoltageClampStimulusSeries
 
 # Use non-interactive backend for matplotlib to avoid display issues
 matplotlib.use("Agg")
