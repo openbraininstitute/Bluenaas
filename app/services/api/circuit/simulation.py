@@ -1,11 +1,18 @@
 from datetime import UTC, datetime
 from http import HTTPStatus
-from typing import Dict, List
+from typing import Dict, List, assert_never
 from uuid import UUID
 
 from entitysdk.client import Client, Entity
 from entitysdk.common import ProjectContext
-from entitysdk.models import Circuit, MEModel, Simulation, SimulationCampaign, SimulationExecution
+from entitysdk.models import (
+    Circuit,
+    IonChannelModel,
+    MEModel,
+    Simulation,
+    SimulationCampaign,
+    SimulationExecution,
+)
 from entitysdk.types import ActivityStatus, CircuitScale
 from fastapi import Request
 from fastapi.responses import StreamingResponse
@@ -183,15 +190,21 @@ async def _fetch_sim(simulation_id: UUID, client: Client) -> Simulation:
     return await run_async(lambda: client.get_entity(simulation_id, entity_type=Simulation))
 
 
-async def _fetch_model(model_id: UUID, client: Client) -> Circuit | MEModel:
+CIRCUIT_ENTITY_TYPE_MAP = {
+    CircuitOrigin.CIRCUIT: Circuit,
+    CircuitOrigin.MEMODEL: MEModel,
+    CircuitOrigin.ION_CHANNEL_MODEL: IonChannelModel,
+}
+
+
+async def _fetch_model(model_id: UUID, client: Client) -> Circuit | MEModel | IonChannelModel:
     model_entity = client.get_entity(entity_id=model_id, entity_type=Entity)
 
-    if model_entity.type == CircuitOrigin.CIRCUIT.value:
-        return await run_async(lambda: client.get_entity(model_id, entity_type=Circuit))
-    elif model_entity.type == CircuitOrigin.MEMODEL.value:
-        return await run_async(lambda: client.get_entity(model_id, entity_type=MEModel))
-    else:
+    entity_type = CIRCUIT_ENTITY_TYPE_MAP.get(CircuitOrigin(model_entity.type))
+    if not entity_type:
         raise ValueError(f"Unknown model type: {model_entity.type}")
+
+    return await run_async(lambda: client.get_entity(model_id, entity_type=entity_type))
 
 
 async def _fetch_sim_campaign(sim_campaign_id: UUID, client: Client) -> SimulationCampaign:
@@ -218,6 +231,22 @@ async def _cancel_reservations(
     for session in accounting_session_map.values():
         # If the "start" method was not called - executing "finish" will cancel reservation.
         await session.finish()
+
+
+def _get_accounting_service_subtype(
+    model: Circuit | MEModel | IonChannelModel,
+) -> ServiceSubtype:
+    if isinstance(model, Circuit):
+        return service_subtype_map[model.scale]
+
+    if isinstance(model, MEModel):
+        return ServiceSubtype.SINGLE_CELL_SIM
+
+    if isinstance(model, IonChannelModel):
+        # TODO: switch to ion channel simulation service subtype once it's implemented
+        return ServiceSubtype.SINGLE_CELL_SIM
+
+    assert_never(model)
 
 
 async def run_circuit_simulation_batch(
@@ -262,11 +291,7 @@ async def run_circuit_simulation_batch(
             sim_params = sim_params_map[sim_id]
             accounting_count = sim_params.num_cells * max(1, round(sim_params.tstop / 1000))
 
-            service_subtype = (
-                service_subtype_map[model.scale]
-                if isinstance(model, Circuit)
-                else ServiceSubtype.SINGLE_CELL_SIM
-            )
+            service_subtype = _get_accounting_service_subtype(model)
 
             accounting_session = async_accounting_session_factory.oneshot_session(
                 subtype=service_subtype,

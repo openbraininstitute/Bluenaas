@@ -55,7 +55,7 @@ def verify_admin(auth: UserAuthDep) -> Auth:
     try:
         # Fetch user info from Keycloak which includes groups
         user_info_raw = kc_auth.userinfo(token=auth.access_token)
-        
+
         # Handle both bytes and dict return types from python-keycloak
         if isinstance(user_info_raw, bytes):
             user_info = json.loads(user_info_raw)
