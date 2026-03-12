@@ -354,7 +354,7 @@ requires-dist = [
     { name = "entitysdk", specifier = "==0.12.3" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "msgpack", specifier = ">=1.1.2" },
-    { name = "obp-accounting-sdk", specifier = "==0.5.0" },
+    { name = "obp-accounting-sdk", specifier = "==0.5.1" },
     { name = "pandas", specifier = "==2.3.1" },
     { name = "pydantic", specifier = "==2.12.5" },
     { name = "pydantic-settings", specifier = "==2.13.1" },
@@ -2343,14 +2343,14 @@ sdist = { url = "https://files.pythonhosted.org/packages/f3/78/ef431978be6ffbc40
 
 [[package]]
 name = "obp-accounting-sdk"
-version = "0.5.0"
+version = "0.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/73/22/4b1565fb5de6f499f4cf3a1042eb376702792f8677c4fdf6850e582261d9/obp_accounting_sdk-0.5.0.tar.gz", hash = "sha256:f845017911ac98697cca9e506db357521781a03e56c8f17cb91c4ebf3c28f5c7", size = 29620, upload-time = "2026-01-26T13:52:08.977Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/20/badbc3c6c9fdfe449834aafe9e6ef6efd7620c2e1d4760f9e96ea1049ed8/obp_accounting_sdk-0.5.1.tar.gz", hash = "sha256:034a39989dd09ece9a40f00588cad21020a3817b02b434b3644c46794db1d23b", size = 29694, upload-time = "2026-03-12T13:27:53.714Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/71/2c8ff499a9cc661ecbb3c5b2c63b576cbc6feb4392624a5616321279a907/obp_accounting_sdk-0.5.0-py3-none-any.whl", hash = "sha256:82d4f1fef04a19d0ba20cbb4a4d6d13aa0858aac0c9eb9fa9e6d4080ec9315dd", size = 23455, upload-time = "2026-01-26T13:52:07.638Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/84/a220f513372c8b7215f68a2d6f46e51266b4c9bbac7483cad9e18aee4ce9/obp_accounting_sdk-0.5.1-py3-none-any.whl", hash = "sha256:7273645f7feeef7e1edd443c25cae25fd01f4f311d44b7b6313d00a7425e8fdf", size = 23466, upload-time = "2026-03-12T13:27:52.433Z" },
 ]
 
 [[package]]
