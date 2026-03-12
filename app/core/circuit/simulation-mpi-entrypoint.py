@@ -27,13 +27,17 @@ from bluecellulab.reports.utils import (
     gather_payload_to_rank0,
     payload_to_cells,
     gather_recording_sites,
-    prepare_recordings_for_reports
+    prepare_recordings_for_reports,
 )
 from pynwb.icephys import VoltageClampStimulusSeries
 
 # Use non-interactive backend for matplotlib to avoid display issues
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+DEFAULT_AGENT_NAME = "obi_small_scale_simulator_v1"
+CURRENT_REPORT_WRITER_AGENT_NAME = "obi_small_scale_simulator_v1__current_report_writer"
+
 
 def _get_report_metadata(simulation_config_data: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
     reports = simulation_config_data.get("reports", {}) or {}
@@ -59,6 +63,7 @@ def _get_report_metadata(simulation_config_data: Dict[str, Any]) -> Dict[str, Di
         }
 
     return out
+
 
 def _build_nwb_results_from_cells(
     cells: Dict[Any, Any],
@@ -117,9 +122,11 @@ def _build_nwb_results_from_cells(
 
     return results
 
+
 def _has_seclamp_input(simulation_config_data: Dict[str, Any]) -> bool:
     inputs = simulation_config_data.get("inputs", {}) or {}
     return any(str(v.get("module", "")).lower() == "seclamp" for v in inputs.values())
+
 
 def _get_seclamp_input_def(simulation_config_data: Dict[str, Any]) -> Dict[str, Any] | None:
     inputs = simulation_config_data.get("inputs", {}) or {}
@@ -127,6 +134,7 @@ def _get_seclamp_input_def(simulation_config_data: Dict[str, Any]) -> Dict[str, 
         if str(stim.get("module", "")).lower() == "seclamp":
             return stim
     return None
+
 
 def _reconstruct_seclamp_command(
     simulation_config_data: Dict[str, Any],
@@ -175,6 +183,7 @@ def _reconstruct_seclamp_command(
 
     return cmd
 
+
 def save_voltage_results_to_nwb(
     results: Dict[str, Any],
     execution_id: str,
@@ -190,7 +199,7 @@ def save_voltage_results_to_nwb(
         institution="OBI",
         experiment_description="Voltage report results",
         session_id=execution_id,
-        was_generated_by=["obi_small_scale_simulator_v1"],
+        was_generated_by=[DEFAULT_AGENT_NAME],
     )
 
     # Add device and electrode
@@ -256,6 +265,7 @@ def save_voltage_results_to_nwb(
 
     logger.info(f"Saved voltage results to {output_path}")
 
+
 def save_current_results_to_nwb(
     results: Dict[str, Any],
     execution_id: str,
@@ -271,7 +281,7 @@ def save_current_results_to_nwb(
         institution="OBI",
         experiment_description="Current recordings from simulation",
         session_id=execution_id,
-        was_generated_by=["obi_small_scale_simulator_v1"],
+        was_generated_by=[CURRENT_REPORT_WRITER_AGENT_NAME],
     )
 
     device = nwbfile.create_device(
@@ -371,6 +381,7 @@ def save_current_results_to_nwb(
 
     logger.info(f"Saved current NWB to {output_path}")
 
+
 def plot_voltage_traces(results: Dict[str, Any], output_path: Union[str, Path], max_cols: int = 3):
     """Plot voltage traces for all cells in a grid of subplots and save to file.
 
@@ -437,6 +448,7 @@ def plot_voltage_traces(results: Dict[str, Any], output_path: Union[str, Path], 
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     logger.info(f"Saved voltage traces plot to {output_path}")
+
 
 def get_instantiate_gids_params(
     simulation_config_data: Dict[str, Any],
@@ -507,15 +519,16 @@ def get_instantiate_gids_params(
                     break
 
     # Check for spike replay in inputs
-    if 'inputs' in simulation_config_data:
-        for input_def in simulation_config_data['inputs'].values():
-            if input_def.get('module') == 'synapse_replay':
-                params['add_replay'] = True
-                params['add_synapses'] = True
+    if "inputs" in simulation_config_data:
+        for input_def in simulation_config_data["inputs"].values():
+            if input_def.get("module") == "synapse_replay":
+                params["add_replay"] = True
+                params["add_synapses"] = True
                 break
 
     params["add_projections"] = params["add_synapses"] or params["add_replay"]
     return params
+
 
 def run_bluecellulab(
     simulation_config: Union[str, Path],
