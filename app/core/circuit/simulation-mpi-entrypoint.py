@@ -62,6 +62,11 @@ def _get_report_metadata(simulation_config_data: Dict[str, Any]) -> Dict[str, Di
             "unit": unit,
         }
 
+        out["__default_voltage__"] = {
+            "variable_name": "v",
+            "unit": "mV",
+        }
+
     return out
 
 
@@ -213,7 +218,6 @@ def save_voltage_results_to_nwb(
     # Add voltage traces
     for cell_id, cell_result in results.items():
         time = np.asarray(cell_result.get("time", []), dtype=float)
-        dt = time[1] - time[0]
         voltage_rec = None
         for _, rec in cell_result.get("recordings", {}).items():
             if rec.get("variable_name") == "v":
@@ -229,6 +233,8 @@ def save_voltage_results_to_nwb(
         if n < 2:
             logger.warning(f"Skipping {cell_id}: voltage/time length mismatch or too short")
             continue
+
+        dt = time[1] - time[0]
 
         electrode = IntracellularElectrode(
             name=f"electrode_{cell_id}",
@@ -697,7 +703,6 @@ def run_bluecellulab(
                 # Save voltage traces plot
                 plot_path = output_dir / "voltage_traces.png"
                 plot_voltage_traces(all_cell_results, plot_path)
-                logger.info(f"Successfully saved voltage traces plot to {plot_path}")
 
     except Exception as e:
         logger.error(f"Rank {rank} failed: {str(e)}", exc_info=True)
