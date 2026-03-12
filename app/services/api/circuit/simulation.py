@@ -243,8 +243,7 @@ def _get_accounting_service_subtype(
         return ServiceSubtype.SINGLE_CELL_SIM
 
     if isinstance(model, IonChannelModel):
-        # TODO: switch to ion channel simulation service subtype once it's implemented
-        return ServiceSubtype.SINGLE_CELL_SIM
+        return ServiceSubtype.ION_CHANNEL_SIM
 
     assert_never(model)
 
