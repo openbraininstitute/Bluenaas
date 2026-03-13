@@ -114,7 +114,7 @@ def _build_nwb_results_from_cells(
                     "section": section_name,
                     "segment": segment,
                     "unit": unit,
-                    "area_um2": float(site["area_um2"]),
+                    "area_um2": site["area_um2"],
                     "values": values.tolist(),
                 }
 
@@ -166,9 +166,9 @@ def _reconstruct_seclamp_command(
         durations = [float(x) for x in durations]
         voltages = [float(x) for x in voltages]
 
-        if len(voltages) != len(durations) - 1:
+        if len(voltages) != len(durations):
             raise ValueError(
-                "Invalid SEClamp config: len(voltage_levels) must equal len(duration_levels) - 1"
+                "Invalid SEClamp config: len(voltage_levels) must equal len(duration_levels)"
             )
 
         cumulative = np.cumsum(durations)
@@ -348,7 +348,12 @@ def save_current_results_to_nwb(
 
             section_name = rec["section"]
             segment = rec["segment"]
-            area_um2 = float(rec["area_um2"])
+            area_um2 = rec["area_um2"]
+
+            if area_um2 is None:
+                logger.warning(f"Skipping '{rec_key}' for {cell_id}: missing area_um2")
+                continue
+            area_um2 = float(area_um2)
 
             # convert mA/cm2 -> nA
             values_nA = values * area_um2 * 0.01
