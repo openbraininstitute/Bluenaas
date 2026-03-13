@@ -244,7 +244,7 @@ wheels = [
 
 [[package]]
 name = "bluecellulab"
-version = "2.6.84"
+version = "2.6.87"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bluepysnap" },
@@ -262,9 +262,9 @@ dependencies = [
     { name = "seaborn" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9e/0b/862b89ea335013bbe590c223ccb2a33800678824746938101387b242d99d/bluecellulab-2.6.84.tar.gz", hash = "sha256:447d8f9ee92a2dbceda0b1682f7c316c0b918c5821dd07ca0146c7768b8fba26", size = 546180, upload-time = "2026-03-10T15:01:42.172Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a2/b3/7a92f8efa0067b1c320a2560f9c746dd195f8dca4ac449b288a1d01c04f6/bluecellulab-2.6.87.tar.gz", hash = "sha256:7d00f3ad38b1d16043ca77e029984c9d6a282ec2772f7c9eac840c91e6664c08", size = 548055, upload-time = "2026-03-12T16:28:05.364Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/6b/d5c14121139d5f9a4b41b522cea5fc5d7dad642ad228a663d4452ec12470/bluecellulab-2.6.84-py3-none-any.whl", hash = "sha256:5fde122c0462f7226dc80fd122b6ad83881ad36ef763aa19efbdb9190895dba3", size = 168868, upload-time = "2026-03-10T15:01:40.641Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/19/5859d4f1653ec769a056be721b4c511213d0690e3b02c46535d51ad9d087/bluecellulab-2.6.87-py3-none-any.whl", hash = "sha256:45ac9de4f36a0a1289f469584b9a3a7a9c8df5395057e6e9012fe4542c38b166", size = 170747, upload-time = "2026-03-12T16:28:03.465Z" },
 ]
 
 [[package]]
@@ -379,13 +379,13 @@ types = [
     { name = "types-requests", specifier = "==2.32.4.20260107" },
 ]
 worker = [
-    { name = "bluecellulab", specifier = "==2.6.84" },
+    { name = "bluecellulab", specifier = "==2.6.87" },
     { name = "efel", specifier = "==5.7.20" },
     { name = "filelock", specifier = "==3.25.0" },
     { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.14" },
     { name = "morphio", specifier = "==3.4.1" },
     { name = "numpy", specifier = ">=2.0.0,<2.4" },
-    { name = "obi-one", specifier = "==2026.3.4" },
+    { name = "obi-one", specifier = "==2026.3.7" },
     { name = "pynwb", specifier = "==3.1.3" },
     { name = "requests", specifier = "==2.32.5" },
     { name = "ultraliser" },
@@ -2302,7 +2302,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/99/7d/2d652962ee61c9e5a
 
 [[package]]
 name = "obi-one"
-version = "2026.3.4"
+version = "2026.3.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -2339,7 +2339,7 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f3/78/ef431978be6ffbc400e2eaedc7b9cbcc1570573f5463fde87e5cdca86a90/obi_one-2026.3.4.tar.gz", hash = "sha256:417b8d97adcb0567e6b82d9e72158d47dfe7378e545b0b3b17b84cd8dc1895d1", size = 16336976, upload-time = "2026-03-11T08:03:31.933Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c5/a4/73942ab8fb2601796797b799e4b31ad5ecf989ad15e3230f261f10bb9c3b/obi_one-2026.3.7.tar.gz", hash = "sha256:0f6ad721756a5ffb255bb69c0756213ea3e7ed02e13ea4722007ff0e5ee2a960", size = 16413697, upload-time = "2026-03-13T13:57:29.191Z" }
 
 [[package]]
 name = "obp-accounting-sdk"
