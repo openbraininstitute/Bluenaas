@@ -139,28 +139,30 @@ def _get_seclamp_input_def(simulation_config_data: Dict[str, Any]) -> Dict[str, 
             return stim
     return None
 
-
 def _reconstruct_seclamp_command(
     simulation_config_data: Dict[str, Any],
-    time_s: np.ndarray,
 ) -> np.ndarray | None:
     """
     Reconstruct SEClamp command waveform in mV from SONATA input config.
-    Returns None if no seclamp input exists.
+
+    Returns
+    -------
+    np.ndarray | None
+        Command waveform in mV, or None if no SEClamp input exists.
     """
     stim = _get_seclamp_input_def(simulation_config_data)
     if stim is None:
         return None
 
-    t_ms = np.asarray(time_s, dtype=float) * 1000.0
-
+    dt_ms = float(simulation_config_data["run"]["dt"])
     base_voltage = float(stim["voltage"])
     duration_total = float(stim["duration"])
 
     durations = stim.get("duration_levels")
     voltages = stim.get("voltage_levels")
 
-    cmd = np.full_like(t_ms, fill_value=base_voltage, dtype=float)
+    n_samples = int(round(duration_total / dt_ms))
+    cmd = np.full(n_samples, fill_value=base_voltage, dtype=float)
 
     if durations and voltages:
         durations = [float(x) for x in durations]
@@ -171,27 +173,19 @@ def _reconstruct_seclamp_command(
                 "Invalid SEClamp config: len(voltage_levels) must equal len(duration_levels)"
             )
 
-        cumulative = np.cumsum(durations)
-
-        if durations[0] == 0 and voltages:
-            cmd[t_ms >= 0.0] = voltages[0]
-
-        for idx, level in enumerate(voltages):
-            start = cumulative[idx]
-            stop = cumulative[idx + 1] if idx + 1 < len(cumulative) else duration_total
-            cmd[(t_ms >= start) & (t_ms < stop)] = level
-
-        # ensure last level holds until duration_total
-        if voltages:
-            cmd[t_ms >= cumulative[len(voltages) - 1]] = voltages[-1]
+        start_idx = 0
+        for dur, level in zip(durations, voltages):
+            stop_idx = start_idx + int(round(dur / dt_ms))
+            cmd[start_idx:stop_idx] = level
+            start_idx = stop_idx
 
     return cmd
-
 
 def save_voltage_results_to_nwb(
     results: Dict[str, Any],
     execution_id: str,
     output_path: Union[str, Path],
+    simulation_config_data: Dict[str, Any],
 ):
     """Save voltage report results to NWB format."""
     nwbfile = NWBFile(
@@ -233,7 +227,8 @@ def save_voltage_results_to_nwb(
             logger.warning(f"Skipping {cell_id}: voltage/time length mismatch or too short")
             continue
 
-        dt = time[1] - time[0]
+        dt_ms = float(simulation_config_data["run"]["dt"])
+        rate_hz = 1000.0 / dt_ms
 
         electrode = IntracellularElectrode(
             name=f"electrode_{cell_id}",
@@ -245,14 +240,13 @@ def save_voltage_results_to_nwb(
         nwbfile.add_icephys_electrode(electrode)
 
         voltage_data = voltage[:n] / 1000.0  # Convert mV to V
-        time_rate = 1.0 / dt
 
         # Create current clamp series
         ics = CurrentClampSeries(
             name=cell_id,
             data=H5DataIO(data=voltage_data, compression="gzip"),
             electrode=electrode,
-            rate=time_rate,
+            rate=rate_hz,
             gain=1.0,
             unit="volts",
             description=f"Voltage trace for {cell_id}",
@@ -294,22 +288,13 @@ def save_current_results_to_nwb(
         description="Virtual electrode for simulation recording",
     )
 
+    dt_ms = simulation_config_data["run"]["dt"]
     has_seclamp = _has_seclamp_input(simulation_config_data)
     wrote_any = False
     sweep_no = 0
 
     for cell_id, cell_result in results.items():
-        time_s = np.asarray(cell_result["time"], dtype=float)
-        if len(time_s) < 2:
-            logger.warning(f"Skipping {cell_id}: not enough time points")
-            continue
-
-        dt_s = time_s[1] - time_s[0]
-        if dt_s <= 0:
-            logger.warning(f"Skipping {cell_id}: non-positive dt")
-            continue
-
-        rate_hz = 1.0 / dt_s
+        rate_hz = 1000.0 / dt_ms
 
         electrode = IntracellularElectrode(
             name=f"electrode_{cell_id}",
@@ -321,7 +306,7 @@ def save_current_results_to_nwb(
         nwbfile.add_icephys_electrode(electrode)
 
         if has_seclamp:
-            cmd_mv = _reconstruct_seclamp_command(simulation_config_data, time_s)
+            cmd_mv = _reconstruct_seclamp_command(simulation_config_data)
             if cmd_mv is not None:
                 stim_ts = VoltageClampStimulusSeries(
                     name=f"{cell_id}__vcss__sweep__{sweep_no:03d}",
@@ -695,6 +680,7 @@ def run_bluecellulab(
                     all_cell_results,
                     execution_id,
                     voltage_nwb_path,
+                    simulation_config_data,
                 )
 
                 save_current_results_to_nwb(
