@@ -67,6 +67,9 @@ services:
           path: uv.lock
     volumes:
       - ${PWD}/.app-storage:/app/storage
+    env_file:
+      - path: .env.local
+        required: false
     depends_on:
       redis:
         condition: service_healthy

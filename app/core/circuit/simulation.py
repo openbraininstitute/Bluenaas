@@ -165,6 +165,10 @@ class Simulation:
         # Run the simulation via MPI entrypoint
 
         # TODO: Check exit status code
+        from app.context import cid_var
+
+        cid = cid_var.get()
+
         run_cmd = [
             "mpiexec",
             "-n",
@@ -179,6 +183,7 @@ class Simulation:
             # TODO: Consider adding support for other platforms/architectures
             f"{self.circuit.path}/{LIBNRNMECH_PATH}",
             "--save-nwb",
+            *(["--cid", cid] if cid else []),
         ]
         try:
             subprocess.run(run_cmd, cwd=self.circuit.path, check=True)

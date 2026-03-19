@@ -27,10 +27,12 @@ from app.domains.simulation import (
     SynapseSimulationConfig,
 )
 from app.infrastructure.rq import get_job_stream_key
+from app.logging import worker_subprocess
 from app.utils.const import QUEUE_STOP_EVENT
 from app.utils.util import log_stats_for_series_in_frequency
 
 
+@worker_subprocess
 def init_current_varying_simulation(
     model_id: UUID,
     config: SingleNeuronSimulationConfig,
@@ -141,6 +143,7 @@ def get_sim_configs_by_synapse_id(
     return sim_id_to_sim_configs
 
 
+@worker_subprocess
 def init_frequency_varying_simulation(
     model_id: UUID,
     config: SingleNeuronSimulationConfig,

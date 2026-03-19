@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from rq.job import JobStatus as RQJobStatus
 
+from app.constants import NULL_CID
 from app.utils.rq_job import _job_status_monitor
 
 
@@ -382,6 +383,113 @@ class TestJobStatusMonitor(unittest.TestCase):
             self.assertEqual(call_count[0], 4)
 
         asyncio.run(test())
+
+
+class TestDispatchCidPropagation(unittest.TestCase):
+    """Test that dispatch() includes cid in job meta."""
+
+    @patch("app.utils.rq_job.asyncio")
+    @patch("app.utils.rq_job.redis_stream_reader")
+    @patch("app.utils.rq_job.JobStream")
+    @patch("app.utils.rq_job.run_async")
+    @patch("app.utils.rq_job.cid_var")
+    def test_dispatch_includes_cid_when_set(
+        self, mock_cid_var, mock_run_async, mock_stream, mock_reader, mock_asyncio
+    ):
+        from app.utils.rq_job import dispatch
+
+        mock_cid_var.get.return_value = "abc12345"
+        mock_queue = Mock()
+        mock_job = Mock()
+        mock_job.id = "job-1"
+
+        async def run_async_impl(fn):
+            return fn()
+
+        mock_run_async.side_effect = run_async_impl
+        mock_queue.enqueue.return_value = mock_job
+
+        async def test():
+            await dispatch(mock_queue, "some.func")
+
+        asyncio.run(test())
+
+        call_kwargs = mock_queue.enqueue.call_args
+        meta = call_kwargs.kwargs["meta"]
+        self.assertEqual(meta["cid"], "abc12345")
+
+    @patch("app.utils.rq_job.asyncio")
+    @patch("app.utils.rq_job.redis_stream_reader")
+    @patch("app.utils.rq_job.JobStream")
+    @patch("app.utils.rq_job.run_async")
+    @patch("app.utils.rq_job.cid_var")
+    def test_dispatch_passes_none_cid_when_no_context(
+        self, mock_cid_var, mock_run_async, mock_stream, mock_reader, mock_asyncio
+    ):
+        from app.utils.rq_job import dispatch
+
+        mock_cid_var.get.return_value = None
+        mock_queue = Mock()
+        mock_job = Mock()
+        mock_job.id = "job-2"
+
+        async def run_async_impl(fn):
+            return fn()
+
+        mock_run_async.side_effect = run_async_impl
+        mock_queue.enqueue.return_value = mock_job
+
+        async def test():
+            await dispatch(mock_queue, "some.func")
+
+        asyncio.run(test())
+
+        call_kwargs = mock_queue.enqueue.call_args
+        meta = call_kwargs.kwargs["meta"]
+        self.assertIsNone(meta["cid"])
+
+
+class TestFailureSuccessHandlersCid(unittest.TestCase):
+    """Test that on_failure/on_success handlers bind cid to loguru."""
+
+    @patch("app.utils.rq_job.logger")
+    @patch("app.utils.rq_job.JobStream")
+    def test_on_failure_handler_binds_cid(self, mock_stream_cls, mock_logger):
+        from app.utils.rq_job import on_failure_default_handler
+
+        job = Mock()
+        job.id = "job-fail"
+        job.meta = {"cid": "xk9abr2m", "stream_ctx": None}
+
+        on_failure_default_handler(job, None, ValueError, ValueError("boom"), None)
+
+        mock_logger.contextualize.assert_called_once_with(cid="xk9abr2m")
+
+    @patch("app.utils.rq_job.logger")
+    @patch("app.utils.rq_job.JobStream")
+    def test_on_success_handler_binds_cid(self, mock_stream_cls, mock_logger):
+        from app.utils.rq_job import on_success_default_handler
+
+        job = Mock()
+        job.id = "job-ok"
+        job.meta = {"cid": "ab3cd4ef", "stream_ctx": None}
+
+        on_success_default_handler(job, None, "result")
+
+        mock_logger.contextualize.assert_called_once_with(cid="ab3cd4ef")
+
+    @patch("app.utils.rq_job.logger")
+    @patch("app.utils.rq_job.JobStream")
+    def test_on_failure_handler_fallback_cid(self, mock_stream_cls, mock_logger):
+        from app.utils.rq_job import on_failure_default_handler
+
+        job = Mock()
+        job.id = "job-no-cid"
+        job.meta = {"stream_ctx": None}
+
+        on_failure_default_handler(job, None, ValueError, ValueError("boom"), None)
+
+        mock_logger.contextualize.assert_called_once_with(cid=NULL_CID)
 
 
 if __name__ == "__main__":

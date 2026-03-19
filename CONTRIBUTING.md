@@ -66,14 +66,14 @@ When you wish to contribute to the code base, please consider the following guid
     ```shell
     git push origin my-fix-branch
     ```
-* In GitHub, send a Pull Request to the `develop` branch of the upstream repository of the relevant component.
+* In GitHub, send a Pull Request to the `main` branch of the upstream repository of the relevant component.
 * If we suggest changes then:
   * Make the required updates.
   * Re-run the test suites to ensure tests are still passing.
   * Rebase your branch and force push to your GitHub repository (this will update your Pull Request):
 
        ```shell
-        git rebase develop -i
+        git rebase main -i
         git push -f
        ```
 
@@ -89,20 +89,20 @@ the main (upstream) repository:
     ```shell
     git push origin --delete my-fix-branch
     ```
-* Check out the develop branch:
+* Check out the main branch:
 
     ```shell
-    git checkout develop -f
+    git checkout main -f
     ```
 * Delete the local branch:
 
     ```shell
     git branch -D my-fix-branch
     ```
-* Update your develop with the latest upstream version:
+* Update your main with the latest upstream version:
 
     ```shell
-    git pull --ff upstream develop
+    git pull --ff upstream main
     ```
 
 [github]: https://github.com/BlueBrain/Bluenaas/

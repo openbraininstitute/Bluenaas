@@ -13,12 +13,15 @@ from app.core.exceptions import (
     AppErrorResponse,
 )
 from app.infrastructure.metrics import metrics_service
+from app.logging import setup_logging
 from app.middleware.request_id import add_request_id_middleware
 from app.routes.admin import router as admin_router
 from app.routes.circuit import router as circuit_router
 from app.routes.ion_channel import router as ion_channel_router
 from app.routes.mesh import router as mesh_router
 from app.routes.single_neuron import router as single_neuron_router
+
+setup_logging()
 
 sentry_sdk.init(
     dsn=settings.SENTRY_DSN,

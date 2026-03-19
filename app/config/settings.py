@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     METRICS_INTERVAL: int = 60  # 1 minute
     METRICS_AWS_REGION: str | None = None
 
+    LOG_LEVEL: str = "INFO"
+    LOG_SHOW_CID: bool = True
+    LOG_SHOW_SOURCE: bool = True
+
     @model_validator(mode="after")
     def validate_accounting_config(self) -> Self:
         if not self.ACCOUNTING_DISABLED and not self.ACCOUNTING_BASE_URL:

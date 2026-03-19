@@ -15,8 +15,10 @@ from app.domains.ion_channel.ion_channel import (
 )
 from app.domains.job import JobStatus
 from app.utils.rq_job import get_current_job_stream
+from app.logging import worker_subprocess
 
 
+@worker_subprocess
 def run_ion_channel_build(
     config: Any,
     *,
