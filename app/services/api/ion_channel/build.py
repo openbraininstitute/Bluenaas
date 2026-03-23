@@ -44,7 +44,7 @@ async def run_ion_channel_build(
         logger.info("Accounting session finished successfully")
 
     async def on_failure(exc_type: type[BaseException] | None) -> None:
-        await accounting_session.finish(exc_type=exc_type)  # type: ignore
+        await accounting_session.finish(exc_type=exc_type)
 
     job, job_stream = await dispatch(
         job_queue,

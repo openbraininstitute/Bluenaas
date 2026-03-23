@@ -229,8 +229,7 @@ async def _cancel_reservations(
     accounting_session_map: Dict[UUID, AsyncOneshotSession],
 ) -> None:
     for session in accounting_session_map.values():
-        # If the "start" method was not called - executing "finish" will cancel reservation.
-        await session.finish()
+        await session.cancel_reservation()
 
 
 def _get_accounting_service_subtype(
@@ -359,8 +358,7 @@ async def run_circuit_simulation_batch(
                 )
             )
 
-            # TODO fix the exc_type type below.
-            await session.finish(exc_type=exc_type)  # type: ignore
+            await session.finish(exc_type=exc_type)
             logger.info("Accounting session with provided exception finished successfully")
 
         _job, stream = await dispatch(
