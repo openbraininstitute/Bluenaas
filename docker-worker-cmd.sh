@@ -41,5 +41,6 @@ fi
 exec rq worker-pool \
   --url $REDIS_URL \
   --num-workers $NUM_WORKERS \
+  --worker-class app.worker.LoggingWorker \
   ${BURST_FLAG} \
   $QUEUES

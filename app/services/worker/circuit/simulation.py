@@ -15,8 +15,10 @@ from app.domains.job import JobStatus
 from app.infrastructure.rq import get_job_stream_key
 from app.utils.rq_job import get_current_job_stream
 from app.utils.simulation import get_num_mpi_procs
+from app.logging import worker_subprocess
 
 
+@worker_subprocess
 def run_circuit_simulation(
     simulation_id: UUID,
     *,
@@ -89,6 +91,7 @@ def run_circuit_simulation(
         simulation.cleanup()
 
 
+@worker_subprocess
 def get_circuit_simulation_params(
     simulation_id: UUID,
     *,
@@ -118,6 +121,7 @@ def get_circuit_simulation_params(
         simulation.cleanup()
 
 
+@worker_subprocess
 def get_batch_circuit_simulation_params_map(
     simulation_ids: List[UUID],
     *,

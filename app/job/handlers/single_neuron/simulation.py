@@ -5,6 +5,7 @@ from uuid import UUID
 from entitysdk import ProjectContext
 from loguru import logger
 
+from app.context import cid_var
 from app.core.exceptions import AppError, AppErrorCode
 from app.domains.simulation import SingleNeuronSimulationConfig
 from app.services.worker.single_neuron.simulation import (
@@ -43,6 +44,7 @@ def run(
             ),
             kwargs={
                 "access_token": access_token,
+                "cid": cid_var.get(),
                 "realtime": realtime,
                 "simulation_queue": simulation_queue,
                 "stop_event": stop_event,
