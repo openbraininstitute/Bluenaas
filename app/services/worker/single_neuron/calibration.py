@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from app.logging import worker_subprocess
 from entitysdk import Client, ProjectContext
 
 from app.config.settings import settings
@@ -9,6 +10,7 @@ from app.domains.job import JobStatus
 from app.infrastructure.rq import get_job_stream_key
 
 
+@worker_subprocess
 def run_single_neuron_calibration(
     model_id: UUID,
     *,

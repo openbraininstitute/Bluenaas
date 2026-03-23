@@ -9,6 +9,8 @@ from rq.job import Job
 from rq.job import JobStatus as RQJobStatus
 
 from app.config.settings import settings
+from app.constants import NULL_CID
+from app.context import cid_var
 from app.core.job import JobInfo
 from app.core.job_stream import JobStatus, JobStream
 from app.domains.stream_message import Message, MessageAdapter, MessageType
@@ -72,13 +74,18 @@ async def _job_status_monitor(
         logger.error(f"Error monitoring job status for job {job.id}: {e}")
 
 
+def _job_cid(job) -> str:
+    return job.meta.get("cid") or NULL_CID
+
+
 def on_failure_default_handler(job, connection, exc_type, exc_value, traceback):
     stream = JobStream(compose_key(job.id), ctx=job.meta.get("stream_ctx", None))
 
-    logger.error(
-        f"Job {job.id} failed with {exc_type.__name__}: {exc_value}",
-        exc_info=(exc_type, exc_value, traceback),
-    )
+    with logger.contextualize(cid=_job_cid(job)):
+        logger.error(
+            f"Job {job.id} failed with {exc_type.__name__}: {exc_value}",
+            exc_info=(exc_type, exc_value, traceback),
+        )
 
     stream.send_status(JobStatus.error, str(exc_value))
     stream.close()
@@ -86,6 +93,9 @@ def on_failure_default_handler(job, connection, exc_type, exc_value, traceback):
 
 def on_success_default_handler(job, connection, result):
     stream = JobStream(compose_key(job.id), ctx=job.meta.get("stream_ctx", None))
+
+    with logger.contextualize(cid=_job_cid(job)):
+        logger.info(f"Job {job.id} completed successfully")
 
     stream.send_status(JobStatus.done)
     stream.close()
@@ -115,6 +125,8 @@ async def dispatch(
 
     write_stream = JobStream(stream_key, ctx=stream_ctx)
 
+    cid = cid_var.get()
+
     job = await run_async(
         lambda: job_queue.enqueue(
             fn,
@@ -125,6 +137,7 @@ async def dispatch(
             job_timeout=timeout,
             meta={
                 **meta,
+                "cid": cid,
                 "stream_ctx": stream_ctx,
             },
             result_ttl=result_ttl,

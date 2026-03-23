@@ -24,8 +24,10 @@ from app.infrastructure.accounting.session import accounting_session_factory
 from app.utils.accounting import make_accounting_reservation_sync
 from app.utils.rq_job import get_current_job_stream
 from app.utils.safe_process import SafeProcessRuntimeError
+from app.logging import worker_subprocess
 
 
+@worker_subprocess
 def run_mesh_skeletonization(
     em_cell_mesh_id: UUID,
     input_params: SkeletonizationInputParams,

@@ -7,8 +7,10 @@ from app.core.job_stream import JobStream
 from app.core.single_neuron.validation import Validation
 from app.domains.job import JobStatus
 from app.infrastructure.rq import get_job_stream_key
+from app.logging import worker_subprocess
 
 
+@worker_subprocess
 def run_single_neuron_validation(
     model_id: UUID,
     *,

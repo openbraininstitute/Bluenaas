@@ -1,3 +1,6 @@
+CID_LENGTH = 8
+NULL_CID = "-" * CID_LENGTH
+
 STOP_MESSAGE = b"__STOP__"
 
 SERVICE_NAME = "small-scale-simulator"

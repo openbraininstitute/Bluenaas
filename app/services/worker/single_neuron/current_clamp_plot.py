@@ -8,8 +8,10 @@ from app.core.model import model_factory
 from app.core.simulation_factory_plot import StimulusFactoryPlot
 from app.domains.simulation import StimulationPlotConfig
 from app.infrastructure.rq import get_job_stream_key
+from app.logging import worker_subprocess
 
 
+@worker_subprocess
 def get_single_neuron_current_clamp_plot_data(
     model_id: UUID,
     config: StimulationPlotConfig,

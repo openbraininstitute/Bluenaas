@@ -19,7 +19,12 @@ from bluecellulab.reports.manager import ReportManager
 from loguru import logger
 from neuron import h
 from pynwb import NWBHDF5IO, H5DataIO, NWBFile
-from pynwb.icephys import CurrentClampSeries, IntracellularElectrode, VoltageClampSeries, VoltageClampStimulusSeries
+from pynwb.icephys import (
+    CurrentClampSeries,
+    IntracellularElectrode,
+    VoltageClampSeries,
+    VoltageClampStimulusSeries,
+)
 
 from bluecellulab.reports.utils import (
     collect_local_payload,
@@ -745,6 +750,7 @@ def main():
         help="Path to the nrnmech library",
     )
     parser.add_argument("--save-nwb", action="store_true", help="Save results in NWB format")
+    parser.add_argument("--cid", type=str, default=None, help="Correlation ID for log tracing")
 
     args = parser.parse_args()
 
@@ -752,6 +758,12 @@ def main():
     config_path = Path(args.simulation_config)
     if not config_path.exists():
         raise RuntimeError(f"Simulation config file not found: {config_path}")
+
+    from app.logging import setup_logging
+
+    setup_logging()
+    if args.cid:
+        logger.configure(extra={"cid": args.cid})
 
     # Run the simulation
     run_bluecellulab(
