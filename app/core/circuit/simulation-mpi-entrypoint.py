@@ -66,10 +66,10 @@ def _get_report_metadata(simulation_config_data: Dict[str, Any]) -> Dict[str, Di
             "unit": unit,
         }
 
-        out["__default_voltage__"] = {
-            "variable_name": "v",
-            "unit": "mV",
-        }
+    out["__default_voltage__"] = {
+        "variable_name": "v",
+        "unit": "mV",
+    }
 
     return out
 
