@@ -387,7 +387,7 @@ worker = [
     { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.15" },
     { name = "morphio", specifier = "==3.4.1" },
     { name = "numpy", specifier = ">=2.0.0,<2.4" },
-    { name = "obi-one", specifier = "==2026.3.10" },
+    { name = "obi-one", specifier = "==2026.3.11" },
     { name = "pynwb", specifier = "==3.1.3" },
     { name = "requests", specifier = "==2.32.5" },
     { name = "ultraliser" },
@@ -2313,7 +2313,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/99/7d/2d652962ee61c9e5a
 
 [[package]]
 name = "obi-one"
-version = "2026.3.10"
+version = "2026.3.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -2350,7 +2350,7 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/85/f6/12fc62e9022eb0d663c870c1ba6914ffa792a0229cacbb8a737c99b642d8/obi_one-2026.3.10.tar.gz", hash = "sha256:724fa8c1f60bc1a2b53235ee0d38cd6a29278029cfefd8688ba1d92b31319008", size = 17161682, upload-time = "2026-03-23T13:57:01.017Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/26/65/0d1b29f407d45561210154a734bca9af0dd04ec77c47ceeb1c64fe357863/obi_one-2026.3.11.tar.gz", hash = "sha256:2a26b28f02ab3e5a6a5849167778a2daeb9a2369e93abeac9b5893e33e8340a4", size = 17161110, upload-time = "2026-03-24T18:19:40.45Z" }
 
 [[package]]
 name = "obp-accounting-sdk"
