@@ -1,14 +1,14 @@
 from loguru import logger
 from rq.job import Job
 from rq.queue import Queue
-from rq.worker import SimpleWorker
+from rq.worker import Worker
 
 from app.constants import NULL_CID
 from app.context import cid_var
 from app.logging import setup_logging
 
 
-class LoggingWorker(SimpleWorker):
+class LoggingWorker(Worker):
     def __init__(self, *args, **kwargs):
         setup_logging()
         super().__init__(*args, **kwargs)
