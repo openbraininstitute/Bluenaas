@@ -19,7 +19,7 @@ async def check_compatibility_service(
 ) -> ApiResponse[CompatibilityCheckResponse]:
     _job, stream = await dispatch(
         job_queue,
-        JobFn.CHECK_COMPATIBILITY,
+        JobFn.CHECK_SINGLE_NEURON_COMPONENT_COMPATIBILITY,
         job_args=(morphology_id, emodel_id),
         job_kwargs={
             "access_token": access_token,

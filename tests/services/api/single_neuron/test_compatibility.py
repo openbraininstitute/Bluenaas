@@ -132,7 +132,7 @@ class TestCheckCompatibilityService(unittest.TestCase):
 
         mock_dispatch.assert_called_once_with(
             mock_queue,
-            JobFn.CHECK_COMPATIBILITY,
+            JobFn.CHECK_SINGLE_NEURON_COMPONENT_COMPATIBILITY,
             job_args=(MORPH_ID, EMODEL_ID),
             job_kwargs={
                 "access_token": "my-token",
