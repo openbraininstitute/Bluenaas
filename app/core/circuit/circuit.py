@@ -27,6 +27,7 @@ from app.constants import (
     CIRCUIT_CONFIG_NAME,
     CIRCUIT_MEMODEL_MOD_DIR,
     CIRCUIT_MOD_DIR,
+    DIR_LOCK_FILE_NAME,
     READY_MARKER_FILE_NAME,
 )
 from app.core.exceptions import CircuitInitError
@@ -83,7 +84,7 @@ class CircuitBase(ABC):
             self.initialized = True
             return
 
-        lock = FileLock(self.path / "dir.lock")
+        lock = FileLock(self.path / DIR_LOCK_FILE_NAME)
 
         try:
             with lock.acquire(timeout=2 * 60):
