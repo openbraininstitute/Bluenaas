@@ -64,7 +64,7 @@ test:  ## Run unit tests
 	@# CPython's coroutine GC finalizer when mocked async dispatch returns unawaited
 	@# coroutines during test teardown. Python-level warnings.filterwarnings cannot
 	@# catch these because they are emitted at the C level.
-	uv run python -W "ignore::RuntimeWarning" -m unittest discover
+	LOG_LEVEL=WARNING LOG_LEVEL_LIBS=WARNING uv run python -W "ignore::RuntimeWarning" -m unittest discover
 
 check-all: format-check type-check job-fn-reference-check test ## Run all checkers
 
