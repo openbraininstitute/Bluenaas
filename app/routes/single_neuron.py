@@ -6,7 +6,14 @@ from fastapi.responses import JSONResponse
 from rq import Queue
 
 from app.domains.morphology import SynapsePlacementBody, SynapsePlacementResponse
-from app.domains.neuron_model import MEModelCreateRequest, SingleNeuronSynaptomeCreateRequest
+from app.core.api import ApiResponse
+from app.domains.neuron_model import (
+    CompatibilityCheckRequest,
+    CompatibilityCheckResponse,
+    MEModelCreateRequest,
+    SingleNeuronSynaptomeCreateRequest,
+)
+
 from app.domains.simulation import (
     SingleNeuronSimulationConfig,
     StimulationItemResponse,
@@ -14,6 +21,7 @@ from app.domains.simulation import (
 )
 from app.infrastructure.rq import JobQueue, queue_factory
 from app.routes.dependencies import ProjectContextDep, UserAuthDep
+from app.services.api.single_neuron.compatibility import check_compatibility_service
 from app.services.api.single_neuron.current_clamp_plot import (
     get_current_clamp_plot_data_response,
 )
@@ -115,6 +123,26 @@ def validate_synapse_formula(
     formula: str = Body(embed=True),
 ) -> SynapsePlacementResponse:
     return validate_synapse_generation_formula(formula=formula)  # type: ignore
+
+
+@router.post(
+    "/compatibility/run",
+    tags=["single-neuron"],
+    description="Check if a morphology and emodel combination is compatible",
+)
+async def check_compatibility(
+    body: CompatibilityCheckRequest,
+    project_context: ProjectContextDep,
+    auth: UserAuthDep,
+    job_queue: Queue = Depends(queue_factory(JobQueue.HIGH)),
+) -> ApiResponse[CompatibilityCheckResponse]:
+    return await check_compatibility_service(
+        body.morphology_id,
+        body.emodel_id,
+        job_queue=job_queue,
+        access_token=auth.access_token,
+        project_context=project_context,
+    )
 
 
 @router.get(

@@ -4,6 +4,9 @@ from enum import StrEnum
 # ! This has to be in sync with the functions in the jobs/handlers folder
 class JobFn(StrEnum):
     # Single neuron
+    CHECK_SINGLE_NEURON_COMPONENT_COMPATIBILITY = (
+        "app.job.handlers.single_neuron.compatibility.check"
+    )
     GENERATE_SINGLE_NEURON_SYNAPTOME = "app.job.handlers.single_neuron.synaptome.generate_synapses"
     GET_SINGLE_NEURON_CURRENT_CLAMP_PLOT_DATA = (
         "app.job.handlers.single_neuron.current_clamp_plot.get_current_clamp_plot_data"
