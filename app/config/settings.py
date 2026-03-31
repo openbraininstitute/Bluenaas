@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     METRICS_AWS_REGION: str | None = None
 
     LOG_LEVEL: str = "INFO"
+    LOG_LEVEL_LIBS: str = "WARNING"
     LOG_SHOW_CID: bool = True
     LOG_SHOW_SOURCE: bool = True
 

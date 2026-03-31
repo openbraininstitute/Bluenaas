@@ -6,29 +6,13 @@ from loguru import logger
 
 from app.constants import CID_LENGTH, NULL_CID
 
-_CID = "{extra[cid]: <" + str(CID_LENGTH) + "} | "
-_SOURCE = "{name}:{function}:{line} - "
+_THIS_FILE = __file__
 
 
 def _build_format(*, show_cid: bool, show_source: bool) -> str:
-    cid = _CID if show_cid else ""
-    source = _SOURCE if show_source else ""
+    cid = "{extra[cid]: <" + str(CID_LENGTH) + "} | " if show_cid else ""
+    source = "{name}:{function}:{line} - " if show_source else ""
     return f"<level>{{level: <8}}</level> | {cid}{source}{{message}}"
-
-
-_THIS_FILE = __file__
-
-# Third-party modules (using loguru directly) that are too verbose at INFO.
-_NOISY_LOGURU_MODULES = ("bluecellulab",)
-
-_WARNING_NO = 30  # loguru WARNING level number
-
-
-def _filter(record) -> bool:
-    for prefix in _NOISY_LOGURU_MODULES:
-        if record["name"].startswith(prefix):
-            return record["level"].no >= _WARNING_NO
-    return True
 
 
 class _InterceptHandler(logging.Handler):
@@ -40,7 +24,6 @@ class _InterceptHandler(logging.Handler):
         except ValueError:
             level = record.levelno
 
-        # Walk past our handler frame and all stdlib logging internals.
         frame, depth = logging.currentframe(), 2
         while frame is not None:
             if frame.f_code.co_filename not in (logging.__file__, _THIS_FILE):
@@ -58,16 +41,26 @@ def setup_logging(level: str | None = None) -> None:
     - Adds a handler with the project log format
     - Intercepts stdlib ``logging`` so third-party libraries (uvicorn, rq, …)
       are routed through loguru
-    - Silences noisy stdlib loggers to WARNING+
+    - Applies separate log levels for app code vs library code
     """
     from app.config.settings import settings
 
-    resolved_level = level or settings.LOG_LEVEL
+    app_level = level or settings.LOG_LEVEL
+    lib_level = settings.LOG_LEVEL_LIBS
     fmt = _build_format(show_cid=settings.LOG_SHOW_CID, show_source=settings.LOG_SHOW_SOURCE)
+
+    app_level_no = logger.level(app_level).no
+    lib_level_no = logger.level(lib_level).no
+    sink_level_no = min(app_level_no, lib_level_no)
+
+    def _filter(record) -> bool:
+        if record["name"].startswith("app"):
+            return record["level"].no >= app_level_no
+        return record["level"].no >= lib_level_no
 
     logger.remove()
     logger.configure(extra={"cid": NULL_CID})
-    logger.add(sys.stderr, format=fmt, level=resolved_level, filter=_filter, colorize=True)
+    logger.add(sys.stderr, format=fmt, level=sink_level_no, filter=_filter, colorize=True)
 
     logging.basicConfig(handlers=[_InterceptHandler()], level=0, force=True)
 
@@ -76,17 +69,6 @@ def setup_logging(level: str | None = None) -> None:
     # from our intercept handler on root.
     for name in list(logging.root.manager.loggerDict):
         logging.getLogger(name).handlers.clear()
-
-    for noisy in (
-        "uvicorn.access",
-        "httpcore",
-        "httpx",
-        "rq.worker_pool",
-        "numexpr",
-        "matplotlib",
-        "matplotlib.font_manager",
-    ):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 def worker_subprocess(fn):
