@@ -14,6 +14,7 @@ from loguru import logger
 from app.constants import (
     CIRCUIT_CONFIG_NAME,
     CIRCUIT_SIMULATION_CONFIG_NAME,
+    DIR_LOCK_FILE_NAME,
     LIBNRNMECH_PATH,
     READY_MARKER_FILE_NAME,
 )
@@ -122,7 +123,7 @@ class Simulation:
             self.initialized = True
             return
 
-        lock = FileLock(self.path / "dir.lock")
+        lock = FileLock(self.path / DIR_LOCK_FILE_NAME)
         with lock.acquire(timeout=2 * 60):
             self._fetch_assets()
             ready_marker.touch()

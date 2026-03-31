@@ -1,6 +1,6 @@
 import shutil
 from pathlib import Path
-from uuid import UUID
+from uuid import uuid5, UUID, NAMESPACE_URL
 
 from app.config.settings import settings
 
@@ -74,6 +74,18 @@ def get_mesh_skeletonization_output_location(uuid: UUID) -> Path:
 
 def get_ion_channel_build_location(uuid: UUID) -> Path:
     path = settings.STORAGE_PATH / "ion-channel" / "build" / uuid_subpath(uuid)
+    return ensure_dir(path)
+
+
+def get_model_candidate_location(morphology_id: UUID, emodel_id: UUID) -> Path:
+    composite_id = uuid5(NAMESPACE_URL, f"{morphology_id}:{emodel_id}")
+    path = settings.STORAGE_PATH / "single-neuron" / "model-candidate" / uuid_subpath(composite_id)
+    return ensure_dir(path)
+
+
+def get_compatibility_result_location(morphology_id: UUID, emodel_id: UUID) -> Path:
+    composite_id = uuid5(NAMESPACE_URL, f"{morphology_id}:{emodel_id}")
+    path = settings.STORAGE_PATH / "single-neuron" / "compatibility" / uuid_subpath(composite_id)
     return ensure_dir(path)
 
 
