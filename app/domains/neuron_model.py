@@ -63,3 +63,15 @@ class SingleNeuronSynaptomeCreateRequest(BaseModel):
     brain_region_id: UUID
     seed: int
     config: SynaptomeConfiguration
+
+
+class CompatibilityCheckRequest(BaseModel):
+    morphology_id: UUID
+    emodel_id: UUID
+
+
+class CompatibilityCheckResponse(BaseModel):
+    compatible: bool
+    morphology_id: UUID
+    emodel_id: UUID
+    error: str | None = None

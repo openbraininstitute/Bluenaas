@@ -1,53 +1,58 @@
+from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from os import chdir
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from entitysdk import Client
+from entitysdk.downloaders.cell_morphology import download_morphology
+from entitysdk.downloaders.emodel import download_hoc
+from entitysdk.downloaders.ion_channel_model import download_ion_channel_mechanism
 from entitysdk.downloaders.memodel import download_memodel
-from entitysdk.models import MEModel
+from entitysdk.exception import IteratorResultError
+from entitysdk.models import CellMorphology, EModel, MEModel
 from filelock import FileLock
 from loguru import logger
 
 from app.constants import (
+    DIR_LOCK_FILE_NAME,
     READY_MARKER_FILE_NAME,
     SINGLE_NEURON_HOC_DIR,
     SINGLE_NEURON_MOD_DIR,
     SINGLE_NEURON_MORPHOLOGY_DIR,
 )
 from app.core.exceptions import SingleNeuronInitError
-from app.infrastructure.storage import copy_file_content, get_single_neuron_location
+from app.infrastructure.storage import (
+    copy_file_content,
+    get_model_candidate_location,
+    get_single_neuron_location,
+    rm_dir,
+)
 
 
-class SingleNeuron:
-    model_id: UUID
-    initialized: bool = False
-    metadata: MEModel
+class SingleNeuronBase(ABC):
     path: Path
+    initialized: bool = False
     cell: Any
 
-    def __init__(self, model_id: UUID, client: Client):
-        self.model_id = model_id
-        self.path = get_single_neuron_location(self.model_id)
+    def __init__(self, path: Path):
+        self.path = path
 
-        self.client = client
-
-        self._fetch_metadata()
-
-    def _fetch_metadata(self):
-        """Fetch the circuit metadata from entitycore"""
-        self.metadata = self.client.get_entity(self.model_id, entity_type=MEModel)
-
+    @abstractmethod
     def _fetch_assets(self):
-        """Fetch the circuit files from entitycore and write to the disk storage"""
-        assert self.metadata.id is not None
+        """Fetch model assets from external storage and write to disk."""
 
-        logger.debug(f"Fetching single neuron model {self.model_id}")
-        download_memodel(self.client, memodel=self.metadata, output_dir=str(self.path))
+    @property
+    @abstractmethod
+    def holding_current(self) -> float: ...
+
+    @property
+    @abstractmethod
+    def threshold_current(self) -> float: ...
 
     def _add_syn_mod_files(self):
-        # TODO: Move this to a helper function.
         copy_file_content(
             Path("/app/app/config/VecStim.mod"),
             self.path / SINGLE_NEURON_MOD_DIR / "VecStim.mod",
@@ -68,7 +73,6 @@ class SingleNeuron:
             err_msg = f"'{SINGLE_NEURON_MOD_DIR}' folder not found under {self.path}"
             raise FileNotFoundError(err_msg)
 
-        # TODO move to a separate module
         cmd = [
             "nrnivmodl",
             "-incflags",
@@ -89,12 +93,9 @@ class SingleNeuron:
             logger.debug("Found existing single neuron model in the storage")
             return
 
-        lock = FileLock(self.path / "dir.lock")
+        lock = FileLock(self.path / DIR_LOCK_FILE_NAME)
 
         with lock.acquire(timeout=2 * 60):
-            # Re-check if the single neuron model is already initialized.
-            # Another worker might have initialized the model
-            # while the current one was waiting for the lock.
             if ready_marker.exists():
                 logger.debug("Found existing single neuron model in the storage")
                 return
@@ -105,11 +106,8 @@ class SingleNeuron:
             ready_marker.touch()
 
     def _init_bcl_cell(self):
-        # Consider using h.nrn_load_dll(libnrnmech_path) as with a circuit simulation
         chdir(self.path)
 
-        # TODO Consider moving imports to the top
-        # importing bluecellulab AFTER compiling the mechanisms to avoid segmentation fault
         from bluecellulab import Cell
         from bluecellulab.circuit.circuit_access import EmodelProperties
 
@@ -132,7 +130,7 @@ class SingleNeuron:
             emodel_properties=emodel_properties,
         )
 
-        logger.debug(f"BCL Cell {self.model_id} initialized")
+        logger.debug("BCL Cell initialized")
 
     def init(self):
         """Fetch model assets, compile MOD files and initialize BlueCelluLab Cell"""
@@ -149,6 +147,40 @@ class SingleNeuron:
         except Exception:
             raise SingleNeuronInitError()
 
+    def cleanup(self) -> None:
+        """Remove model files from storage. No-op by default."""
+        pass
+
+    def is_fetched(self) -> bool:
+        """Check if the model files are in the storage"""
+        ready_marker = self.path / READY_MARKER_FILE_NAME
+        return ready_marker.exists()
+
+
+class SingleNeuron(SingleNeuronBase):
+    model_id: UUID
+    metadata: MEModel
+
+    def __init__(self, model_id: UUID, client: Client):
+        self.model_id = model_id
+        self.client = client
+
+        path = get_single_neuron_location(self.model_id)
+        super().__init__(path)
+
+        self._fetch_metadata()
+
+    def _fetch_metadata(self):
+        """Fetch the circuit metadata from entitycore"""
+        self.metadata = self.client.get_entity(self.model_id, entity_type=MEModel)
+
+    def _fetch_assets(self):
+        """Fetch the circuit files from entitycore and write to the disk storage"""
+        assert self.metadata.id is not None
+
+        logger.debug(f"Fetching single neuron model {self.model_id}")
+        download_memodel(self.client, memodel=self.metadata, output_dir=str(self.path))
+
     @property
     def holding_current(self) -> float:
         calibration_result = self.metadata.calibration_result
@@ -159,7 +191,66 @@ class SingleNeuron:
         calibration_result = self.metadata.calibration_result
         return calibration_result.threshold_current if calibration_result else 0.1
 
-    def is_fetched(self) -> bool:
-        """Check if the circuit is in the storage"""
-        ready_marker = self.path / READY_MARKER_FILE_NAME
-        return ready_marker.exists()
+
+class SingleNeuronCandidate(SingleNeuronBase):
+    """A single neuron assembled from separate morphology + emodel (no MEModel entity)."""
+
+    morphology_id: UUID
+    emodel_id: UUID
+
+    def __init__(self, morphology_id: UUID, emodel_id: UUID, client: Client):
+        self.morphology_id = morphology_id
+        self.emodel_id = emodel_id
+        self.client = client
+
+        path = get_model_candidate_location(morphology_id, emodel_id)
+        super().__init__(path)
+
+        self._morphology = client.get_entity(morphology_id, entity_type=CellMorphology)
+        self._emodel = cast(
+            EModel,
+            client.get_entity(emodel_id, entity_type=EModel),
+        )
+
+    def _fetch_assets(self):
+        """Download HOC, morphology, and MOD files in parallel from separate entities."""
+        hoc_dir = self.path / SINGLE_NEURON_HOC_DIR
+        morphology_dir = self.path / SINGLE_NEURON_MORPHOLOGY_DIR
+        mechanisms_dir = self.path / SINGLE_NEURON_MOD_DIR
+        mechanisms_dir.mkdir(parents=True, exist_ok=True)
+
+        def fetch_hoc():
+            download_hoc(self.client, self._emodel, hoc_dir)
+
+        def fetch_morphology():
+            try:
+                download_morphology(self.client, self._morphology, morphology_dir, "asc")
+            except IteratorResultError:
+                download_morphology(self.client, self._morphology, morphology_dir, "swc")
+
+        def fetch_mechanism(ic):
+            download_ion_channel_mechanism(self.client, ic, mechanisms_dir)
+
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(fetch_hoc),
+                executor.submit(fetch_morphology),
+            ]
+            for ic in self._emodel.ion_channel_models or []:
+                futures.append(executor.submit(fetch_mechanism, ic))
+
+            for future in as_completed(futures):
+                future.result()  # Raises if any download failed
+
+    def cleanup(self) -> None:
+        """Remove temporary model candidate files from storage."""
+        self.initialized = False
+        rm_dir(self.path)
+
+    @property
+    def holding_current(self) -> float:
+        return 0
+
+    @property
+    def threshold_current(self) -> float:
+        return 0.1

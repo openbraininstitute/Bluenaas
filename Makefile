@@ -60,7 +60,11 @@ job-fn-reference-check:  ## Validate JobFn enum references
 	uv run python scripts/validate_job_fn_refs.py
 
 test:  ## Run unit tests
-	LOG_LEVEL=WARNING LOG_LEVEL_LIBS=WARNING uv run python -m unittest discover
+	@# -W flag suppresses "coroutine was never awaited" RuntimeWarnings emitted by
+	@# CPython's coroutine GC finalizer when mocked async dispatch returns unawaited
+	@# coroutines during test teardown. Python-level warnings.filterwarnings cannot
+	@# catch these because they are emitted at the C level.
+	LOG_LEVEL=WARNING LOG_LEVEL_LIBS=WARNING uv run python -W "ignore::RuntimeWarning" -m unittest discover
 
 check-all: format-check type-check job-fn-reference-check test ## Run all checkers
 
