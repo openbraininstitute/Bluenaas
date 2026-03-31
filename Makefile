@@ -60,7 +60,7 @@ job-fn-reference-check:  ## Validate JobFn enum references
 	uv run python scripts/validate_job_fn_refs.py
 
 test:  ## Run unit tests
-	uv run python -m unittest discover
+	LOG_LEVEL=WARNING LOG_LEVEL_LIBS=WARNING uv run python -m unittest discover
 
 check-all: format-check type-check job-fn-reference-check test ## Run all checkers
 
