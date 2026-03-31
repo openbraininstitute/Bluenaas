@@ -79,15 +79,10 @@ class Simulation:
             override_results_dir=rel_output_path,
         )
 
-        # Empty reports dict causes an exception in bluecellulab
-        # TODO: Remove config overwrite after the above is fixed.
         # TODO: Move spike_file location overwrite to staging functions in entitysdk.
         config_file = self.path / CIRCUIT_SIMULATION_CONFIG_NAME
         with open(config_file, "r") as f:
             config_data = json.load(f)
-
-        if len(config_data["reports"].keys()) == 0:
-            del config_data["reports"]
 
         for input_name, input_value in config_data.get("inputs", {}).items():
             if "spike_file" in input_value:
@@ -177,12 +172,9 @@ class Simulation:
             "/app/app/core/circuit/simulation-mpi-entrypoint.py",
             "--config",
             f"{self.path}/{CIRCUIT_SIMULATION_CONFIG_NAME}",
-            "--execution_id",
-            str(self.execution_id),
             "--libnrnmech_path",
             # TODO: Consider adding support for other platforms/architectures
             f"{self.circuit.path}/{LIBNRNMECH_PATH}",
-            "--save-nwb",
             *(["--cid", cid] if cid else []),
         ]
         try:
