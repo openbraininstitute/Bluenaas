@@ -102,6 +102,7 @@ def _create_recording_data(
 ) -> dict[str, Any]:
     """Create standardized recording data dictionary for queue."""
     return {
+        "kind": "trace",
         "label": label,
         "recording_name": recording_name,
         "time_data": time_data.tolist(),
@@ -111,6 +112,106 @@ def _create_recording_data(
         "amplitude": amplitude,
         "frequency": frequency,
     }
+
+
+def _create_spike_data(
+    label: str,
+    recording_name: str,
+    spikes: list[float],
+    variable_name: str,
+    unit: str,
+    amplitude: float | None = None,
+    frequency: float | None = None,
+) -> dict[str, Any]:
+    """Create standardized spike-time dictionary for queue."""
+    return {
+        "kind": "spikes",
+        "label": label,
+        "recording_name": recording_name,
+        "spikes": spikes,
+        "variable_name": variable_name,
+        "unit": unit,
+        "amplitude": amplitude,
+        "frequency": frequency,
+    }
+
+
+def _detect_and_enqueue_spikes(
+    cell,
+    recording_locations: list[RecordingLocation],
+    stimulus,
+    simulation_duration: int,
+    label: str,
+    amplitude: float | None,
+    frequency: float | None,
+    simulation_queue: mp.Queue,
+) -> None:
+    """Run eFEL ``peak_time`` on each recording location and enqueue spike messages.
+
+    Always emits a spikes message per recording (with an empty list when no spikes
+    are detected) so the client gets a definitive signal for every step.
+    Wrapped in defensive try/except blocks: spike detection MUST NOT crash the
+    parent simulation.
+    """
+    try:
+        import efel  # lazy import: only available in worker child process
+    except Exception as ex:
+        logger.warning(f"efel import failed, skipping spike detection: {ex}")
+        return
+
+    # Stimulus window: prefer the actual stimulus time bounds; fall back to the
+    # full simulation window when no stimulus is present.
+    if stimulus is not None and len(stimulus.time) > 0:
+        stim_start = float(stimulus.time[0])
+        stim_end = float(stimulus.time[-1])
+    else:
+        stim_start = 0.0
+        stim_end = float(simulation_duration)
+
+    for loc in recording_locations:
+        location_label = _location_label(loc.section, loc.offset)
+        try:
+            sec, seg = cell.sections[loc.section], loc.offset
+            voltage = cell.get_variable_recording("v", sec, seg)
+            time = cell.get_time()
+
+            if voltage is None or time is None or len(voltage) < 2 or len(time) < 2:
+                logger.debug(
+                    f"Voltage trace too short at {location_label}, skipping spike detection"
+                )
+                continue
+
+            efel_trace = {
+                "T": np.asarray(time),
+                "V": np.asarray(voltage),
+                "stim_start": [stim_start],
+                "stim_end": [stim_end],
+            }
+
+            results = efel.get_feature_values([efel_trace], ["peak_time"])  # pyright: ignore[reportCallIssue]
+            peak_times = results[0].get("peak_time") if results else None
+
+            if peak_times is None:
+                spike_list: list[float] = []
+            else:
+                spike_list = [float(t) for t in peak_times.tolist()]
+
+            simulation_queue.put(
+                _create_spike_data(
+                    label=label,
+                    recording_name=location_label,
+                    spikes=spike_list,
+                    variable_name="v",
+                    unit="ms",
+                    amplitude=amplitude,
+                    frequency=frequency,
+                )
+            )
+        except Exception as ex:
+            logger.exception(
+                f"Spike detection failed for {location_label} "
+                f"(amp={amplitude}, freq={frequency}): {ex}"
+            )
 
 
 def init_process_worker(neuron_global_params):
@@ -604,6 +705,17 @@ def _run_current_varying_stimulus(
 
         if realtime is False:
             process_simulation_recordings(enable_realtime=False)
+
+        _detect_and_enqueue_spikes(
+            cell=cell,
+            recording_locations=recording_locations,
+            stimulus=stimulus,
+            simulation_duration=simulation_duration,
+            label=f"{stimulus_name.name}_{amplitude}",
+            amplitude=amplitude,
+            frequency=None,
+            simulation_queue=simulation_queue,
+        )
     except Exception as ex:
         logger.exception(f"child simulation failed {ex}")
         raise ChildSimulationError from ex
@@ -816,6 +928,17 @@ def _run_frequency_varying_stimulus(
 
         if realtime is False:
             process_simulation_recordings(enable_realtime=False)
+
+        _detect_and_enqueue_spikes(
+            cell=cell,
+            recording_locations=recording_locations,
+            stimulus=stimulus,
+            simulation_duration=simulation_duration,
+            label=f"Frequency_{frequency}",
+            amplitude=amplitude,
+            frequency=frequency,
+            simulation_queue=simulation_queue,
+        )
     except Exception as ex:
         logger.exception(f"child simulation failed {ex}")
         raise ChildSimulationError from ex
