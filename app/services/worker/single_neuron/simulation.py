@@ -317,7 +317,6 @@ def queue_record_to_stream_record(record: dict, is_current_varying: bool) -> dic
 
 
 def queue_spike_to_stream_record(record: dict, is_current_varying: bool) -> dict:
-    logger.debug(f"Spike times: {record['spikes']}")
     return {
         "spikes": record["spikes"],
         "type": "scatter",
