@@ -383,11 +383,11 @@ types = [
 ]
 worker = [
     { name = "bluecellulab", specifier = "==2.6.91" },
-    { name = "efel", specifier = "==5.7.20" },
+    { name = "efel", specifier = "==5.7.21" },
     { name = "filelock", specifier = "==3.25.0" },
     { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.15" },
-    { name = "morphio", specifier = "==3.4.1" },
-    { name = "numpy", specifier = ">=2.0.0,<2.4" },
+    { name = "morphio", specifier = "==3.4.2" },
+    { name = "numpy", specifier = ">=2.0.0,<2.5" },
     { name = "obi-one", specifier = "==2026.4.0" },
     { name = "pynwb", specifier = "==3.1.3" },
     { name = "requests", specifier = "==2.32.5" },
@@ -901,7 +901,7 @@ wheels = [
 
 [[package]]
 name = "efel"
-version = "5.7.20"
+version = "5.7.21"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "neo" },
@@ -910,11 +910,11 @@ dependencies = [
     { name = "scipy" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/34/b81c91b1392adfcaf9de31a842694d780fafb44488a257b9303374664c6b/efel-5.7.20.tar.gz", hash = "sha256:0cfb56abf9fdb0199f3bcfc8dc0037cb86f06623b528cd9d896a25c1f9df4089", size = 140504, upload-time = "2025-10-21T12:55:11.018Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/0c/d86988ffa3e9e597f6a514245f492fb102334ccc057e897d32ccc28d9791/efel-5.7.21.tar.gz", hash = "sha256:934a014ef229231dcaa299b75e558f98b9597056070e3aa90f0db4c44a8f1c6a", size = 140879, upload-time = "2026-04-07T15:05:39.667Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/fa/ee67d9225d69725f124694daaa9a9a5c60a67ac0aa38f3c564221e5f1632/efel-5.7.20-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:473c753f62f3e82766e13639b6591e9e61e0653b554bb376ec1184f64888bda0", size = 260223, upload-time = "2025-10-21T12:55:00.834Z" },
-    { url = "https://files.pythonhosted.org/packages/aa/00/6cdcb6ffc2e9195aac8d1d4602ceb8fd105c974226c7da4aa7715ebf48b2/efel-5.7.20-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ce9ca3f0c831afe5ea1c17784c46b105b6beaf1f194d542d6e832c3e35eafe0d", size = 3018759, upload-time = "2025-10-21T12:55:02.155Z" },
-    { url = "https://files.pythonhosted.org/packages/97/e8/37d9708a4b39f4c923eb43d174fc3325bf11ba6dba6f0f9f523ffe0f4d5f/efel-5.7.20-cp312-cp312-win_amd64.whl", hash = "sha256:80507ab9984fb77d2c68e45c084e67aa0b042603e7a84c56896308329bebf44c", size = 237699, upload-time = "2025-10-21T12:55:04.552Z" },
+    { url = "https://files.pythonhosted.org/packages/c0/13/e5868b9e09e72605039cf75dbcfa5bd0cd93580a22941a1076563aa63c0f/efel-5.7.21-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:65b17876329ae2a1f4ae30a6be49f3ab9f807cddd53e65a1e17dd78a5e837ea5", size = 253812, upload-time = "2026-04-07T15:05:22.108Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/47/0289a4f752bd78c56e6155fe88da466b5ea0fa364038b08497dfb280f6e4/efel-5.7.21-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:25c49ab84d12be627b156dea4e139067826c3e6cfd0e2fc6f11b4a8a222fc6eb", size = 3019481, upload-time = "2026-04-07T15:05:23.454Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/6f/ce9dbea3f78fe4dd444db41b79ddeac07dd21a2fd977d779c468bc5a3b1c/efel-5.7.21-cp312-cp312-win_amd64.whl", hash = "sha256:c975dba2025713845a43151e62e964205ac3bcc6ad4e884df86b95d7df3b186e", size = 238053, upload-time = "2026-04-07T15:05:25.226Z" },
 ]
 
 [[package]]
@@ -1943,18 +1943,18 @@ sdist = { url = "https://files.pythonhosted.org/packages/11/a5/7855ee82afcb112fb
 
 [[package]]
 name = "morphio"
-version = "3.4.1"
+version = "3.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f4/6e/46d00838b39fffec4f8e096e4b1ad65184c02027cf8a21bfa89b450bf19a/morphio-3.4.1.tar.gz", hash = "sha256:18038eec9254397663c06c029f4cdd72fa904d97a671b4eb23ad273b80c0b14b", size = 678889, upload-time = "2026-03-04T15:17:13.952Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a5/7f/ae58db0e19ceaf3b4e8cc168678a0cc0ae64ed9bea9211860108a24a9d66/morphio-3.4.2.tar.gz", hash = "sha256:4521b01dd8de8ff98b44341318cee44d75552dfd58b95a0e82ebfffe653b88f8", size = 690093, upload-time = "2026-03-25T13:00:50.71Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/41/0e/11dd53123051e15a0839274671cbc0b8d76a40bc8c8160077da7c8583160/morphio-3.4.1-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:a796ca7482735e9c2a91ce4640e2048c26b13b1a8b87724e0131ff1f0d463d07", size = 2083061, upload-time = "2026-03-04T15:16:39.683Z" },
-    { url = "https://files.pythonhosted.org/packages/3f/71/a6734e4c215d0c2a326b3b851555a6f09ec04ef5e25da8526edecdcabc63/morphio-3.4.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:fac27ad48de70a6c9e2621c69987aad3f2f41a27ad8b276e9bd490e6ad9a902a", size = 1779188, upload-time = "2026-03-04T15:16:41.733Z" },
-    { url = "https://files.pythonhosted.org/packages/81/b3/11c6b2ce138a5848c4909f46fbdc9f1eee0634fc9427bcab6ab72217301c/morphio-3.4.1-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:22225c3897199e8db935513337eedad55a7d3a8f1826adea400bdb807883da8e", size = 2228835, upload-time = "2026-03-04T15:16:43.834Z" },
-    { url = "https://files.pythonhosted.org/packages/a3/d6/7407aaa0ebaea4c0f23aa29947fe8120914b6b0a4f3db1c91aa940037ef4/morphio-3.4.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:06e774f6dcbc1dde99402cf6ab032de8365004bac1d124653d34f7dd1a272fcd", size = 2494693, upload-time = "2026-03-04T15:16:45.344Z" },
-    { url = "https://files.pythonhosted.org/packages/4f/f1/8cc271e10e80f46cd978ca4d80f90daa6e3659b22936ba510b2aa6fd85ff/morphio-3.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:d1d96d2e3f8a3fead7315b0ef7774ccb12ef29df2d147194d9b3531aea4ff69f", size = 624573, upload-time = "2026-03-04T15:16:46.845Z" },
+    { url = "https://files.pythonhosted.org/packages/26/f0/232b9552d1894cd47221a56ba1a1c9eac286591686b8cadaead5ecbc80ab/morphio-3.4.2-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:7dd40908d16e8b7bab5d747e4083137f55d1b0ecaf17b6f28b223b59727d45da", size = 2084492, upload-time = "2026-03-25T13:00:17.63Z" },
+    { url = "https://files.pythonhosted.org/packages/02/de/556b5f52eda9ebd2d705261d10aec016b45b0d8d0c60c847fe652f28dc08/morphio-3.4.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:0a134d12b64d85d78ebdad29b95848c673320a8331fdb62cb754a84f96a00517", size = 1780933, upload-time = "2026-03-25T13:00:19.141Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/eb/ba41bf7afa3de6c467307f20d69361aff7eb9f08b679ae03dee334b0b87c/morphio-3.4.2-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:c625a918571d3a72fbbfbee01fb74112bc5a05ea5d374f9200dbd1a179393490", size = 2231502, upload-time = "2026-03-25T13:00:20.822Z" },
+    { url = "https://files.pythonhosted.org/packages/07/b7/b82c4e3c7d7e269ca78e1b2c017b1b8da4fd8161b7e3fc2b495ee91507ab/morphio-3.4.2-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:19b9b759796ff60e06eb92e28e2e52fb0653eb8872d6c26a6438beec7e1e6744", size = 2498053, upload-time = "2026-03-25T13:00:22.707Z" },
+    { url = "https://files.pythonhosted.org/packages/96/8a/4d2766d5d5466f67e2316af7ea47e087f77fca69f3cfd48a6a79d3916961/morphio-3.4.2-cp312-cp312-win_amd64.whl", hash = "sha256:d58adc5aeaa0ce2ce16e5e7c295b8d9849eeb367b8ad2386442b5ed1a75561a6", size = 626513, upload-time = "2026-03-25T13:00:24.397Z" },
 ]
 
 [[package]]
