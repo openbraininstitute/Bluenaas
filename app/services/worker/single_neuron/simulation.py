@@ -316,6 +316,20 @@ def queue_record_to_stream_record(record: dict, is_current_varying: bool) -> dic
     }
 
 
+def queue_spike_to_stream_record(record: dict, is_current_varying: bool) -> dict:
+    return {
+        "spikes": record["spikes"],
+        "type": "scatter",
+        "name": record["label"],
+        "recording": record["recording_name"],
+        "amplitude": record["amplitude"],
+        "frequency": record.get("frequency"),
+        "varying_key": record["amplitude"] if is_current_varying is True else record["frequency"],
+        "variable_name": record["variable_name"],
+        "unit": record["unit"],
+    }
+
+
 def stream_realtime_data(
     simulation_queue: Queue,
     _process: SpawnProcess,
@@ -355,7 +369,12 @@ def stream_realtime_data(
 
             break
 
-        chunk = queue_record_to_stream_record(record, is_current_varying)
-        job_stream.send_data(chunk)
+        kind = record.get("kind")
+        if kind == "spikes":
+            chunk = queue_spike_to_stream_record(record, is_current_varying)
+            job_stream.send_data(chunk, data_type="spikes")
+        else:
+            chunk = queue_record_to_stream_record(record, is_current_varying)
+            job_stream.send_data(chunk, data_type="trace")
 
     logger.info("Realtime Simulation completed")
