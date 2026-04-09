@@ -1,6 +1,7 @@
 import shutil
 from pathlib import Path
 from uuid import uuid5, UUID, NAMESPACE_URL
+from loguru import logger
 
 from app.config.settings import settings
 
@@ -25,8 +26,14 @@ def copy_file_content(source_file: Path, target_file: Path):
 
 
 def rm_dir(path: Path) -> None:
+    """Remove directory if exists, log warning if fails."""
     if path.exists():
-        shutil.rmtree(path)
+        shutil.rmtree(
+            path,
+            onexc=lambda func, path, exc_info: logger.warning(
+                f"Failed: {func.__name__} on {path}: {exc_info}"
+            ),
+        )
 
 
 def ensure_dir(path: Path) -> Path:
