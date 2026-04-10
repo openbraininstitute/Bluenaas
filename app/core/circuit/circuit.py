@@ -211,17 +211,13 @@ class IonChannelModelCircuit(CircuitBase):
                 ic_data, IonChannelModelWithConductance
             ) and ic_data.ion_channel_model.has_conductance(db_client=self.client):
                 conductance = {
-                    ic_data.ion_channel_model.get_conductance_name(
-                        db_client=self.client
-                    ): ic_data.conductance
+                    "conductance": ic_data.conductance
                 }
             elif isinstance(
                 ic_data, IonChannelModelWithMaxPermeability
             ) and ic_data.ion_channel_model.has_max_permeability(db_client=self.client):
                 conductance = {
-                    ic_data.ion_channel_model.get_max_permeability_name(
-                        db_client=self.client
-                    ): ic_data.max_permeability
+                    "conductance": ic_data.max_permeability
                 }
             ion_channel_model_data[key] = {
                 "id": ic_data.ion_channel_model.id_str,
