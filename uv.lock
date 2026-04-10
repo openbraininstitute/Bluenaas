@@ -353,7 +353,7 @@ worker = [
 
 [package.metadata]
 requires-dist = [
-    { name = "entitysdk", specifier = "==0.13.0" },
+    { name = "entitysdk", specifier = "==0.13.3" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "msgpack", specifier = ">=1.1.2" },
     { name = "nanoid", specifier = ">=2.0.0" },
@@ -388,7 +388,7 @@ worker = [
     { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.15" },
     { name = "morphio", specifier = "==3.4.2" },
     { name = "numpy", specifier = ">=2.0.0,<2.5" },
-    { name = "obi-one", specifier = "==2026.4.0" },
+    { name = "obi-one", specifier = "==2026.4.3" },
     { name = "pynwb", specifier = "==3.1.3" },
     { name = "requests", specifier = "==2.32.5" },
     { name = "ultraliser" },
@@ -932,14 +932,14 @@ wheels = [
 
 [[package]]
 name = "entitysdk"
-version = "0.13.0"
+version = "0.13.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a2/10/ea709b96f9d1524fd5c473b1d250ddc60370ae6a422f63d1e1ad6b3b03aa/entitysdk-0.13.0.tar.gz", hash = "sha256:3448513b981e92b4f160af534dd8b148953b724db1f71af2b1602fe8eb1cf722", size = 80123, upload-time = "2026-03-26T13:38:20.423Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9d/54/fb4fe933ad003de7228cee3b4feb04a333d5f8c80096f72d0d582d78216e/entitysdk-0.13.3.tar.gz", hash = "sha256:4725208bc1868586e6e65bfdae41ff05d448e4b0e3d2902fcba88a20cb60ac38", size = 80656, upload-time = "2026-04-10T11:33:59.708Z" }
 
 [[package]]
 name = "executing"
@@ -2314,7 +2314,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/99/7d/2d652962ee61c9e5a
 
 [[package]]
 name = "obi-one"
-version = "2026.4.0"
+version = "2026.4.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -2333,6 +2333,7 @@ dependencies = [
     { name = "ipykernel" },
     { name = "jupyter" },
     { name = "jupyterlab" },
+    { name = "libsonata" },
     { name = "morph-spines" },
     { name = "morph-tool" },
     { name = "networkx" },
@@ -2352,7 +2353,7 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/b9/7f23d70a528ee25e396d397b85896a889570040d8a710fa3b67847eb56db/obi_one-2026.4.0.tar.gz", hash = "sha256:8ae0624137a7e41fefd138229746a8dbee9998e4388f9ce017a34b11497b6ad4", size = 13927540, upload-time = "2026-04-02T14:32:25.199Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/44/cc/6ddd606def68674e60342260ad4ebaa42ded6f69d733a8bdf1887c7b5410/obi_one-2026.4.3.tar.gz", hash = "sha256:a69a3278e35526af8e86835e9a4b403e57a9a9cb107d087163bd33b8f2fa21ee", size = 13946824, upload-time = "2026-04-10T11:52:00.879Z" }
 
 [[package]]
 name = "obp-accounting-sdk"
