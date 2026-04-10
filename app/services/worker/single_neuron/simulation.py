@@ -344,8 +344,9 @@ def stream_realtime_data(
                 }
             )
             job_stream.send_status(job_status=JobStatus.error, extra=errStr)
+            job_stream.close()
             logger.debug("Parent stopping because of error")
-            break
+            raise record
 
         if record == QUEUE_STOP_EVENT:
             logger.debug("Parent received queue_stop_event")
