@@ -171,6 +171,7 @@ def _add_single_synapse(
         )
         cell.connections[synid] = connection
     except Exception:
+        logger.exception(f"Failed to add synapse {synapse['id']} to the cell.")
         raise RuntimeError("Model not initialized")
 
 
