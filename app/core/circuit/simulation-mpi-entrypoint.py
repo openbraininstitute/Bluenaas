@@ -244,15 +244,16 @@ def run_bluecellulab(
     except Exception as e:
         logger.error(f"Rank {rank} failed: {str(e)}", exc_info=True)
         raise
-    finally:
-        try:
-            logger.info(f"Rank {rank}: Cleaning up...")
-            pc.barrier()
-            h.quit()
-            if rank == 0:
-                logger.info("All ranks completed. Simulation finished.")
-        except Exception as e:
-            logger.error(f"Error during cleanup in rank {rank}: {str(e)}")
+
+    try:
+        # Ensure proper cleanup for successful runs
+        logger.info(f"Rank {rank}: Cleaning up...")
+        pc.barrier()
+        h.quit()
+        if rank == 0:
+            logger.info("All ranks completed. Simulation finished.")
+    except Exception as e:
+        logger.error(f"Error during cleanup in rank {rank}: {str(e)}")
 
 
 def main():
