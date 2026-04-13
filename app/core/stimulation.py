@@ -14,7 +14,7 @@ import neuron
 import numpy as np
 from loguru import logger
 
-from app.core.exceptions import ChildSimulationError
+from app.core.exceptions import ChildSimulationError, SimulationError
 from app.domains.morphology import SynapseSeries
 from app.domains.simulation import (
     CurrentInjectionConfig,
@@ -403,7 +403,23 @@ def _location_label(section: str, segment: float) -> str:
     return f"{section}_{segment}"
 
 
-def _run_current_varying_stimulus(
+def _run_child_simulation(fn, simulation_queue: mp.Queue):
+    """Wrap a child simulation function with error handling and queue signaling.
+
+    Ensures SUB_PROCESS_STOP_EVENT is always sent and errors are forwarded
+    to the parent via SimulationError on the queue.
+    """
+    try:
+        fn()
+    except Exception as ex:
+        logger.exception(f"child simulation failed {ex}")
+        simulation_queue.put(SimulationError(str(ex)))
+        raise ChildSimulationError from ex
+    finally:
+        simulation_queue.put(SUB_PROCESS_STOP_EVENT)
+
+
+def _current_varying_stimulus_impl(
     realtime: bool,
     template_params,
     stimulus,
@@ -590,29 +606,60 @@ def _run_current_varying_stimulus(
                         )
                     )
 
-    try:
-        simulation = Simulation(
-            cell,
-            custom_progress_function=process_simulation_recordings if realtime is True else None,
-        )
+    simulation = Simulation(
+        cell,
+        custom_progress_function=process_simulation_recordings if realtime is True else None,
+    )
 
-        simulation.run(
-            tstop=simulation_duration,
-            cvode=False,
-            dt=experimental_setup.time_step,
-            show_progress=True if realtime is True else False,
-        )
+    simulation.run(
+        tstop=simulation_duration,
+        cvode=False,
+        dt=experimental_setup.time_step,
+        show_progress=True if realtime is True else False,
+    )
 
-        if realtime is False:
-            process_simulation_recordings(enable_realtime=False)
-    except Exception as ex:
-        logger.exception(f"child simulation failed {ex}")
-        raise ChildSimulationError from ex
-    finally:
-        simulation_queue.put(SUB_PROCESS_STOP_EVENT)
+    if realtime is False:
+        process_simulation_recordings(enable_realtime=False)
 
 
-def _run_frequency_varying_stimulus(
+def _run_current_varying_stimulus(
+    realtime: bool,
+    template_params,
+    stimulus,
+    injection_section_name: str,
+    injection_segment: float,
+    recording_locations: list[RecordingLocation],
+    synapse_generation_config: list[SynapseSeries] | None,
+    experimental_setup: ExperimentSetupConfig,
+    simulation_duration: int,
+    simulation_queue: mp.Queue,
+    stimulus_name: StimulusName,
+    amplitude: float,
+    cvode: bool = True,
+    add_hypamp: bool = True,
+):
+    _run_child_simulation(
+        lambda: _current_varying_stimulus_impl(
+            realtime,
+            template_params,
+            stimulus,
+            injection_section_name,
+            injection_segment,
+            recording_locations,
+            synapse_generation_config,
+            experimental_setup,
+            simulation_duration,
+            simulation_queue,
+            stimulus_name,
+            amplitude,
+            cvode,
+            add_hypamp,
+        ),
+        simulation_queue,
+    )
+
+
+def _frequency_varying_stimulus_impl(
     realtime: bool,
     template_params,
     stimulus,
@@ -802,26 +849,59 @@ def _run_frequency_varying_stimulus(
                         )
                     )
 
-    try:
-        simulation = Simulation(
-            cell,
-            custom_progress_function=process_simulation_recordings if realtime is True else None,
-        )
+    simulation = Simulation(
+        cell,
+        custom_progress_function=process_simulation_recordings if realtime is True else None,
+    )
 
-        simulation.run(
-            tstop=simulation_duration,
-            cvode=False,
-            dt=experimental_setup.time_step,
-            show_progress=True if realtime is True else False,
-        )
+    simulation.run(
+        tstop=simulation_duration,
+        cvode=False,
+        dt=experimental_setup.time_step,
+        show_progress=True if realtime is True else False,
+    )
 
-        if realtime is False:
-            process_simulation_recordings(enable_realtime=False)
-    except Exception as ex:
-        logger.exception(f"child simulation failed {ex}")
-        raise ChildSimulationError from ex
-    finally:
-        simulation_queue.put(SUB_PROCESS_STOP_EVENT)
+    if realtime is False:
+        process_simulation_recordings(enable_realtime=False)
+
+
+def _run_frequency_varying_stimulus(
+    realtime: bool,
+    template_params,
+    stimulus,
+    injection_section_name: str,
+    injection_segment: float,
+    recording_locations: list[RecordingLocation],
+    synapse_generation_config: list[SynapseSeries] | None,
+    experimental_setup: ExperimentSetupConfig,
+    simulation_duration: int,
+    simulation_queue: mp.Queue,
+    stimulus_name: StimulusName,
+    amplitude: float,
+    frequency: float,
+    cvode: bool = True,
+    add_hypamp: bool = True,
+):
+    _run_child_simulation(
+        lambda: _frequency_varying_stimulus_impl(
+            realtime,
+            template_params,
+            stimulus,
+            injection_section_name,
+            injection_segment,
+            recording_locations,
+            synapse_generation_config,
+            experimental_setup,
+            simulation_duration,
+            simulation_queue,
+            stimulus_name,
+            amplitude,
+            frequency,
+            cvode,
+            add_hypamp,
+        ),
+        simulation_queue,
+    )
 
 
 def apply_multiple_stimulus(
