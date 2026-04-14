@@ -63,7 +63,11 @@ line-length = 100
 target-version = "py312"
 
 [tool.uv]
-find-links = ["ext-deps/ultraliser"]
+[[tool.uv.index]]
+name = "codeartifact"
+url = "https://openbraininstitute-985539765147.d.codeartifact.us-east-1.amazonaws.com/pypi/pypi-prod/simple/"
+explicit = true
 
 [tool.uv.sources]
+ultraliser = { index = "codeartifact" }
 ion-channel-builder = { git = "https://github.com/openbraininstitute/ion-channel-builder.git", tag = "0.0.15" }
