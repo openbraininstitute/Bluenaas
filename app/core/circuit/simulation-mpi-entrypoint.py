@@ -97,7 +97,6 @@ def get_instantiate_gids_params(
     if "inputs" in simulation_config_data:
         for input_def in simulation_config_data["inputs"].values():
             if input_def.get("module") == "synapse_replay":
-                params["add_replay"] = True
                 params["add_synapses"] = True
                 break
 
