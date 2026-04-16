@@ -166,7 +166,9 @@ class SingleNeuron(SingleNeuronBase):
         assert self.metadata.id is not None
 
         logger.debug(f"Fetching single neuron model {self.model_id}")
-        download_memodel(self.client, memodel=self.metadata, output_dir=str(self.path))
+        download_memodel(
+            self.client, memodel=self.metadata, output_dir=str(self.path), max_concurrent=8
+        )
 
     @property
     def holding_current(self) -> float:

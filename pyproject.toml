@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = "==3.12.13"
 
 dependencies = [
-    "entitysdk==0.13.3",
+    "entitysdk==0.14.1",
     "loguru==0.7.3",
     "msgpack>=1.1.2",
     "nanoid>=2.0.0",
