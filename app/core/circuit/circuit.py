@@ -1,5 +1,4 @@
 import json
-import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 from uuid import UUID
@@ -60,16 +59,9 @@ class CircuitBase(ABC):
 
     def _compile_mod_files(self):
         """Compile MOD files"""
-        mech_path = self.path / CIRCUIT_MOD_DIR
-        if not mech_path.is_dir():
-            err_msg = f"'{CIRCUIT_MOD_DIR}' folder not found under {self.path}"
-            raise FileNotFoundError(err_msg)
+        from app.core.compilation_cache import compile_with_cache
 
-        # TODO: add additional arg to ensure custom mod files compilation
-        # Check with Darshan
-        cmd = ["nrnivmodl", "-incflags", "-DDISABLE_REPORTINGLIB", CIRCUIT_MOD_DIR]
-        compilation_output = subprocess.check_output(cmd, cwd=self.path)
-        logger.debug(compilation_output.decode())
+        compile_with_cache(self.path, CIRCUIT_MOD_DIR)
 
     def init(self):
         """Fetch circuit assets and compile MOD files"""

@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from os import chdir
-import subprocess
 from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
@@ -23,6 +22,7 @@ from app.constants import (
     SINGLE_NEURON_MOD_DIR,
     SINGLE_NEURON_MORPHOLOGY_DIR,
 )
+from app.core.compilation_cache import compile_with_cache
 from app.core.exceptions import SingleNeuronInitError
 from app.infrastructure.storage import (
     copy_file_content,
@@ -66,26 +66,6 @@ class SingleNeuronBase(ABC):
             self.path / SINGLE_NEURON_MOD_DIR / "ProbAMPANMDA_EMS.mod",
         )
 
-    def _compile_mod_files(self):
-        """Compile MOD files"""
-        mech_path = self.path / SINGLE_NEURON_MOD_DIR
-        if not mech_path.is_dir():
-            err_msg = f"'{SINGLE_NEURON_MOD_DIR}' folder not found under {self.path}"
-            raise FileNotFoundError(err_msg)
-
-        cmd = [
-            "nrnivmodl",
-            "-incflags",
-            "-DDISABLE_REPORTINGLIB",
-            SINGLE_NEURON_MOD_DIR,
-        ]
-        compilation_output = subprocess.check_output(
-            cmd,
-            cwd=self.path,
-            text=True,
-        )
-        logger.debug(compilation_output)
-
     def _init_model_files(self):
         ready_marker = self.path / READY_MARKER_FILE_NAME
 
@@ -102,7 +82,7 @@ class SingleNeuronBase(ABC):
 
             self._fetch_assets()
             self._add_syn_mod_files()
-            self._compile_mod_files()
+            compile_with_cache(self.path, SINGLE_NEURON_MOD_DIR)
             ready_marker.touch()
 
     def _init_bcl_cell(self):
@@ -131,6 +111,13 @@ class SingleNeuronBase(ABC):
         )
 
         logger.debug("BCL Cell initialized")
+
+    def init_files(self):
+        """Fetch model assets and compile MOD files (no Cell creation)."""
+        try:
+            self._init_model_files()
+        except Exception:
+            raise SingleNeuronInitError()
 
     def init(self):
         """Fetch model assets, compile MOD files and initialize BlueCelluLab Cell"""
