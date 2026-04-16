@@ -106,6 +106,26 @@ class TestAdminRoutes(unittest.TestCase):
         self.assertEqual(response.json(), {"message": "Ion channel cache cleared successfully"})
         mock_clear_cache.assert_called_once()
 
+    @patch("app.routes.admin.clear_compilation_cache")
+    @patch("app.infrastructure.kc.auth.kc_auth")
+    def test_clear_compilation_cache_success(self, mock_kc_auth, mock_clear_cache):
+        mock_kc_auth.decode_token.return_value = {
+            "exp": 1234567890,
+            "iss": "http://localhost:9090/",
+            "sub": "admin-123",
+            "preferred_username": "admin",
+            "email": "admin@example.com",
+        }
+        mock_kc_auth.userinfo.return_value = {"groups": ["/service/small-scale-simulator/admin"]}
+
+        response = self.client.delete(
+            "/admin/cache/compilation", headers={"Authorization": "Bearer admin-token"}
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.json(), {"message": "Compilation cache cleared successfully"})
+        mock_clear_cache.assert_called_once()
+
     @patch("app.app.logger")
     @patch("app.infrastructure.kc.auth.kc_auth")
     def test_clear_cache_unauthorized(self, mock_kc_auth, mock_logger):

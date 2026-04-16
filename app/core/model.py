@@ -76,7 +76,7 @@ class Model:
         )
 
         single_neuron = SingleNeuron(self.model_id, client=client)
-        single_neuron.init()
+        single_neuron.init_files()
 
         self.threshold_current = single_neuron.threshold_current
 

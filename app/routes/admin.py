@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.infrastructure.kc.auth import AdminAuthDep
 from app.infrastructure.storage import (
     clear_circuit_cache,
+    clear_compilation_cache,
     clear_ion_channel_cache,
     clear_mesh_cache,
     clear_single_neuron_cache,
@@ -33,3 +34,9 @@ async def clear_mesh_storage(_: AdminAuthDep):
 async def clear_ion_channel_storage(_: AdminAuthDep):
     clear_ion_channel_cache()
     return {"message": "Ion channel cache cleared successfully"}
+
+
+@router.delete("/cache/compilation", tags=["admin"])
+async def clear_compilation_storage(_: AdminAuthDep):
+    clear_compilation_cache()
+    return {"message": "Compilation cache cleared successfully"}

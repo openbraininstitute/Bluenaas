@@ -2,7 +2,6 @@
 
 import json
 import re
-import subprocess
 from typing import Any
 
 import numpy as np
@@ -31,21 +30,9 @@ def is_spine(sec_name):
 
 def compile_mechanisms(model_path):
     """Compile model mechanisms."""
-    # Bail out if the mechanisms are already compiled
-    compiled_path = model_path / "x86_64"
-    if compiled_path.is_dir():
-        L.debug("Found already compiled mechanisms")
-        return
+    from app.core.compilation_cache import compile_with_cache
 
-    mech_path = model_path / SINGLE_NEURON_MOD_DIR
-    if not mech_path.is_dir():
-        raise Exception(
-            f"Folder not found! Expecting '{SINGLE_NEURON_MOD_DIR}' folder in the model!"
-        )
-    else:
-        cmd = ["nrnivmodl", "-incflags", "-DDISABLE_REPORTINGLIB", SINGLE_NEURON_MOD_DIR]
-        compilation_output = subprocess.check_output(cmd, cwd=model_path)
-        L.info(compilation_output.decode())
+    compile_with_cache(model_path, SINGLE_NEURON_MOD_DIR)
 
 
 def get_sec_name(template_name, sec):
