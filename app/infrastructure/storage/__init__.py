@@ -110,3 +110,7 @@ def clear_mesh_cache() -> None:
 
 def clear_ion_channel_cache() -> None:
     rm_dir(settings.STORAGE_PATH / "ion-channel")
+
+
+def clear_compilation_cache() -> None:
+    rm_dir(settings.STORAGE_PATH / "compilation-cache")
