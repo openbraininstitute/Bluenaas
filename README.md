@@ -24,18 +24,33 @@ To get the code for legacy (neuron) version check out [v1 branch](https://bbpgit
 
 ## Development
 
-After cloning or forking the repository, you need to download the 2 wheel files for Ultraliser 2.0.8 from here:
-<https://github.com/openbraininstitute/Ultraliser/releases/tag/v2.0.8>
+Ultraliser is hosted on AWS CodeArtifact. To install dependencies you need access to it via AWS SSO.
 
-```bash
-mkdir ext-deps/ultraliser
+Add the following to your `~/.aws/config`:
+
+```ini
+[sso-session obi]
+sso_start_url = https://openbraininstitute.awsapps.com/start/
+sso_region = us-east-1
+sso_registration_scopes = sso:account:access
+
+[profile CodeArtifact]
+sso_session = obi
+sso_account_id = 985539765147
+sso_role_name = ReadOnlyAccess
 ```
 
-And copy those wheel files into `ext-deps/ultraliser`.
-
-Use UV to install the dependencies:
+Then log in:
 
 ```bash
+aws sso login --sso-session obi
+```
+
+Now authenticate with CodeArtifact and install dependencies:
+
+```bash
+export UV_INDEX_CODEARTIFACT_USERNAME=aws
+export UV_INDEX_CODEARTIFACT_PASSWORD=$(aws codeartifact get-authorization-token --domain openbraininstitute --query authorizationToken --output text --profile CodeArtifact)
 uv sync
 ```
 
