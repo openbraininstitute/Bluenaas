@@ -66,5 +66,4 @@ target-version = "py312"
 find-links = ["ext-deps/ultraliser"]
 
 [tool.uv.sources]
-ultraliser = { path = "ext-deps/ultraliser" }
 ion-channel-builder = { git = "ssh://git@github.com/openbraininstitute/ion-channel-builder.git", tag = "0.0.15" }
