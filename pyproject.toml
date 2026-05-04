@@ -31,7 +31,7 @@ api = [
     "sentry-sdk[fastapi]==2.54.0",
 ]
 worker = [
-    "bluecellulab==2.6.95",
+    "bluecellulab==2.6.96",
     "efel==5.7.21",
     "filelock==3.25.0",
     "ion-channel-builder",
@@ -66,4 +66,5 @@ target-version = "py312"
 find-links = ["ext-deps/ultraliser"]
 
 [tool.uv.sources]
-ion-channel-builder = { git = "https://github.com/openbraininstitute/ion-channel-builder.git", tag = "0.0.15" }
+ultraliser = { path = "ext-deps/ultraliser" }
+ion-channel-builder = { git = "ssh://git@github.com/openbraininstitute/ion-channel-builder.git", tag = "0.0.15" }
