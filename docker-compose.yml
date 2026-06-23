@@ -56,7 +56,7 @@ services:
       PYTHONUNBUFFERED: 1
       ACCOUNTING_DISABLED: 1
       REDIS_URL: redis://redis:6379/0
-      QUEUES: high medium low mesh_skeletonization
+      QUEUES: high medium low
       NUM_WORKERS: 4
     develop:
       watch:

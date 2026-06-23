@@ -1,4 +1,5 @@
 import time
+from typing import Any, cast
 from loguru import logger
 
 import msgpack
@@ -47,10 +48,13 @@ async def redis_stream_reader(stream_key: str, timeout: int = settings.MAX_JOB_D
             )
 
         # Read messages from Redis stream
-        response = await redis_client.xread(
-            streams={stream_key: last_id},
-            count=1,
-            block=1000,  # ms
+        response = cast(
+            list[list[Any]],
+            await redis_client.xread(
+                streams={stream_key: last_id},
+                count=1,
+                block=1000,  # ms
+            ),
         )
         if not response:
             continue

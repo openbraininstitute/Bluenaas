@@ -20,16 +20,6 @@ jobs:
         with:
           python-version-file: "pyproject.toml"
 
-      # TODO Refactor
-      - name: Download Ultraliser wheels
-        uses: robinraju/release-downloader@v1.11
-        with:
-          repository: "openbraininstitute/Ultraliser"
-          tag: "v2.0.8"
-          fileName: "*.whl"
-          out-file-path: "ext-deps/ultraliser"
-          token: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
-
       - name: Check requirements
         run: make check-deps
 
