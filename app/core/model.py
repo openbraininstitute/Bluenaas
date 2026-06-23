@@ -387,6 +387,7 @@ def fetch_synaptome_model_details(
         )
 
         if asset:
+            assert asset.id is not None
             config = client.download_content(
                 entity_id=model_id,
                 entity_type=SingleNeuronSynaptome,
