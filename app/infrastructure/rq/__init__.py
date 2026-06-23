@@ -12,9 +12,6 @@ class JobQueue(StrEnum):
     HIGH = "high"  # single cpu hi-priority / realtime tasks
     MEDIUM = "medium"  # single cpu low-priority tasks
     LOW = "low"  # multi cpu tasks, e.g. circuit simulation
-    MESH_SKELETONIZATION = (
-        "mesh_skeletonization"  # Ultraliser tasks using workers with 16 cpus / 32 gb of ram
-    )
 
 
 _queues: Dict[JobQueue, Queue] = {

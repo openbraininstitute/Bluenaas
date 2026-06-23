@@ -312,7 +312,6 @@ notes.md
 _schemas.py
 tmp/
 .tmp/
-ext-deps/
 
 ### LLMs ###
 .claude/
