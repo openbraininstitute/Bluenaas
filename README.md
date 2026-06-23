@@ -24,15 +24,6 @@ To get the code for legacy (neuron) version check out [v1 branch](https://bbpgit
 
 ## Development
 
-After cloning or forking the repository, you need to download the 2 wheel files for Ultraliser 2.0.8 from here:
-<https://github.com/openbraininstitute/Ultraliser/releases/tag/v2.0.8>
-
-```bash
-mkdir ext-deps/ultraliser
-```
-
-And copy those wheel files into `ext-deps/ultraliser`.
-
 Use UV to install the dependencies:
 
 ```bash

@@ -29,16 +29,6 @@ jobs:
         with:
           fetch-depth: 0 # Get full history to check existing tags
 
-      # TODO Refactor
-      - name: Download Ultraliser wheels
-        uses: robinraju/release-downloader@v1.11
-        with:
-          repository: "openbraininstitute/Ultraliser"
-          tag: "v2.0.8"
-          fileName: "*.whl"
-          out-file-path: "ext-deps/ultraliser"
-          token: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
-
       - name: Set up Git
         run: |
           git config --global user.name "github-actions[bot]"

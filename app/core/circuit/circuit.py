@@ -184,6 +184,7 @@ class IonChannelModelCircuit(CircuitBase):
             None,
         )
         assert task_config_asset is not None, "Task config asset not found in the simulation assets"
+        assert task_config_asset.id is not None
 
         task_config_content = self.client.download_content(
             entity_id=self.simulation_id,
