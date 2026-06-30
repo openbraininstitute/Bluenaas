@@ -85,7 +85,7 @@ wheels = [
 
 [[package]]
 name = "bluecellulab"
-version = "2.6.98"
+version = "2.6.99"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bluepysnap" },
@@ -104,9 +104,9 @@ dependencies = [
     { name = "seaborn" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fa/85/f63ff829ba3d61eef3395fc2408af9adc9e0a2dedec372d2796a6d438537/bluecellulab-2.6.98.tar.gz", hash = "sha256:6c844c147e1d9ba17a652bfe4720aceb2108c41a5809166693b68094c3c695ac", size = 558266, upload-time = "2026-06-18T14:32:13.632Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9e/70/b2690a75cabf1d0821a8bbb4bdc108d86793cf4038c73c7d7d709dd7e301/bluecellulab-2.6.99.tar.gz", hash = "sha256:10f473a56aa292e6d5937ec0ba4e79ff02b89a46756d6d758512f5a28e859798", size = 568674, upload-time = "2026-06-30T11:57:31.771Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/51/20/97c0bfc1caa786e43206b511619d707d43dd451375e8398e8f5980367062/bluecellulab-2.6.98-py3-none-any.whl", hash = "sha256:f13cf756af0616267f691c015a6178f1bdb8260a36402d0316de6aa9076ff14c", size = 183343, upload-time = "2026-06-18T14:32:12.438Z" },
+    { url = "https://files.pythonhosted.org/packages/82/e0/240507c32e83bb38566eecba1fda6b1d1e1814673724659244804aae6f90/bluecellulab-2.6.99-py3-none-any.whl", hash = "sha256:ac94f5779fdbd6c032802f9599be0c5844966f22a2285a1912797b83245c7efb", size = 194591, upload-time = "2026-06-30T11:57:30.282Z" },
 ]
 
 [[package]]
@@ -222,8 +222,8 @@ types = [
     { name = "types-requests", specifier = "==2.32.4.20260107" },
 ]
 worker = [
-    { name = "bluecellulab", specifier = "==2.6.98" },
-    { name = "efel", specifier = "==5.7.21" },
+    { name = "bluecellulab", specifier = "==2.6.99" },
+    { name = "efel", specifier = "==5.7.27" },
     { name = "filelock", specifier = "==3.25.0" },
     { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.17" },
     { name = "morphio", specifier = "==3.4.2" },
@@ -663,20 +663,19 @@ wheels = [
 
 [[package]]
 name = "efel"
-version = "5.7.21"
+version = "5.7.27"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "neo" },
     { name = "numpy" },
-    { name = "pynwb" },
     { name = "scipy" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e8/0c/d86988ffa3e9e597f6a514245f492fb102334ccc057e897d32ccc28d9791/efel-5.7.21.tar.gz", hash = "sha256:934a014ef229231dcaa299b75e558f98b9597056070e3aa90f0db4c44a8f1c6a", size = 140879, upload-time = "2026-04-07T15:05:39.667Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0c/b3/76c1573b5a9d2649ab0004656fc908fb681be03c1657c38a48a6bada9f8f/efel-5.7.27.tar.gz", hash = "sha256:19be98e258f13c36dee3e6e34e2ee4e9ae1bc96853bfa3a9c370861b87858a7e", size = 141113, upload-time = "2026-06-29T11:14:09.909Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c0/13/e5868b9e09e72605039cf75dbcfa5bd0cd93580a22941a1076563aa63c0f/efel-5.7.21-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:65b17876329ae2a1f4ae30a6be49f3ab9f807cddd53e65a1e17dd78a5e837ea5", size = 253812, upload-time = "2026-04-07T15:05:22.108Z" },
-    { url = "https://files.pythonhosted.org/packages/5e/47/0289a4f752bd78c56e6155fe88da466b5ea0fa364038b08497dfb280f6e4/efel-5.7.21-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:25c49ab84d12be627b156dea4e139067826c3e6cfd0e2fc6f11b4a8a222fc6eb", size = 3019481, upload-time = "2026-04-07T15:05:23.454Z" },
-    { url = "https://files.pythonhosted.org/packages/c6/6f/ce9dbea3f78fe4dd444db41b79ddeac07dd21a2fd977d779c468bc5a3b1c/efel-5.7.21-cp312-cp312-win_amd64.whl", hash = "sha256:c975dba2025713845a43151e62e964205ac3bcc6ad4e884df86b95d7df3b186e", size = 238053, upload-time = "2026-04-07T15:05:25.226Z" },
+    { url = "https://files.pythonhosted.org/packages/64/4f/c91ab2798467abf5b157ce63096bb0bb978a946fe99c164694508a00cb62/efel-5.7.27-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:de08f96ea83a1ba11baee44c3faf895dd3b9b5ecb61d865efa86ead7593d2716", size = 254014, upload-time = "2026-06-29T11:13:50.842Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/72/c9bfb5674d9038d730663ccad4f8a0ecf210dca1aa4b80af38e03c320950/efel-5.7.27-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:38f165be3e4292a6d73cdb631e80c93f6bf2f68bd0740cb18b448eb92ee6f6e9", size = 3019690, upload-time = "2026-06-29T11:13:52.408Z" },
+    { url = "https://files.pythonhosted.org/packages/22/8e/cf711511dfc998d0a7df076467aaa4d8ebb8284d153a1e16007769f655aa/efel-5.7.27-cp312-cp312-win_amd64.whl", hash = "sha256:954c6e10046c48f20c9053a3cc5c8158dd76a963c3ac355eea4b76d053081490", size = 408334, upload-time = "2026-06-29T11:13:54.016Z" },
 ]
 
 [[package]]
