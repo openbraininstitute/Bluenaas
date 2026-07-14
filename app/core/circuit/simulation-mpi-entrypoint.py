@@ -116,7 +116,13 @@ def run_bluecellulab(
     """
 
     # Get MPI info using NEURON's ParallelContext
-    h.nrn_load_dll(libnrnmech_path)
+    if Path(libnrnmech_path).exists():
+        h.nrn_load_dll(libnrnmech_path)
+    else:
+        logger.info(
+            f"No compiled mechanisms at {libnrnmech_path}; "
+            "using NEURON built-in mechanisms only"
+        )
     h.nrnmpi_init()
     pc = h.ParallelContext()
     rank = int(pc.id())

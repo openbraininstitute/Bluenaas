@@ -149,7 +149,9 @@ class MEModelCircuit(CircuitBase):
         assert self.metadata.id is not None
         stage_sonata_from_memodel(self.client, memodel=self.metadata, output_dir=self.path)
         mod_path = self.path / CIRCUIT_MEMODEL_MOD_DIR
-        mod_path.rename(self.path / CIRCUIT_MOD_DIR)
+        # Passive ME-models ship no mechanisms, so the folder may be absent.
+        if mod_path.is_dir():
+            mod_path.rename(self.path / CIRCUIT_MOD_DIR)
 
 
 class IonChannelModelCircuit(CircuitBase):
