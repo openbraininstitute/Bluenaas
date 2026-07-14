@@ -47,8 +47,13 @@ def compile_with_cache(model_path: Path, mod_dir_name: str) -> None:
         return
 
     mod_dir = model_path / mod_dir_name
-    if not mod_dir.is_dir():
-        raise FileNotFoundError(f"'{mod_dir_name}' folder not found under {model_path}")
+    mod_files = sorted(mod_dir.glob("*.mod")) if mod_dir.is_dir() else []
+    if not mod_files:
+        logger.info(
+            f"No .mod files found under {mod_dir}; skipping compilation "
+            "(model uses only NEURON built-in mechanisms)"
+        )
+        return
 
     mod_hash = compute_mod_hash(mod_dir)
     cache_path = get_compilation_cache_path(mod_hash)
