@@ -133,12 +133,26 @@ class TestCompileWithCache(unittest.TestCase):
         self.assertEqual(mock_sub.check_output.call_count, 1)  # Still 1
         self.assertTrue((self.model_path / "x86_64" / "lib" / "nrnmech.so").exists())
 
-    def test_missing_mod_dir_raises(self):
-        empty_path = self.tmpdir / "empty"
-        empty_path.mkdir()
+    def test_missing_mod_dir_skips(self):
+        model_path = self.tmpdir / "no_mechanisms"
+        model_path.mkdir()
 
-        with self.assertRaises(FileNotFoundError):
-            compile_with_cache(empty_path, "mechanisms")
+        with patch("app.core.compilation_cache.subprocess") as mock_sub:
+            compile_with_cache(model_path, "mechanisms")
+            mock_sub.check_output.assert_not_called()
+
+        self.assertFalse((model_path / "x86_64").exists())
+
+    def test_empty_mod_dir_skips(self):
+        model_path = self.tmpdir / "empty_mechanisms"
+        model_path.mkdir()
+        (model_path / "mechanisms").mkdir()
+
+        with patch("app.core.compilation_cache.subprocess") as mock_sub:
+            compile_with_cache(model_path, "mechanisms")
+            mock_sub.check_output.assert_not_called()
+
+        self.assertFalse((model_path / "x86_64").exists())
 
 
 if __name__ == "__main__":
