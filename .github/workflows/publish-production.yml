@@ -14,6 +14,15 @@ concurrency:
 jobs:
   publish-to-aws-ecr:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image_name: api
+            dockerfile: Dockerfile.api
+            platforms: linux/amd64,linux/arm64
+          - image_name: worker
+            dockerfile: Dockerfile.worker
+            platforms: linux/amd64 # ARM64 blocked by obi-one dep chain (pylmesh, bluepyefe, bluepysnap)
     env:
       ENVIRONMENT: "prod"
       IMAGE_NAME: ${{ vars.PUBLICECR_URI }}
@@ -53,9 +62,19 @@ jobs:
           echo "New tag: $NEW_TAG"
 
       - name: Create Git Tag
+        if: matrix.image_name == 'api'
         run: |
           git tag $NEW_TAG
           git push origin $NEW_TAG
+
+      - name: Set up QEMU
+        if: contains(matrix.platforms, 'arm64')
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
@@ -68,8 +87,15 @@ jobs:
         with:
           registry-type: public
 
-      - name: Build and publish the Docker images to AWS ECR
-        env:
-          IMAGE_TAG_SUFFIX: ${{ env.NEW_TAG }}
-          GH_PRIVATE_REPO_TOKEN: ${{ secrets.GH_PRIVATE_REPO_TOKEN }}
-        run: make publish
+      - name: Build and push ${{ matrix.image_name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ matrix.image_name }}-${{ env.NEW_TAG }}
+          build-args: |
+            ENVIRONMENT=${{ env.ENVIRONMENT }}
+          secrets: |
+            GH_PRIVATE_REPO_TOKEN=${{ secrets.GH_PRIVATE_REPO_TOKEN }}
