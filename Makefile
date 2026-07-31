@@ -13,13 +13,8 @@ export IMAGE_TAG_SUFFIX ?= staging
 # endif
 
 # This ensures that owner uid/gid for the volume mounts match the host user.
-ifeq ($(CI),true)
-  UID := 1000
-  GID := 1000
-else
-  UID := $(shell id -u)
-  GID := $(shell id -g)
-endif
+UID := $(shell id -u)
+GID := $(shell id -g)
 
 export UID
 export GID
