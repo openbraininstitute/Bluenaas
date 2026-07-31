@@ -40,8 +40,8 @@ EOT
 FROM python:$PYTHON_BASE
 SHELL ["bash", "-e", "-x", "-o", "pipefail", "-c"]
 
-ARG HOST_UID
-ARG HOST_GID
+ARG HOST_UID=1000
+ARG HOST_GID=1000
 
 RUN <<EOT
   groupadd --system --gid ${HOST_GID} --force app
