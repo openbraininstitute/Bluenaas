@@ -55,7 +55,7 @@ WORKDIR /app
 RUN mkdir -p /app/storage
 
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app:$PYTHONPATH"
+ENV PYTHONPATH="/app"
 
 COPY --chown=app:app --from=builder /app/.venv/ .venv/
 COPY --chown=app:app docker-api-cmd.sh ./docker-cmd.sh
