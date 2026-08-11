@@ -55,14 +55,16 @@ jobs:
 
   publish-to-aws-ecr:
     needs: determine_tag
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         include:
           - image_name: api
+            runner: ubuntu-24.04-arm
             dockerfile: Dockerfile.api
             platforms: linux/amd64,linux/arm64
           - image_name: worker
+            runner: ubuntu-latest
             dockerfile: Dockerfile.worker
             platforms: linux/amd64 # ARM64 blocked by obi-one dep chain (pylmesh, bluepyefe, bluepysnap)
     env:
@@ -76,7 +78,7 @@ jobs:
         if: contains(matrix.platforms, 'arm64')
         uses: docker/setup-qemu-action@v4
         with:
-          platforms: arm64
+          platforms: all
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
