@@ -31,7 +31,7 @@ api = [
     "sentry-sdk[fastapi]==2.54.0",
 ]
 worker = [
-    "bluecellulab==2.6.99",
+    "bluecellulab==2.6.100",
     "efel==5.7.27",
     "filelock==3.25.0",
     "ion-channel-builder",
