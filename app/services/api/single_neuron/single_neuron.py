@@ -3,8 +3,11 @@ from entitysdk._server_schemas import ValidationStatus
 from entitysdk.models import (
     BrainRegion,
     CellMorphology,
+    Contribution,
     EModel,
     MEModel,
+    Person,
+    Role,
     Species,
     Strain,
     MTypeClassification,
@@ -22,6 +25,32 @@ from app.job import JobFn
 from app.utils.accounting import make_accounting_reservation_async
 from app.utils.asyncio import run_async
 from app.utils.rq_job import dispatch
+
+
+def _get_or_create_creator_person(client: Client, auth: Auth) -> Person:
+    """Resolve a Person agent for the current user without using created_by (now PlatformUser)."""
+    token = auth.decoded_token
+    pref_label = token.name or token.preferred_username
+    query: dict[str, str] = {
+        "created_by__id": token.sub,
+        "pref_label": pref_label,
+    }
+    if token.given_name:
+        query["given_name"] = token.given_name
+    if token.family_name:
+        query["family_name"] = token.family_name
+
+    person = client.search_entity(entity_type=Person, limit=1, query=query).first()
+    if person is not None:
+        return person
+
+    return client.register_entity(
+        Person(
+            given_name=token.given_name,
+            family_name=token.family_name,
+            pref_label=pref_label,
+        )
+    )
 
 
 async def create_single_neuron_model(
@@ -84,6 +113,22 @@ async def create_single_neuron_model(
                 species=species,
                 strain=strain,
                 validation_status=ValidationStatus.created,
+            )
+        )
+    )
+
+    agent = await run_async(lambda: _get_or_create_creator_person(client, auth))
+    role = await run_async(
+        lambda: client.search_entity(
+            entity_type=Role, limit=1, query={"name": "creator role"}
+        ).one()
+    )
+    await run_async(
+        lambda: client.register_entity(
+            Contribution(
+                agent=agent,
+                role=role,
+                entity=initial_memodel,
             )
         )
     )
