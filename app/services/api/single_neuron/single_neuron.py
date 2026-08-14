@@ -30,17 +30,11 @@ from app.utils.rq_job import dispatch
 def _get_or_create_creator_person(client: Client, auth: Auth) -> Person:
     """Resolve a Person agent for the current user without using created_by (now PlatformUser)."""
     token = auth.decoded_token
-    pref_label = token.name or token.preferred_username
-    query: dict[str, str] = {
-        "created_by__id": token.sub,
-        "pref_label": pref_label,
-    }
-    if token.given_name:
-        query["given_name"] = token.given_name
-    if token.family_name:
-        query["family_name"] = token.family_name
-
-    person = client.search_entity(entity_type=Person, limit=1, query=query).first()
+    person = client.search_entity(
+        entity_type=Person,
+        limit=1,
+        query={"created_by__id": token.sub},
+    ).first()
     if person is not None:
         return person
 
@@ -48,7 +42,7 @@ def _get_or_create_creator_person(client: Client, auth: Auth) -> Person:
         Person(
             given_name=token.given_name,
             family_name=token.family_name,
-            pref_label=pref_label,
+            pref_label=token.name or token.preferred_username,
         )
     )
 
