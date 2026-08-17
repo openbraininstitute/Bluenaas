@@ -3,15 +3,15 @@ from entitysdk._server_schemas import ValidationStatus
 from entitysdk.models import (
     BrainRegion,
     CellMorphology,
+    Contribution,
     EModel,
-    MEModel,
-    Species,
-    Strain,
-    MTypeClassification,
     ETypeClassification,
+    MEModel,
+    MTypeClassification,
     Person,
     Role,
-    Contribution,
+    Species,
+    Strain,
 )
 from obp_accounting_sdk.constants import ServiceSubtype
 from rq import Queue
@@ -91,18 +91,25 @@ async def create_single_neuron_model(
         )
     )
 
-    created_by = initial_memodel.created_by
-    assert created_by is not None
-    agent_id = created_by.id
-    assert agent_id is not None
-    agent = client.get_entity(entity_id=agent_id, entity_type=Person)
-    role = client.search_entity(entity_type=Role, limit=1, query={"name": "creator role"}).one()
-    contribution = Contribution(
-        agent=agent,
-        role=role,
-        entity=initial_memodel,
+    agent = await run_async(
+        lambda: client.search_entity(
+            entity_type=Person, limit=1, query={"sub_id": initial_memodel.created_by.id}
+        ).one()
     )
-    contribution = client.register_entity(contribution)
+    role = await run_async(
+        lambda: client.search_entity(
+            entity_type=Role, limit=1, query={"name": "creator role"}
+        ).one()
+    )
+    await run_async(
+        lambda: client.register_entity(
+            Contribution(
+                agent=agent,
+                role=role,
+                entity=initial_memodel,
+            )
+        )
+    )
 
     for etype in emodel.etypes or []:
         await run_async(
