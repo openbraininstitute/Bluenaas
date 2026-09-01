@@ -80,7 +80,11 @@ def compile_with_cache(model_path: Path, mod_dir_name: str) -> None:
         shutil.copytree(mod_dir, cache_mod_dir)
 
         cmd = ["nrnivmodl", "-incflags", "-DDISABLE_REPORTINGLIB", mod_dir_name]
-        compilation_output = subprocess.check_output(cmd, cwd=cache_path, text=True)
+        # Fold stderr in: the compiler writes its diagnostics there, and without this
+        # a CalledProcessError carries only stdout, losing the reason it failed.
+        compilation_output = subprocess.check_output(
+            cmd, cwd=cache_path, text=True, stderr=subprocess.STDOUT
+        )
         logger.debug(compilation_output)
 
         cache_ready.touch()

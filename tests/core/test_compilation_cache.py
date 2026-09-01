@@ -93,7 +93,7 @@ class TestCompileWithCache(unittest.TestCase):
     def test_cache_miss_compiles_and_caches(self, mock_sub, mock_settings):
         mock_settings.STORAGE_PATH = self.storage_path
 
-        def fake_compile(cmd, cwd, text=False):
+        def fake_compile(cmd, cwd, text=False, stderr=None):
             (cwd / "x86_64" / "lib").mkdir(parents=True)
             (cwd / "x86_64" / "lib" / "nrnmech.so").write_text("compiled")
             return "compilation output"
@@ -114,7 +114,7 @@ class TestCompileWithCache(unittest.TestCase):
     def test_cache_hit_skips_compilation(self, mock_sub, mock_settings):
         mock_settings.STORAGE_PATH = self.storage_path
 
-        def fake_compile(cmd, cwd, text=False):
+        def fake_compile(cmd, cwd, text=False, stderr=None):
             (cwd / "x86_64" / "lib").mkdir(parents=True)
             (cwd / "x86_64" / "lib" / "nrnmech.so").write_text("compiled")
             return "compilation output"

@@ -59,10 +59,15 @@ class AppErrorResponse(BaseModel):
 
 
 class _BaseMessageException(Exception):
-    """Base class for exceptions that only need a message."""
+    """Base class for exceptions that only need a message.
 
-    def __init__(self, message: str) -> None:
+    ``details`` carries the longer diagnostic behind the message — a captured NEURON
+    log, a compiler transcript — for callers that want to surface or log it.
+    """
+
+    def __init__(self, message: str, *, details: str | None = None) -> None:
         self.message = message
+        self.details = details
         super().__init__(self.message)
 
     def __str__(self) -> str:
@@ -115,8 +120,32 @@ class CircuitSimulationError(_BaseMessageException):
 
 
 class SingleNeuronInitError(_BaseMessageException):
-    def __init__(self, message: str = "Single neuron model instantiation failed") -> None:
-        super().__init__(message)
+    """NEURON refused the model itself — typically a morphology the emodel cannot use."""
+
+    def __init__(
+        self,
+        message: str = "Single neuron model instantiation failed",
+        *,
+        details: str | None = None,
+    ) -> None:
+        super().__init__(message, details=details)
+
+
+class SingleNeuronAssetError(_BaseMessageException):
+    """Model assets could not be fetched or compiled.
+
+    Distinct from ``SingleNeuronInitError`` because it says nothing about whether the
+    morphology and emodel go together — it is an infrastructure failure, and a caller
+    should offer a retry rather than tell the user to pick a different combination.
+    """
+
+    def __init__(
+        self,
+        message: str = "Single neuron model assets could not be prepared",
+        *,
+        details: str | None = None,
+    ) -> None:
+        super().__init__(message, details=details)
 
 
 class EMCellMeshInitError(_BaseMessageException):

@@ -23,13 +23,14 @@ from app.constants import (
     SINGLE_NEURON_MORPHOLOGY_DIR,
 )
 from app.core.compilation_cache import compile_with_cache
-from app.core.exceptions import SingleNeuronInitError
+from app.core.exceptions import SingleNeuronAssetError, SingleNeuronInitError
 from app.infrastructure.storage import (
     copy_file_content,
     get_model_candidate_location,
     get_single_neuron_location,
     rm_dir,
 )
+from app.utils.neuron_output import capture_neuron_output, neuron_error_summary
 
 
 class SingleNeuronBase(ABC):
@@ -116,8 +117,12 @@ class SingleNeuronBase(ABC):
         """Fetch model assets and compile MOD files (no Cell creation)."""
         try:
             self._init_model_files()
-        except Exception:
-            raise SingleNeuronInitError()
+        except Exception as ex:
+            # subprocess failures (nrnivmodl) carry the compiler transcript on .output
+            details = getattr(ex, "output", None)
+            raise SingleNeuronAssetError(
+                f"{type(ex).__name__}: {ex}", details=details or None
+            ) from ex
 
     def init(self):
         """Fetch model assets, compile MOD files and initialize BlueCelluLab Cell"""
@@ -125,14 +130,29 @@ class SingleNeuronBase(ABC):
             logger.warning("Single neuron model already initialized")
             return
 
-        try:
-            self._init_model_files()
-            self._init_bcl_cell()
+        self.init_files()
 
-            self.initialized = True
+        # Import ahead of the capture: NEURON prints a banner on first import ("no
+        # DISPLAY environment variable"), which has no business in what we show a user.
+        import bluecellulab  # noqa: F401
 
-        except Exception:
-            raise SingleNeuronInitError()
+        # Everything below is the model itself refusing to instantiate, which is a
+        # different kind of failure from not being able to fetch its files.
+        with capture_neuron_output() as neuron_output:
+            try:
+                self._init_bcl_cell()
+            except Exception as ex:
+                raise SingleNeuronInitError(
+                    neuron_error_summary(ex, neuron_output.text),
+                    details=neuron_output.text or None,
+                ) from ex
+
+        # Capturing would otherwise silently drop the warnings NEURON prints on an
+        # otherwise successful instantiation.
+        if neuron_output.text:
+            logger.debug(f"NEURON output during model init:\n{neuron_output.text}")
+
+        self.initialized = True
 
     def cleanup(self) -> None:
         """Remove model files from storage. No-op by default."""
