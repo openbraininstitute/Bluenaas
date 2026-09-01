@@ -136,21 +136,20 @@ class SingleNeuronBase(ABC):
         # DISPLAY environment variable"), which has no business in what we show a user.
         import bluecellulab  # noqa: F401
 
-        # Everything below is the model itself refusing to instantiate, which is a
-        # different kind of failure from not being able to fetch its files.
         with capture_neuron_output() as neuron_output:
             try:
                 self._init_bcl_cell()
             except Exception as ex:
+                captured = neuron_output.getvalue()
                 raise SingleNeuronInitError(
-                    neuron_error_summary(ex, neuron_output.text),
-                    details=neuron_output.text or None,
+                    neuron_error_summary(ex, captured), details=captured or None
                 ) from ex
 
         # Capturing would otherwise silently drop the warnings NEURON prints on an
         # otherwise successful instantiation.
-        if neuron_output.text:
-            logger.debug(f"NEURON output during model init:\n{neuron_output.text}")
+        captured = neuron_output.getvalue()
+        if captured:
+            logger.debug("NEURON output during model init:\n{}", captured)
 
         self.initialized = True
 

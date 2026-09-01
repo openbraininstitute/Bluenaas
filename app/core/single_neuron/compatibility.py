@@ -18,6 +18,7 @@ from app.utils.neuron_output import scrub_neuron_output
 # "Single neuron model instantiation failed", and failures were cached unconditionally.
 # Renaming the file retires them without an ops step.
 RESULT_FILE_NAME = "result-v2.json"
+LEGACY_RESULT_FILE_NAME = "result.json"
 
 
 class CompatibilityChecker:
@@ -98,8 +99,8 @@ class CompatibilityChecker:
             status=status,
             morphology_id=self.morphology_id,
             emodel_id=self.emodel_id,
-            error=scrub_neuron_output(error) or None if error else None,
-            details=scrub_neuron_output(details) or None if details else None,
+            error=scrub_neuron_output(error),
+            details=scrub_neuron_output(details),
         )
 
     def _cache(self, result: CompatibilityCheckResponse) -> None:
@@ -108,3 +109,7 @@ class CompatibilityChecker:
         with lock.acquire(timeout=2 * 60):
             result_file = self.result_path / RESULT_FILE_NAME
             result_file.write_text(result.model_dump_json())
+
+            # Nothing reads the superseded file, and leaving it behind would strand a
+            # copy on disk for every pair checked before this deploy.
+            (self.result_path / LEGACY_RESULT_FILE_NAME).unlink(missing_ok=True)

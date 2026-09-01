@@ -21,6 +21,10 @@ from typing import Iterator
 # cached compatibility result on disk.
 MAX_OUTPUT_LENGTH = 4000
 
+# Cap what we buffer. Scrubbing discards blank lines and source context before the
+# output cap applies, so a few times that cap leaves ample headroom.
+MAX_CAPTURE_LENGTH = 4 * MAX_OUTPUT_LENGTH
+
 # "hocobj_call error: hoc_execerror: <the message we actually want>"
 _HOC_ERROR_PREFIX = re.compile(r"^(?:hocobj_call error:\s*)?(?:hoc_execerror:\s*)?")
 
@@ -34,34 +38,46 @@ _TEMPLATE_SUFFIX = re.compile(r"_bluecellulab_[0-9a-f]{32}")
 _EMPTY_SOURCE_CONTEXT = re.compile(r"^\s*(?:near line 0|\^)\s*$")
 
 
-class NeuronOutput:
-    """Accumulates whatever NEURON wrote while the capture was active."""
+class _BoundedBuffer(io.StringIO):
+    """A ``StringIO`` that silently drops everything past ``MAX_CAPTURE_LENGTH``.
 
-    def __init__(self) -> None:
-        self.stdout = io.StringIO()
-        self.stderr = io.StringIO()
+    How much NEURON prints is up to the mod files — a ``printf`` per segment is
+    enough to produce megabytes — and only the head of it ever reaches a user, so
+    there is nothing to gain from holding the rest in a long-lived worker.
+    """
 
-    @property
-    def text(self) -> str:
-        """Everything NEURON printed, stderr first, verbatim."""
-        return "".join(part for part in (self.stderr.getvalue(), self.stdout.getvalue()) if part)
+    def write(self, s: str) -> int:
+        remaining = MAX_CAPTURE_LENGTH - self.tell()
+
+        if remaining > 0:
+            super().write(s[:remaining])
+
+        # Report the full length regardless: NEURON's print hook is not prepared to
+        # handle a short write, and the dropped tail is deliberate.
+        return len(s)
 
 
 @contextmanager
-def capture_neuron_output() -> Iterator[NeuronOutput]:
+def capture_neuron_output() -> Iterator[io.StringIO]:
     """Collect NEURON's printed diagnostics for the duration of the block.
 
-    The output is readable from inside the block too, which is what callers need
-    when they want to attach it to the exception they are about to raise.
+    Both streams share one buffer, so the text keeps the order NEURON printed it in.
     """
-    output = NeuronOutput()
+    buffer = _BoundedBuffer()
 
-    with redirect_stdout(output.stdout), redirect_stderr(output.stderr):
-        yield output
+    with redirect_stdout(buffer), redirect_stderr(buffer):
+        yield buffer
 
 
-def scrub_neuron_output(text: str) -> str:
-    """Strip container paths and NEURON bookkeeping from output shown to a user."""
+def scrub_neuron_output(text: str | None) -> str | None:
+    """Strip container paths and NEURON bookkeeping from output shown to a user.
+
+    Returns ``None`` for anything that scrubs down to nothing, so a caller can assign
+    the result straight to an optional field.
+    """
+    if not text:
+        return None
+
     lines = []
 
     for line in text.splitlines():
@@ -72,9 +88,7 @@ def scrub_neuron_output(text: str) -> str:
         line = _TEMPLATE_SUFFIX.sub("", line)
         line = line.rstrip()
 
-        # NEURON pads its blocks with blank lines and never uses them meaningfully;
-        # dropping them keeps the details readable in a narrow panel. Each error block
-        # still opens with its own "NEURON: " line.
+        # NEURON pads its blocks with blank lines and never uses them meaningfully.
         if not line:
             continue
 
@@ -85,7 +99,7 @@ def scrub_neuron_output(text: str) -> str:
     if len(scrubbed) > MAX_OUTPUT_LENGTH:
         scrubbed = f"{scrubbed[:MAX_OUTPUT_LENGTH].rstrip()}\n… (truncated)"
 
-    return scrubbed
+    return scrubbed or None
 
 
 def neuron_error_summary(exception: BaseException, captured: str = "") -> str:
@@ -96,13 +110,16 @@ def neuron_error_summary(exception: BaseException, captured: str = "") -> str:
     emodel can't be run with such a morphology!" — and falls back to the printed
     ``NEURON:`` line for the failures that print without raising anything useful.
     """
-    message = _HOC_ERROR_PREFIX.sub("", str(exception)).strip()
+    summary = _HOC_ERROR_PREFIX.sub("", str(exception)).strip()
 
-    if message:
-        return _TEMPLATE_SUFFIX.sub("", message)
+    if not summary:
+        summary = next(
+            (
+                line.removeprefix("NEURON: ").strip()
+                for line in captured.splitlines()
+                if line.startswith("NEURON: ")
+            ),
+            type(exception).__name__,
+        )
 
-    for line in captured.splitlines():
-        if line.startswith("NEURON: "):
-            return _TEMPLATE_SUFFIX.sub("", line.removeprefix("NEURON: ").strip())
-
-    return type(exception).__name__
+    return _TEMPLATE_SUFFIX.sub("", summary)

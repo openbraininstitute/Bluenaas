@@ -8,6 +8,7 @@ os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
 from app.core.exceptions import SingleNeuronAssetError, SingleNeuronInitError
 from app.core.single_neuron.single_neuron import SingleNeuronBase
+from tests.neuron_template import ERROR_MESSAGE, raise_hoc_error
 
 
 class _StubNeuron(SingleNeuronBase):
@@ -41,20 +42,6 @@ class _StubNeuron(SingleNeuronBase):
 class TestSingleNeuronInit(unittest.TestCase):
     """The failure a user sees must carry NEURON's own wording, not a constant string."""
 
-    @classmethod
-    def setUpClass(cls):
-        from neuron import h
-
-        cls.h = h
-        h("""
-            begintemplate InitTestBoom
-            proc init() {
-                execerror("Less than three axon sections are present!", \
-"This emodel can't be run with such a morphology!")
-            }
-            endtemplate InitTestBoom
-        """)
-
     def setUp(self):
         self.tmp_dir = Path(tempfile.mkdtemp())
 
@@ -62,29 +49,19 @@ class TestSingleNeuronInit(unittest.TestCase):
         shutil.rmtree(self.tmp_dir)
 
     def test_hoc_error_surfaces_as_an_incompatibility_with_neuron_wording(self):
-        neuron = _StubNeuron(self.tmp_dir, cell_body=lambda: self.h.InitTestBoom())
+        neuron = _StubNeuron(self.tmp_dir, cell_body=raise_hoc_error)
 
         with self.assertRaises(SingleNeuronInitError) as ctx:
             neuron.init()
 
         error = ctx.exception
 
-        self.assertEqual(
-            error.message,
-            "Less than three axon sections are present! "
-            "This emodel can't be run with such a morphology!",
-        )
+        self.assertEqual(error.message, ERROR_MESSAGE)
         self.assertIn("Less than three axon sections", error.details or "")
+        # NEURON's import banner would otherwise be the first thing a user reads.
+        self.assertNotIn("DISPLAY", error.details or "")
         # The original NEURON exception stays chained, so worker logs keep the traceback.
         self.assertIsInstance(error.__cause__, RuntimeError)
-
-    def test_details_exclude_neurons_import_banner(self):
-        neuron = _StubNeuron(self.tmp_dir, cell_body=lambda: self.h.InitTestBoom())
-
-        with self.assertRaises(SingleNeuronInitError) as ctx:
-            neuron.init()
-
-        self.assertNotIn("DISPLAY", ctx.exception.details or "")
 
     def test_asset_failure_is_not_reported_as_an_incompatibility(self):
         neuron = _StubNeuron(self.tmp_dir, files_error=TimeoutError("download timed out"))

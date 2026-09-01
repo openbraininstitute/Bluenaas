@@ -61,12 +61,17 @@ class AppErrorResponse(BaseModel):
 class _BaseMessageException(Exception):
     """Base class for exceptions that only need a message.
 
+    Subclasses supply their wording as ``default_message`` rather than redeclaring a
+    constructor, so a new base-class field costs one edit instead of one per subclass.
+
     ``details`` carries the longer diagnostic behind the message — a captured NEURON
     log, a compiler transcript — for callers that want to surface or log it.
     """
 
-    def __init__(self, message: str, *, details: str | None = None) -> None:
-        self.message = message
+    default_message = "Operation failed"
+
+    def __init__(self, message: str | None = None, *, details: str | None = None) -> None:
+        self.message = message or self.default_message
         self.details = details
         super().__init__(self.message)
 
@@ -122,13 +127,7 @@ class CircuitSimulationError(_BaseMessageException):
 class SingleNeuronInitError(_BaseMessageException):
     """NEURON refused the model itself — typically a morphology the emodel cannot use."""
 
-    def __init__(
-        self,
-        message: str = "Single neuron model instantiation failed",
-        *,
-        details: str | None = None,
-    ) -> None:
-        super().__init__(message, details=details)
+    default_message = "Single neuron model instantiation failed"
 
 
 class SingleNeuronAssetError(_BaseMessageException):
@@ -139,13 +138,7 @@ class SingleNeuronAssetError(_BaseMessageException):
     should offer a retry rather than tell the user to pick a different combination.
     """
 
-    def __init__(
-        self,
-        message: str = "Single neuron model assets could not be prepared",
-        *,
-        details: str | None = None,
-    ) -> None:
-        super().__init__(message, details=details)
+    default_message = "Single neuron model assets could not be prepared"
 
 
 class EMCellMeshInitError(_BaseMessageException):

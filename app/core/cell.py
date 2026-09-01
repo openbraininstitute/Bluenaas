@@ -8,11 +8,13 @@ from uuid import UUID
 from loguru import logger
 from multiprocessing.synchronize import Event
 from app.constants import SINGLE_NEURON_HOC_DIR, SINGLE_NEURON_MORPHOLOGY_DIR
+from app.core.exceptions import SingleNeuronInitError
 from app.domains.morphology import SynapseSeries
 from app.domains.simulation import (
     SingleNeuronSimulationConfig,
 )
 from app.infrastructure.storage import get_single_neuron_location
+from app.utils.neuron_output import capture_neuron_output, neuron_error_summary
 from app.utils.util import (
     compile_mechanisms,
     get_sec_name,
@@ -74,22 +76,29 @@ class BaseCell:
         morphology_path = next(morphology_dir_path.iterdir())
         logger.debug(f"morph_file: {morphology_path}")
 
-        try:
-            emodel_properties = EmodelProperties(
-                threshold_current,
-                holding_current,
-                AIS_scaler=1,
-            )
-            logger.debug(f"emodel_properties {emodel_properties}")
-            self._cell = Cell(
-                hoc_path,
-                morphology_path,
-                template_format="v6",
-                emodel_properties=emodel_properties,
-            )
-        except Exception as ex:
-            logger.error(f"Error creating Cell object: {ex}")
-            raise Exception(ex) from ex
+        # An emodel/morphology mismatch fails here exactly as it does in
+        # SingleNeuronBase.init(), so a simulation earns the same explanation the
+        # compatibility check gives.
+        with capture_neuron_output() as neuron_output:
+            try:
+                emodel_properties = EmodelProperties(
+                    threshold_current,
+                    holding_current,
+                    AIS_scaler=1,
+                )
+                logger.debug(f"emodel_properties {emodel_properties}")
+                self._cell = Cell(
+                    hoc_path,
+                    morphology_path,
+                    template_format="v6",
+                    emodel_properties=emodel_properties,
+                )
+            except Exception as ex:
+                captured = neuron_output.getvalue()
+                logger.error(f"Error creating Cell object: {ex}\n{captured}")
+                raise SingleNeuronInitError(
+                    neuron_error_summary(ex, captured), details=captured or None
+                ) from ex
 
         neuron.h.define_shape()
 

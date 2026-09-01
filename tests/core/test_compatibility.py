@@ -9,7 +9,11 @@ from uuid import UUID
 
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
-from app.core.single_neuron.compatibility import RESULT_FILE_NAME, CompatibilityChecker
+from app.core.single_neuron.compatibility import (
+    LEGACY_RESULT_FILE_NAME,
+    RESULT_FILE_NAME,
+    CompatibilityChecker,
+)
 from app.core.exceptions import SingleNeuronAssetError, SingleNeuronInitError
 from app.domains.neuron_model import CompatibilityCheckResponse, CompatibilityStatus
 
@@ -119,7 +123,6 @@ class TestCompatibilityChecker(unittest.TestCase):
         self.assertEqual(result.error, "download timed out")
         mock_candidate.cleanup.assert_called_once()
 
-        # Caching this would make a transient failure permanent for the pair.
         self.assertFalse(self._result_file.exists())
 
     def test_unexpected_error_reports_check_failed(self, MockCandidate, mock_result_loc):
@@ -132,6 +135,16 @@ class TestCompatibilityChecker(unittest.TestCase):
         self.assertIs(result.status, CompatibilityStatus.check_failed)
         self.assertFalse(self._result_file.exists())
         mock_candidate.cleanup.assert_called_once()
+
+    def test_superseded_cache_file_is_removed(self, MockCandidate, mock_result_loc):
+        checker, _ = self._checker(MockCandidate, mock_result_loc)
+        legacy_file = self.result_path / LEGACY_RESULT_FILE_NAME
+        legacy_file.write_text('{"compatible": false}')
+
+        checker.run()
+
+        self.assertFalse(legacy_file.exists())
+        self.assertTrue(self._result_file.exists())
 
     def test_container_paths_are_scrubbed_from_details(self, MockCandidate, mock_result_loc):
         checker, _ = self._checker(
