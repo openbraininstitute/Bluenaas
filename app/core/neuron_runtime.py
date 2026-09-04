@@ -6,13 +6,19 @@ the import order or the current directory wrong and the mechanisms a template
 needs stay undefined, which segfaults NEURON as soon as bluecellulab instantiates
 that template. Passing the model path to load_mechanisms drops both conditions.
 
-Everything that builds a Cell calls load() first.
+Everything that builds a Cell calls load() first, and wraps the instantiation
+itself in capture_init_errors().
 """
 
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
-from app.core.exceptions import SingleNeuronAssetError
-from app.utils.neuron_output import capture_neuron_output
+from loguru import logger
+
+from app.core.compilation_cache import compiled_mechanisms_path
+from app.core.exceptions import SingleNeuronAssetError, SingleNeuronInitError
+from app.utils.neuron_output import capture_neuron_output, neuron_error_summary
 
 _loaded: Path | None = None
 
@@ -28,7 +34,7 @@ def load(model_path: Path) -> None:
             )
         return
 
-    mechanisms = model_path / "x86_64"
+    mechanisms = compiled_mechanisms_path(model_path)
 
     # NEURON prints a banner and a DISPLAY warning while it starts up. Callers show
     # captured NEURON output to the user, so keep the startup noise out of it.
@@ -47,3 +53,32 @@ def load(model_path: Path) -> None:
         )
 
     _loaded = model_path
+
+
+@contextmanager
+def capture_init_errors() -> Iterator[None]:
+    """Turn a failed Cell instantiation into an error carrying NEURON's own wording.
+
+    NEURON prints the reason it refused a model rather than putting it in the
+    exception, so the printed block is captured and travels on the raised error as
+    ``details``. Every path that builds a Cell wraps it in this, so a simulation and
+    a compatibility check explain a mismatch the same way.
+
+    Wrap the instantiation alone. load() belongs outside, so an asset failure stays
+    an asset failure instead of being relabelled an incompatibility.
+    """
+    with capture_neuron_output() as neuron_output:
+        try:
+            yield
+
+        except Exception as ex:
+            captured = neuron_output.getvalue()
+            raise SingleNeuronInitError(
+                neuron_error_summary(ex, captured), details=captured or None
+            ) from ex
+
+    # Capturing would otherwise silently drop the warnings NEURON prints on an
+    # otherwise successful instantiation.
+    captured = neuron_output.getvalue()
+    if captured:
+        logger.debug("NEURON output during model init:\n{}", captured)

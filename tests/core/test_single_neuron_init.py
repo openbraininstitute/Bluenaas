@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
@@ -45,6 +46,12 @@ class TestSingleNeuronInit(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = Path(tempfile.mkdtemp())
 
+        # init() loads the mechanism table for real, which is process-global; the stub
+        # ships no mechanisms, so there is nothing for it to load.
+        patcher = mock.patch("app.core.neuron_runtime.load")
+        self.mock_load = patcher.start()
+        self.addCleanup(patcher.stop)
+
     def tearDown(self):
         shutil.rmtree(self.tmp_dir)
 
@@ -64,10 +71,11 @@ class TestSingleNeuronInit(unittest.TestCase):
         self.assertIsInstance(error.__cause__, RuntimeError)
 
     def test_a_mechanism_failure_is_not_reported_as_an_incompatibility(self):
-        def unloadable_mechanisms():
-            raise SingleNeuronAssetError("NEURON loaded no mechanisms from x86_64")
+        self.mock_load.side_effect = SingleNeuronAssetError(
+            "NEURON loaded no mechanisms from x86_64"
+        )
 
-        neuron = _StubNeuron(self.tmp_dir, cell_body=unloadable_mechanisms)
+        neuron = _StubNeuron(self.tmp_dir)
 
         with self.assertRaises(SingleNeuronAssetError):
             neuron.init()

@@ -24,14 +24,13 @@ from app.constants import (
 )
 from app.core import neuron_runtime
 from app.core.compilation_cache import compile_with_cache
-from app.core.exceptions import SingleNeuronAssetError, SingleNeuronInitError
+from app.core.exceptions import SingleNeuronAssetError
 from app.infrastructure.storage import (
     copy_file_content,
     get_model_candidate_location,
     get_single_neuron_location,
     rm_dir,
 )
-from app.utils.neuron_output import capture_neuron_output, neuron_error_summary
 
 
 class SingleNeuronBase(ABC):
@@ -88,7 +87,6 @@ class SingleNeuronBase(ABC):
             ready_marker.touch()
 
     def _init_bcl_cell(self):
-        neuron_runtime.load(self.path)
         chdir(self.path)
 
         from bluecellulab import Cell
@@ -133,24 +131,10 @@ class SingleNeuronBase(ABC):
             return
 
         self.init_files()
+        neuron_runtime.load(self.path)
 
-        with capture_neuron_output() as neuron_output:
-            try:
-                self._init_bcl_cell()
-            except SingleNeuronAssetError:
-                # Says nothing about whether the morphology and the emodel fit together.
-                raise
-            except Exception as ex:
-                captured = neuron_output.getvalue()
-                raise SingleNeuronInitError(
-                    neuron_error_summary(ex, captured), details=captured or None
-                ) from ex
-
-        # Capturing would otherwise silently drop the warnings NEURON prints on an
-        # otherwise successful instantiation.
-        captured = neuron_output.getvalue()
-        if captured:
-            logger.debug("NEURON output during model init:\n{}", captured)
+        with neuron_runtime.capture_init_errors():
+            self._init_bcl_cell()
 
         self.initialized = True
 

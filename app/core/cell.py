@@ -15,7 +15,6 @@ from app.domains.simulation import (
     SingleNeuronSimulationConfig,
 )
 from app.infrastructure.storage import get_single_neuron_location
-from app.utils.neuron_output import capture_neuron_output, neuron_error_summary
 from app.utils.util import (
     compile_mechanisms,
     get_sec_name,
@@ -79,8 +78,8 @@ class BaseCell:
         # An emodel/morphology mismatch fails here exactly as it does in
         # SingleNeuronBase.init(), so a simulation earns the same explanation the
         # compatibility check gives.
-        with capture_neuron_output() as neuron_output:
-            try:
+        try:
+            with neuron_runtime.capture_init_errors():
                 emodel_properties = EmodelProperties(
                     threshold_current,
                     holding_current,
@@ -93,12 +92,11 @@ class BaseCell:
                     template_format="v6",
                     emodel_properties=emodel_properties,
                 )
-            except Exception as ex:
-                captured = neuron_output.getvalue()
-                logger.error(f"Error creating Cell object: {ex}\n{captured}")
-                raise SingleNeuronInitError(
-                    neuron_error_summary(ex, captured), details=captured or None
-                ) from ex
+        except SingleNeuronInitError as ex:
+            # This runs in a spawned child whose caller logs the message but not the
+            # captured block, so it is recorded here or nowhere.
+            logger.error(f"Error creating Cell object: {ex.message}\n{ex.details or ''}")
+            raise
 
         neuron.h.define_shape()
 
