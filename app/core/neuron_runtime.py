@@ -64,6 +64,9 @@ def capture_init_errors() -> Iterator[None]:
     ``details``. Every path that builds a Cell wraps it in this, so a simulation and
     a compatibility check explain a mismatch the same way.
 
+    Only failures NEURON reported become an incompatibility. Anything that fails
+    without printing propagates unchanged.
+
     Wrap the instantiation alone. load() belongs outside, so an asset failure stays
     an asset failure instead of being relabelled an incompatibility.
     """
@@ -73,8 +76,15 @@ def capture_init_errors() -> Iterator[None]:
 
         except Exception as ex:
             captured = neuron_output.getvalue()
+
+            # NEURON prints before it gives up, so silence means the failure was ours:
+            # a missing file, an unreadable directory. Caching that as an incompatibility
+            # would record a verdict about the models that we never reached.
+            if not captured:
+                raise
+
             raise SingleNeuronInitError(
-                neuron_error_summary(ex, captured), details=captured or None
+                neuron_error_summary(ex, captured), details=captured
             ) from ex
 
     # Capturing would otherwise silently drop the warnings NEURON prints on an

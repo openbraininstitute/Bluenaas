@@ -80,6 +80,17 @@ class TestSingleNeuronInit(unittest.TestCase):
         with self.assertRaises(SingleNeuronAssetError):
             neuron.init()
 
+    def test_a_failure_neuron_did_not_report_is_not_an_incompatibility(self):
+        def empty_hoc_dir():
+            next(iter([]))
+
+        neuron = _StubNeuron(self.tmp_dir, cell_body=empty_hoc_dir)
+
+        # An incompatibility is cached for the pair permanently, so only a failure
+        # NEURON reported may be recorded as one.
+        with self.assertRaises(StopIteration):
+            neuron.init()
+
     def test_asset_failure_is_not_reported_as_an_incompatibility(self):
         neuron = _StubNeuron(self.tmp_dir, files_error=TimeoutError("download timed out"))
 
