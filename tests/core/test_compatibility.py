@@ -132,6 +132,15 @@ class TestCompatibilityChecker(unittest.TestCase):
         self.assertFalse(self._result_file.exists())
         mock_candidate.cleanup.assert_called_once()
 
+    def test_check_failed_always_carries_a_reason(self, MockCandidate, mock_result_loc):
+        # A timeout from the entitycore client brings no message of its own.
+        checker, _ = self._checker(MockCandidate, mock_result_loc, init_error=TimeoutError())
+
+        result = checker.run()
+
+        self.assertIs(result.status, CompatibilityStatus.check_failed)
+        self.assertEqual(result.error, "TimeoutError")
+
     def test_container_paths_are_scrubbed_from_details(self, MockCandidate, mock_result_loc):
         checker, _ = self._checker(
             MockCandidate,

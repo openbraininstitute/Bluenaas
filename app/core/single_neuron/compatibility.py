@@ -72,7 +72,11 @@ class CompatibilityChecker:
                 f"Compatibility check could not run (morphology={self.morphology_id}, "
                 f"emodel={self.emodel_id}): {type(ex).__name__}: {ex}\n{details or ''}"
             )
-            return self._result(CompatibilityStatus.check_failed, str(ex), details)
+            # A ConnectTimeout has no message of its own, and the client cannot act
+            # on check_failed with a null error.
+            return self._result(
+                CompatibilityStatus.check_failed, str(ex) or type(ex).__name__, details
+            )
 
         else:
             return self._result(CompatibilityStatus.compatible)
