@@ -14,11 +14,7 @@ from app.infrastructure.storage import get_compatibility_result_location
 from app.utils.neuron_output import scrub_neuron_output
 
 
-# Bumped from "result.json": earlier results only ever recorded the constant string
-# "Single neuron model instantiation failed", and failures were cached unconditionally.
-# Renaming the file retires them without an ops step.
-RESULT_FILE_NAME = "result-v2.json"
-LEGACY_RESULT_FILE_NAME = "result.json"
+RESULT_FILE_NAME = "result.json"
 
 
 class CompatibilityChecker:
@@ -109,7 +105,3 @@ class CompatibilityChecker:
         with lock.acquire(timeout=2 * 60):
             result_file = self.result_path / RESULT_FILE_NAME
             result_file.write_text(result.model_dump_json())
-
-            # Nothing reads the superseded file, and leaving it behind would strand a
-            # copy on disk for every pair checked before this deploy.
-            (self.result_path / LEGACY_RESULT_FILE_NAME).unlink(missing_ok=True)

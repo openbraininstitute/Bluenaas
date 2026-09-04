@@ -96,9 +96,9 @@ class CompatibilityCheckResponse(BaseModel):
     def _accept_legacy_payload(cls, data: Any) -> Any:
         """Derive ``status`` from ``compatible`` when it is missing.
 
-        The API parses whatever the worker streamed back, and during a rolling deploy
-        a worker still on the previous image sends ``compatible`` with no ``status``.
-        Without this the API would reject its own worker's result.
+        Two producers predate ``status``: a cached result on disk written before it
+        existed, and — during a rolling deploy — a worker still on the previous image.
+        Without this the API would reject its own cache and its own worker's result.
         """
         if isinstance(data, dict) and "status" not in data and "compatible" in data:
             data = {
