@@ -71,6 +71,15 @@ class TestScrubNeuronOutput(unittest.TestCase):
         )
         self.assertEqual(scrubbed, "NEURON: Couldn't find: cell.hoc")
 
+    def test_leaves_a_url_alone(self):
+        # A download failure reaches the client through check_failed.
+        message = "HTTPError: 404 for url: https://openbrain.org/api/entitycore/morphology/1234"
+        self.assertEqual(scrub_neuron_output(message), message)
+
+    def test_leaves_a_relative_path_alone(self):
+        message = "Failed to read morphology/subdir/cell.asc"
+        self.assertEqual(scrub_neuron_output(message), message)
+
     def test_drops_the_uuid_suffix_bluecellulab_appends_to_templates(self):
         scrubbed = scrub_neuron_output(
             "        cADpyr_bluecellulab_0123456789abcdef0123456789abcdef[0].replace_axon()"

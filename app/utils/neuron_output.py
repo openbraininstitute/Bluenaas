@@ -28,8 +28,9 @@ MAX_CAPTURE_LENGTH = 4 * MAX_OUTPUT_LENGTH
 # "hocobj_call error: hoc_execerror: <the message we actually want>"
 _HOC_ERROR_PREFIX = re.compile(r"^(?:hocobj_call error:\s*)?(?:hoc_execerror:\s*)?")
 
-# Absolute paths point at container storage and mean nothing to a user.
-_ABSOLUTE_PATH = re.compile(r"/(?:[\w.-]+/)+([\w.-]+)")
+# Absolute paths point at container storage and mean nothing to a user. Unanchored, the
+# pattern also matched inside a URL and inside a relative path.
+_ABSOLUTE_PATH = re.compile(r"(?<![\w:/.])/(?:[\w.-]+/)+([\w.-]+)")
 
 # NeuronTemplate.load() appends a uuid to every template name to keep them unique.
 _TEMPLATE_SUFFIX = re.compile(r"_bluecellulab_[0-9a-f]{32}")
