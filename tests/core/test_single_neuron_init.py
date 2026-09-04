@@ -63,6 +63,15 @@ class TestSingleNeuronInit(unittest.TestCase):
         # The original NEURON exception stays chained, so worker logs keep the traceback.
         self.assertIsInstance(error.__cause__, RuntimeError)
 
+    def test_a_mechanism_failure_is_not_reported_as_an_incompatibility(self):
+        def unloadable_mechanisms():
+            raise SingleNeuronAssetError("NEURON loaded no mechanisms from x86_64")
+
+        neuron = _StubNeuron(self.tmp_dir, cell_body=unloadable_mechanisms)
+
+        with self.assertRaises(SingleNeuronAssetError):
+            neuron.init()
+
     def test_asset_failure_is_not_reported_as_an_incompatibility(self):
         neuron = _StubNeuron(self.tmp_dir, files_error=TimeoutError("download timed out"))
 

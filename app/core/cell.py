@@ -8,6 +8,7 @@ from uuid import UUID
 from loguru import logger
 from multiprocessing.synchronize import Event
 from app.constants import SINGLE_NEURON_HOC_DIR, SINGLE_NEURON_MORPHOLOGY_DIR
+from app.core import neuron_runtime
 from app.core.exceptions import SingleNeuronInitError
 from app.domains.morphology import SynapseSeries
 from app.domains.simulation import (
@@ -59,10 +60,9 @@ class BaseCell:
 
         compile_mechanisms(model_path)
 
-        # make sure x86_64 is in current dir before importing neuron
+        neuron_runtime.load(model_path)
         os.chdir(model_path)
 
-        # importing here to avoid segmentation fault
         from bluecellulab import Cell
         from bluecellulab.circuit.circuit_access import EmodelProperties
         from bluecellulab.importer import neuron

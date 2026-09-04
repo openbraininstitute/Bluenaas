@@ -22,6 +22,7 @@ from app.constants import (
     SINGLE_NEURON_MOD_DIR,
     SINGLE_NEURON_MORPHOLOGY_DIR,
 )
+from app.core import neuron_runtime
 from app.core.compilation_cache import compile_with_cache
 from app.core.exceptions import SingleNeuronAssetError, SingleNeuronInitError
 from app.infrastructure.storage import (
@@ -87,6 +88,7 @@ class SingleNeuronBase(ABC):
             ready_marker.touch()
 
     def _init_bcl_cell(self):
+        neuron_runtime.load(self.path)
         chdir(self.path)
 
         from bluecellulab import Cell
@@ -132,13 +134,12 @@ class SingleNeuronBase(ABC):
 
         self.init_files()
 
-        # Import ahead of the capture: NEURON prints a banner on first import ("no
-        # DISPLAY environment variable"), which has no business in what we show a user.
-        import bluecellulab  # noqa: F401
-
         with capture_neuron_output() as neuron_output:
             try:
                 self._init_bcl_cell()
+            except SingleNeuronAssetError:
+                # Says nothing about whether the morphology and the emodel fit together.
+                raise
             except Exception as ex:
                 captured = neuron_output.getvalue()
                 raise SingleNeuronInitError(
