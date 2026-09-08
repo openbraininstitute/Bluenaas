@@ -101,9 +101,8 @@ def init_current_varying_simulation(
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
 
-        # A model NEURON refused explains itself in its message, so carry it. Raising a
-        # bare SimulationError replaced that explanation with the constant "Simulation
-        # failed", and never queued it, so the parent reported only that the child died.
+        # The parent only sees what reaches the queue, so put the reason there. A
+        # bare SimulationError would report the constant "Simulation failed" instead.
         error = ex if isinstance(ex, SimulationError) else SimulationError(str(ex))
 
         simulation_queue.put(error)
@@ -283,9 +282,8 @@ def init_frequency_varying_simulation(
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
 
-        # A model NEURON refused explains itself in its message, so carry it. Raising a
-        # bare SimulationError replaced that explanation with the constant "Simulation
-        # failed", and never queued it, so the parent reported only that the child died.
+        # The parent only sees what reaches the queue, so put the reason there. A
+        # bare SimulationError would report the constant "Simulation failed" instead.
         error = ex if isinstance(ex, SimulationError) else SimulationError(str(ex))
 
         simulation_queue.put(error)
@@ -346,8 +344,8 @@ def stream_realtime_data(
                 raise Exception("Child process died unexpectedly")
 
         if isinstance(record, SimulationError):
-            # The message may carry a captured NEURON block, and this is where it stops
-            # being a server-side record and becomes something the user reads.
+            # The message may carry a captured NEURON block, which the client must
+            # not see raw.
             details = scrub_neuron_output(str(record))
             errStr = json.dumps(
                 {

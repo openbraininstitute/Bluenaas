@@ -31,8 +31,6 @@ class _QueueStub:
 
 
 class TestChildReportsWhyTheModelFailed(unittest.TestCase):
-    """A model NEURON refused must reach the parent with NEURON's own wording."""
-
     def _run(self, model_error):
         simulation_queue = _QueueStub()
         config = MagicMock()
@@ -76,8 +74,6 @@ class TestChildReportsWhyTheModelFailed(unittest.TestCase):
 
 
 class TestParentStreamsTheReason(unittest.TestCase):
-    """What the child queued has to reach the client, scrubbed."""
-
     def _stream(self, error):
         simulation_queue = _QueueStub([error])
         process = MagicMock()

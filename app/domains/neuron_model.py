@@ -74,9 +74,9 @@ class CompatibilityCheckRequest(BaseModel):
 class CompatibilityStatus(StrEnum):
     """Outcome of a morphology + emodel compatibility check.
 
-    ``check_failed`` is deliberately distinct from ``incompatible``: a download,
-    compilation or timeout failure says nothing about the models, so the caller
-    should offer a retry instead of telling the user to pick another combination.
+    ``check_failed`` is separate from ``incompatible``: a download, compilation or
+    timeout failure says nothing about the models, so the caller should offer a retry
+    instead of asking the user for another combination.
     """
 
     compatible = auto()
@@ -96,9 +96,9 @@ class CompatibilityCheckResponse(BaseModel):
     def _accept_legacy_payload(cls, data: Any) -> Any:
         """Derive ``status`` from ``compatible`` when it is missing.
 
-        Two producers predate ``status``: a cached result on disk written before it
-        existed, and — during a rolling deploy — a worker still on the previous image.
-        Without this the API would reject its own cache and its own worker's result.
+        Two producers predate ``status``: a cached result written to disk before it
+        existed, and a worker still on the previous image during a rolling deploy.
+        Without this the API rejects its own cache and its own worker's result.
         """
         if isinstance(data, dict) and "status" not in data and "compatible" in data:
             data = {
@@ -114,5 +114,5 @@ class CompatibilityCheckResponse(BaseModel):
     @computed_field
     @property
     def compatible(self) -> bool:
-        """Kept for clients predating ``status``; the two repos deploy independently."""
+        """Kept for clients that predate ``status``; the two repos deploy independently."""
         return self.status is CompatibilityStatus.compatible

@@ -1,15 +1,13 @@
-"""Capture and sanitise the diagnostics NEURON writes while a model is instantiated.
+"""Capture and sanitize the diagnostics NEURON writes while a model is instantiated.
 
-NEURON prints hoc errors and warnings through Python's ``sys.stdout`` / ``sys.stderr``
-objects — it installs a print hook when embedded in Python — so plain
-``contextlib.redirect_*`` intercepts them and no file-descriptor juggling is needed.
-Loguru is unaffected because ``setup_logging`` binds the stream object up front, so
-our own logs keep going to the real stderr instead of into the capture buffer.
+Embedded in Python, NEURON prints hoc errors and warnings through ``sys.stdout`` and
+``sys.stderr``, so ``contextlib.redirect_*`` intercepts them without any
+file-descriptor juggling. Loguru keeps writing to the real stderr because
+``setup_logging`` binds the stream object up front.
 
-Capturing matters even though most hoc failures also raise: some NEURON errors only
-print (``h.load_file`` on a missing file returns 0 and writes ``NEURON: Couldn't
-find: ...``), and the printed block carries the hoc call stack that the exception
-message drops.
+Most hoc failures raise as well, but not all: ``h.load_file`` on a missing file
+returns 0 and only prints ``NEURON: Couldn't find: ...``. The printed block also
+carries the hoc call stack that the exception message drops.
 """
 
 import io
@@ -17,19 +15,19 @@ import re
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from typing import Iterator
 
-# Cap what we keep, so a chatty failure cannot bloat the API response or the
-# cached compatibility result on disk.
+# Keeps a verbose failure from bloating the API response and the cached
+# compatibility result on disk.
 MAX_OUTPUT_LENGTH = 4000
 
-# Cap what we buffer. Scrubbing discards blank lines and source context before the
-# output cap applies, so a few times that cap leaves ample headroom.
+# Scrubbing drops blank lines and source context before MAX_OUTPUT_LENGTH applies,
+# so the buffer needs headroom above it.
 MAX_CAPTURE_LENGTH = 4 * MAX_OUTPUT_LENGTH
 
-# "hocobj_call error: hoc_execerror: <the message we actually want>"
+# "hocobj_call error: hoc_execerror: <the message we want>"
 _HOC_ERROR_PREFIX = re.compile(r"^(?:hocobj_call error:\s*)?(?:hoc_execerror:\s*)?")
 
-# Absolute paths point at container storage and mean nothing to a user. Unanchored, the
-# pattern also matched inside a URL and inside a relative path.
+# Absolute paths point at container storage and mean nothing to a user. The lookbehind
+# keeps the pattern out of URLs and relative paths.
 _ABSOLUTE_PATH = re.compile(r"(?<![\w:/.])/(?:[\w.-]+/)+([\w.-]+)")
 
 # NeuronTemplate.load() appends a uuid to every template name to keep them unique.
@@ -40,11 +38,11 @@ _EMPTY_SOURCE_CONTEXT = re.compile(r"^\s*(?:near line 0|\^)\s*$")
 
 
 class _BoundedBuffer(io.StringIO):
-    """A ``StringIO`` that silently drops everything past ``MAX_CAPTURE_LENGTH``.
+    """A ``StringIO`` that drops everything past ``MAX_CAPTURE_LENGTH``.
 
-    How much NEURON prints is up to the mod files — a ``printf`` per segment is
-    enough to produce megabytes — and only the head of it ever reaches a user, so
-    there is nothing to gain from holding the rest in a long-lived worker.
+    Mod files decide how much NEURON prints, and a ``printf`` per segment reaches
+    megabytes. Only the head of it reaches a user, so a long-lived worker has no
+    reason to hold the rest.
     """
 
     def write(self, s: str) -> int:
@@ -53,8 +51,8 @@ class _BoundedBuffer(io.StringIO):
         if remaining > 0:
             super().write(s[:remaining])
 
-        # Report the full length regardless: NEURON's print hook is not prepared to
-        # handle a short write, and the dropped tail is deliberate.
+        # NEURON's print hook does not handle a short write, and the dropped tail is
+        # intended.
         return len(s)
 
 
@@ -89,7 +87,7 @@ def scrub_neuron_output(text: str | None) -> str | None:
         line = _TEMPLATE_SUFFIX.sub("", line)
         line = line.rstrip()
 
-        # NEURON pads its blocks with blank lines and never uses them meaningfully.
+        # NEURON pads its blocks with blank lines.
         if not line:
             continue
 
@@ -104,12 +102,12 @@ def scrub_neuron_output(text: str | None) -> str | None:
 
 
 def neuron_error_summary(exception: BaseException, captured: str = "") -> str:
-    """A single human-readable line explaining why NEURON gave up.
+    """One human-readable line explaining why NEURON gave up.
 
-    Prefers the exception message — for a hoc ``execerror`` it already carries the
-    modeller's own wording, e.g. "Less than three axon sections are present! This
-    emodel can't be run with such a morphology!" — and falls back to the printed
-    ``NEURON:`` line for the failures that print without raising anything useful.
+    A hoc ``execerror`` already carries the model author's own wording, e.g. "Less than
+    three axon sections are present! This emodel can't be run with such a
+    morphology!", so the exception message wins. Failures that print without raising
+    anything useful fall back to the printed ``NEURON:`` line.
     """
     summary = _HOC_ERROR_PREFIX.sub("", str(exception)).strip()
 

@@ -75,9 +75,6 @@ class BaseCell:
         morphology_path = next(morphology_dir_path.iterdir())
         logger.debug(f"morph_file: {morphology_path}")
 
-        # An emodel/morphology mismatch fails here exactly as it does in
-        # SingleNeuronBase.init(), so a simulation earns the same explanation the
-        # compatibility check gives.
         try:
             with neuron_runtime.capture_init_errors():
                 emodel_properties = EmodelProperties(
@@ -93,8 +90,7 @@ class BaseCell:
                     emodel_properties=emodel_properties,
                 )
         except SingleNeuronInitError as ex:
-            # This runs in a spawned child whose caller logs the message but not the
-            # captured block, so it is recorded here or nowhere.
+            # The parent process logs the message but not the captured block.
             logger.error(f"Error creating Cell object: {ex.message}\n{ex.details or ''}")
             raise
 

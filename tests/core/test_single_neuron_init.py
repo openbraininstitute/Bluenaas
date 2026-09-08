@@ -41,13 +41,11 @@ class _StubNeuron(SingleNeuronBase):
 
 
 class TestSingleNeuronInit(unittest.TestCase):
-    """The failure a user sees must carry NEURON's own wording, not a constant string."""
-
     def setUp(self):
         self.tmp_dir = Path(tempfile.mkdtemp())
 
-        # init() loads the mechanism table for real, which is process-global; the stub
-        # ships no mechanisms, so there is nothing for it to load.
+        # init() loads the process-global mechanism table, and the stub ships no
+        # mechanisms for it to load.
         patcher = mock.patch("app.core.neuron_runtime.load")
         self.mock_load = patcher.start()
         self.addCleanup(patcher.stop)
@@ -65,9 +63,9 @@ class TestSingleNeuronInit(unittest.TestCase):
 
         self.assertEqual(error.message, ERROR_MESSAGE)
         self.assertIn("Less than three axon sections", error.details or "")
-        # NEURON's import banner would otherwise be the first thing a user reads.
+        # The NEURON import banner must not end up in what a user reads.
         self.assertNotIn("DISPLAY", error.details or "")
-        # The original NEURON exception stays chained, so worker logs keep the traceback.
+        # Chaining keeps the NEURON traceback in the worker logs.
         self.assertIsInstance(error.__cause__, RuntimeError)
 
     def test_a_mechanism_failure_is_not_reported_as_an_incompatibility(self):
@@ -86,8 +84,8 @@ class TestSingleNeuronInit(unittest.TestCase):
 
         neuron = _StubNeuron(self.tmp_dir, cell_body=empty_hoc_dir)
 
-        # An incompatibility is cached for the pair permanently, so only a failure
-        # NEURON reported may be recorded as one.
+        # An incompatibility is cached permanently, so only a failure NEURON reported
+        # may be recorded as one.
         with self.assertRaises(StopIteration):
             neuron.init()
 

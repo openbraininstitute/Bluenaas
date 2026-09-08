@@ -12,8 +12,6 @@ from app.core.exceptions import SingleNeuronAssetError
 
 
 class TestNeuronRuntime(unittest.TestCase):
-    """NEURON must get its mechanisms from the model directory, not from the cwd."""
-
     def setUp(self):
         self.tmp_dir = Path(tempfile.mkdtemp())
         neuron_runtime._loaded = None

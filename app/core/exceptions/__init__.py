@@ -61,11 +61,9 @@ class AppErrorResponse(BaseModel):
 class _BaseMessageException(Exception):
     """Base class for exceptions that only need a message.
 
-    Subclasses supply their wording as ``default_message`` rather than redeclaring a
-    constructor, so a new base-class field costs one edit instead of one per subclass.
-
-    ``details`` carries the longer diagnostic behind the message — a captured NEURON
-    log, a compiler transcript — for callers that want to surface or log it.
+    Subclasses set ``default_message`` instead of redeclaring a constructor.
+    ``details`` holds the longer diagnostic behind the message, such as a captured
+    NEURON log or a compiler transcript.
     """
 
     default_message = "Operation failed"
@@ -116,17 +114,17 @@ class CircuitSimulationError(_BaseMessageException):
 
 
 class SingleNeuronInitError(_BaseMessageException):
-    """NEURON refused the model itself — typically a morphology the emodel cannot use."""
+    """NEURON rejected the model, usually a morphology the emodel cannot use."""
 
     default_message = "Single neuron model instantiation failed"
 
 
 class SingleNeuronAssetError(_BaseMessageException):
-    """Model assets could not be fetched or compiled.
+    """Fetching or compiling the model assets failed.
 
-    Distinct from ``SingleNeuronInitError`` because it says nothing about whether the
-    morphology and emodel go together — it is an infrastructure failure, and a caller
-    should offer a retry rather than tell the user to pick a different combination.
+    Unlike ``SingleNeuronInitError`` this says nothing about whether the morphology
+    and the emodel go together, so a caller should offer a retry instead of asking
+    the user for another combination.
     """
 
     default_message = "Single neuron model assets could not be prepared"

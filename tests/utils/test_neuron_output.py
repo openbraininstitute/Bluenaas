@@ -14,7 +14,7 @@ from tests.neuron_template import h, raise_hoc_error
 
 
 class TestCaptureNeuronOutput(unittest.TestCase):
-    """Drives real NEURON with a synthetic template — no model assets needed."""
+    """Drives real NEURON with a synthetic template, so no model assets are needed."""
 
     def test_captures_hoc_error_block(self):
         with capture_neuron_output() as output:
@@ -25,7 +25,7 @@ class TestCaptureNeuronOutput(unittest.TestCase):
         self.assertIn("This emodel can't be run with such a morphology!", output.getvalue())
 
     def test_captures_failures_that_print_without_raising(self):
-        # h.load_file returns 0 rather than raising, so the printed line is the only
+        # h.load_file returns 0 instead of raising, so the printed line is the only
         # evidence that anything went wrong.
         with capture_neuron_output() as output:
             self.assertEqual(h.load_file("compat_test_missing.hoc"), 0.0)
@@ -33,8 +33,8 @@ class TestCaptureNeuronOutput(unittest.TestCase):
         self.assertIn("Couldn't find", output.getvalue())
 
     def test_buffering_is_bounded(self):
-        # A printf in a mod file can fire per segment, so the buffer has to have a
-        # ceiling of its own — the scrub only ever runs once the block is over.
+        # A printf in a mod file can fire per segment, and the scrub only runs once
+        # the block is over, so the buffer needs a ceiling of its own.
         with capture_neuron_output() as output:
             for _ in range(100):
                 print("x" * MAX_CAPTURE_LENGTH)

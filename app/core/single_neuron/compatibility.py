@@ -48,7 +48,7 @@ class CompatibilityChecker:
 
         result = self._check()
 
-        # A check that could not run tells us nothing about the models, so caching it
+        # A check that could not run says nothing about the models, and caching it
         # would make a transient failure permanent for that pair.
         if result.status is not CompatibilityStatus.check_failed:
             self._cache(result)
@@ -72,8 +72,8 @@ class CompatibilityChecker:
                 f"Compatibility check could not run (morphology={self.morphology_id}, "
                 f"emodel={self.emodel_id}): {type(ex).__name__}: {ex}\n{details or ''}"
             )
-            # A ConnectTimeout has no message of its own, and the client cannot act
-            # on check_failed with a null error.
+            # A ConnectTimeout carries no message, and the client cannot act on
+            # check_failed with a null error.
             return self._result(
                 CompatibilityStatus.check_failed, str(ex) or type(ex).__name__, details
             )
@@ -90,10 +90,9 @@ class CompatibilityChecker:
         error: str | None = None,
         details: str | None = None,
     ) -> CompatibilityCheckResponse:
-        """Build the response, scrubbing whatever reaches the user.
+        """Build the response, scrubbing the text that reaches the user.
 
-        The unscrubbed text has already gone to the log, so the server-side record
-        stays strictly more informative than what the UI shows.
+        The unscrubbed version is already in the log.
         """
         return CompatibilityCheckResponse(
             status=status,

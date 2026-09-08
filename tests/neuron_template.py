@@ -1,7 +1,7 @@
 """A hoc template that fails init() the way an incompatible emodel does.
 
-Registering a template is process-global in NEURON, so this module exists to make
-that happen exactly once no matter how many test modules need it.
+Registering a template is process-global in NEURON, so every test module that needs
+one imports it from here.
 """
 
 from neuron import h
