@@ -21,5 +21,4 @@ h(
 
 
 def raise_hoc_error() -> None:
-    """Instantiate the template, which raises RuntimeError and prints a NEURON block."""
     h.CompatTestBoom()

@@ -133,7 +133,7 @@ class TestCompatibilityChecker(unittest.TestCase):
         mock_candidate.cleanup.assert_called_once()
 
     def test_check_failed_always_carries_a_reason(self, MockCandidate, mock_result_loc):
-        # A timeout from the entitycore client brings no message of its own.
+        # A timeout from the entitycore client has an empty message.
         checker, _ = self._checker(MockCandidate, mock_result_loc, init_error=TimeoutError())
 
         result = checker.run()

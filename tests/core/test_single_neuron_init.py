@@ -13,8 +13,6 @@ from tests.neuron_template import ERROR_MESSAGE, raise_hoc_error
 
 
 class _StubNeuron(SingleNeuronBase):
-    """Exercises SingleNeuronBase.init() without any entitycore assets."""
-
     def __init__(self, path: Path, *, files_error=None, cell_body=None):
         super().__init__(path)
         self._files_error = files_error
@@ -44,8 +42,7 @@ class TestSingleNeuronInit(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = Path(tempfile.mkdtemp())
 
-        # init() loads the process-global mechanism table, and the stub ships no
-        # mechanisms for it to load.
+        # The stub ships no mechanisms for init() to load.
         patcher = mock.patch("app.core.neuron_runtime.load")
         self.mock_load = patcher.start()
         self.addCleanup(patcher.stop)
@@ -63,7 +60,7 @@ class TestSingleNeuronInit(unittest.TestCase):
 
         self.assertEqual(error.message, ERROR_MESSAGE)
         self.assertIn("Less than three axon sections", error.details or "")
-        # The NEURON import banner must not end up in what a user reads.
+        # NEURON's import banner warns about DISPLAY.
         self.assertNotIn("DISPLAY", error.details or "")
         # Chaining keeps the NEURON traceback in the worker logs.
         self.assertIsInstance(error.__cause__, RuntimeError)
@@ -84,8 +81,6 @@ class TestSingleNeuronInit(unittest.TestCase):
 
         neuron = _StubNeuron(self.tmp_dir, cell_body=empty_hoc_dir)
 
-        # An incompatibility is cached permanently, so only a failure NEURON reported
-        # may be recorded as one.
         with self.assertRaises(StopIteration):
             neuron.init()
 

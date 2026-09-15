@@ -101,8 +101,7 @@ def init_current_varying_simulation(
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
 
-        # The parent only sees what reaches the queue, so put the reason there. A
-        # bare SimulationError would report the constant "Simulation failed" instead.
+        # The parent only sees what reaches the queue.
         error = _as_simulation_error(ex)
 
         simulation_queue.put(error)
@@ -117,8 +116,6 @@ def _as_simulation_error(ex: Exception) -> SimulationError:
     if isinstance(ex, SimulationError):
         return ex
 
-    # A SingleNeuronInitError keeps NEURON's printed block on details, and the summary
-    # alone can be as little as the exception type name.
     return SimulationError(str(ex), details=getattr(ex, "details", None))
 
 
@@ -291,8 +288,7 @@ def init_frequency_varying_simulation(
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
 
-        # The parent only sees what reaches the queue, so put the reason there. A
-        # bare SimulationError would report the constant "Simulation failed" instead.
+        # The parent only sees what reaches the queue.
         error = _as_simulation_error(ex)
 
         simulation_queue.put(error)
@@ -353,8 +349,7 @@ def stream_realtime_data(
                 raise Exception("Child process died unexpectedly")
 
         if isinstance(record, SimulationError):
-            # The client must not see either part raw. The reason goes first, so a
-            # truncated block does not cut it off.
+            # Truncation cuts from the end, so the reason goes before the block.
             details = scrub_neuron_output("\n".join(filter(None, (str(record), record.details))))
             errStr = json.dumps(
                 {

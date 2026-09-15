@@ -23,8 +23,6 @@ NEURON_BLOCK = (
 
 
 class _QueueStub:
-    """Records what the child puts on the queue, and replays it to the parent."""
-
     def __init__(self, records=()):
         self.puts = []
         self._records = list(records)
@@ -79,7 +77,7 @@ class TestChildReportsWhyTheModelFailed(unittest.TestCase):
         self.assertEqual(queued.details, NEURON_BLOCK)
 
     def test_the_block_survives_the_queue_to_the_parent_process(self):
-        # The parent reads a pickled copy, and details is not one of the exception's args.
+        # The parent gets a pickled copy, and details is not among the exception's args.
         simulation_queue = mp.get_context("spawn").Queue()
         simulation_queue.put(SimulationError(HOC_ERROR, details=NEURON_BLOCK))
 

@@ -118,7 +118,7 @@ class SingleNeuronBase(ABC):
         try:
             self._init_model_files()
         except Exception as ex:
-            # subprocess failures (nrnivmodl) carry the compiler transcript on .output
+            # A failed nrnivmodl keeps the compiler transcript on .output.
             details = getattr(ex, "output", None)
             raise SingleNeuronAssetError(
                 f"{type(ex).__name__}: {ex}", details=details or None

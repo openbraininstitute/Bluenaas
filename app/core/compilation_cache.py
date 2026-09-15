@@ -13,7 +13,6 @@ from app.constants import MECHANISMS_DIR_NAME, READY_MARKER_FILE_NAME
 
 
 def compiled_mechanisms_path(model_path: Path) -> Path:
-    """Directory nrnivmodl writes the compiled mechanisms into."""
     return model_path / MECHANISMS_DIR_NAME
 
 
@@ -85,8 +84,8 @@ def compile_with_cache(model_path: Path, mod_dir_name: str) -> None:
         shutil.copytree(mod_dir, cache_mod_dir)
 
         cmd = ["nrnivmodl", "-incflags", "-DDISABLE_REPORTINGLIB", mod_dir_name]
-        # nrnivmodl writes its diagnostics to stderr; without this a
-        # CalledProcessError carries only stdout.
+        # nrnivmodl prints its diagnostics to stderr, and CalledProcessError.output
+        # holds only stdout.
         compilation_output = subprocess.check_output(
             cmd, cwd=cache_path, text=True, stderr=subprocess.STDOUT
         )

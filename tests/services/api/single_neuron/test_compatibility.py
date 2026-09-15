@@ -139,7 +139,6 @@ class TestCheckCompatibilityService(unittest.TestCase):
     @patch("app.services.api.single_neuron.compatibility.get_job_data")
     @patch("app.services.api.single_neuron.compatibility.dispatch")
     def test_accepts_a_worker_payload_without_status(self, mock_dispatch, mock_get_job_data):
-        """During a rolling deploy a worker on the previous image sends no status."""
         mock_job = Mock()
         mock_job.id = "job-5"
         mock_stream = AsyncMock()

@@ -59,12 +59,7 @@ class AppErrorResponse(BaseModel):
 
 
 class _BaseMessageException(Exception):
-    """Base class for exceptions that only need a message.
-
-    Subclasses set ``default_message`` instead of redeclaring a constructor.
-    ``details`` holds the longer diagnostic behind the message, such as a captured
-    NEURON log or a compiler transcript.
-    """
+    """``details`` holds the output behind the message, such as NEURON's or nrnivmodl's."""
 
     default_message = "Operation failed"
 
@@ -120,12 +115,7 @@ class SingleNeuronInitError(_BaseMessageException):
 
 
 class SingleNeuronAssetError(_BaseMessageException):
-    """Fetching or compiling the model assets failed.
-
-    Unlike ``SingleNeuronInitError`` this says nothing about whether the morphology
-    and the emodel go together, so a caller should offer a retry instead of asking
-    the user for another combination.
-    """
+    """Fetching or compiling the model assets failed."""
 
     default_message = "Single neuron model assets could not be prepared"
 

@@ -1,13 +1,9 @@
 """NEURON's process-wide setup.
 
-NEURON keeps one mechanism table per process and fills it while the module is
-imported, reading ./x86_64 relative to the current directory at that moment. With
-the wrong import order or working directory the mechanisms a template needs stay
-undefined, and NEURON segfaults as soon as bluecellulab instantiates that template.
-Passing the model path to load_mechanisms drops both conditions.
-
-Callers that build a Cell call load() first and wrap the instantiation in
-capture_init_errors().
+NEURON fills its one mechanism table per process on import, from ./x86_64 in the
+current directory at that moment. With the wrong import order or working directory a
+template's mechanisms stay undefined, and NEURON segfaults when bluecellulab
+instantiates it. load_mechanisms with the model path depends on neither.
 """
 
 from contextlib import contextmanager
@@ -26,8 +22,8 @@ _loaded: Path | None = None
 def load(model_path: Path) -> None:
     """Import NEURON and register the mechanisms compiled for this model.
 
-    A process serves one model for its lifetime. That holds up because the RQ Worker
-    forks a fresh process per job, which SimpleWorker would not.
+    A process takes one model. That works because the RQ Worker forks a process per
+    job, so a switch to SimpleWorker would break it.
     """
     global _loaded
 
@@ -40,14 +36,14 @@ def load(model_path: Path) -> None:
 
     mechanisms = compiled_mechanisms_path(model_path)
 
-    # NEURON prints a banner and a DISPLAY warning on import. Callers show captured
-    # NEURON output to the user, so keep the startup noise out of it.
+    # Importing here, before capture_init_errors(), keeps NEURON's banner and DISPLAY
+    # warning out of an incompatibility's details.
     with capture_neuron_output() as startup_output:
         import bluecellulab  # noqa: F401
         from neuron import load_mechanisms
 
-        # compile_with_cache runs nrnivmodl only for a model that ships .mod files,
-        # so a missing directory means the model uses NEURON's built-ins.
+        # Only a model that ships .mod files gets the directory. The rest use NEURON's
+        # built-ins.
         loaded = not mechanisms.is_dir() or load_mechanisms(str(model_path))
 
     if not loaded:
@@ -61,14 +57,9 @@ def load(model_path: Path) -> None:
 
 @contextmanager
 def capture_init_errors() -> Iterator[None]:
-    """Turn a failed Cell instantiation into an error carrying NEURON's own wording.
+    """Raise a failed instantiation as SingleNeuronInitError with NEURON's output as ``details``.
 
-    NEURON prints the reason it rejected a model instead of putting it in the
-    exception, so the printed block travels on the raised error as ``details``. A
-    failure that printed nothing propagates unchanged.
-
-    Wrap the instantiation only. load() belongs outside, so an asset failure keeps
-    its own type.
+    Keep load() outside the block, so its asset errors keep their type.
     """
     with capture_neuron_output() as neuron_output:
         try:
@@ -77,8 +68,8 @@ def capture_init_errors() -> Iterator[None]:
         except Exception as ex:
             captured = neuron_output.getvalue()
 
-            # NEURON prints before it gives up, so silence means the failure was ours:
-            # a missing file, an unreadable directory.
+            # NEURON prints before it rejects a model, so silence means the failure was
+            # ours, like a missing file.
             if not captured:
                 raise
 
@@ -86,7 +77,6 @@ def capture_init_errors() -> Iterator[None]:
                 neuron_error_summary(ex, captured), details=captured
             ) from ex
 
-    # Warnings NEURON printed on a successful instantiation would be lost otherwise.
     captured = neuron_output.getvalue()
     if captured:
         logger.debug("NEURON output during model init:\n{}", captured)

@@ -14,8 +14,6 @@ from tests.neuron_template import h, raise_hoc_error
 
 
 class TestCaptureNeuronOutput(unittest.TestCase):
-    """Drives real NEURON with a synthetic template, so no model assets are needed."""
-
     def test_captures_hoc_error_block(self):
         with capture_neuron_output() as output:
             with self.assertRaises(RuntimeError):
@@ -25,16 +23,12 @@ class TestCaptureNeuronOutput(unittest.TestCase):
         self.assertIn("This emodel can't be run with such a morphology!", output.getvalue())
 
     def test_captures_failures_that_print_without_raising(self):
-        # h.load_file returns 0 instead of raising, so the printed line is the only
-        # evidence that anything went wrong.
         with capture_neuron_output() as output:
             self.assertEqual(h.load_file("compat_test_missing.hoc"), 0.0)
 
         self.assertIn("Couldn't find", output.getvalue())
 
     def test_buffering_is_bounded(self):
-        # A printf in a mod file can fire per segment, and the scrub only runs once
-        # the block is over, so the buffer needs a ceiling of its own.
         with capture_neuron_output() as output:
             for _ in range(100):
                 print("x" * MAX_CAPTURE_LENGTH)
@@ -72,7 +66,6 @@ class TestScrubNeuronOutput(unittest.TestCase):
         self.assertEqual(scrubbed, "NEURON: Couldn't find: cell.hoc")
 
     def test_leaves_a_url_alone(self):
-        # A download failure reaches the client through check_failed.
         message = "HTTPError: 404 for url: https://openbrain.org/api/entitycore/morphology/1234"
         self.assertEqual(scrub_neuron_output(message), message)
 
