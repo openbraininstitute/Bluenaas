@@ -1,4 +1,5 @@
 import json
+import multiprocessing as mp
 import os
 import unittest
 from unittest.mock import MagicMock, patch
@@ -14,6 +15,11 @@ from app.utils.const import QUEUE_STOP_EVENT
 
 
 HOC_ERROR = "Less than three axon sections are present!"
+NEURON_BLOCK = (
+    f"NEURON: {HOC_ERROR}\n"
+    " in /app/storage/single-neuron/model/ab/cd/hoc/cell.hoc near line 42\n"
+    " cADpyr[0].replace_axon()"
+)
 
 
 class _QueueStub:
@@ -65,6 +71,23 @@ class TestChildReportsWhyTheModelFailed(unittest.TestCase):
         self.assertEqual(str(queued), HOC_ERROR)
         self.assertEqual(stop, QUEUE_STOP_EVENT)
 
+    def test_neurons_printed_block_is_queued_with_the_reason(self):
+        _error, simulation_queue = self._run(SingleNeuronInitError(HOC_ERROR, details=NEURON_BLOCK))
+
+        queued = simulation_queue.puts[0]
+        self.assertEqual(str(queued), HOC_ERROR)
+        self.assertEqual(queued.details, NEURON_BLOCK)
+
+    def test_the_block_survives_the_queue_to_the_parent_process(self):
+        # The parent reads a pickled copy, and details is not one of the exception's args.
+        simulation_queue = mp.get_context("spawn").Queue()
+        simulation_queue.put(SimulationError(HOC_ERROR, details=NEURON_BLOCK))
+
+        received = simulation_queue.get(timeout=5)
+
+        self.assertEqual(str(received), HOC_ERROR)
+        self.assertEqual(received.details, NEURON_BLOCK)
+
     def test_an_error_that_is_already_a_simulation_error_is_passed_through(self):
         original = SimulationError("stimulus outside the recording window")
         error, simulation_queue = self._run(original)
@@ -94,6 +117,14 @@ class TestParentStreamsTheReason(unittest.TestCase):
         payload = self._stream(SimulationError(HOC_ERROR))
 
         self.assertEqual(payload["details"], HOC_ERROR)
+
+    def test_the_client_gets_neurons_block_after_the_reason(self):
+        payload = self._stream(SimulationError(HOC_ERROR, details=NEURON_BLOCK))
+
+        self.assertTrue(payload["details"].startswith(f"{HOC_ERROR}\n"), payload["details"])
+        self.assertIn("cell.hoc near line 42", payload["details"])
+        self.assertIn("cADpyr[0].replace_axon()", payload["details"])
+        self.assertNotIn("/app/storage", payload["details"])
 
     def test_container_paths_do_not_reach_the_client(self):
         error = SimulationError("NEURON: Couldn't find: /app/storage/single-neuron/ab/cell.hoc")
