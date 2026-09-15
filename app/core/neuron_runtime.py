@@ -24,7 +24,11 @@ _loaded: Path | None = None
 
 
 def load(model_path: Path) -> None:
-    """Import NEURON and register the mechanisms compiled for this model."""
+    """Import NEURON and register the mechanisms compiled for this model.
+
+    A process serves one model for its lifetime. That holds up because the RQ Worker
+    forks a fresh process per job, which SimpleWorker would not.
+    """
     global _loaded
 
     if _loaded is not None:

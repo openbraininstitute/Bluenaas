@@ -61,6 +61,10 @@ def capture_neuron_output() -> Iterator[io.StringIO]:
     """Collect NEURON's printed diagnostics for the duration of the block.
 
     Both streams share one buffer, so the text keeps the order NEURON printed it in.
+
+    The streams are swapped for the whole process, so keep threads out of the block.
+    Whatever they print is taken for NEURON's output, and capture_init_errors() reads
+    any output as NEURON rejecting the model, which the compatibility check caches.
     """
     buffer = _BoundedBuffer()
 
