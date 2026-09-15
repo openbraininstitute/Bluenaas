@@ -59,10 +59,13 @@ class AppErrorResponse(BaseModel):
 
 
 class _BaseMessageException(Exception):
-    """Base class for exceptions that only need a message."""
+    """``details`` holds the output behind the message, such as NEURON's or nrnivmodl's."""
 
-    def __init__(self, message: str) -> None:
-        self.message = message
+    default_message = "Operation failed"
+
+    def __init__(self, message: str | None = None, *, details: str | None = None) -> None:
+        self.message = message or self.default_message
+        self.details = details
         super().__init__(self.message)
 
     def __str__(self) -> str:
@@ -70,60 +73,56 @@ class _BaseMessageException(Exception):
 
 
 class SimulationError(_BaseMessageException):
-    def __init__(self, message: str = "Simulation failed") -> None:
-        super().__init__(message)
+    default_message = "Simulation failed"
 
 
 class SingleNeuronSynaptomeConfigurationError(_BaseMessageException):
-    def __init__(self, message: str = "Configuration not found") -> None:
-        super().__init__(message)
+    default_message = "Configuration not found"
 
 
 class ChildSimulationError(_BaseMessageException):
-    def __init__(self, message: str = "Child simulation failed") -> None:
-        super().__init__(message)
+    default_message = "Child simulation failed"
 
 
 class SynapseGenerationError(_BaseMessageException):
-    def __init__(self, message: str = "Synapse generation failed") -> None:
-        super().__init__(message)
+    default_message = "Synapse generation failed"
 
 
 class MorphologyGenerationError(_BaseMessageException):
-    def __init__(self, message: str = "Morphology generation failed") -> None:
-        super().__init__(message)
+    default_message = "Morphology generation failed"
 
 
 class StimulationPlotGenerationError(_BaseMessageException):
-    def __init__(self, message: str = "Stimulation plot generation failed") -> None:
-        super().__init__(message)
+    default_message = "Stimulation plot generation failed"
 
 
 class CircuitInitError(_BaseMessageException):
-    def __init__(self, message: str = "Circuit instantiation failed") -> None:
-        super().__init__(message)
+    default_message = "Circuit instantiation failed"
 
 
 class CircuitSimulationInitError(_BaseMessageException):
-    def __init__(self, message: str = "Circuit simulation instantiation failed") -> None:
-        super().__init__(message)
+    default_message = "Circuit simulation instantiation failed"
 
 
 class CircuitSimulationError(_BaseMessageException):
-    def __init__(self, message: str = "Circuit simulation failed") -> None:
-        super().__init__(message)
+    default_message = "Circuit simulation failed"
 
 
 class SingleNeuronInitError(_BaseMessageException):
-    def __init__(self, message: str = "Single neuron model instantiation failed") -> None:
-        super().__init__(message)
+    """NEURON rejected the model, usually a morphology the emodel cannot use."""
+
+    default_message = "Single neuron model instantiation failed"
+
+
+class SingleNeuronAssetError(_BaseMessageException):
+    """Fetching or compiling the model assets failed."""
+
+    default_message = "Single neuron model assets could not be prepared"
 
 
 class EMCellMeshInitError(_BaseMessageException):
-    def __init__(self, message: str = "EMCellMesh instantiation failed") -> None:
-        super().__init__(message)
+    default_message = "EMCellMesh instantiation failed"
 
 
 class IonChannelBuildError(_BaseMessageException):
-    def __init__(self, message: str = "Ion channel build failed") -> None:
-        super().__init__(message)
+    default_message = "Ion channel build failed"

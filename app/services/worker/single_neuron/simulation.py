@@ -29,6 +29,7 @@ from app.domains.simulation import (
 from app.infrastructure.rq import get_job_stream_key
 from app.logging import worker_subprocess
 from app.utils.const import QUEUE_STOP_EVENT
+from app.utils.neuron_output import scrub_neuron_output
 from app.utils.util import log_stats_for_series_in_frequency
 
 
@@ -97,15 +98,25 @@ def init_current_varying_simulation(
             simulation_queue=simulation_queue,
             stop_event=stop_event,
         )
-    except SimulationError as ex:
-        simulation_queue.put(ex)
-        simulation_queue.put(QUEUE_STOP_EVENT)
-        raise ex
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
-        raise SimulationError from ex
+
+        # The parent only sees what reaches the queue.
+        error = _as_simulation_error(ex)
+
+        simulation_queue.put(error)
+        simulation_queue.put(QUEUE_STOP_EVENT)
+
+        raise error
     finally:
         logger.info("Simulation executor ended")
+
+
+def _as_simulation_error(ex: Exception) -> SimulationError:
+    if isinstance(ex, SimulationError):
+        return ex
+
+    return SimulationError(str(ex), details=getattr(ex, "details", None))
 
 
 def get_constant_frequencies_for_sim_id(
@@ -274,14 +285,16 @@ def init_frequency_varying_simulation(
             simulation_queue=simulation_queue,
             stop_event=stop_event,
         )
-    except SimulationError as ex:
-        logger.exception(f"Simulation executor error: {ex}")
-        simulation_queue.put(ex)
-        simulation_queue.put(QUEUE_STOP_EVENT)
-        raise ex
     except Exception as ex:
         logger.exception(f"Simulation executor error: {ex}")
-        raise SimulationError from ex
+
+        # The parent only sees what reaches the queue.
+        error = _as_simulation_error(ex)
+
+        simulation_queue.put(error)
+        simulation_queue.put(QUEUE_STOP_EVENT)
+
+        raise error
     finally:
         logger.info("Simulation executor ended")
 
@@ -336,11 +349,13 @@ def stream_realtime_data(
                 raise Exception("Child process died unexpectedly")
 
         if isinstance(record, SimulationError):
+            # Truncation cuts from the end, so the reason goes before the block.
+            details = scrub_neuron_output("\n".join(filter(None, (str(record), record.details))))
             errStr = json.dumps(
                 {
                     "error_code": AppErrorCode.SIMULATION_ERROR,
                     "message": "Simulation failed",
-                    "details": record.__str__(),
+                    "details": details or SimulationError.default_message,
                 }
             )
             job_stream.send_status(job_status=JobStatus.error, extra=errStr)

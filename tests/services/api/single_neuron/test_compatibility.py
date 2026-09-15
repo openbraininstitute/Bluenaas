@@ -7,6 +7,7 @@ from uuid import UUID
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
 from app.core.api import ApiResponse
+from app.domains.neuron_model import CompatibilityStatus
 from app.services.api.single_neuron.compatibility import check_compatibility_service
 
 
@@ -29,6 +30,7 @@ class TestCheckCompatibilityService(unittest.TestCase):
 
         async def fake_get_job_data(stream):
             return {
+                "status": "compatible",
                 "compatible": True,
                 "morphology_id": str(MORPH_ID),
                 "emodel_id": str(EMODEL_ID),
@@ -52,6 +54,7 @@ class TestCheckCompatibilityService(unittest.TestCase):
         self.assertIsInstance(result, ApiResponse)
         self.assertEqual(result.message, "Compatibility check completed")
         self.assertIsNotNone(result.data)
+        self.assertIs(result.data.status, CompatibilityStatus.compatible)
         self.assertTrue(result.data.compatible)
         self.assertEqual(result.data.morphology_id, MORPH_ID)
 
@@ -60,6 +63,84 @@ class TestCheckCompatibilityService(unittest.TestCase):
     def test_returns_api_response_with_incompatible_result(self, mock_dispatch, mock_get_job_data):
         mock_job = Mock()
         mock_job.id = "job-2"
+        mock_stream = AsyncMock()
+
+        async def fake_dispatch(*args, **kwargs):
+            return mock_job, mock_stream
+
+        mock_dispatch.side_effect = fake_dispatch
+
+        async def fake_get_job_data(stream):
+            return {
+                "status": "incompatible",
+                "compatible": False,
+                "morphology_id": str(MORPH_ID),
+                "emodel_id": str(EMODEL_ID),
+                "error": "Less than three axon sections are present!",
+                "details": "NEURON: Less than three axon sections are present!",
+            }
+
+        mock_get_job_data.side_effect = fake_get_job_data
+
+        async def test():
+            result = await check_compatibility_service(
+                MORPH_ID,
+                EMODEL_ID,
+                job_queue=Mock(),
+                access_token="token",
+                project_context=Mock(),
+            )
+            return result
+
+        result = asyncio.run(test())
+
+        self.assertIs(result.data.status, CompatibilityStatus.incompatible)
+        self.assertFalse(result.data.compatible)
+        self.assertEqual(result.data.error, "Less than three axon sections are present!")
+        self.assertIsNotNone(result.data.details)
+
+    @patch("app.services.api.single_neuron.compatibility.get_job_data")
+    @patch("app.services.api.single_neuron.compatibility.dispatch")
+    def test_returns_api_response_with_check_failed_result(self, mock_dispatch, mock_get_job_data):
+        mock_job = Mock()
+        mock_job.id = "job-4"
+        mock_stream = AsyncMock()
+
+        async def fake_dispatch(*args, **kwargs):
+            return mock_job, mock_stream
+
+        mock_dispatch.side_effect = fake_dispatch
+
+        async def fake_get_job_data(stream):
+            return {
+                "status": "check_failed",
+                "compatible": False,
+                "morphology_id": str(MORPH_ID),
+                "emodel_id": str(EMODEL_ID),
+                "error": "download timed out",
+            }
+
+        mock_get_job_data.side_effect = fake_get_job_data
+
+        async def test():
+            return await check_compatibility_service(
+                MORPH_ID,
+                EMODEL_ID,
+                job_queue=Mock(),
+                access_token="token",
+                project_context=Mock(),
+            )
+
+        result = asyncio.run(test())
+
+        self.assertIs(result.data.status, CompatibilityStatus.check_failed)
+        self.assertFalse(result.data.compatible)
+
+    @patch("app.services.api.single_neuron.compatibility.get_job_data")
+    @patch("app.services.api.single_neuron.compatibility.dispatch")
+    def test_accepts_a_worker_payload_without_status(self, mock_dispatch, mock_get_job_data):
+        mock_job = Mock()
+        mock_job.id = "job-5"
         mock_stream = AsyncMock()
 
         async def fake_dispatch(*args, **kwargs):
@@ -78,19 +159,17 @@ class TestCheckCompatibilityService(unittest.TestCase):
         mock_get_job_data.side_effect = fake_get_job_data
 
         async def test():
-            result = await check_compatibility_service(
+            return await check_compatibility_service(
                 MORPH_ID,
                 EMODEL_ID,
                 job_queue=Mock(),
                 access_token="token",
                 project_context=Mock(),
             )
-            return result
 
         result = asyncio.run(test())
 
-        self.assertFalse(result.data.compatible)
-        self.assertIsNotNone(result.data.error)
+        self.assertIs(result.data.status, CompatibilityStatus.incompatible)
 
     @patch("app.services.api.single_neuron.compatibility.get_job_data")
     @patch("app.services.api.single_neuron.compatibility.dispatch")
@@ -108,7 +187,7 @@ class TestCheckCompatibilityService(unittest.TestCase):
 
         async def fake_get_job_data(stream):
             return {
-                "compatible": True,
+                "status": "compatible",
                 "morphology_id": str(MORPH_ID),
                 "emodel_id": str(EMODEL_ID),
                 "error": None,

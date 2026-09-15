@@ -8,6 +8,8 @@ from uuid import UUID
 from loguru import logger
 from multiprocessing.synchronize import Event
 from app.constants import SINGLE_NEURON_HOC_DIR, SINGLE_NEURON_MORPHOLOGY_DIR
+from app.core import neuron_runtime
+from app.core.exceptions import SingleNeuronInitError
 from app.domains.morphology import SynapseSeries
 from app.domains.simulation import (
     SingleNeuronSimulationConfig,
@@ -57,10 +59,9 @@ class BaseCell:
 
         compile_mechanisms(model_path)
 
-        # make sure x86_64 is in current dir before importing neuron
+        neuron_runtime.load(model_path)
         os.chdir(model_path)
 
-        # importing here to avoid segmentation fault
         from bluecellulab import Cell
         from bluecellulab.circuit.circuit_access import EmodelProperties
         from bluecellulab.importer import neuron
@@ -75,21 +76,23 @@ class BaseCell:
         logger.debug(f"morph_file: {morphology_path}")
 
         try:
-            emodel_properties = EmodelProperties(
-                threshold_current,
-                holding_current,
-                AIS_scaler=1,
-            )
-            logger.debug(f"emodel_properties {emodel_properties}")
-            self._cell = Cell(
-                hoc_path,
-                morphology_path,
-                template_format="v6",
-                emodel_properties=emodel_properties,
-            )
-        except Exception as ex:
-            logger.error(f"Error creating Cell object: {ex}")
-            raise Exception(ex) from ex
+            with neuron_runtime.capture_init_errors():
+                emodel_properties = EmodelProperties(
+                    threshold_current,
+                    holding_current,
+                    AIS_scaler=1,
+                )
+                logger.debug(f"emodel_properties {emodel_properties}")
+                self._cell = Cell(
+                    hoc_path,
+                    morphology_path,
+                    template_format="v6",
+                    emodel_properties=emodel_properties,
+                )
+        except SingleNeuronInitError as ex:
+            # The parent process logs the message but not the captured block.
+            logger.error(f"Error creating Cell object: {ex.message}\n{ex.details or ''}")
+            raise
 
         neuron.h.define_shape()
 

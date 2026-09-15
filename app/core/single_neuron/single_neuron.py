@@ -22,8 +22,9 @@ from app.constants import (
     SINGLE_NEURON_MOD_DIR,
     SINGLE_NEURON_MORPHOLOGY_DIR,
 )
+from app.core import neuron_runtime
 from app.core.compilation_cache import compile_with_cache
-from app.core.exceptions import SingleNeuronInitError
+from app.core.exceptions import SingleNeuronAssetError
 from app.infrastructure.storage import (
     copy_file_content,
     get_model_candidate_location,
@@ -116,8 +117,12 @@ class SingleNeuronBase(ABC):
         """Fetch model assets and compile MOD files (no Cell creation)."""
         try:
             self._init_model_files()
-        except Exception:
-            raise SingleNeuronInitError()
+        except Exception as ex:
+            # A failed nrnivmodl keeps the compiler transcript on .output.
+            details = getattr(ex, "output", None)
+            raise SingleNeuronAssetError(
+                f"{type(ex).__name__}: {ex}", details=details or None
+            ) from ex
 
     def init(self):
         """Fetch model assets, compile MOD files and initialize BlueCelluLab Cell"""
@@ -125,14 +130,13 @@ class SingleNeuronBase(ABC):
             logger.warning("Single neuron model already initialized")
             return
 
-        try:
-            self._init_model_files()
+        self.init_files()
+        neuron_runtime.load(self.path)
+
+        with neuron_runtime.capture_init_errors():
             self._init_bcl_cell()
 
-            self.initialized = True
-
-        except Exception:
-            raise SingleNeuronInitError()
+        self.initialized = True
 
     def cleanup(self) -> None:
         """Remove model files from storage. No-op by default."""
