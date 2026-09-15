@@ -9,7 +9,11 @@ from filelock import FileLock
 from loguru import logger
 
 from app.config.settings import settings
-from app.constants import READY_MARKER_FILE_NAME
+from app.constants import MECHANISMS_DIR_NAME, READY_MARKER_FILE_NAME
+
+
+def compiled_mechanisms_path(model_path: Path) -> Path:
+    return model_path / MECHANISMS_DIR_NAME
 
 
 def compute_mod_hash(mod_dir: Path) -> str:
@@ -41,7 +45,7 @@ def compile_with_cache(model_path: Path, mod_dir_name: str) -> None:
     3. On cache hit, copy compiled artifacts to model directory.
     4. On cache miss, compile, store in cache, then copy to model directory.
     """
-    compiled_path = model_path / "x86_64"
+    compiled_path = compiled_mechanisms_path(model_path)
     if compiled_path.is_dir():
         logger.debug("Found already compiled mechanisms")
         return
@@ -61,7 +65,7 @@ def compile_with_cache(model_path: Path, mod_dir_name: str) -> None:
 
     if cache_ready.exists():
         logger.debug(f"Compilation cache hit for hash {mod_hash[:12]}")
-        shutil.copytree(cache_path / "x86_64", compiled_path)
+        shutil.copytree(compiled_mechanisms_path(cache_path), compiled_path)
         return
 
     lock = FileLock(cache_path / "dir.lock")
@@ -69,7 +73,7 @@ def compile_with_cache(model_path: Path, mod_dir_name: str) -> None:
     with lock.acquire(timeout=5 * 60):
         if cache_ready.exists():
             logger.debug(f"Compilation cache hit (after lock) for hash {mod_hash[:12]}")
-            shutil.copytree(cache_path / "x86_64", compiled_path)
+            shutil.copytree(compiled_mechanisms_path(cache_path), compiled_path)
             return
 
         logger.info(f"Compilation cache miss for hash {mod_hash[:12]}, compiling")
@@ -80,9 +84,13 @@ def compile_with_cache(model_path: Path, mod_dir_name: str) -> None:
         shutil.copytree(mod_dir, cache_mod_dir)
 
         cmd = ["nrnivmodl", "-incflags", "-DDISABLE_REPORTINGLIB", mod_dir_name]
-        compilation_output = subprocess.check_output(cmd, cwd=cache_path, text=True)
+        # nrnivmodl prints its diagnostics to stderr, and CalledProcessError.output
+        # holds only stdout.
+        compilation_output = subprocess.check_output(
+            cmd, cwd=cache_path, text=True, stderr=subprocess.STDOUT
+        )
         logger.debug(compilation_output)
 
         cache_ready.touch()
 
-    shutil.copytree(cache_path / "x86_64", compiled_path)
+    shutil.copytree(compiled_mechanisms_path(cache_path), compiled_path)

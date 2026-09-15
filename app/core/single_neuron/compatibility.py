@@ -4,11 +4,14 @@ from uuid import UUID
 from entitysdk import Client
 from filelock import FileLock
 from loguru import logger
+from pydantic import ValidationError
 
 from app.constants import DIR_LOCK_FILE_NAME
+from app.core.exceptions import SingleNeuronInitError
 from app.core.single_neuron.single_neuron import SingleNeuronCandidate
-from app.domains.neuron_model import CompatibilityCheckResponse
+from app.domains.neuron_model import CompatibilityCheckResponse, CompatibilityStatus
 from app.infrastructure.storage import get_compatibility_result_location
+from app.utils.neuron_output import scrub_neuron_output
 
 
 RESULT_FILE_NAME = "result.json"
@@ -25,38 +28,78 @@ class CompatibilityChecker:
 
     def get_cached_result(self) -> CompatibilityCheckResponse | None:
         result_file = self.result_path / RESULT_FILE_NAME
-        if result_file.exists():
-            logger.debug("Found cached compatibility result")
-            return CompatibilityCheckResponse(**json.loads(result_file.read_text()))
-        return None
+
+        if not result_file.exists():
+            return None
+
+        try:
+            result = CompatibilityCheckResponse(**json.loads(result_file.read_text()))
+        except (OSError, ValueError, ValidationError) as ex:
+            logger.warning(f"Ignoring unreadable compatibility cache {result_file}: {ex}")
+            return None
+
+        logger.debug("Found cached compatibility result")
+        return result
 
     def run(self) -> CompatibilityCheckResponse:
         cached = self.get_cached_result()
         if cached is not None:
             return cached
 
-        compatible = True
-        error = None
+        result = self._check()
 
+        # Caching a check that could not run would make a transient failure permanent
+        # for the pair.
+        if result.status is not CompatibilityStatus.check_failed:
+            self._cache(result)
+
+        return result
+
+    def _check(self) -> CompatibilityCheckResponse:
         try:
             self.candidate.init()
+
+        except SingleNeuronInitError as ex:
+            logger.warning(
+                f"Models are incompatible (morphology={self.morphology_id}, "
+                f"emodel={self.emodel_id}): {ex.message}\n{ex.details or ''}"
+            )
+            return self._result(CompatibilityStatus.incompatible, ex.message, ex.details)
+
         except Exception as ex:
-            logger.warning(f"Compatibility check failed: {ex}")
-            compatible = False
-            error = str(ex)
+            details = getattr(ex, "details", None)
+            logger.opt(exception=True).error(
+                f"Compatibility check could not run (morphology={self.morphology_id}, "
+                f"emodel={self.emodel_id}): {type(ex).__name__}: {ex}\n{details or ''}"
+            )
+            # str(ConnectTimeout()) is empty, and the client needs a reason to show.
+            return self._result(
+                CompatibilityStatus.check_failed, str(ex) or type(ex).__name__, details
+            )
+
+        else:
+            return self._result(CompatibilityStatus.compatible)
+
         finally:
             self.candidate.cleanup()
 
-        result = CompatibilityCheckResponse(
-            compatible=compatible,
+    def _result(
+        self,
+        status: CompatibilityStatus,
+        error: str | None = None,
+        details: str | None = None,
+    ) -> CompatibilityCheckResponse:
+        return CompatibilityCheckResponse(
+            status=status,
             morphology_id=self.morphology_id,
             emodel_id=self.emodel_id,
-            error=error,
+            error=scrub_neuron_output(error),
+            details=scrub_neuron_output(details),
         )
 
+    def _cache(self, result: CompatibilityCheckResponse) -> None:
         lock = FileLock(self.result_path / DIR_LOCK_FILE_NAME)
+
         with lock.acquire(timeout=2 * 60):
             result_file = self.result_path / RESULT_FILE_NAME
             result_file.write_text(result.model_dump_json())
-
-        return result

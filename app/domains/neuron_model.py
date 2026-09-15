@@ -1,6 +1,7 @@
+from enum import StrEnum, auto
 from uuid import UUID
-from pydantic import BaseModel
-from typing import Optional, Literal
+from pydantic import BaseModel, computed_field, model_validator
+from typing import Any, Optional, Literal
 from datetime import datetime
 
 from app.domains.morphology import SynapseConfig
@@ -70,8 +71,46 @@ class CompatibilityCheckRequest(BaseModel):
     emodel_id: UUID
 
 
+class CompatibilityStatus(StrEnum):
+    """Outcome of a morphology + emodel compatibility check.
+
+    ``check_failed`` means a download, compilation or timeout stopped the check. Offer a
+    retry for it, and ask for another combination only on ``incompatible``.
+    """
+
+    compatible = auto()
+    incompatible = auto()
+    check_failed = auto()
+
+
 class CompatibilityCheckResponse(BaseModel):
-    compatible: bool
+    status: CompatibilityStatus
     morphology_id: UUID
     emodel_id: UUID
     error: str | None = None
+    details: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_legacy_payload(cls, data: Any) -> Any:
+        """Derive ``status`` from ``compatible`` for payloads that predate it.
+
+        They come from results cached before ``status`` existed, and from a worker on the
+        previous image during a rolling deploy.
+        """
+        if isinstance(data, dict) and "status" not in data and "compatible" in data:
+            data = {
+                **data,
+                "status": (
+                    CompatibilityStatus.compatible
+                    if data["compatible"]
+                    else CompatibilityStatus.incompatible
+                ),
+            }
+        return data
+
+    @computed_field
+    @property
+    def compatible(self) -> bool:
+        """For clients that predate ``status``."""
+        return self.status is CompatibilityStatus.compatible

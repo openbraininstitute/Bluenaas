@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.app import app
 from app.core.api import ApiResponse
-from app.domains.neuron_model import CompatibilityCheckResponse
+from app.domains.neuron_model import CompatibilityCheckResponse, CompatibilityStatus
 
 
 MORPH_ID = UUID("11111111-1111-1111-1111-111111111111")
@@ -42,7 +42,7 @@ class TestCheckCompatibilityRoute(unittest.TestCase):
         mock_service.return_value = ApiResponse[CompatibilityCheckResponse](
             message="Compatibility check completed",
             data=CompatibilityCheckResponse(
-                compatible=True,
+                status=CompatibilityStatus.compatible,
                 morphology_id=MORPH_ID,
                 emodel_id=EMODEL_ID,
                 error=None,
@@ -62,6 +62,7 @@ class TestCheckCompatibilityRoute(unittest.TestCase):
 
         body = response.json()
         self.assertEqual(body["message"], "Compatibility check completed")
+        self.assertEqual(body["data"]["status"], "compatible")
         self.assertTrue(body["data"]["compatible"])
         self.assertEqual(body["data"]["morphology_id"], str(MORPH_ID))
         self.assertEqual(body["data"]["emodel_id"], str(EMODEL_ID))
@@ -82,10 +83,11 @@ class TestCheckCompatibilityRoute(unittest.TestCase):
         mock_service.return_value = ApiResponse[CompatibilityCheckResponse](
             message="Compatibility check completed",
             data=CompatibilityCheckResponse(
-                compatible=False,
+                status=CompatibilityStatus.incompatible,
                 morphology_id=MORPH_ID,
                 emodel_id=EMODEL_ID,
-                error="Single neuron model instantiation failed",
+                error="Less than three axon sections are present!",
+                details="NEURON: Less than three axon sections are present!\n cADpyr[0].init()",
             ),
         )
 
@@ -101,8 +103,10 @@ class TestCheckCompatibilityRoute(unittest.TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
         body = response.json()
+        self.assertEqual(body["data"]["status"], "incompatible")
         self.assertFalse(body["data"]["compatible"])
-        self.assertIsNotNone(body["data"]["error"])
+        self.assertEqual(body["data"]["error"], "Less than three axon sections are present!")
+        self.assertIn("cADpyr[0].init()", body["data"]["details"])
 
     @patch("app.infrastructure.kc.auth.kc_auth")
     def test_returns_422_with_invalid_body(self, mock_kc_auth):
