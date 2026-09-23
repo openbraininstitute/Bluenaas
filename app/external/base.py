@@ -29,10 +29,16 @@ class Service:
             mech_name = mechanism["name"]
             create_file(output_dir / SINGLE_NEURON_MOD_DIR / mech_name, mechanism["content"])
 
-        copy_file_content(
-            Path("/app/app/config/VecStim.mod"),
-            output_dir / SINGLE_NEURON_MOD_DIR / "VecStim.mod",
-        )
+        # BlueCelluLab bundles its own technical MOD files (VecStim's
+        # replacement `vecevent.mod`, TTXDynamicsSwitch.mod, etc.); see the
+        # matching comment in app/core/single_neuron/single_neuron.py.
+        from bluecellulab.mod_compilation import internal_mods_path
+
+        for mod_file in sorted(internal_mods_path().glob("*.mod")):
+            copy_file_content(
+                mod_file,
+                output_dir / SINGLE_NEURON_MOD_DIR / mod_file.name,
+            )
         copy_file_content(
             Path("/app/app/config/ProbGABAAB_EMS.mod"),
             output_dir / SINGLE_NEURON_MOD_DIR / "ProbGABAAB_EMS.mod",

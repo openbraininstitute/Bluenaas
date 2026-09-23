@@ -54,10 +54,19 @@ class SingleNeuronBase(ABC):
     def threshold_current(self) -> float: ...
 
     def _add_syn_mod_files(self):
-        copy_file_content(
-            Path("/app/app/config/VecStim.mod"),
-            self.path / SINGLE_NEURON_MOD_DIR / "VecStim.mod",
-        )
+        # BlueCelluLab bundles the technical MOD files it needs (VecStim's
+        # replacement `vecevent.mod`, TTXDynamicsSwitch.mod, etc.) instead of
+        # requiring each model to carry its own copy. Compiling them together
+        # with the model's own mod files in one nrnivmodl invocation keeps
+        # mechanisms that share signals (e.g. TTXDynamicsSwitch and the sodium
+        # channels via the `ttx` ion) in the same library.
+        from bluecellulab.mod_compilation import internal_mods_path
+
+        for mod_file in sorted(internal_mods_path().glob("*.mod")):
+            copy_file_content(
+                mod_file,
+                self.path / SINGLE_NEURON_MOD_DIR / mod_file.name,
+            )
         copy_file_content(
             Path("/app/app/config/ProbGABAAB_EMS.mod"),
             self.path / SINGLE_NEURON_MOD_DIR / "ProbGABAAB_EMS.mod",
