@@ -55,8 +55,8 @@ class SingleNeuronBase(ABC):
 
     def _add_syn_mod_files(self):
         copy_file_content(
-            Path("/app/app/config/VecStim.mod"),
-            self.path / SINGLE_NEURON_MOD_DIR / "VecStim.mod",
+            Path("/app/app/config/vecevent.mod"),
+            self.path / SINGLE_NEURON_MOD_DIR / "vecevent.mod",
         )
         copy_file_content(
             Path("/app/app/config/ProbGABAAB_EMS.mod"),

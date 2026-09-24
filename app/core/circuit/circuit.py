@@ -31,7 +31,7 @@ from app.constants import (
 )
 from app.core.exceptions import CircuitInitError
 from app.domains.circuit.circuit import CircuitOrigin
-from app.infrastructure.storage import get_circuit_location, rm_dir
+from app.infrastructure.storage import copy_file_content, get_circuit_location, rm_dir
 
 
 class CircuitBase(ABC):
@@ -56,6 +56,23 @@ class CircuitBase(ABC):
     def _fetch_assets(self):
         """Fetch the circuit files from entitycore and write to the disk storage"""
         pass
+
+    def _ensure_extra_mod_files(self):
+        """Ensure extra / technical MOD files"""
+        copy_file_content(
+            Path("/app/app/config/vecevent.mod"),
+            self.path / CIRCUIT_MOD_DIR / "vecevent.mod",
+        )
+        copy_file_content(
+            Path("/app/app/config/InhPoissonStim.mod"),
+            self.path / CIRCUIT_MOD_DIR / "InhPoissonStim.mod",
+        )
+
+        # Clean up netstim_inhpoisson.mod that exists in older circuits.
+        # It conflicts with the newer InhPoissonStim.mod
+        legacy_inhpoisson = self.path / CIRCUIT_MOD_DIR / "netstim_inhpoisson.mod"
+        if legacy_inhpoisson.exists():
+            legacy_inhpoisson.unlink()
 
     def _compile_mod_files(self):
         """Compile MOD files"""
@@ -89,6 +106,7 @@ class CircuitBase(ABC):
                     return
 
                 self._fetch_assets()
+                self._ensure_extra_mod_files()
                 self._compile_mod_files()
                 ready_marker.touch()
         except Exception:
