@@ -86,9 +86,13 @@ def compile_with_cache(model_path: Path, mod_dir_name: str) -> None:
         cmd = ["nrnivmodl", "-incflags", "-DDISABLE_REPORTINGLIB", mod_dir_name]
         # nrnivmodl prints its diagnostics to stderr, and CalledProcessError.output
         # holds only stdout.
-        compilation_output = subprocess.check_output(
-            cmd, cwd=cache_path, text=True, stderr=subprocess.STDOUT
-        )
+        try:
+            compilation_output = subprocess.check_output(
+                cmd, cwd=cache_path, text=True, stderr=subprocess.STDOUT
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"nrnivmodl failed (exit {e.returncode}):\n{e.output}")
+            raise
         logger.debug(compilation_output)
 
         cache_ready.touch()
