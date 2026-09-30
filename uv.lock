@@ -85,7 +85,7 @@ wheels = [
 
 [[package]]
 name = "bluecellulab"
-version = "2.6.105"
+version = "2.6.106"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bluepysnap" },
@@ -104,9 +104,9 @@ dependencies = [
     { name = "seaborn" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/82/e7/6d6a172ea520c55f778bad3589c7f42eb9b994bc206fec2303b8539d19c9/bluecellulab-2.6.105.tar.gz", hash = "sha256:b8950339efaa0859ba314195579d7ad1fbb64a9afb4fa4c637f3ed945a94d411", size = 572365, upload-time = "2026-09-29T10:46:51.873Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/9e/f2d68a4c06caf96faafff14ffd9bfe50403d1916989938ad627637e53df8/bluecellulab-2.6.106.tar.gz", hash = "sha256:8f46f481839be548266564136327eb90b11d69f9920391323869d86b6e3509b2", size = 572282, upload-time = "2026-09-30T09:06:02.174Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f4/09/184b5c0af1310167ee6bafa1b5b279b926faad549653c48c996c8cb129aa/bluecellulab-2.6.105-py3-none-any.whl", hash = "sha256:4ccf4376dbbc7e8a6e20cf5be0f6c40e7cbf9fc659f925bbe26f12e1e7dd0b4e", size = 192488, upload-time = "2026-09-29T10:46:50.334Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/c7/89c19e37fe93a29b5eb7eb7a5a22b43f3a1272a738ca8c1cabab292ef2c2/bluecellulab-2.6.106-py3-none-any.whl", hash = "sha256:e1ee69857008a13f6aeaf090a58d409e59e432fb95d6213c32d1c8d01ce533c3", size = 192493, upload-time = "2026-09-30T09:06:00.972Z" },
 ]
 
 [[package]]
@@ -222,7 +222,7 @@ types = [
     { name = "types-requests", specifier = "==2.32.4.20260107" },
 ]
 worker = [
-    { name = "bluecellulab", specifier = "==2.6.105" },
+    { name = "bluecellulab", specifier = "==2.6.106" },
     { name = "efel", specifier = "==5.7.27" },
     { name = "filelock", specifier = "==3.25.0" },
     { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.18" },
