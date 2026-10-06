@@ -1,25 +1,12 @@
-from enum import StrEnum, auto
+from uuid import UUID
+
 from pydantic import BaseModel
 
-from entitysdk.models import (
-    IonChannelModelingConfig,
-    IonChannelModelingExecution,
-    IonChannelModel,
-    IonChannelModelingCampaign,
-)
+
+class IonChannelBuildRequest(BaseModel):
+    config_id: UUID
 
 
-class StreamDataType(StrEnum):
-    build_input = auto()
-    build_output = auto()
-
-
-class BuildInputStreamData(BaseModel):
-    campaign: IonChannelModelingCampaign
-    config: IonChannelModelingConfig
-    execution: IonChannelModelingExecution
-
-
-class BuildOutputStreamData(BaseModel):
-    model: IonChannelModel | None = None
-    execution: IonChannelModelingExecution
+class IonChannelBuildLaunch(BaseModel):
+    job_id: UUID
+    execution_id: UUID
