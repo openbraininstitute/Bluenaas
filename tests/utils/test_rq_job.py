@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from rq.job import JobStatus as RQJobStatus
 
 from app.constants import NULL_CID
+from app.core.exceptions import JobFailedError
 from app.utils.rq_job import _job_status_monitor
 
 
@@ -95,8 +96,9 @@ class TestJobStatusMonitor(unittest.TestCase):
                 on_failure=on_failure,
             )
 
-            # Verify on_failure was called exactly once
-            on_failure.assert_called_once()
+            # Called with an exception type: callbacks such as an accounting session's
+            # finish(exc_type) treat None as success and charge for the failed job.
+            on_failure.assert_called_once_with(JobFailedError)
 
         asyncio.run(test())
 
@@ -309,7 +311,7 @@ class TestJobStatusMonitor(unittest.TestCase):
             async def track_start():
                 execution_order.append("start")
 
-            async def track_failure():
+            async def track_failure(exc_type):
                 execution_order.append("failure")
 
             on_start.side_effect = track_start
