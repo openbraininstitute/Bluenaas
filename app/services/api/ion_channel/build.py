@@ -93,7 +93,7 @@ async def run_ion_channel_build(
         job, _ = await dispatch(
             job_queue,
             JobFn.RUN_ION_CHANNEL_BUILD,
-            timeout=60 * 60,  # 1 hour, as obi-one's launch definition of the task
+            timeout=60 * 60,
             job_args=(config_id,),
             on_start=on_start,
             on_success=on_success,

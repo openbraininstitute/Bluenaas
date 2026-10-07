@@ -121,6 +121,4 @@ class EMCellMeshInitError(_BaseMessageException):
 
 
 class JobFailedError(_BaseMessageException):
-    """Passed as ``exc_type`` to ``on_failure`` callbacks when an RQ job fails."""
-
     default_message = "Job failed"

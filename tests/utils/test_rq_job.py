@@ -96,8 +96,6 @@ class TestJobStatusMonitor(unittest.TestCase):
                 on_failure=on_failure,
             )
 
-            # Called with an exception type: callbacks such as an accounting session's
-            # finish(exc_type) treat None as success and charge for the failed job.
             on_failure.assert_called_once_with(JobFailedError)
 
         asyncio.run(test())

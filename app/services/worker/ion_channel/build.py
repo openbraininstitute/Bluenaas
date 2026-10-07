@@ -37,7 +37,6 @@ def run_ion_channel_build(
     set_status(ActivityStatus.running)
 
     try:
-        # The task registers the model and adds it to the execution's generated entities.
         run_task_type(
             task_type=TaskType.ion_channel_fitting,
             entity_type=TaskConfig,
