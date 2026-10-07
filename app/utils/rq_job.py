@@ -11,6 +11,7 @@ from rq.job import JobStatus as RQJobStatus
 from app.config.settings import settings
 from app.constants import NULL_CID
 from app.context import cid_var
+from app.core.exceptions import JobFailedError
 from app.core.job import JobInfo
 from app.core.job_stream import JobStatus, JobStream
 from app.domains.stream_message import Message, MessageAdapter, MessageType
@@ -56,7 +57,7 @@ async def _job_status_monitor(
                         await on_start()
                 case RQJobStatus.FAILED:
                     if on_failure:
-                        await on_failure()
+                        await on_failure(JobFailedError)
                     break
                 case RQJobStatus.FINISHED:
                     if on_success:
