@@ -54,16 +54,20 @@ async def run_ion_channel_build(
 
     await make_accounting_reservation_async(accounting_session)
 
-    execution = await run_async(
-        lambda: client.register_entity(
-            TaskActivity(
-                task_activity_type=TaskActivityType.ion_channel_modeling__execution,
-                used=[config],
-                start_time=datetime.now(UTC),
-                status=ActivityStatus.pending,
+    try:
+        execution = await run_async(
+            lambda: client.register_entity(
+                TaskActivity(
+                    task_activity_type=TaskActivityType.ion_channel_modeling__execution,
+                    used=[config],
+                    start_time=datetime.now(UTC),
+                    status=ActivityStatus.pending,
+                )
             )
         )
-    )
+    except Exception as exc:
+        await accounting_session.finish(exc_type=type(exc))
+        raise
     execution_id = execution.id
     assert execution_id
 
@@ -85,20 +89,24 @@ async def run_ion_channel_build(
             )
         )
 
-    job, _ = await dispatch(
-        job_queue,
-        JobFn.RUN_ION_CHANNEL_BUILD,
-        timeout=60 * 10,  # 10 minutes
-        job_args=(config_id,),
-        on_start=on_start,
-        on_success=on_success,
-        on_failure=on_failure,
-        job_kwargs={
-            "execution_id": execution_id,
-            "access_token": auth.access_token,
-            "project_context": project_context,
-        },
-    )
+    try:
+        job, _ = await dispatch(
+            job_queue,
+            JobFn.RUN_ION_CHANNEL_BUILD,
+            timeout=60 * 60,  # 1 hour, as obi-one's launch definition of the task
+            job_args=(config_id,),
+            on_start=on_start,
+            on_success=on_success,
+            on_failure=on_failure,
+            job_kwargs={
+                "execution_id": execution_id,
+                "access_token": auth.access_token,
+                "project_context": project_context,
+            },
+        )
+    except Exception as exc:
+        await on_failure(type(exc))
+        raise
 
     return IonChannelBuildLaunch(job_id=UUID(job.id), execution_id=execution_id)
 

@@ -89,6 +89,25 @@ class TestRunIonChannelBuild(unittest.TestCase):
         self.assertEqual(update["attrs_or_entity"]["status"], ActivityStatus.error)
         self.accounting_session.finish.assert_awaited_once_with(exc_type=JobFailedError)
 
+    def test_releases_the_credits_when_the_execution_cannot_be_registered(self):
+        self.client.register_entity.side_effect = RuntimeError("entitycore down")
+
+        with self.assertRaises(RuntimeError):
+            self._run()
+
+        self.accounting_session.finish.assert_awaited_once_with(exc_type=RuntimeError)
+        self.dispatch.assert_not_called()
+
+    def test_a_failed_dispatch_fails_the_execution_and_releases_the_credits(self):
+        self.dispatch.side_effect = ConnectionError("redis down")
+
+        with self.assertRaises(ConnectionError):
+            self._run()
+
+        self.accounting_session.finish.assert_awaited_once_with(exc_type=ConnectionError)
+        update = self.client.update_entity.call_args.kwargs
+        self.assertEqual(update["attrs_or_entity"]["status"], ActivityStatus.error)
+
     def test_rejects_a_config_of_another_task_before_charging(self):
         self.client.get_entity.return_value = self.client.get_entity.return_value.model_copy(
             update={"task_config_type": TaskConfigType.circuit_extraction__config}
