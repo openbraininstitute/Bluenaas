@@ -41,7 +41,6 @@ async def run_ion_channel_build(
             message="Not an ion channel modeling config",
             error_code=None,
             details=f"TaskConfig {config_id} is a {config.task_config_type}",
-            http_status_code=HTTPStatus.BAD_REQUEST,
         )
 
     logger.info("Making accounting reservation for ion channel build")
@@ -76,6 +75,7 @@ async def run_ion_channel_build(
         logger.info("Accounting session finished successfully")
 
     async def on_failure(exc_type: type[BaseException] | None) -> None:
+        await accounting_session.finish(exc_type=exc_type)
         # The worker marks the execution as failed too, but not when it dies before it can.
         await run_async(
             lambda: client.update_entity(
@@ -84,9 +84,8 @@ async def run_ion_channel_build(
                 attrs_or_entity={"end_time": datetime.now(UTC), "status": ActivityStatus.error},
             )
         )
-        await accounting_session.finish(exc_type=exc_type)
 
-    job, _job_stream = await dispatch(
+    job, _ = await dispatch(
         job_queue,
         JobFn.RUN_ION_CHANNEL_BUILD,
         timeout=60 * 10,  # 10 minutes

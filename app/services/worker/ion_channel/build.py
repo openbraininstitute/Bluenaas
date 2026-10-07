@@ -4,7 +4,6 @@ from uuid import UUID
 from entitysdk import Client, ProjectContext
 from entitysdk.models import TaskActivity, TaskConfig
 from entitysdk.types import ActivityStatus
-from loguru import logger
 from obi_one.core.run_tasks import run_task_type
 from obi_one.types import TaskType
 
@@ -47,8 +46,7 @@ def run_ion_channel_build(
             db_client=client,
             execution_activity_id=str(execution_id),
         )
-    except Exception as e:
-        logger.error(f"Ion channel build failed: {e}")
+    except Exception:
         set_status(ActivityStatus.error, end_time=datetime.now(UTC))
         raise
     finally:
