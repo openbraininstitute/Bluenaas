@@ -109,7 +109,7 @@ def get_circuit_simulation_params(
     simulation = Simulation(simulation_id, client=client)
 
     try:
-        simulation.init(init_circuit=False)
+        simulation.init()
 
         sim_params = simulation.get_simulation_params()
         job_stream.send_data(sim_params)

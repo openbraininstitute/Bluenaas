@@ -19,6 +19,7 @@ from app.constants import (
     READY_MARKER_FILE_NAME,
 )
 from app.core.circuit.circuit import CircuitBase, create_circuit
+from app.core.circuit.node_sets import resolve_simulation_cells
 from app.core.circuit.simulation_output import SimulationOutput
 from app.core.exceptions import CircuitSimulationError, CircuitSimulationInitError
 from app.domains.circuit.simulation import SimulationParams
@@ -129,26 +130,18 @@ class Simulation:
             ready_marker.touch()
 
     def get_simulation_params(self) -> SimulationParams:
+        """Requires the circuit to be initialized to resolve the simulation node set"""
         config_file = self.path / CIRCUIT_SIMULATION_CONFIG_NAME
         with open(config_file, "r") as f:
             config_data = json.load(f)
-            node_set_name = config_data.get("node_set", "All")
-            node_sets_file = self.path / config_data["node_sets_file"]
 
-            with open(node_sets_file) as f:
-                node_set_data = json.load(f)
+        num_cells = len(resolve_simulation_cells(config_file))
+        tstop = config_data["run"]["tstop"]
 
-                if node_set_name not in node_set_data:
-                    raise KeyError(f"Node set '{node_set_name}' not found in node sets file")
+        return SimulationParams(num_cells=num_cells, tstop=tstop)
 
-                num_cells = len(node_set_data[node_set_name]["node_id"])
-                tstop = config_data["run"]["tstop"]
-
-                return SimulationParams(num_cells=num_cells, tstop=tstop)
-
-    def init(self, *, init_circuit: bool = True) -> Self:
-        if init_circuit:
-            self._init_circuit()
+    def init(self) -> Self:
+        self._init_circuit()
 
         try:
             self._init_simulation()
