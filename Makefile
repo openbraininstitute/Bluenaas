@@ -68,9 +68,9 @@ PROGRESS_FLAG := $(if $(CI),--progress=plain,)
 build:  ## Build the Docker images
 	docker compose $(PROGRESS_FLAG) build api
 	@if [ -n "$$SSH_AUTH_SOCK" ]; then \
-		docker compose $(PROGRESS_FLAG) build --ssh github_ssh=$$SSH_AUTH_SOCK worker; \
+		docker compose $(PROGRESS_FLAG) build --secret id=CODEARTIFACT_TOKEN,env=CODEARTIFACT_TOKEN --ssh github_ssh=$$SSH_AUTH_SOCK worker; \
 	else \
-		docker compose $(PROGRESS_FLAG) build worker; \
+		docker compose $(PROGRESS_FLAG) build --secret id=CODEARTIFACT_TOKEN,env=CODEARTIFACT_TOKEN worker; \
 	fi
 
 publish: build  ## Publish the Docker images to DockerHub

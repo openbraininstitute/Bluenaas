@@ -83,7 +83,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (CodeArtifact)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::985539765147:role/gh_codeartifact_read_all
+          aws-region: us-east-1
+
+      - name: Get CodeArtifact token
+        run: |
+          TOKEN=$(aws codeartifact get-authorization-token --domain openbraininstitute --query authorizationToken --output text)
+          echo "::add-mask::${TOKEN}"
+          echo "CODEARTIFACT_TOKEN=${TOKEN}" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials (ECR)
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.PUBLIC_ECR_UPLOAD_ROLE_ARN }}
@@ -105,4 +117,4 @@ jobs:
           build-args: |
             ENVIRONMENT=${{ env.ENVIRONMENT }}
           secrets: |
-            GH_PRIVATE_REPO_TOKEN=${{ secrets.GH_PRIVATE_REPO_TOKEN }}
+            CODEARTIFACT_TOKEN=${{ env.CODEARTIFACT_TOKEN }}

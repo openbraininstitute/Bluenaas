@@ -226,7 +226,7 @@ worker = [
     { name = "bluecellulab", specifier = "==2.6.106" },
     { name = "efel", specifier = "==5.7.27" },
     { name = "filelock", specifier = "==3.25.0" },
-    { name = "ion-channel-builder", git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.18" },
+    { name = "ion-channel-builder", index = "https://openbraininstitute-985539765147.d.codeartifact.us-east-1.amazonaws.com/pypi/pypi-prod/simple/" },
     { name = "libsonata", specifier = "==0.1.37" },
     { name = "morphio", specifier = "==3.4.2" },
     { name = "numpy", specifier = ">=2.0.0,<2.5" },
@@ -959,8 +959,8 @@ wheels = [
 
 [[package]]
 name = "ion-channel-builder"
-version = "0.0.18"
-source = { git = "https://github.com/openbraininstitute/ion-channel-builder.git?tag=0.0.18#e9cd61abad5014aee98f7c4aa2af0ce29194da27" }
+version = "0.0.21"
+source = { registry = "https://openbraininstitute-985539765147.d.codeartifact.us-east-1.amazonaws.com/pypi/pypi-prod/simple/" }
 dependencies = [
     { name = "efel" },
     { name = "jinja2" },
@@ -968,6 +968,10 @@ dependencies = [
     { name = "neuron" },
     { name = "numpy" },
     { name = "palettable" },
+]
+sdist = { url = "https://openbraininstitute-985539765147.d.codeartifact.us-east-1.amazonaws.com/pypi/pypi-prod/simple/ion-channel-builder/0.0.21/ion_channel_builder-0.0.21.tar.gz", hash = "sha512:d3046f7983ab3aa4fb4c9c29833bb69fcf76275ec84e6d3cf7186e7da04d0be66163642eb3a62a9795f8a6f7e9484620da9fead01d5aadbe52f0bf61d4237946", size = 119660, upload-time = "2026-10-08T14:20:01.335Z" }
+wheels = [
+    { url = "https://openbraininstitute-985539765147.d.codeartifact.us-east-1.amazonaws.com/pypi/pypi-prod/simple/ion-channel-builder/0.0.21/ion_channel_builder-0.0.21-py3-none-any.whl", hash = "sha512:b90c57a6f41fe5c551308ed43064f4b0fa42fea06e548648a65c2e944b4db2939d4884c4753b3566f8b70a227f5ca2fddfb601abd67098e64961877b8a4099a8", size = 120981, upload-time = "2026-10-08T14:20:00.959Z" },
 ]
 
 [[package]]

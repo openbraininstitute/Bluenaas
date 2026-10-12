@@ -40,7 +40,7 @@ services:
     build:
       dockerfile: Dockerfile.worker
       secrets:
-        - GH_PRIVATE_REPO_TOKEN
+        - CODEARTIFACT_TOKEN
       args:
         - ENVIRONMENT
         - IMAGE_TAG_SUFFIX
@@ -87,5 +87,5 @@ services:
       retries: 10
 
 secrets:
-  GH_PRIVATE_REPO_TOKEN:
-    environment: GH_PRIVATE_REPO_TOKEN
+  CODEARTIFACT_TOKEN:
+    environment: CODEARTIFACT_TOKEN
