@@ -34,7 +34,7 @@ worker = [
     "bluecellulab==2.6.106",
     "efel==5.7.27",
     "filelock==3.25.0",
-    "ion-channel-builder",
+    "ion-channel-builder==0.0.21",
     "libsonata==0.2.2",
     "morphio==3.4.2",
     "numpy>=2.0.0,<2.5",
@@ -64,5 +64,10 @@ reportCallIssue = "warning"
 line-length = 100
 target-version = "py312"
 
+[[tool.uv.index]]
+name = "codeartifact"
+url = "https://openbraininstitute-985539765147.d.codeartifact.us-east-1.amazonaws.com/pypi/pypi-prod/simple/"
+explicit = true
+
 [tool.uv.sources]
-ion-channel-builder = { git = "https://github.com/openbraininstitute/ion-channel-builder.git", tag = "0.0.18" }
+ion-channel-builder = { index = "codeartifact" }
