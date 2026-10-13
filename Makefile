@@ -19,22 +19,16 @@ GID := $(shell id -g)
 export UID
 export GID
 
-# AWS CodeArtifact repository hosting the private packages
-CODEARTIFACT_DOMAIN := openbraininstitute
-CODEARTIFACT_DOMAIN_OWNER := 985539765147
-CODEARTIFACT_REGION := us-east-1
-
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-23s\033[0m %s\n", $$1, $$2}'
 
 codeartifact-env:  ## Print exports for fetching private packages, use as: eval "$(make -s codeartifact-env)"
 	@token=$$(aws codeartifact get-authorization-token \
-		--domain $(CODEARTIFACT_DOMAIN) \
-		--domain-owner $(CODEARTIFACT_DOMAIN_OWNER) \
-		--region $(CODEARTIFACT_REGION) \
+		--domain openbraininstitute \
+		--domain-owner 985539765147 \
+		--region us-east-1 \
 		--query authorizationToken \
 		--output text) \
-		&& echo "export CODEARTIFACT_TOKEN=$$token" \
 		&& echo "export UV_INDEX_CODEARTIFACT_USERNAME=aws" \
 		&& echo "export UV_INDEX_CODEARTIFACT_PASSWORD=$$token"
 

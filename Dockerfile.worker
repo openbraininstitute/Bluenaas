@@ -14,7 +14,8 @@ COPY --from=uv /uv /usr/local/bin/uv
 ENV UV_LINK_MODE=copy \
   UV_COMPILE_BYTECODE=1 \
   UV_PYTHON_DOWNLOADS=never \
-  UV_PYTHON=python${PYTHON_VERSION}
+  UV_PYTHON=python${PYTHON_VERSION} \
+  UV_INDEX_CODEARTIFACT_USERNAME=aws
 
 WORKDIR /app
 
@@ -29,14 +30,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
   --mount=type=bind,source=uv.lock,target=uv.lock \
   --mount=type=bind,source=pyproject.toml,target=pyproject.toml <<EOT
 set -e
-# Tracing is off while the token is checked, to keep it out of the build log
-{ set +x; } 2>/dev/null
-if [[ -z "${UV_INDEX_CODEARTIFACT_PASSWORD}" ]]; then
+# The length is tested instead of the value, to keep the token out of the traced build log
+if [[ ${#UV_INDEX_CODEARTIFACT_PASSWORD} -eq 0 ]]; then
   echo "CODEARTIFACT_TOKEN build secret is missing or empty, see README (make codeartifact-env)" >&2
   exit 1
 fi
-set -x
-export UV_INDEX_CODEARTIFACT_USERNAME=aws
 
 if [ "${ENVIRONMENT}" = "prod" ]; then
   uv sync --locked --no-install-project --no-dev --group worker

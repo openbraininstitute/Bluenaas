@@ -88,4 +88,4 @@ services:
 
 secrets:
   CODEARTIFACT_TOKEN:
-    environment: CODEARTIFACT_TOKEN
+    environment: UV_INDEX_CODEARTIFACT_PASSWORD

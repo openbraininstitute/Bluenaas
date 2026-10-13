@@ -67,6 +67,7 @@ jobs:
             runner: ubuntu-latest
             dockerfile: Dockerfile.worker
             platforms: linux/amd64 # ARM64 blocked by obi-one dep chain (pylmesh, bluepyefe, bluepysnap)
+            codeartifact: true # installs private packages
     env:
       ENVIRONMENT: "prod"
       IMAGE_NAME: ${{ vars.PUBLICECR_URI }}
@@ -84,14 +85,14 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Configure AWS credentials (CodeArtifact)
-        if: matrix.image_name == 'worker'
+        if: matrix.codeartifact
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::985539765147:role/gh_codeartifact_read_all
           aws-region: us-east-1
 
       - name: Get CodeArtifact token
-        if: matrix.image_name == 'worker'
+        if: matrix.codeartifact
         run: |
           TOKEN=$(aws codeartifact get-authorization-token --domain openbraininstitute --query authorizationToken --output text)
           echo "::add-mask::${TOKEN}"
@@ -118,4 +119,4 @@ jobs:
           tags: ${{ env.IMAGE_NAME }}:${{ matrix.image_name }}-${{ needs.determine_tag.outputs.new_tag }}
           build-args: |
             ENVIRONMENT=${{ env.ENVIRONMENT }}
-          secrets: ${{ matrix.image_name == 'worker' && format('CODEARTIFACT_TOKEN={0}', env.CODEARTIFACT_TOKEN) || '' }}
+          secrets: ${{ matrix.codeartifact && format('CODEARTIFACT_TOKEN={0}', env.CODEARTIFACT_TOKEN) || '' }}
