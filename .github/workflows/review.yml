@@ -16,7 +16,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          version: "latest"
+          # uv 0.13 rejects the obi-one sdist (a member path contains ":")
+          version: "0.12.24"
           enable-cache: true
 
       - name: Setup python
