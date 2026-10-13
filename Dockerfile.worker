@@ -14,36 +14,27 @@ COPY --from=uv /uv /usr/local/bin/uv
 ENV UV_LINK_MODE=copy \
   UV_COMPILE_BYTECODE=1 \
   UV_PYTHON_DOWNLOADS=never \
-  UV_PYTHON=python${PYTHON_VERSION}
+  UV_PYTHON=python${PYTHON_VERSION} \
+  UV_INDEX_CODEARTIFACT_USERNAME=aws
 
 WORKDIR /app
 
 # TODO: remove what's not needed
 RUN apt-get update \
-  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev git openssh-client \
+  && apt-get install -q -y --no-install-recommends build-essential mpich libmpich-dev \
   && rm -rf /var/lib/apt/lists/*
 
 ARG ENVIRONMENT
 RUN --mount=type=cache,target=/root/.cache/uv \
+  --mount=type=secret,id=CODEARTIFACT_TOKEN,env=UV_INDEX_CODEARTIFACT_PASSWORD,required=true \
   --mount=type=bind,source=uv.lock,target=uv.lock \
-  --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-  --mount=type=secret,id=GH_PRIVATE_REPO_TOKEN,required=false \
-  --mount=type=ssh,id=github_ssh,required=false <<EOT
+  --mount=type=bind,source=pyproject.toml,target=pyproject.toml <<EOT
 set -e
-if [[ -S "/run/buildkit/ssh_agent.0" ]]; then
-  export SSH_AUTH_SOCK=/run/buildkit/ssh_agent.0
-  echo "Using SSH for private repos"
-  mkdir -p ~/.ssh
-  ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-  git config --global url."ssh://git@github.com/".insteadOf "https://github.com/";
-elif [[ -f /run/secrets/GH_PRIVATE_REPO_TOKEN ]]; then
-  echo "Using HTTPS + GH_PRIVATE_REPO_TOKEN for private repos"
-  GH_PRIVATE_REPO_TOKEN=$(cat /run/secrets/GH_PRIVATE_REPO_TOKEN);
-  git config --global url."https://${GH_PRIVATE_REPO_TOKEN}@github.com/".insteadOf "https://github.com/";
-else
-  echo "No Git credentials found — public repos only"
+# The length is tested instead of the value, to keep the token out of the traced build log
+if [[ ${#UV_INDEX_CODEARTIFACT_PASSWORD} -eq 0 ]]; then
+  echo "CODEARTIFACT_TOKEN build secret is missing or empty, see README (make codeartifact-env)" >&2
+  exit 1
 fi
-
 
 if [ "${ENVIRONMENT}" = "prod" ]; then
   uv sync --locked --no-install-project --no-dev --group worker
