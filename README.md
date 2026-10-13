@@ -24,6 +24,12 @@ To get the code for legacy (neuron) version check out [v1 branch](https://bbpgit
 
 ## Development
 
+The `ion-channel-builder` package is installed from the private OBI AWS CodeArtifact repository, so installing the dependencies and building the worker image require an access token. With the AWS CLI logged in, export it for the current shell (the token is valid for 12 hours):
+
+```bash
+eval "$(make -s codeartifact-env)"
+```
+
 Use UV to install the dependencies:
 
 ```bash
