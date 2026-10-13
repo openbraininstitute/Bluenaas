@@ -17,7 +17,7 @@ from entitysdk.types import AssetLabel
 from filelock import FileLock
 from loguru import logger
 from obi_one import IonChannelModelSimulationSingleConfig
-from obi_one.scientific.blocks.ion_channel_model import (
+from obi_one.scientific.blocks.ion_channel_model.ion_channel_model import (
     IonChannelModelWithConductance,
     IonChannelModelWithMaxPermeability,
 )
