@@ -84,12 +84,14 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Configure AWS credentials (CodeArtifact)
+        if: matrix.image_name == 'worker'
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::985539765147:role/gh_codeartifact_read_all
           aws-region: us-east-1
 
       - name: Get CodeArtifact token
+        if: matrix.image_name == 'worker'
         run: |
           TOKEN=$(aws codeartifact get-authorization-token --domain openbraininstitute --query authorizationToken --output text)
           echo "::add-mask::${TOKEN}"
@@ -116,5 +118,4 @@ jobs:
           tags: ${{ env.IMAGE_NAME }}:${{ matrix.image_name }}-${{ needs.determine_tag.outputs.new_tag }}
           build-args: |
             ENVIRONMENT=${{ env.ENVIRONMENT }}
-          secrets: |
-            CODEARTIFACT_TOKEN=${{ env.CODEARTIFACT_TOKEN }}
+          secrets: ${{ matrix.image_name == 'worker' && format('CODEARTIFACT_TOKEN={0}', env.CODEARTIFACT_TOKEN) || '' }}

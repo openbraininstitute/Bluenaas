@@ -35,18 +35,13 @@ jobs:
         run: |
           TOKEN=$(aws codeartifact get-authorization-token --domain openbraininstitute --query authorizationToken --output text)
           echo "::add-mask::${TOKEN}"
-          echo "CODEARTIFACT_TOKEN=${TOKEN}" >> $GITHUB_ENV
+          echo "UV_INDEX_CODEARTIFACT_USERNAME=aws" >> $GITHUB_ENV
+          echo "UV_INDEX_CODEARTIFACT_PASSWORD=${TOKEN}" >> $GITHUB_ENV
 
       - name: Check requirements
-        env:
-          UV_INDEX_CODEARTIFACT_USERNAME: aws
-          UV_INDEX_CODEARTIFACT_PASSWORD: ${{ env.CODEARTIFACT_TOKEN }}
         run: make check-deps
 
       - name: Install requirements
-        env:
-          UV_INDEX_CODEARTIFACT_USERNAME: aws
-          UV_INDEX_CODEARTIFACT_PASSWORD: ${{ env.CODEARTIFACT_TOKEN }}
         run: make install
 
       - name: Run checks
