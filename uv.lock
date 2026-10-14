@@ -194,7 +194,7 @@ worker = [
 
 [package.metadata]
 requires-dist = [
-    { name = "entitysdk", specifier = "==0.19.30" },
+    { name = "entitysdk", specifier = "==0.19.32" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "msgpack", specifier = ">=1.2.1" },
     { name = "nanoid", specifier = ">=2.0.0" },
@@ -734,16 +734,16 @@ wheels = [
 
 [[package]]
 name = "entitysdk"
-version = "0.19.30"
+version = "0.19.32"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx2" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/53/1b/957d95ac16957b856e11fd8584bc6534d92016953bc44fb5d6c76e758895/entitysdk-0.19.30.tar.gz", hash = "sha256:7d78167aee091e2ea9ded3e1e5e2164dcd88f4cb21f8b0d6bf742a24b39f9945", size = 81620, upload-time = "2026-10-06T14:02:03.177Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/60/7d3efe1911ed4da5438c79686b483ca1dd380d7ec0ae74ba0d2344091782/entitysdk-0.19.32.tar.gz", hash = "sha256:e90b654422c6916ef5636bc4c778ff6ba35872fc6dc7162c4ad3eb19cc34cea4", size = 81898, upload-time = "2026-10-14T07:59:00.086Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ad/f5/0d64e8294017f79b59d83c65d9d1dadd11c8af143d0bc6d2b95e3a415a9e/entitysdk-0.19.30-py3-none-any.whl", hash = "sha256:6999ef9e8df039ed9a3de67d9e091691f9826a15d5b810dc572bec297f2c85a8", size = 115899, upload-time = "2026-10-06T14:02:01.79Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/e4/44967bf57d400060d9fd680fe4f61334bb0c30582798c5ddfc75fca5712d/entitysdk-0.19.32-py3-none-any.whl", hash = "sha256:1003fd8bc44752b99d78283033d41b9824b6e956dcf0040e024ab90f418c1e98", size = 116177, upload-time = "2026-10-14T07:58:58.623Z" },
 ]
 
 [[package]]
