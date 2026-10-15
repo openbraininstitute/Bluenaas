@@ -16,10 +16,12 @@ from entitysdk.staging.ion_channel_model import (
 from entitysdk.types import AssetLabel
 from filelock import FileLock
 from loguru import logger
-from obi_one import IonChannelModelSimulationSingleConfig
 from obi_one.scientific.blocks.ion_channel_model.ion_channel_model import (
     IonChannelModelWithConductance,
     IonChannelModelWithMaxPermeability,
+)
+from obi_one.scientific.tasks.generate_simulations.config.neuron.neuron_ion_channel_models import (
+    IonChannelModelSimulationSingleConfig,
 )
 
 from app.constants import (
