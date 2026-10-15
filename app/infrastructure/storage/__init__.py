@@ -109,3 +109,26 @@ def clear_ion_channel_cache() -> None:
 
 def clear_compilation_cache() -> None:
     rm_dir(settings.STORAGE_PATH / "compilation-cache")
+
+
+# download_memodel stages each morphology format in its own subdirectory, in this order of preference
+MORPHOLOGY_FORMAT_PREFERENCE = ("asc", "swc", "h5")
+
+
+def find_morphology_file(morphology_dir: Path) -> Path:
+    """Locate the morphology file to load, whether staged flat or in per-format subdirectories.
+
+    Only files with a known morphology extension (case-insensitive) are considered, and the
+    preferred format wins within a directory.
+    """
+    for candidate_dir in (
+        morphology_dir,
+        *(morphology_dir / fmt for fmt in MORPHOLOGY_FORMAT_PREFERENCE),
+    ):
+        files = sorted(p for p in candidate_dir.glob("*") if p.is_file())
+        for fmt in MORPHOLOGY_FORMAT_PREFERENCE:
+            for file in files:
+                if file.suffix.lower() == f".{fmt}":
+                    return file
+
+    raise FileNotFoundError(f"No morphology file found in {morphology_dir}")
