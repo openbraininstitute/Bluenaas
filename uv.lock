@@ -198,7 +198,7 @@ requires-dist = [
     { name = "loguru", specifier = "==0.7.3" },
     { name = "msgpack", specifier = ">=1.2.1" },
     { name = "nanoid", specifier = ">=2.0.0" },
-    { name = "obp-accounting-sdk", specifier = "==0.6.7" },
+    { name = "obp-accounting-sdk", specifier = "==0.6.8" },
     { name = "pandas", specifier = "==2.3.1" },
     { name = "pydantic", specifier = "==2.13.4" },
     { name = "pydantic-settings", specifier = "==2.14.2" },
@@ -230,7 +230,7 @@ worker = [
     { name = "libsonata", specifier = "==0.2.2" },
     { name = "morphio", specifier = "==3.4.2" },
     { name = "numpy", specifier = ">=2.0.0,<2.5" },
-    { name = "obi-one", specifier = "==2026.10.9" },
+    { name = "obi-one", specifier = "==2026.10.14" },
     { name = "pynwb", specifier = "==3.1.3" },
     { name = "requests", specifier = "==2.33.0" },
 ]
@@ -302,7 +302,7 @@ wheels = [
 
 [[package]]
 name = "brainbuilder"
-version = "0.20.8"
+version = "0.20.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bluepysnap" },
@@ -320,7 +320,7 @@ dependencies = [
     { name = "tqdm" },
     { name = "voxcell" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/47/ae/3dd2a9b050d3aead9011428c94c237089b05133fbc39e94b3c5e7467f8af/brainbuilder-0.20.8.tar.gz", hash = "sha256:34980802b0044f98b64ce8b05076424fd7353ab6d48960db65ffb6d1382603df", size = 249347, upload-time = "2026-08-28T11:52:45.092Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8a/18/473c9d08a763ddbed550557361878c0849d5cd5bde2ae2045440d3197de1/brainbuilder-0.20.9.tar.gz", hash = "sha256:f6353b2bfba875afc025d93fef366d59c259f88584f3b7427a127ccd2f891e2c", size = 251197, upload-time = "2026-10-15T13:20:12.001Z" }
 
 [[package]]
 name = "brian2"
@@ -1615,7 +1615,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/ff/45/17159e8a481e72252
 
 [[package]]
 name = "obi-one"
-version = "2026.10.9"
+version = "2026.10.14"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -1642,21 +1642,21 @@ dependencies = [
     { name = "python-multipart" },
     { name = "scipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/29/9a/0342d939b6c0ba7df1111ecdbf32b3fde061c618147c4856ebf8666d0f44/obi_one-2026.10.9.tar.gz", hash = "sha256:00df319aa1fb0b3072fce25e0ec88ffd3dd0aa86841bc5228052ea78ffeef430", size = 16720823, upload-time = "2026-10-12T08:56:05.217Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/80/c0/06080bf282a70e6ccc7484091efc51aea403a08712bc2032503d0605ce74/obi_one-2026.10.14.tar.gz", hash = "sha256:78ac47f48b4be948bb8390f35c093d180ff1377b37d67fb60b85efa1b69da218", size = 16745604, upload-time = "2026-10-15T15:10:03.084Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/ce/552d12c6d2a43b2d7bb4c8b7979d43a89f575372ffee7a78c68dde306640/obi_one-2026.10.9-py3-none-any.whl", hash = "sha256:33235a0db6781265c87223029bba55111688c8f77bd810279278ef3338d9ab74", size = 609284, upload-time = "2026-10-12T08:56:02.973Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/1e/0c0a8dba549b5bdac58aa43fbb1ce16bcc0221d890ad5ae93e2e4005e1ed/obi_one-2026.10.14-py3-none-any.whl", hash = "sha256:33e70e3e2c0ff31810ef044c5b1611b2c8cf1d08301204dabe6c4fcfe5177c8a", size = 610796, upload-time = "2026-10-15T15:10:00.303Z" },
 ]
 
 [[package]]
 name = "obp-accounting-sdk"
-version = "0.6.7"
+version = "0.6.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bd/b0/74f9cf9dce1d13136055d7026924838d4f2b91af4a2538ceab7c498f2c64/obp_accounting_sdk-0.6.7.tar.gz", hash = "sha256:20964abc562618b65f844e4199376db8b12ba0322b4e74133344ec36ca32992c", size = 36955, upload-time = "2026-10-06T12:43:13.922Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/35/4b/5c2839462cee59097a00830f471a11f225a2a138c236c9d145bc26043a1c/obp_accounting_sdk-0.6.8.tar.gz", hash = "sha256:dd895d3250a1767274550b714620e193196dfc52c834c8357234b6cd57697cf4", size = 37055, upload-time = "2026-10-14T10:24:18.303Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bb/bc/8e81ec3d4177b5c56c99ff1f8c820e5ce5d675c342c8637bdfcc01226de0/obp_accounting_sdk-0.6.7-py3-none-any.whl", hash = "sha256:fed5a243392fa229e3bca8ce5f1c816da147edfa8f84f84d0a96f90a308241fd", size = 27854, upload-time = "2026-10-06T12:43:12.703Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/d0/8d16eff282e7730131e61fffc2c2c68cde56b473bf8331bf71ed637f7265/obp_accounting_sdk-0.6.8-py3-none-any.whl", hash = "sha256:ec746ff2d30d598722fe87d0d665c3be81ea2f221881e112383b473618c8013a", size = 27877, upload-time = "2026-10-14T10:24:16.684Z" },
 ]
 
 [[package]]
