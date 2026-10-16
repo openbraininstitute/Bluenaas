@@ -28,3 +28,7 @@ class JobFn(StrEnum):
 
     # Ion channel
     RUN_ION_CHANNEL_BUILD = "app.job.handlers.ion_channel.build.run"
+
+    # Admin
+    CLEAR_CACHE = "app.job.handlers.admin.cache.clear"
+    RECLAIM_RETIRED_CACHE = "app.job.handlers.admin.cache.reclaim"

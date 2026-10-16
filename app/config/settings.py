@@ -52,6 +52,18 @@ class Settings(BaseSettings):
 
     STORAGE_PATH: Path = Path("/app/storage")
 
+    # Cache cleanup. A cleanup starts a new epoch of the cache, so that new jobs never see the old
+    # one, and deletes the old epoch once no job that could be using it is left.
+    # Pause between starting a new epoch and listing the jobs that might still use the old one.
+    CACHE_EPOCH_SETTLE_SECONDS: int = 60
+    # Upper bound on how long an old epoch is kept: the longest job timeout (one hour) plus the
+    # grace period RQ gives before it kills the job, with a margin.
+    CACHE_RETIRED_MAX_AGE: int = 70 * 60
+    # How often a cleanup that is waiting for jobs to finish checks again
+    CACHE_RECLAIM_POLL_SECONDS: int = 5 * 60
+    # Threads deleting a retired epoch. Every delete is a network round trip on EFS
+    CACHE_CLEANUP_WORKERS: int = 8
+
     MAX_JOB_DURATION: int = 20 * 60  # 20 minutes
     DEFAULT_REDIS_STREAM_TTL: int = 60  # 1 minute
 

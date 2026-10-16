@@ -8,8 +8,9 @@ from pathlib import Path
 from filelock import FileLock
 from loguru import logger
 
-from app.config.settings import settings
 from app.constants import MECHANISMS_DIR_NAME, READY_MARKER_FILE_NAME
+from app.infrastructure.storage import epoch_root
+from app.infrastructure.storage.epoch import CacheKind
 
 
 def compiled_mechanisms_path(model_path: Path) -> Path:
@@ -32,7 +33,7 @@ def compute_mod_hash(mod_dir: Path) -> str:
 
 def get_compilation_cache_path(mod_hash: str) -> Path:
     """Return the cache directory path for a given hash."""
-    path = settings.STORAGE_PATH / "compilation-cache" / mod_hash[:2] / mod_hash[2:4] / mod_hash[4:]
+    path = epoch_root(CacheKind.COMPILATION) / mod_hash[:2] / mod_hash[2:4] / mod_hash[4:]
     path.mkdir(parents=True, exist_ok=True)
     return path
 
