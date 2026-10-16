@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import UUID
 
 from entitysdk import Client, ProjectContext
@@ -8,18 +9,21 @@ from obi_one.core.run_tasks import run_task_type
 from obi_one.types import TaskType
 
 from app.config.settings import settings
-from app.infrastructure.storage import get_ion_channel_build_location, rm_dir
+from app.infrastructure.storage import rm_dir
 from app.logging import worker_subprocess
 
 
 @worker_subprocess
-def run_ion_channel_build(
+def run_task_config(
+    task_type: TaskType,
     config_id: UUID,
     *,
+    output_root: Path,
     execution_id: UUID,
     access_token: str,
     project_context: ProjectContext,
 ) -> None:
+    """Run the obi-one task of a single config and keep its execution's status up to date."""
     client = Client(
         api_url=str(settings.ENTITYCORE_URI),
         project_context=project_context,
@@ -33,12 +37,11 @@ def run_ion_channel_build(
             attrs_or_entity={"status": status, **attrs},
         )
 
-    output_root = get_ion_channel_build_location(execution_id)
     set_status(ActivityStatus.running)
 
     try:
         run_task_type(
-            task_type=TaskType.ion_channel_fitting,
+            task_type=task_type,
             entity_type=TaskConfig,
             entity_id=str(config_id),
             scan_output_root=str(output_root),

@@ -1,8 +1,10 @@
 from uuid import UUID
 
 from entitysdk.common import ProjectContext
+from obi_one.types import TaskType
 
-from app.services.worker.ion_channel.build import run_ion_channel_build
+from app.infrastructure.storage import get_ion_channel_build_location
+from app.services.worker.task_config import run_task_config
 
 
 def run(
@@ -12,8 +14,10 @@ def run(
     access_token: str,
     project_context: ProjectContext,
 ) -> None:
-    run_ion_channel_build(
+    run_task_config(
+        TaskType.ion_channel_fitting,
         config_id,
+        output_root=get_ion_channel_build_location(execution_id),
         execution_id=execution_id,
         access_token=access_token,
         project_context=project_context,

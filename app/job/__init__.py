@@ -15,6 +15,7 @@ class JobFn(StrEnum):
     GET_SINGLE_NEURON_MORPHOLOGY_DENDROGRAM = (
         "app.job.handlers.single_neuron.morphology.get_morphology_dendrogram"
     )
+    RUN_MEMODEL_BUILD = "app.job.handlers.single_neuron.build.run"
     RUN_SINGLE_NEURON_CALIBRATION = "app.job.handlers.single_neuron.calibration.run"
     RUN_SINGLE_NEURON_SIMULATION = "app.job.handlers.single_neuron.simulation.run"
     RUN_SINGLE_NEURON_VALIDATION = "app.job.handlers.single_neuron.validation.run"
