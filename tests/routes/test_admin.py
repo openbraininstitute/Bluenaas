@@ -1,7 +1,7 @@
 import os
 import unittest
 from http import HTTPStatus
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
@@ -9,6 +9,9 @@ from fastapi.testclient import TestClient
 
 from app.app import app
 from app.domains.auth import Auth, DecodedKeycloakToken
+from app.constants import CACHE_CLEANUP_TIMEOUT
+from app.infrastructure.rq import JobQueue, _queues
+from app.job import JobFn
 
 
 class TestAdminRoutes(unittest.TestCase):
@@ -26,9 +29,7 @@ class TestAdminRoutes(unittest.TestCase):
             ),
         )
 
-    @patch("app.routes.admin.clear_circuit_cache")
-    @patch("app.infrastructure.kc.auth.kc_auth")
-    def test_clear_circuit_cache_success(self, mock_kc_auth, mock_clear_cache):
+    def _authorize_admin(self, mock_kc_auth):
         mock_kc_auth.decode_token.return_value = {
             "exp": 1234567890,
             "iss": "http://localhost:9090/",
@@ -38,93 +39,34 @@ class TestAdminRoutes(unittest.TestCase):
         }
         mock_kc_auth.userinfo.return_value = {"groups": ["/service/small-scale-simulator/admin"]}
 
-        response = self.client.delete(
-            "/admin/cache/circuit", headers={"Authorization": "Bearer admin-token"}
-        )
-
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertEqual(response.json(), {"message": "Circuit cache cleared successfully"})
-        mock_clear_cache.assert_called_once()
-
-    @patch("app.routes.admin.clear_single_neuron_cache")
     @patch("app.infrastructure.kc.auth.kc_auth")
-    def test_clear_single_neuron_cache_success(self, mock_kc_auth, mock_clear_cache):
-        mock_kc_auth.decode_token.return_value = {
-            "exp": 1234567890,
-            "iss": "http://localhost:9090/",
-            "sub": "admin-123",
-            "preferred_username": "admin",
-            "email": "admin@example.com",
-        }
-        mock_kc_auth.userinfo.return_value = {"groups": ["/service/small-scale-simulator/admin"]}
+    def test_clear_cache_starts_a_cleanup_job_and_returns_immediately(self, mock_kc_auth):
+        self._authorize_admin(mock_kc_auth)
 
-        response = self.client.delete(
-            "/admin/cache/single-neuron", headers={"Authorization": "Bearer admin-token"}
-        )
+        cases = [
+            ("circuit", "circuit", "Circuit cache cleanup started"),
+            ("single-neuron", "single-neuron", "Single neuron cache cleanup started"),
+            ("mesh", "mesh", "Mesh cache cleanup started"),
+            ("ion-channel", "ion-channel", "Ion channel cache cleanup started"),
+            ("compilation", "compilation-cache", "Compilation cache cleanup started"),
+        ]
 
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertEqual(response.json(), {"message": "Single neuron cache cleared successfully"})
-        mock_clear_cache.assert_called_once()
+        for endpoint, kind, message in cases:
+            with self.subTest(endpoint=endpoint):
+                mock_queue = MagicMock()
+                mock_queue.enqueue.return_value.id = "job-1"
 
-    @patch("app.routes.admin.clear_mesh_cache")
-    @patch("app.infrastructure.kc.auth.kc_auth")
-    def test_clear_mesh_cache_success(self, mock_kc_auth, mock_clear_cache):
-        mock_kc_auth.decode_token.return_value = {
-            "exp": 1234567890,
-            "iss": "http://localhost:9090/",
-            "sub": "admin-123",
-            "preferred_username": "admin",
-            "email": "admin@example.com",
-        }
-        mock_kc_auth.userinfo.return_value = {"groups": ["/service/small-scale-simulator/admin"]}
+                with patch.dict(_queues, {JobQueue.MEDIUM: mock_queue}):
+                    response = self.client.delete(
+                        f"/admin/cache/{endpoint}", headers={"Authorization": "Bearer admin-token"}
+                    )
 
-        response = self.client.delete(
-            "/admin/cache/mesh", headers={"Authorization": "Bearer admin-token"}
-        )
-
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertEqual(response.json(), {"message": "Mesh cache cleared successfully"})
-        mock_clear_cache.assert_called_once()
-
-    @patch("app.routes.admin.clear_ion_channel_cache")
-    @patch("app.infrastructure.kc.auth.kc_auth")
-    def test_clear_ion_channel_cache_success(self, mock_kc_auth, mock_clear_cache):
-        mock_kc_auth.decode_token.return_value = {
-            "exp": 1234567890,
-            "iss": "http://localhost:9090/",
-            "sub": "admin-123",
-            "preferred_username": "admin",
-            "email": "admin@example.com",
-        }
-        mock_kc_auth.userinfo.return_value = {"groups": ["/service/small-scale-simulator/admin"]}
-
-        response = self.client.delete(
-            "/admin/cache/ion-channel", headers={"Authorization": "Bearer admin-token"}
-        )
-
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertEqual(response.json(), {"message": "Ion channel cache cleared successfully"})
-        mock_clear_cache.assert_called_once()
-
-    @patch("app.routes.admin.clear_compilation_cache")
-    @patch("app.infrastructure.kc.auth.kc_auth")
-    def test_clear_compilation_cache_success(self, mock_kc_auth, mock_clear_cache):
-        mock_kc_auth.decode_token.return_value = {
-            "exp": 1234567890,
-            "iss": "http://localhost:9090/",
-            "sub": "admin-123",
-            "preferred_username": "admin",
-            "email": "admin@example.com",
-        }
-        mock_kc_auth.userinfo.return_value = {"groups": ["/service/small-scale-simulator/admin"]}
-
-        response = self.client.delete(
-            "/admin/cache/compilation", headers={"Authorization": "Bearer admin-token"}
-        )
-
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertEqual(response.json(), {"message": "Compilation cache cleared successfully"})
-        mock_clear_cache.assert_called_once()
+                self.assertEqual(response.status_code, HTTPStatus.ACCEPTED)
+                self.assertEqual(response.json(), {"message": message, "job_id": "job-1"})
+                mock_queue.enqueue.assert_called_once()
+                args, kwargs = mock_queue.enqueue.call_args
+                self.assertEqual(args, (JobFn.CLEAR_CACHE, kind))
+                self.assertEqual(kwargs["job_timeout"], CACHE_CLEANUP_TIMEOUT)
 
     @patch("app.app.logger")
     @patch("app.infrastructure.kc.auth.kc_auth")

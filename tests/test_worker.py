@@ -28,6 +28,28 @@ class TestLoggingWorker(unittest.TestCase):
 
     @patch("app.worker.setup_logging")
     @patch("app.worker.Worker.__init__", return_value=None)
+    @patch("app.worker.logger")
+    def test_perform_job_starts_with_no_cache_epochs_fixed(
+        self, mock_logger, mock_init, mock_setup
+    ):
+        order = []
+        worker = LoggingWorker()
+        job = MagicMock()
+        job.meta = {}
+
+        with (
+            patch("app.worker.clear_pinned_epochs", side_effect=lambda: order.append("clear")),
+            patch(
+                "app.worker.Worker.perform_job",
+                side_effect=lambda *a: order.append("perform") or True,
+            ),
+        ):
+            worker.perform_job(job, MagicMock())
+
+        self.assertEqual(order, ["clear", "perform"])
+
+    @patch("app.worker.setup_logging")
+    @patch("app.worker.Worker.__init__", return_value=None)
     @patch("app.worker.Worker.perform_job", return_value=True)
     @patch("app.worker.logger")
     def test_perform_job_missing_cid_falls_back(
