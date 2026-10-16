@@ -1,6 +1,5 @@
 from rq import Queue
 
-from app.constants import CACHE_CLEANUP_TIMEOUT
 from app.context import cid_var
 from app.infrastructure.storage.epoch import CacheKind
 from app.job import JobFn
@@ -13,7 +12,6 @@ async def start_cache_cleanup(kind: CacheKind, *, job_queue: Queue, description:
         lambda: job_queue.enqueue(
             JobFn.CLEAR_CACHE,
             kind.value,
-            job_timeout=CACHE_CLEANUP_TIMEOUT,
             meta={"cid": cid_var.get()},
         )
     )

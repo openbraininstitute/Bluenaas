@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 from redis.exceptions import LockError
 
+from app.infrastructure.storage.epoch import PINNED_EPOCH_ENV_PREFIX
+
 
 class _Pipeline:
     def __init__(self, redis: "FakeRedis"):
@@ -84,12 +86,12 @@ class FakeRedisTestCase(unittest.TestCase):
     def _forget_pinned_epochs(self):
         # Not patch.dict(os.environ): it clears and refills the whole environment, and NEURON,
         # once imported, can no longer load its hoc files after that.
-        saved = {n: v for n, v in os.environ.items() if n.startswith("CACHE_EPOCH_")}
+        saved = {n: v for n, v in os.environ.items() if n.startswith(PINNED_EPOCH_ENV_PREFIX)}
         for name in saved:
             del os.environ[name]
 
         def restore():
-            for name in [n for n in os.environ if n.startswith("CACHE_EPOCH_")]:
+            for name in [n for n in os.environ if n.startswith(PINNED_EPOCH_ENV_PREFIX)]:
                 del os.environ[name]
             os.environ.update(saved)
 

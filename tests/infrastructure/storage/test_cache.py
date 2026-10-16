@@ -281,6 +281,35 @@ class TestReclaimRetiredRoots(CacheTestCase):
 
         self.assertEqual(self.trash_content(CacheKind.CIRCUIT), [])
 
+    def test_a_root_that_could_not_be_fully_deleted_is_pending(self):
+        old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
+        self.mark(old)
+
+        with (
+            patch.object(cache, "get_unfinished_job_ids", return_value=set()),
+            patch.object(cache, "rm_dir_parallel"),
+        ):
+            result = reclaim_retired_roots(CacheKind.CIRCUIT)
+
+        self.assertEqual((result.reclaimed, result.pending), (0, 1))
+        self.assertFalse(old.exists())
+        self.assertEqual(len(self.trash_content(CacheKind.CIRCUIT)), 1)
+
+        # The next check deletes what was left
+        result = reclaim_retired_roots(CacheKind.CIRCUIT)
+
+        self.assertEqual((result.reclaimed, result.pending), (0, 0))
+        self.assertEqual(self.trash_content(CacheKind.CIRCUIT), [])
+
+    def test_leftovers_that_cannot_be_deleted_are_pending(self):
+        leftover = self.storage / STORAGE_TRASH_DIR_NAME / "circuit" / "interrupted"
+        leftover.mkdir(parents=True)
+
+        with patch.object(cache, "rm_dir_parallel"):
+            result = reclaim_retired_roots(CacheKind.CIRCUIT)
+
+        self.assertEqual(result.pending, 1)
+
     def test_a_root_that_someone_else_deleted_in_the_meantime_is_skipped(self):
         old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
         self.mark(old)

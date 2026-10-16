@@ -29,7 +29,9 @@ class CacheKind(StrEnum):
     COMPILATION = "compilation-cache"
 
 
-_PINNED_EPOCH_ENV_PREFIX = "CACHE_EPOCH_"
+# Not to be mistaken for a setting: the settings are read from environment variables named like
+# them, and the pinned epochs are removed from the environment when a job starts.
+PINNED_EPOCH_ENV_PREFIX = "PINNED_CACHE_EPOCH_"
 
 # Epochs are random and never reused: a counter would start over after Redis loses its data and
 # could point new jobs at a directory that is about to be deleted.
@@ -41,7 +43,7 @@ def _redis_key(kind: CacheKind) -> str:
 
 
 def _pinned_epoch_env_var(kind: CacheKind) -> str:
-    return f"{_PINNED_EPOCH_ENV_PREFIX}{kind.name}"
+    return f"{PINNED_EPOCH_ENV_PREFIX}{kind.name}"
 
 
 def _decode(value: bytes | str | None) -> str | None:
@@ -77,7 +79,8 @@ def current_epoch(kind: CacheKind) -> str:
         # Whoever gets there first wins, the others use the winner's epoch
         redis_client.set(_redis_key(kind), uuid4().hex, nx=True)
         epoch = get_epoch(kind)
-        assert epoch is not None
+        if epoch is None:
+            raise RuntimeError(f"The {kind.value} cache epoch is gone right after it was created")
 
     os.environ[env_var] = epoch
     return epoch
@@ -94,5 +97,5 @@ def rotate_epoch(kind: CacheKind) -> str | None:
 
 def clear_pinned_epochs() -> None:
     """Forget the epochs fixed by the running process, to be done when a new job starts."""
-    for name in [n for n in os.environ if n.startswith(_PINNED_EPOCH_ENV_PREFIX)]:
+    for name in [n for n in os.environ if n.startswith(PINNED_EPOCH_ENV_PREFIX)]:
         del os.environ[name]

@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 
 from app.app import app
 from app.domains.auth import Auth, DecodedKeycloakToken
-from app.constants import CACHE_CLEANUP_TIMEOUT
 from app.infrastructure.rq import JobQueue, _queues
 from app.job import JobFn
 
@@ -64,9 +63,8 @@ class TestAdminRoutes(unittest.TestCase):
                 self.assertEqual(response.status_code, HTTPStatus.ACCEPTED)
                 self.assertEqual(response.json(), {"message": message, "job_id": "job-1"})
                 mock_queue.enqueue.assert_called_once()
-                args, kwargs = mock_queue.enqueue.call_args
+                args, _ = mock_queue.enqueue.call_args
                 self.assertEqual(args, (JobFn.CLEAR_CACHE, kind))
-                self.assertEqual(kwargs["job_timeout"], CACHE_CLEANUP_TIMEOUT)
 
     @patch("app.app.logger")
     @patch("app.infrastructure.kc.auth.kc_auth")

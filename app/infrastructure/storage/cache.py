@@ -152,19 +152,23 @@ def _is_reclaimable(marker: RetiredMarker, now: float, unfinished_job_ids: set[s
     return marker.trusted and unfinished_job_ids.isdisjoint(marker.blocking_job_ids)
 
 
-def _purge_trash(kind: CacheKind) -> None:
-    """Delete what an interrupted cleanup left behind."""
+def _delete(path: Path) -> bool:
+    """Delete the tree. Returns whether it is gone, the delete only logs what it fails to remove."""
+    rm_dir_parallel(path, workers=settings.CACHE_CLEANUP_WORKERS)
+    return not path.exists()
+
+
+def _purge_trash(kind: CacheKind) -> int:
+    """Delete what an interrupted cleanup left behind. Returns how many could not be deleted."""
     trash = _trash_dir(kind)
     if not trash.is_dir():
-        return
-    for leftover in trash.iterdir():
-        rm_dir_parallel(leftover, workers=settings.CACHE_CLEANUP_WORKERS)
+        return 0
+    return sum(not _delete(leftover) for leftover in trash.iterdir())
 
 
 def reclaim_retired_roots(kind: CacheKind) -> ReclaimResult:
     """Delete the retired epochs that no running job can be using any more."""
-    result = ReclaimResult()
-    _purge_trash(kind)
+    result = ReclaimResult(pending=_purge_trash(kind))
 
     now = time.time()
     roots = [(root, _read_marker(root)) for root in retired_roots(kind)]
@@ -191,7 +195,10 @@ def reclaim_retired_roots(kind: CacheKind) -> ReclaimResult:
             continue
 
         logger.info(f"Deleting retired cache epoch {root}")
-        rm_dir_parallel(trashed, workers=settings.CACHE_CLEANUP_WORKERS)
-        result.reclaimed += 1
+        if _delete(trashed):
+            result.reclaimed += 1
+        else:
+            # What is left is deleted by the purge of the trash, on the next check
+            result.pending += 1
 
     return result

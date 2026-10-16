@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import unittest
+from unittest.mock import patch
 
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
@@ -50,13 +51,26 @@ class TestCurrentEpoch(FakeRedisTestCase):
         rotate_epoch(CacheKind.SINGLE_NEURON)
 
         child = subprocess.run(
-            [sys.executable, "-c", "import os; print(os.environ['CACHE_EPOCH_SINGLE_NEURON'])"],
+            [sys.executable, "-c", "import os; print(os.environ['PINNED_CACHE_EPOCH_SINGLE_NEURON'])"],
             capture_output=True,
             text=True,
             check=True,
         )
 
         self.assertEqual(child.stdout.strip(), epoch)
+
+    def test_clear_pinned_epochs_leaves_the_settings_alone(self):
+        os.environ["CACHE_EPOCH_SETTLE_SECONDS"] = "5"
+        self.addCleanup(os.environ.pop, "CACHE_EPOCH_SETTLE_SECONDS", None)
+
+        clear_pinned_epochs()
+
+        self.assertEqual(os.environ["CACHE_EPOCH_SETTLE_SECONDS"], "5")
+
+    def test_fails_loudly_when_the_epoch_cannot_be_read_back(self):
+        with patch.object(self.redis, "get", return_value=None):
+            with self.assertRaises(RuntimeError):
+                current_epoch(CacheKind.CIRCUIT)
 
     def test_clear_pinned_epochs_only_touches_epochs(self):
         current_epoch(CacheKind.CIRCUIT)
@@ -65,7 +79,7 @@ class TestCurrentEpoch(FakeRedisTestCase):
 
         clear_pinned_epochs()
 
-        self.assertNotIn("CACHE_EPOCH_CIRCUIT", os.environ)
+        self.assertNotIn("PINNED_CACHE_EPOCH_CIRCUIT", os.environ)
         self.assertEqual(os.environ["SOMETHING_ELSE"], "kept")
 
 
