@@ -15,7 +15,6 @@ class JobFn(StrEnum):
     GET_SINGLE_NEURON_MORPHOLOGY_DENDROGRAM = (
         "app.job.handlers.single_neuron.morphology.get_morphology_dendrogram"
     )
-    RUN_MEMODEL_BUILD = "app.job.handlers.single_neuron.build.run"
     RUN_SINGLE_NEURON_CALIBRATION = "app.job.handlers.single_neuron.calibration.run"
     RUN_SINGLE_NEURON_SIMULATION = "app.job.handlers.single_neuron.simulation.run"
     RUN_SINGLE_NEURON_VALIDATION = "app.job.handlers.single_neuron.validation.run"
@@ -27,5 +26,5 @@ class JobFn(StrEnum):
         "app.job.handlers.circuit.simulation.get_batch_params_map"
     )
 
-    # Ion channel
-    RUN_ION_CHANNEL_BUILD = "app.job.handlers.ion_channel.build.run"
+    # obi-one tasks of single TaskConfigs
+    RUN_TASK_CONFIG = "app.job.handlers.task_config.run"

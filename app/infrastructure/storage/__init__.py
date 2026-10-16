@@ -69,18 +69,13 @@ def get_single_neuron_validation_output_location(uuid: UUID) -> Path:
     return ensure_dir(path)
 
 
-def get_single_neuron_build_location(uuid: UUID) -> Path:
-    path = settings.STORAGE_PATH / "single-neuron" / "build" / uuid_subpath(uuid)
-    return ensure_dir(path)
-
-
 def get_mesh_location(uuid: UUID) -> Path:
     path = settings.STORAGE_PATH / "mesh" / "mesh" / uuid_subpath(uuid)
     return ensure_dir(path)
 
 
-def get_ion_channel_build_location(uuid: UUID) -> Path:
-    path = settings.STORAGE_PATH / "ion-channel" / "build" / uuid_subpath(uuid)
+def get_task_config_run_location(uuid: UUID) -> Path:
+    path = settings.STORAGE_PATH / "task-config" / uuid_subpath(uuid)
     return ensure_dir(path)
 
 

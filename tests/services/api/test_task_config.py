@@ -86,9 +86,9 @@ class TestRunTaskConfig(unittest.TestCase):
         self._run()
 
         (_, job_fn), kwargs = self.dispatch.call_args
-        self.assertEqual(job_fn, self.run_spec.job_fn)
+        self.assertEqual(job_fn, JobFn.RUN_TASK_CONFIG)
         self.assertEqual(kwargs["timeout"], self.run_spec.timeout)
-        self.assertEqual(kwargs["job_args"], (CONFIG_ID,))
+        self.assertEqual(kwargs["job_args"], (self.run_spec.task_type, CONFIG_ID))
         self.assertEqual(kwargs["job_kwargs"]["execution_id"], EXECUTION_ID)
 
     def test_a_failed_job_fails_the_execution_and_releases_the_credits(self):
@@ -144,13 +144,13 @@ class TestRunSpecs(unittest.TestCase):
             ION_CHANNEL_BUILD.activity_type, TaskActivityType.ion_channel_modeling__execution
         )
         self.assertEqual(ION_CHANNEL_BUILD.service_subtype, ServiceSubtype.ION_CHANNEL_BUILD)
-        self.assertEqual(ION_CHANNEL_BUILD.job_fn, JobFn.RUN_ION_CHANNEL_BUILD)
+        self.assertEqual(ION_CHANNEL_BUILD.task_type, "ion_channel_fitting")
 
     def test_memodel_build(self):
         self.assertEqual(MEMODEL_BUILD.config_type, TaskConfigType.memodel_build__config)
         self.assertEqual(MEMODEL_BUILD.activity_type, TaskActivityType.memodel_build__execution)
         self.assertEqual(MEMODEL_BUILD.service_subtype, ServiceSubtype.SINGLE_CELL_BUILD)
-        self.assertEqual(MEMODEL_BUILD.job_fn, JobFn.RUN_MEMODEL_BUILD)
+        self.assertEqual(MEMODEL_BUILD.task_type, "memodel_build")
 
 
 if __name__ == "__main__":

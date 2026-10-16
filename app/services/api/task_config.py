@@ -28,28 +28,29 @@ class TaskConfigRun:
     """How Bluenaas runs the obi-one task of one kind of single TaskConfig."""
 
     name: str
+    # obi-one TaskType value; the API process does not import obi-one
+    task_type: str
     config_type: TaskConfigType
     activity_type: TaskActivityType
     service_subtype: ServiceSubtype
-    job_fn: JobFn
     timeout: int
 
 
 ION_CHANNEL_BUILD = TaskConfigRun(
     name="ion channel modeling",
+    task_type="ion_channel_fitting",
     config_type=TaskConfigType.ion_channel_modeling__config,
     activity_type=TaskActivityType.ion_channel_modeling__execution,
     service_subtype=ServiceSubtype.ION_CHANNEL_BUILD,
-    job_fn=JobFn.RUN_ION_CHANNEL_BUILD,
     timeout=60 * 60,
 )
 
 MEMODEL_BUILD = TaskConfigRun(
     name="ME-model build",
+    task_type="memodel_build",
     config_type=TaskConfigType.memodel_build__config,
     activity_type=TaskActivityType.memodel_build__execution,
     service_subtype=ServiceSubtype.SINGLE_CELL_BUILD,
-    job_fn=JobFn.RUN_MEMODEL_BUILD,
     timeout=30 * 60,
 )
 
@@ -130,9 +131,9 @@ async def run_task_config(
     try:
         job, _ = await dispatch(
             job_queue,
-            run.job_fn,
+            JobFn.RUN_TASK_CONFIG,
             timeout=run.timeout,
-            job_args=(config_id,),
+            job_args=(run.task_type, config_id),
             on_start=on_start,
             on_success=on_success,
             on_failure=on_failure,
