@@ -1,4 +1,5 @@
 import time
+from dataclasses import asdict
 from datetime import timedelta
 
 from loguru import logger
@@ -14,6 +15,14 @@ from app.infrastructure.storage.cache import (
 )
 from app.infrastructure.storage.epoch import CacheKind, rotate_epoch
 from app.job import JobFn
+
+
+# The cleanup jobs wait for other jobs, so they must not wait for each other
+CLEANUP_JOB_FUNC_NAMES = frozenset({JobFn.CLEAR_CACHE.value, JobFn.RECLAIM_RETIRED_CACHE.value})
+
+
+def _stamp_retired_roots(kind: CacheKind, previous_epoch: str | None) -> None:
+    stamp_retired_roots(kind, previous_epoch, exclude_func_names=CLEANUP_JOB_FUNC_NAMES)
 
 
 def _schedule_reclaim(kind: CacheKind, attempt: int) -> None:
@@ -40,13 +49,13 @@ def clear_cache(kind: CacheKind) -> dict:
         # Jobs that started a moment ago may not have seen the new epoch yet
         time.sleep(settings.CACHE_EPOCH_SETTLE_SECONDS)
 
-        stamp_retired_roots(kind, previous)
+        _stamp_retired_roots(kind, previous)
         result = reclaim_retired_roots(kind)
 
     if result.pending:
         _schedule_reclaim(kind, attempt=1)
 
-    return {"status": "ok", **result.as_dict()}
+    return {"status": "ok", **asdict(result)}
 
 
 def reclaim_retired_cache(kind: CacheKind, attempt: int) -> dict:
@@ -57,7 +66,7 @@ def reclaim_retired_cache(kind: CacheKind, attempt: int) -> dict:
             logger.info(f"Another {kind.value} cache cleanup is running, nothing to do")
             return {"status": "already_running"}
 
-        stamp_retired_roots(kind)
+        _stamp_retired_roots(kind, None)
         result = reclaim_retired_roots(kind)
 
     if result.pending:
@@ -69,4 +78,4 @@ def reclaim_retired_cache(kind: CacheKind, attempt: int) -> dict:
         else:
             _schedule_reclaim(kind, attempt + 1)
 
-    return {"status": "ok", **result.as_dict()}
+    return {"status": "ok", **asdict(result)}

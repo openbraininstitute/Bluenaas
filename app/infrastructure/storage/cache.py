@@ -18,9 +18,9 @@ import json
 import os
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Collection, Iterator
 from uuid import uuid4
 
 from loguru import logger
@@ -37,10 +37,6 @@ from app.infrastructure.storage.epoch import (
     get_epoch,
     is_epoch_dir_name,
 )
-from app.job import JobFn
-
-# The cleanup jobs wait for other jobs, so they must not wait for each other
-CLEANUP_JOB_FUNC_NAMES = frozenset({JobFn.CLEAR_CACHE.value, JobFn.RECLAIM_RETIRED_CACHE.value})
 
 
 @dataclass(frozen=True)
@@ -57,9 +53,6 @@ class ReclaimResult:
     reclaimed: int = 0
     # Retired epochs that are still there, because jobs may still use them or removing them failed
     pending: int = 0
-
-    def as_dict(self) -> dict[str, int]:
-        return {"reclaimed": self.reclaimed, "pending": self.pending}
 
 
 def _kind_dir(kind: CacheKind) -> Path:
@@ -96,11 +89,12 @@ def retired_roots(kind: CacheKind) -> list[Path]:
     current = get_epoch(kind)
     current_name = epoch_dir_name(current) if current else None
 
-    return [
-        p
-        for p in kind_dir.iterdir()
-        if p.is_dir() and not p.is_symlink() and p.name != current_name
-    ]
+    with os.scandir(kind_dir) as entries:
+        return [
+            Path(e.path)
+            for e in entries
+            if e.is_dir(follow_symlinks=False) and e.name != current_name
+        ]
 
 
 def _read_marker(root: Path) -> RetiredMarker | None:
@@ -116,19 +110,15 @@ def _read_marker(root: Path) -> RetiredMarker | None:
 
 
 def _write_marker(root: Path, marker: RetiredMarker) -> None:
-    content = json.dumps(
-        {
-            "retired_at": marker.retired_at,
-            "blocking_job_ids": list(marker.blocking_job_ids),
-            "trusted": marker.trusted,
-        }
-    )
+    content = json.dumps(asdict(marker))
     tmp = root / f"{RETIRED_MARKER_FILE_NAME}.{uuid4().hex}.tmp"
     tmp.write_text(content)
     os.replace(tmp, root / RETIRED_MARKER_FILE_NAME)
 
 
-def stamp_retired_roots(kind: CacheKind, previous_epoch: str | None = None) -> None:
+def stamp_retired_roots(
+    kind: CacheKind, previous_epoch: str | None, *, exclude_func_names: Collection[str]
+) -> None:
     """Write the marker into the retired epochs that do not have one yet.
 
     The jobs recorded are the ones running now. For the epoch that was retired by the cleanup that
@@ -144,7 +134,7 @@ def stamp_retired_roots(kind: CacheKind, previous_epoch: str | None = None) -> N
     if not unmarked:
         return
 
-    blocking = tuple(sorted(get_picked_up_job_ids(exclude_func_names=CLEANUP_JOB_FUNC_NAMES)))
+    blocking = tuple(sorted(get_picked_up_job_ids(exclude_func_names=exclude_func_names)))
     retired_at = time.time()
     known_epoch = epoch_dir_name(previous_epoch) if previous_epoch else None
 
@@ -156,12 +146,10 @@ def stamp_retired_roots(kind: CacheKind, previous_epoch: str | None = None) -> N
             logger.warning(f"Could not mark {root} as retired: {ex}")
 
 
-def _is_reclaimable(marker: RetiredMarker, now: float) -> bool:
+def _is_reclaimable(marker: RetiredMarker, now: float, unfinished_job_ids: set[str]) -> bool:
     if now - marker.retired_at >= settings.CACHE_RETIRED_MAX_AGE:
         return True
-    if not marker.trusted:
-        return False
-    return not get_unfinished_job_ids(marker.blocking_job_ids)
+    return marker.trusted and unfinished_job_ids.isdisjoint(marker.blocking_job_ids)
 
 
 def _purge_trash(kind: CacheKind) -> None:
@@ -179,9 +167,14 @@ def reclaim_retired_roots(kind: CacheKind) -> ReclaimResult:
     _purge_trash(kind)
 
     now = time.time()
-    for root in retired_roots(kind):
-        marker = _read_marker(root)
-        if marker is None or not _is_reclaimable(marker, now):
+    roots = [(root, _read_marker(root)) for root in retired_roots(kind)]
+
+    # The retired epochs usually wait for the same jobs, so ask about them all at once
+    blocking = {job_id for _, marker in roots if marker for job_id in marker.blocking_job_ids}
+    unfinished = get_unfinished_job_ids(blocking) if blocking else set()
+
+    for root, marker in roots:
+        if marker is None or not _is_reclaimable(marker, now, unfinished):
             logger.info(f"{root} is still in use or not marked yet, keeping it for now")
             result.pending += 1
             continue

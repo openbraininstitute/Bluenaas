@@ -27,15 +27,10 @@ MORPH_ID_ALT = UUID("33333333-3333-3333-3333-333333333333")
 
 
 EPOCH = "0123456789abcdef0123456789abcdef"
-EPOCH_ENV = {
-    "CACHE_EPOCH_CIRCUIT": EPOCH,
-    "CACHE_EPOCH_SINGLE_NEURON": EPOCH,
-    "CACHE_EPOCH_MESH": EPOCH,
-    "CACHE_EPOCH_ION_CHANNEL": EPOCH,
-}
+in_epoch = patch("app.infrastructure.storage.current_epoch", new=lambda kind: EPOCH)
 
 
-@patch.dict(os.environ, EPOCH_ENV)
+@in_epoch
 class TestLocationsAreInTheEpoch(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -86,13 +81,13 @@ class TestLocationsAreInTheEpoch(unittest.TestCase):
         uuid = UUID("11111111-1111-1111-1111-111111111111")
         before = get_circuit_location(uuid)
 
-        with patch.dict(os.environ, {"CACHE_EPOCH_CIRCUIT": "f" * 32}):
+        with patch("app.infrastructure.storage.current_epoch", new=lambda kind: "f" * 32):
             after = get_circuit_location(uuid)
 
         self.assertNotEqual(before, after)
 
 
-@patch.dict(os.environ, EPOCH_ENV)
+@in_epoch
 class TestCompatibilityLocations(unittest.TestCase):
     @patch("app.infrastructure.storage.settings")
     def test_model_candidate_deterministic(self, mock_settings):

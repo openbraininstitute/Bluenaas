@@ -71,7 +71,16 @@ _FINISHED_STATUSES = frozenset(
 )
 
 
-def get_picked_up_job_ids(*, exclude_func_names: Collection[str] = ()) -> set[str]:
+def _unfinished_jobs(job_ids: Iterable[str]) -> list[Job]:
+    jobs = Job.fetch_many(job_ids, connection=redis_client)
+    return [
+        job
+        for job in jobs
+        if job is not None and job.get_status(refresh=False) not in _FINISHED_STATUSES
+    ]
+
+
+def get_picked_up_job_ids(*, exclude_func_names: Collection[str]) -> set[str]:
     """Ids of the jobs that a worker has taken from a queue and that have not finished yet.
 
     A job counts from the moment it leaves the queue (the intermediate queue), not only once it
@@ -87,11 +96,7 @@ def get_picked_up_job_ids(*, exclude_func_names: Collection[str] = ()) -> set[st
         job_ids.update(queue.intermediate_queue.get_job_ids())
 
     return {
-        job.id
-        for job in Job.fetch_many(job_ids, connection=redis_client)
-        if job is not None
-        and not _runs_function(job, exclude_func_names)
-        and job.get_status(refresh=False) not in _FINISHED_STATUSES
+        job.id for job in _unfinished_jobs(job_ids) if not _runs_function(job, exclude_func_names)
     }
 
 
@@ -100,8 +105,4 @@ def get_unfinished_job_ids(job_ids: Iterable[str]) -> set[str]:
 
     A job that does not exist any more (its record expired) has finished.
     """
-    return {
-        job.id
-        for job in Job.fetch_many(job_ids, connection=redis_client)
-        if job is not None and job.get_status(refresh=False) not in _FINISHED_STATUSES
-    }
+    return {job.id for job in _unfinished_jobs(job_ids)}

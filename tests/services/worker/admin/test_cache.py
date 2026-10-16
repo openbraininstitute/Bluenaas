@@ -1,7 +1,7 @@
 import os
 import unittest
 from datetime import timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
@@ -17,31 +17,23 @@ from tests.infrastructure.storage.fake_redis import FakeRedisTestCase
 class ServiceTestCase(FakeRedisTestCase):
     def setUp(self):
         super().setUp()
-        self.calls: list[str] = []
-
-        def record(name, result=None):
-            def fn(*args, **kwargs):
-                self.calls.append(name)
-                return result
-
-            return fn
-
         self.reclaim_result = ReclaimResult(reclaimed=1, pending=0)
-        patches = {
-            "rotate_epoch": record("rotate", "previous"),
-            "stamp_retired_roots": record("stamp"),
-            "reclaim_retired_roots": lambda *a, **k: (
-                self.calls.append("reclaim") or self.reclaim_result
-            ),
-        }
-        for name, fn in patches.items():
-            patcher = patch.object(service, name, side_effect=fn)
+
+        # All collaborators hang off one parent, so that the order of calls can be checked
+        self.parent = MagicMock()
+        self.parent.rotate_epoch.return_value = "previous"
+        self.parent.reclaim_retired_roots.side_effect = lambda kind: self.reclaim_result
+
+        for name, replacement in (
+            ("rotate_epoch", self.parent.rotate_epoch),
+            ("stamp_retired_roots", self.parent.stamp_retired_roots),
+            ("reclaim_retired_roots", self.parent.reclaim_retired_roots),
+        ):
+            patcher = patch.object(service, name, replacement)
             patcher.start()
             self.addCleanup(patcher.stop)
 
-        sleep = patch.object(
-            service.time, "sleep", side_effect=lambda s: self.calls.append("sleep")
-        )
+        sleep = patch.object(service.time, "sleep", self.parent.sleep)
         sleep.start()
         self.addCleanup(sleep.stop)
 
@@ -50,14 +42,34 @@ class ServiceTestCase(FakeRedisTestCase):
         queue.start()
         self.addCleanup(queue.stop)
 
+    def stamp_call(self, kind: CacheKind, previous: str | None):
+        return call.stamp_retired_roots(
+            kind, previous, exclude_func_names=service.CLEANUP_JOB_FUNC_NAMES
+        )
+
+
+class TestCleanupJobFuncNames(unittest.TestCase):
+    def test_cleanup_jobs_do_not_wait_for_cleanup_jobs(self):
+        self.assertEqual(
+            service.CLEANUP_JOB_FUNC_NAMES,
+            {JobFn.CLEAR_CACHE.value, JobFn.RECLAIM_RETIRED_CACHE.value},
+        )
+
 
 class TestClearCache(ServiceTestCase):
     def test_starts_a_new_epoch_waits_and_reclaims_in_that_order(self):
         result = service.clear_cache(CacheKind.CIRCUIT)
 
-        self.assertEqual(self.calls, ["rotate", "sleep", "stamp", "reclaim"])
-        # The epoch this cleanup retired is the one whose job list can be trusted
-        service.stamp_retired_roots.assert_called_once_with(CacheKind.CIRCUIT, "previous")
+        self.assertEqual(
+            self.parent.mock_calls,
+            [
+                call.rotate_epoch(CacheKind.CIRCUIT),
+                call.sleep(settings.CACHE_EPOCH_SETTLE_SECONDS),
+                # The epoch this cleanup retired is the one whose job list can be trusted
+                self.stamp_call(CacheKind.CIRCUIT, "previous"),
+                call.reclaim_retired_roots(CacheKind.CIRCUIT),
+            ],
+        )
         self.assertEqual(result, {"status": "ok", "reclaimed": 1, "pending": 0})
         self.queue.enqueue_in.assert_not_called()
 
@@ -86,7 +98,7 @@ class TestClearCache(ServiceTestCase):
         result = service.clear_cache(CacheKind.CIRCUIT)
 
         self.assertEqual(result, {"status": "already_running"})
-        self.assertEqual(self.calls, [])
+        self.assertEqual(self.parent.mock_calls, [])
         self.queue.enqueue_in.assert_not_called()
 
     def test_the_lock_is_released_when_the_cleanup_fails(self):
@@ -101,7 +113,13 @@ class TestReclaimRetiredCache(ServiceTestCase):
     def test_reclaims_without_starting_a_new_epoch(self):
         result = service.reclaim_retired_cache(CacheKind.CIRCUIT, attempt=3)
 
-        self.assertEqual(self.calls, ["stamp", "reclaim"])
+        self.assertEqual(
+            self.parent.mock_calls,
+            [
+                self.stamp_call(CacheKind.CIRCUIT, None),
+                call.reclaim_retired_roots(CacheKind.CIRCUIT),
+            ],
+        )
         self.assertEqual(result["reclaimed"], 1)
         self.queue.enqueue_in.assert_not_called()
 
@@ -128,7 +146,7 @@ class TestReclaimRetiredCache(ServiceTestCase):
         result = service.reclaim_retired_cache(CacheKind.CIRCUIT, attempt=1)
 
         self.assertEqual(result, {"status": "already_running"})
-        self.assertEqual(self.calls, [])
+        self.assertEqual(self.parent.mock_calls, [])
         self.queue.enqueue_in.assert_not_called()
 
 

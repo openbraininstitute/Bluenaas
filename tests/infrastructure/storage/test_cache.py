@@ -12,7 +12,6 @@ from app.config.settings import settings
 from app.constants import RETIRED_MARKER_FILE_NAME, STORAGE_TRASH_DIR_NAME
 from app.infrastructure.storage import cache
 from app.infrastructure.storage.cache import (
-    CLEANUP_JOB_FUNC_NAMES,
     RetiredMarker,
     cleanup_lock,
     reclaim_retired_roots,
@@ -20,11 +19,15 @@ from app.infrastructure.storage.cache import (
     stamp_retired_roots,
 )
 from app.infrastructure.storage.epoch import CacheKind, current_epoch, epoch_dir_name
-from app.job import JobFn
 from tests.infrastructure.storage.fake_redis import FakeRedisTestCase
 
+EXCLUDED_FUNCS = frozenset({"app.some.cleanup"})
 OLD_EPOCH = "a" * 32
 OLDER_EPOCH = "b" * 32
+
+
+def stamp(kind: CacheKind, previous_epoch: str | None = None) -> None:
+    stamp_retired_roots(kind, previous_epoch, exclude_func_names=EXCLUDED_FUNCS)
 
 
 class CacheTestCase(FakeRedisTestCase):
@@ -88,7 +91,7 @@ class TestStampRetiredRoots(CacheTestCase):
         current = self.current_root(CacheKind.CIRCUIT)
 
         with patch.object(cache, "get_picked_up_job_ids", return_value={"job-b", "job-a"}) as jobs:
-            stamp_retired_roots(CacheKind.CIRCUIT)
+            stamp(CacheKind.CIRCUIT)
 
         marker = cache._read_marker(old)
         assert marker is not None
@@ -96,17 +99,14 @@ class TestStampRetiredRoots(CacheTestCase):
         self.assertAlmostEqual(marker.retired_at, time.time(), delta=5)
         self.assertIsNone(cache._read_marker(current))
         # Cleanups wait for other jobs, they must never wait for each other
-        jobs.assert_called_once_with(exclude_func_names=CLEANUP_JOB_FUNC_NAMES)
-        self.assertEqual(
-            CLEANUP_JOB_FUNC_NAMES, {JobFn.CLEAR_CACHE.value, JobFn.RECLAIM_RETIRED_CACHE.value}
-        )
+        jobs.assert_called_once_with(exclude_func_names=EXCLUDED_FUNCS)
 
     def test_roots_that_are_already_marked_keep_their_marker(self):
         old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
         self.mark(old, age=100, blocking=("early-job",))
 
         with patch.object(cache, "get_picked_up_job_ids") as jobs:
-            stamp_retired_roots(CacheKind.CIRCUIT)
+            stamp(CacheKind.CIRCUIT)
 
         jobs.assert_not_called()
         marker = cache._read_marker(old)
@@ -118,7 +118,7 @@ class TestStampRetiredRoots(CacheTestCase):
         (old / RETIRED_MARKER_FILE_NAME).write_text("{not json")
 
         with patch.object(cache, "get_picked_up_job_ids", return_value={"job-a"}):
-            stamp_retired_roots(CacheKind.CIRCUIT)
+            stamp(CacheKind.CIRCUIT)
 
         marker = cache._read_marker(old)
         assert marker is not None
@@ -129,7 +129,7 @@ class TestStampRetiredRoots(CacheTestCase):
         legacy = self.make_root(CacheKind.CIRCUIT, "model")
 
         with patch.object(cache, "get_picked_up_job_ids", return_value=set()):
-            stamp_retired_roots(CacheKind.CIRCUIT, OLD_EPOCH)
+            stamp(CacheKind.CIRCUIT, OLD_EPOCH)
 
         self.assertTrue(cache._read_marker(previous).trusted)
         self.assertTrue(cache._read_marker(legacy).trusted)
@@ -141,7 +141,7 @@ class TestStampRetiredRoots(CacheTestCase):
         previous = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
 
         with patch.object(cache, "get_picked_up_job_ids", return_value=set()):
-            stamp_retired_roots(CacheKind.CIRCUIT, OLD_EPOCH)
+            stamp(CacheKind.CIRCUIT, OLD_EPOCH)
 
         self.assertFalse(cache._read_marker(orphan).trusted)
         self.assertTrue(cache._read_marker(previous).trusted)
@@ -150,7 +150,7 @@ class TestStampRetiredRoots(CacheTestCase):
         old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
 
         with patch.object(cache, "get_picked_up_job_ids", return_value=set()):
-            stamp_retired_roots(CacheKind.CIRCUIT)
+            stamp(CacheKind.CIRCUIT)
 
         self.assertFalse(cache._read_marker(old).trusted)
 
@@ -158,7 +158,7 @@ class TestStampRetiredRoots(CacheTestCase):
         old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
 
         with patch.object(cache, "get_picked_up_job_ids", return_value=set()):
-            stamp_retired_roots(CacheKind.CIRCUIT)
+            stamp(CacheKind.CIRCUIT)
 
         data = json.loads((old / RETIRED_MARKER_FILE_NAME).read_text())
         self.assertEqual(data["blocking_job_ids"], [])
@@ -173,7 +173,7 @@ class TestReclaimRetiredRoots(CacheTestCase):
         with patch.object(cache, "get_unfinished_job_ids", return_value=set()) as unfinished:
             result = reclaim_retired_roots(CacheKind.CIRCUIT)
 
-        unfinished.assert_called_once_with(("job-a",))
+        unfinished.assert_called_once_with({"job-a"})
         self.assertEqual((result.reclaimed, result.pending), (1, 0))
         self.assertFalse(old.exists())
         self.assertEqual(self.trash_content(CacheKind.CIRCUIT), [])

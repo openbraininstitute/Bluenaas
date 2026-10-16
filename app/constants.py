@@ -19,7 +19,6 @@ LIBNRNMECH_PATH = f"{MECHANISMS_DIR_NAME}/lib/nrnmech.so"
 
 READY_MARKER_FILE_NAME = ".ready"
 DIR_LOCK_FILE_NAME = ".dir-lock"
-COMPILATION_CACHE_LOCK_FILE_NAME = "dir.lock"
 
 # Retired cache epochs are first moved here (inside the storage root, so that the move stays on
 # one filesystem and is atomic) and deleted from there.

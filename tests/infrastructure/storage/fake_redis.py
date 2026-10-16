@@ -79,8 +79,18 @@ class FakeRedisTestCase(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-        env = patch.dict(os.environ)
-        env.start()
-        self.addCleanup(env.stop)
-        for name in [n for n in os.environ if n.startswith("CACHE_EPOCH_")]:
+        self._forget_pinned_epochs()
+
+    def _forget_pinned_epochs(self):
+        # Not patch.dict(os.environ): it clears and refills the whole environment, and NEURON,
+        # once imported, can no longer load its hoc files after that.
+        saved = {n: v for n, v in os.environ.items() if n.startswith("CACHE_EPOCH_")}
+        for name in saved:
             del os.environ[name]
+
+        def restore():
+            for name in [n for n in os.environ if n.startswith("CACHE_EPOCH_")]:
+                del os.environ[name]
+            os.environ.update(saved)
+
+        self.addCleanup(restore)

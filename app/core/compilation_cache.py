@@ -8,11 +8,7 @@ from pathlib import Path
 from filelock import FileLock
 from loguru import logger
 
-from app.constants import (
-    COMPILATION_CACHE_LOCK_FILE_NAME,
-    MECHANISMS_DIR_NAME,
-    READY_MARKER_FILE_NAME,
-)
+from app.constants import MECHANISMS_DIR_NAME, READY_MARKER_FILE_NAME
 from app.infrastructure.storage import epoch_root
 from app.infrastructure.storage.epoch import CacheKind
 
@@ -73,7 +69,7 @@ def compile_with_cache(model_path: Path, mod_dir_name: str) -> None:
         shutil.copytree(compiled_mechanisms_path(cache_path), compiled_path)
         return
 
-    lock = FileLock(cache_path / COMPILATION_CACHE_LOCK_FILE_NAME)
+    lock = FileLock(cache_path / "dir.lock")
 
     with lock.acquire(timeout=5 * 60):
         if cache_ready.exists():

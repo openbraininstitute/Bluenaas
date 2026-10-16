@@ -88,7 +88,7 @@ class TestCompileWithCache(unittest.TestCase):
             compile_with_cache(self.model_path, "mechanisms")
             mock_sub.check_output.assert_not_called()
 
-    @patch.dict(os.environ, {"CACHE_EPOCH_COMPILATION": "e" * 32})
+    @patch("app.infrastructure.storage.current_epoch", new=lambda kind: "e" * 32)
     @patch("app.infrastructure.storage.settings")
     @patch("app.core.compilation_cache.subprocess")
     def test_cache_miss_compiles_and_caches(self, mock_sub, mock_settings):
@@ -110,7 +110,7 @@ class TestCompileWithCache(unittest.TestCase):
         cache_base = self.storage_path / "compilation-cache" / f"e{'e' * 32}"
         self.assertTrue(cache_base.exists())
 
-    @patch.dict(os.environ, {"CACHE_EPOCH_COMPILATION": "e" * 32})
+    @patch("app.infrastructure.storage.current_epoch", new=lambda kind: "e" * 32)
     @patch("app.infrastructure.storage.settings")
     @patch("app.core.compilation_cache.subprocess")
     def test_cache_hit_skips_compilation(self, mock_sub, mock_settings):

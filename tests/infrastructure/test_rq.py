@@ -24,7 +24,7 @@ def fake_job(job_id: str, status: JobStatus, func_name: str = "app.some.job"):
 
 
 class TestGetPickedUpJobIds(unittest.TestCase):
-    def run_with(self, queues, jobs, known_queues=None, **kwargs):
+    def run_with(self, queues, jobs, known_queues=None, exclude_func_names=()):
         with (
             patch.object(rq_module.Queue, "all", return_value=queues),
             patch.object(rq_module, "_queues", known_queues or {}),
@@ -34,7 +34,7 @@ class TestGetPickedUpJobIds(unittest.TestCase):
                 side_effect=lambda ids, **kw: [jobs.get(i) for i in ids],
             ),
         ):
-            return get_picked_up_job_ids(**kwargs)
+            return get_picked_up_job_ids(exclude_func_names=exclude_func_names)
 
     def test_jobs_started_and_jobs_taken_from_the_queue_but_not_yet_started_count(self):
         queues = [fake_queue("high", ["running"], ["in-transit"]), fake_queue("low", ["long"], [])]

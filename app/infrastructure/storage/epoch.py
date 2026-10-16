@@ -45,6 +45,7 @@ def _pinned_epoch_env_var(kind: CacheKind) -> str:
 
 
 def _decode(value: bytes | str | None) -> str | None:
+    # redis-py returns bytes, or str when the client decodes responses
     if value is None:
         return None
     return value.decode() if isinstance(value, bytes) else value

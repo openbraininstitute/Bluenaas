@@ -61,6 +61,7 @@ class TestCurrentEpoch(FakeRedisTestCase):
     def test_clear_pinned_epochs_only_touches_epochs(self):
         current_epoch(CacheKind.CIRCUIT)
         os.environ["SOMETHING_ELSE"] = "kept"
+        self.addCleanup(os.environ.pop, "SOMETHING_ELSE", None)
 
         clear_pinned_epochs()
 
