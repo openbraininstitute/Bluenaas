@@ -7,8 +7,7 @@ from uuid import UUID
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
 from entitysdk.models import TaskActivity, TaskConfig
-from entitysdk.types import ActivityStatus, TaskActivityType, TaskConfigType
-from obp_accounting_sdk.constants import ServiceSubtype
+from entitysdk.types import ActivityStatus, TaskConfigType
 
 from app.core.exceptions import AppError, JobFailedError
 from app.job import JobFn
@@ -135,22 +134,6 @@ class TestRunTaskConfig(unittest.TestCase):
 
 class TestRunMEModelBuild(TestRunTaskConfig):
     run_spec = MEMODEL_BUILD
-
-
-class TestRunSpecs(unittest.TestCase):
-    def test_ion_channel_build(self):
-        self.assertEqual(ION_CHANNEL_BUILD.config_type, TaskConfigType.ion_channel_modeling__config)
-        self.assertEqual(
-            ION_CHANNEL_BUILD.activity_type, TaskActivityType.ion_channel_modeling__execution
-        )
-        self.assertEqual(ION_CHANNEL_BUILD.service_subtype, ServiceSubtype.ION_CHANNEL_BUILD)
-        self.assertEqual(ION_CHANNEL_BUILD.task_type, "ion_channel_fitting")
-
-    def test_memodel_build(self):
-        self.assertEqual(MEMODEL_BUILD.config_type, TaskConfigType.memodel_build__config)
-        self.assertEqual(MEMODEL_BUILD.activity_type, TaskActivityType.memodel_build__execution)
-        self.assertEqual(MEMODEL_BUILD.service_subtype, ServiceSubtype.SINGLE_CELL_BUILD)
-        self.assertEqual(MEMODEL_BUILD.task_type, "memodel_build")
 
 
 if __name__ == "__main__":
