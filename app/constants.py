@@ -19,3 +19,16 @@ LIBNRNMECH_PATH = f"{MECHANISMS_DIR_NAME}/lib/nrnmech.so"
 
 READY_MARKER_FILE_NAME = ".ready"
 DIR_LOCK_FILE_NAME = ".dir-lock"
+
+# Retired cache epochs are first moved here (inside the storage root, so that the move stays on
+# one filesystem and is atomic) and deleted from there.
+STORAGE_TRASH_DIR_NAME = ".trash"
+
+# Written into a retired cache epoch: when it was retired and which jobs might still be using it
+RETIRED_MARKER_FILE_NAME = ".retired"
+
+# Time limit of a cache cleanup job
+CACHE_CLEANUP_TIMEOUT = 2 * 60 * 60
+
+# A reclaim that keeps finding retired epochs that are still in use gives up after this many checks
+CACHE_RECLAIM_MAX_ATTEMPTS = 30
