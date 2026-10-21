@@ -51,7 +51,7 @@ MEMODEL_BUILD = TaskConfigRun(
     config_type=TaskConfigType.memodel_build__config,
     activity_type=TaskActivityType.memodel_build__execution,
     service_subtype=ServiceSubtype.SINGLE_CELL_BUILD,
-    timeout=30 * 60,
+    timeout=40 * 60,
 )
 
 
