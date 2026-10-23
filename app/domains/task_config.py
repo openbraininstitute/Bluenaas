@@ -3,10 +3,10 @@ from uuid import UUID
 from pydantic import BaseModel
 
 
-class IonChannelBuildRequest(BaseModel):
+class TaskConfigRunRequest(BaseModel):
     config_id: UUID
 
 
-class IonChannelBuildLaunch(BaseModel):
+class TaskConfigRunLaunch(BaseModel):
     job_id: UUID
     execution_id: UUID

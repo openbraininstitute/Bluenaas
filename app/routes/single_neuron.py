@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from typing import Annotated, List
 from uuid import UUID
 
@@ -19,6 +20,7 @@ from app.domains.simulation import (
     StimulationItemResponse,
     StimulationPlotConfig,
 )
+from app.domains.task_config import TaskConfigRunLaunch, TaskConfigRunRequest
 from app.infrastructure.rq import JobQueue, queue_factory
 from app.routes.dependencies import ProjectContextDep, UserAuthDep
 from app.services.api.single_neuron.compatibility import check_compatibility_service
@@ -39,6 +41,7 @@ from app.services.api.single_neuron.synaptome import (
     generate_synapses,
     validate_synapse_generation_formula,
 )
+from app.services.api.task_config import MEMODEL_BUILD, run_task_config
 
 router = APIRouter(prefix="/single-neuron")
 
@@ -52,6 +55,27 @@ async def create_single_neuron_model(
 ):
     return await create_single_neuron_model_service(
         model, project_context=project_context, auth=auth, job_queue=job_queue
+    )
+
+
+@router.post(
+    "/build/run",
+    tags=["single-neuron", "build"],
+    description="Build, calibrate and validate the ME-model of a memodel_build__config TaskConfig",
+    status_code=HTTPStatus.ACCEPTED,
+)
+async def run_memodel_build(
+    body: TaskConfigRunRequest,
+    project_context: ProjectContextDep,
+    auth: UserAuthDep,
+    job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM)),
+) -> TaskConfigRunLaunch:
+    return await run_task_config(
+        body.config_id,
+        MEMODEL_BUILD,
+        job_queue=job_queue,
+        project_context=project_context,
+        auth=auth,
     )
 
 
