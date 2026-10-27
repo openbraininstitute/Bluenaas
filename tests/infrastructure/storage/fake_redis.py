@@ -55,7 +55,7 @@ class FakeRedis:
     def get(self, key):
         return self.data.get(key)
 
-    def set(self, key, value, nx=False):
+    def set(self, key, value, nx=False, ex=None):
         if nx and key in self.data:
             return None
         self.data[key] = value.encode() if isinstance(value, str) else value

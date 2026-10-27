@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
+from app.infrastructure.storage import epoch as epoch_module
 from app.infrastructure.storage.epoch import (
     CacheKind,
     clear_pinned_epochs,
@@ -26,6 +27,15 @@ class TestCurrentEpoch(FakeRedisTestCase):
 
         self.assertEqual(get_epoch(CacheKind.CIRCUIT), epoch)
         self.assertEqual(current_epoch(CacheKind.CIRCUIT), epoch)
+
+    def test_only_creating_the_epoch_is_reported(self):
+        # Outside the first use, it means that Redis lost the epoch running jobs still use
+        with patch.object(epoch_module, "logger") as logger:
+            current_epoch(CacheKind.CIRCUIT)
+            clear_pinned_epochs()
+            current_epoch(CacheKind.CIRCUIT)
+
+        logger.warning.assert_called_once()
 
     def test_epochs_are_per_kind(self):
         self.assertNotEqual(current_epoch(CacheKind.CIRCUIT), current_epoch(CacheKind.MESH))
@@ -51,7 +61,11 @@ class TestCurrentEpoch(FakeRedisTestCase):
         rotate_epoch(CacheKind.SINGLE_NEURON)
 
         child = subprocess.run(
-            [sys.executable, "-c", "import os; print(os.environ['PINNED_CACHE_EPOCH_SINGLE_NEURON'])"],
+            [
+                sys.executable,
+                "-c",
+                "import os; print(os.environ['PINNED_CACHE_EPOCH_SINGLE_NEURON'])",
+            ],
             capture_output=True,
             text=True,
             check=True,

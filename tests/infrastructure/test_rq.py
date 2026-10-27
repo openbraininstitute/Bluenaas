@@ -11,10 +11,19 @@ from app.infrastructure import rq as rq_module
 from app.infrastructure.rq import get_picked_up_job_ids, get_unfinished_job_ids
 
 
-def fake_queue(name: str, started: list[str], intermediate: list[str]):
+def fake_queue(
+    name: str, started: list[str], intermediate: list[str], expired: list[str] | None = None
+):
+    def get_started_job_ids(cleanup=True):
+        # The registry cleanup fails abandoned jobs and runs their callbacks
+        assert not cleanup
+        return started
+
     return SimpleNamespace(
         name=name,
-        started_job_registry=SimpleNamespace(get_job_ids=lambda: started),
+        started_job_registry=SimpleNamespace(
+            get_job_ids=get_started_job_ids, get_expired_job_ids=lambda: expired or []
+        ),
         intermediate_queue=SimpleNamespace(get_job_ids=lambda: intermediate),
     )
 
@@ -45,6 +54,15 @@ class TestGetPickedUpJobIds(unittest.TestCase):
         }
 
         self.assertEqual(self.run_with(queues, jobs), {"running", "in-transit", "long"})
+
+    def test_abandoned_jobs_do_not_count(self):
+        queues = [fake_queue("high", ["running", "abandoned"], [], expired=["abandoned"])]
+        jobs = {
+            "running": fake_job("running", JobStatus.STARTED),
+            "abandoned": fake_job("abandoned", JobStatus.STARTED),
+        }
+
+        self.assertEqual(self.run_with(queues, jobs), {"running"})
 
     def test_a_job_in_both_places_is_counted_once(self):
         queues = [fake_queue("high", ["a"], ["a"])]

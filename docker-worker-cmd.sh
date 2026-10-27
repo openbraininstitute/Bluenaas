@@ -19,7 +19,8 @@ if [ -z "$REDIS_URL" ]; then
   exit 1
 fi
 
-# Add burst flag based on EXIT_AFTER_JOBS_COMPLETE setting
+# Add burst flag based on EXIT_AFTER_JOBS_COMPLETE setting. Burst workers only move scheduled
+# jobs to their queues when they start, so the cache cleanup checks on MEDIUM run then.
 BURST_FLAG=""
 if [ -n "$EXIT_AFTER_JOBS_COMPLETE" ]; then
   case "$EXIT_AFTER_JOBS_COMPLETE" in

@@ -92,7 +92,12 @@ def get_picked_up_job_ids(*, exclude_func_names: Collection[str]) -> set[str]:
 
     job_ids: set[str] = set()
     for queue in queues.values():
-        job_ids.update(queue.started_job_registry.get_job_ids())
+        # Without the cleanup of the registry: it fails the abandoned jobs and runs their failure
+        # callbacks, which is not for a cache cleanup to do. Abandoned jobs are left out instead.
+        registry = queue.started_job_registry
+        job_ids.update(
+            set(registry.get_job_ids(cleanup=False)) - set(registry.get_expired_job_ids())
+        )
         job_ids.update(queue.intermediate_queue.get_job_ids())
 
     return {

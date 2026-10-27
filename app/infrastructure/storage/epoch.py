@@ -18,6 +18,8 @@ import re
 from enum import StrEnum
 from uuid import uuid4
 
+from loguru import logger
+
 from app.infrastructure.redis import redis_client
 
 
@@ -77,7 +79,13 @@ def current_epoch(kind: CacheKind) -> str:
     epoch = get_epoch(kind)
     if epoch is None:
         # Whoever gets there first wins, the others use the winner's epoch
-        redis_client.set(_redis_key(kind), uuid4().hex, nx=True)
+        if redis_client.set(_redis_key(kind), uuid4().hex, nx=True):
+            # Expected once per kind. Any other time Redis lost the key (flush, eviction), the
+            # cache goes cold and the epoch running jobs still use can only be deleted by age.
+            logger.warning(
+                f"Started the first {kind.value} cache epoch: either the cache is used for the "
+                "first time or Redis lost the current epoch"
+            )
         epoch = get_epoch(kind)
         if epoch is None:
             raise RuntimeError(f"The {kind.value} cache epoch is gone right after it was created")

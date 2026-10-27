@@ -30,5 +30,4 @@ class JobFn(StrEnum):
     RUN_TASK_CONFIG = "app.job.handlers.task_config.run"
 
     # Admin
-    CLEAR_CACHE = "app.job.handlers.admin.cache.clear"
     RECLAIM_RETIRED_CACHE = "app.job.handlers.admin.cache.reclaim"

@@ -14,6 +14,7 @@ from app.infrastructure.storage import cache
 from app.infrastructure.storage.cache import (
     RetiredMarker,
     cleanup_lock,
+    has_unfinished_cleanup,
     reclaim_retired_roots,
     retired_roots,
     stamp_retired_roots,
@@ -26,8 +27,8 @@ OLD_EPOCH = "a" * 32
 OLDER_EPOCH = "b" * 32
 
 
-def stamp(kind: CacheKind, previous_epoch: str | None = None) -> None:
-    stamp_retired_roots(kind, previous_epoch, exclude_func_names=EXCLUDED_FUNCS)
+def stamp(kind: CacheKind, previous_epoch: str | None = None) -> dict:
+    return stamp_retired_roots(kind, previous_epoch, exclude_func_names=EXCLUDED_FUNCS)
 
 
 class CacheTestCase(FakeRedisTestCase):
@@ -54,8 +55,15 @@ class CacheTestCase(FakeRedisTestCase):
     def current_root(self, kind: CacheKind) -> Path:
         return self.make_epoch_root(kind, current_epoch(kind))
 
-    def mark(self, root: Path, *, age: float = 0, blocking: tuple[str, ...] = ()) -> None:
-        cache._write_marker(root, RetiredMarker(time.time() - age, blocking))
+    def mark(
+        self,
+        root: Path,
+        *,
+        age: float = 0,
+        blocking: tuple[str, ...] = (),
+        trusted: bool = True,
+    ) -> None:
+        cache._write_marker(root, RetiredMarker(time.time() - age, blocking, trusted))
 
     def trash_content(self, kind: CacheKind) -> list[Path]:
         trash = self.storage / STORAGE_TRASH_DIR_NAME / kind.value
@@ -83,6 +91,41 @@ class TestRetiredRoots(CacheTestCase):
 
         self.assertEqual(retired_roots(CacheKind.CIRCUIT), [])
         self.assertEqual(retired_roots(CacheKind.TASK_CONFIG), [])
+
+    def test_the_ion_channel_builds_are_retired_task_config_runs(self):
+        # Where the ion channel builds were kept before they became task config runs
+        builds = self.storage / "ion-channel"
+        (builds / "build" / "a").mkdir(parents=True)
+        current = self.current_root(CacheKind.TASK_CONFIG)
+
+        self.assertEqual(retired_roots(CacheKind.TASK_CONFIG), [builds])
+        self.assertNotIn(current, retired_roots(CacheKind.TASK_CONFIG))
+        self.assertEqual(retired_roots(CacheKind.CIRCUIT), [])
+
+
+class TestHasUnfinishedCleanup(CacheTestCase):
+    def test_marked_retired_roots_and_trash_are_left_by_a_cleanup(self):
+        self.current_root(CacheKind.CIRCUIT)
+        self.assertFalse(has_unfinished_cleanup(CacheKind.CIRCUIT))
+
+        (self.storage / STORAGE_TRASH_DIR_NAME / "circuit").mkdir(parents=True)
+        self.assertFalse(has_unfinished_cleanup(CacheKind.CIRCUIT))
+
+        (self.storage / STORAGE_TRASH_DIR_NAME / "circuit" / "half-deleted").mkdir()
+        self.assertTrue(has_unfinished_cleanup(CacheKind.CIRCUIT))
+
+        old = self.make_epoch_root(CacheKind.MESH, OLD_EPOCH)
+        self.assertFalse(has_unfinished_cleanup(CacheKind.MESH))
+        self.mark(old)
+        self.assertTrue(has_unfinished_cleanup(CacheKind.MESH))
+
+    def test_the_layout_from_before_the_epochs_is_not_left_by_a_cleanup(self):
+        # No cleanup has run yet, and old workers may still use it during a deploy
+        self.make_root(CacheKind.CIRCUIT, "model")
+        (self.storage / "ion-channel" / "build").mkdir(parents=True)
+
+        self.assertFalse(has_unfinished_cleanup(CacheKind.CIRCUIT))
+        self.assertFalse(has_unfinished_cleanup(CacheKind.TASK_CONFIG))
 
 
 class TestStampRetiredRoots(CacheTestCase):
@@ -154,6 +197,49 @@ class TestStampRetiredRoots(CacheTestCase):
 
         self.assertFalse(cache._read_marker(old).trusted)
 
+    def test_the_previous_epoch_is_marked_before_its_jobs_create_it(self):
+        # A job took the epoch just before the cleanup started a new one, and has not created
+        # its directory yet
+        with patch.object(cache, "get_picked_up_job_ids", return_value={"slow-job"}):
+            stamp(CacheKind.CIRCUIT, OLD_EPOCH)
+
+        previous = self.storage / "circuit" / epoch_dir_name(OLD_EPOCH)
+        marker = cache._read_marker(previous)
+        assert marker is not None
+        self.assertTrue(marker.trusted)
+        self.assertEqual(marker.blocking_job_ids, ("slow-job",))
+
+    def test_the_previous_epoch_is_trusted_once_known_even_if_marked_before(self):
+        # Marked by a check that did not know which epoch the cleanup retired
+        previous = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
+        self.mark(previous, age=100, blocking=("early-job",), trusted=False)
+        orphan = self.make_epoch_root(CacheKind.CIRCUIT, OLDER_EPOCH)
+        self.mark(orphan, age=100, trusted=False)
+
+        with patch.object(cache, "get_picked_up_job_ids", return_value={"job-a"}):
+            stamp(CacheKind.CIRCUIT, OLD_EPOCH)
+
+        marker = cache._read_marker(previous)
+        assert marker is not None
+        self.assertTrue(marker.trusted)
+        self.assertEqual(marker.blocking_job_ids, ("job-a",))
+        # Still deleted by its age from when it was first seen as retired
+        self.assertAlmostEqual(marker.retired_at, time.time() - 100, delta=5)
+        self.assertFalse(cache._read_marker(orphan).trusted)
+
+    def test_returns_the_markers_of_all_retired_roots(self):
+        marked = self.make_epoch_root(CacheKind.CIRCUIT, OLDER_EPOCH)
+        self.mark(marked, blocking=("early-job",))
+        unmarked = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
+        self.current_root(CacheKind.CIRCUIT)
+
+        with patch.object(cache, "get_picked_up_job_ids", return_value={"job-a"}):
+            markers = stamp(CacheKind.CIRCUIT)
+
+        self.assertEqual(
+            markers, {marked: cache._read_marker(marked), unmarked: cache._read_marker(unmarked)}
+        )
+
     def test_marker_is_written_whole(self):
         old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
 
@@ -177,6 +263,46 @@ class TestReclaimRetiredRoots(CacheTestCase):
         self.assertEqual((result.reclaimed, result.pending), (1, 0))
         self.assertFalse(old.exists())
         self.assertEqual(self.trash_content(CacheKind.CIRCUIT), [])
+
+    def test_uses_the_markers_it_is_given_instead_of_reading_them_again(self):
+        old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
+        markers = {old: RetiredMarker(time.time(), ("job-a",))}
+
+        with (
+            patch.object(cache, "_read_marker") as read_marker,
+            patch.object(cache, "get_unfinished_job_ids", return_value=set()) as unfinished,
+        ):
+            result = reclaim_retired_roots(CacheKind.CIRCUIT, markers)
+
+        read_marker.assert_not_called()
+        unfinished.assert_called_once_with({"job-a"})
+        self.assertEqual(result.reclaimed, 1)
+        self.assertFalse(old.exists())
+
+    def test_without_the_stamp_only_marked_roots_are_deleted(self):
+        legacy = self.make_root(CacheKind.CIRCUIT, "model")
+        old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
+        self.mark(old)
+
+        with patch.object(cache, "get_unfinished_job_ids", return_value=set()):
+            result = reclaim_retired_roots(CacheKind.CIRCUIT)
+
+        self.assertEqual((result.reclaimed, result.pending), (1, 1))
+        self.assertFalse(old.exists())
+        self.assertTrue(legacy.exists())
+
+    def test_the_ion_channel_builds_are_deleted_with_the_task_config_runs(self):
+        builds = self.storage / "ion-channel"
+        (builds / "build" / "a").mkdir(parents=True)
+
+        with (
+            patch.object(cache, "get_picked_up_job_ids", return_value=set()),
+            patch.object(cache, "get_unfinished_job_ids", return_value=set()),
+        ):
+            result = reclaim_retired_roots(CacheKind.TASK_CONFIG, stamp(CacheKind.TASK_CONFIG))
+
+        self.assertEqual((result.reclaimed, result.pending), (1, 0))
+        self.assertFalse(builds.exists())
 
     def test_keeps_a_retired_root_while_a_job_that_might_use_it_runs(self):
         old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
