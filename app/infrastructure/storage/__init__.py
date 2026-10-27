@@ -134,8 +134,8 @@ def get_mesh_location(uuid: UUID) -> Path:
     return ensure_dir(path)
 
 
-def get_ion_channel_build_location(uuid: UUID) -> Path:
-    path = epoch_root(CacheKind.ION_CHANNEL) / "build" / uuid_subpath(uuid)
+def get_task_config_run_location(uuid: UUID) -> Path:
+    path = epoch_root(CacheKind.TASK_CONFIG) / uuid_subpath(uuid)
     return ensure_dir(path)
 
 

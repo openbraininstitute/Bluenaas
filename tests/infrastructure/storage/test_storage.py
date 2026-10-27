@@ -12,11 +12,11 @@ from app.infrastructure.storage import (
     get_circuit_simulation_location,
     get_circuit_simulation_output_location,
     get_compatibility_result_location,
-    get_ion_channel_build_location,
     get_mesh_location,
     get_model_candidate_location,
     get_single_neuron_location,
     get_single_neuron_validation_output_location,
+    get_task_config_run_location,
     rm_dir_parallel,
 )
 
@@ -56,7 +56,7 @@ class TestLocationsAreInTheEpoch(unittest.TestCase):
                 f"single-neuron/{e}/validation-output/{subpath}"
             ),
             get_mesh_location(uuid): f"mesh/{e}/mesh/{subpath}",
-            get_ion_channel_build_location(uuid): f"ion-channel/{e}/build/{subpath}",
+            get_task_config_run_location(uuid): f"task-config/{e}/{subpath}",
         }
 
         for path, relative in expected.items():

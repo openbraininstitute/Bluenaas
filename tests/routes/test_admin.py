@@ -46,7 +46,7 @@ class TestAdminRoutes(unittest.TestCase):
             ("circuit", "circuit", "Circuit cache cleanup started"),
             ("single-neuron", "single-neuron", "Single neuron cache cleanup started"),
             ("mesh", "mesh", "Mesh cache cleanup started"),
-            ("ion-channel", "ion-channel", "Ion channel cache cleanup started"),
+            ("task-config", "task-config", "Task config cache cleanup started"),
             ("compilation", "compilation-cache", "Compilation cache cleanup started"),
         ]
 

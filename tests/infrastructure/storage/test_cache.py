@@ -82,7 +82,7 @@ class TestRetiredRoots(CacheTestCase):
         (self.storage / "circuit" / "stray-file").touch()
 
         self.assertEqual(retired_roots(CacheKind.CIRCUIT), [])
-        self.assertEqual(retired_roots(CacheKind.ION_CHANNEL), [])
+        self.assertEqual(retired_roots(CacheKind.TASK_CONFIG), [])
 
 
 class TestStampRetiredRoots(CacheTestCase):

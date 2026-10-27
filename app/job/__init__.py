@@ -26,8 +26,8 @@ class JobFn(StrEnum):
         "app.job.handlers.circuit.simulation.get_batch_params_map"
     )
 
-    # Ion channel
-    RUN_ION_CHANNEL_BUILD = "app.job.handlers.ion_channel.build.run"
+    # obi-one tasks of single TaskConfigs
+    RUN_TASK_CONFIG = "app.job.handlers.task_config.run"
 
     # Admin
     CLEAR_CACHE = "app.job.handlers.admin.cache.clear"

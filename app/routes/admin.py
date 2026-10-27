@@ -36,12 +36,12 @@ async def clear_mesh_storage(
     return await start_cache_cleanup(CacheKind.MESH, job_queue=job_queue, description="Mesh cache")
 
 
-@router.delete("/cache/ion-channel", tags=["admin"], status_code=HTTPStatus.ACCEPTED)
-async def clear_ion_channel_storage(
+@router.delete("/cache/task-config", tags=["admin"], status_code=HTTPStatus.ACCEPTED)
+async def clear_task_config_storage(
     _: AdminAuthDep, job_queue: Queue = Depends(queue_factory(JobQueue.MEDIUM))
 ):
     return await start_cache_cleanup(
-        CacheKind.ION_CHANNEL, job_queue=job_queue, description="Ion channel cache"
+        CacheKind.TASK_CONFIG, job_queue=job_queue, description="Task config cache"
     )
 
 

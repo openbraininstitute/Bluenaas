@@ -25,7 +25,7 @@ class CacheKind(StrEnum):
     CIRCUIT = "circuit"
     SINGLE_NEURON = "single-neuron"
     MESH = "mesh"
-    ION_CHANNEL = "ion-channel"
+    TASK_CONFIG = "task-config"
     COMPILATION = "compilation-cache"
 
 
