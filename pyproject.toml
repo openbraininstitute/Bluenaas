@@ -31,9 +31,7 @@ api = [
     "sentry-sdk[fastapi]==2.54.0",
 ]
 worker = [
-    # TODO: bump once the mod-compilation feature (internal_mods_path()) is
-    # released; this code requires it and 2.6.104 predates it.
-    "bluecellulab==2.6.104",
+    "bluecellulab==2.6.112",
     "efel==5.7.27",
     "filelock==3.25.0",
     "ion-channel-builder",

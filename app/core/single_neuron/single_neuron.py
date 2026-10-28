@@ -17,7 +17,6 @@ from loguru import logger
 
 from app.constants import (
     DIR_LOCK_FILE_NAME,
-    READY_MARKER_FILE_NAME,
     SINGLE_NEURON_HOC_DIR,
     SINGLE_NEURON_MOD_DIR,
     SINGLE_NEURON_MORPHOLOGY_DIR,
@@ -28,7 +27,10 @@ from app.core.exceptions import SingleNeuronAssetError
 from app.infrastructure.storage import (
     copy_file_content,
     get_model_candidate_location,
+    clear_stale,
     get_single_neuron_location,
+    is_ready,
+    mark_ready,
     rm_dir,
 )
 
@@ -54,19 +56,10 @@ class SingleNeuronBase(ABC):
     def threshold_current(self) -> float: ...
 
     def _add_syn_mod_files(self):
-        # BlueCelluLab bundles the technical MOD files it needs (VecStim's
-        # replacement `vecevent.mod`, TTXDynamicsSwitch.mod, etc.) instead of
-        # requiring each model to carry its own copy. Compiling them together
-        # with the model's own mod files in one nrnivmodl invocation keeps
-        # mechanisms that share signals (e.g. TTXDynamicsSwitch and the sodium
-        # channels via the `ttx` ion) in the same library.
-        from bluecellulab.mod_compilation import internal_mods_path
-
-        for mod_file in sorted(internal_mods_path().glob("*.mod")):
-            copy_file_content(
-                mod_file,
-                self.path / SINGLE_NEURON_MOD_DIR / mod_file.name,
-            )
+        # ProbGABAAB_EMS and ProbAMPANMDA_EMS are Bluenaas-supplied synapse
+        # mechanisms. BlueCelluLab's own technical MODs (vecevent,
+        # TTXDynamicsSwitch, ...) are added by `compile_mods` at compile time,
+        # keeping them in the same library as the model's mechanisms.
         copy_file_content(
             Path("/app/app/config/ProbGABAAB_EMS.mod"),
             self.path / SINGLE_NEURON_MOD_DIR / "ProbGABAAB_EMS.mod",
@@ -77,23 +70,22 @@ class SingleNeuronBase(ABC):
         )
 
     def _init_model_files(self):
-        ready_marker = self.path / READY_MARKER_FILE_NAME
-
-        if ready_marker.exists():
+        if is_ready(self.path):
             logger.debug("Found existing single neuron model in the storage")
             return
 
         lock = FileLock(self.path / DIR_LOCK_FILE_NAME)
 
         with lock.acquire(timeout=2 * 60):
-            if ready_marker.exists():
+            if is_ready(self.path):
                 logger.debug("Found existing single neuron model in the storage")
                 return
 
+            clear_stale(self.path)
             self._fetch_assets()
             self._add_syn_mod_files()
             compile_with_cache(self.path, SINGLE_NEURON_MOD_DIR)
-            ready_marker.touch()
+            mark_ready(self.path)
 
     def _init_bcl_cell(self):
         chdir(self.path)
@@ -153,8 +145,7 @@ class SingleNeuronBase(ABC):
 
     def is_fetched(self) -> bool:
         """Check if the model files are in the storage"""
-        ready_marker = self.path / READY_MARKER_FILE_NAME
-        return ready_marker.exists()
+        return is_ready(self.path)
 
 
 class SingleNeuron(SingleNeuronBase):

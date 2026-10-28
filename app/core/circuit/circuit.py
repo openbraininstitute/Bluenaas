@@ -27,11 +27,16 @@ from app.constants import (
     CIRCUIT_MEMODEL_MOD_DIR,
     CIRCUIT_MOD_DIR,
     DIR_LOCK_FILE_NAME,
-    READY_MARKER_FILE_NAME,
 )
 from app.core.exceptions import CircuitInitError
 from app.domains.circuit.circuit import CircuitOrigin
-from app.infrastructure.storage import get_circuit_location, rm_dir
+from app.infrastructure.storage import (
+    clear_stale,
+    get_circuit_location,
+    is_ready,
+    mark_ready,
+    rm_dir,
+)
 
 
 class CircuitBase(ABC):
@@ -69,9 +74,7 @@ class CircuitBase(ABC):
             logger.warning("Circuit already initialized")
             return
 
-        ready_marker = self.path / READY_MARKER_FILE_NAME
-
-        if ready_marker.exists():
+        if is_ready(self.path):
             logger.debug("Found existing circuit in the storage")
             self.initialized = True
             return
@@ -83,14 +86,15 @@ class CircuitBase(ABC):
                 # Re-check if the circuit is already initialized.
                 # Another worker might have initialized the circuit
                 # while the current one was waiting for the lock.
-                if ready_marker.exists():
+                if is_ready(self.path):
                     logger.debug("Found existing circuit in the storage")
                     self.initialized = True
                     return
 
+                clear_stale(self.path)
                 self._fetch_assets()
                 self._compile_mod_files()
-                ready_marker.touch()
+                mark_ready(self.path)
         except Exception:
             raise CircuitInitError()
 
@@ -100,8 +104,7 @@ class CircuitBase(ABC):
 
     def is_fetched(self) -> bool:
         """Check if the circuit is in the storage"""
-        ready_marker = self.path / READY_MARKER_FILE_NAME
-        return ready_marker.exists()
+        return is_ready(self.path)
 
 
 class Circuit(CircuitBase):

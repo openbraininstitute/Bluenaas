@@ -16,7 +16,6 @@ from app.constants import (
     CIRCUIT_SIMULATION_CONFIG_NAME,
     DIR_LOCK_FILE_NAME,
     LIBNRNMECH_PATH,
-    READY_MARKER_FILE_NAME,
 )
 from app.core.circuit.circuit import CircuitBase, create_circuit
 from app.core.circuit.simulation_output import SimulationOutput
@@ -25,6 +24,8 @@ from app.domains.circuit.simulation import SimulationParams
 from app.infrastructure.storage import (
     get_circuit_simulation_location,
     get_circuit_simulation_output_location,
+    is_ready,
+    mark_ready,
     rm_dir,
 )
 
@@ -116,9 +117,7 @@ class Simulation:
             logger.warning("Simulation config already initialized")
             return
 
-        ready_marker = self.path / READY_MARKER_FILE_NAME
-
-        if ready_marker.exists():
+        if is_ready(self.path):
             logger.debug("Found existing simulation config in the storage")
             self.initialized = True
             return
@@ -126,7 +125,7 @@ class Simulation:
         lock = FileLock(self.path / DIR_LOCK_FILE_NAME)
         with lock.acquire(timeout=2 * 60):
             self._fetch_assets()
-            ready_marker.touch()
+            mark_ready(self.path)
 
     def get_simulation_params(self) -> SimulationParams:
         config_file = self.path / CIRCUIT_SIMULATION_CONFIG_NAME

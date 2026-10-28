@@ -4,6 +4,30 @@ from uuid import uuid5, UUID, NAMESPACE_URL
 from loguru import logger
 
 from app.config.settings import settings
+from app.constants import DIR_LOCK_FILE_NAME, READY_MARKER_FILE_NAME, READY_MARKER_VERSION
+
+
+def is_ready(path: Path) -> bool:
+    """Whether the ready marker exists at the current format version."""
+    marker = path / READY_MARKER_FILE_NAME
+    return marker.is_file() and marker.read_text().strip() == READY_MARKER_VERSION
+
+
+def mark_ready(path: Path) -> None:
+    """Mark a directory as initialized at the current format version."""
+    (path / READY_MARKER_FILE_NAME).write_text(READY_MARKER_VERSION)
+
+
+def clear_stale(path: Path) -> None:
+    """Remove what an older or interrupted initialization left in a directory.
+
+    Call it under the directory lock, which is kept. Without it a stale build
+    would be taken for a finished one and never recompiled.
+    """
+    for child in path.iterdir():
+        if child.name == DIR_LOCK_FILE_NAME:
+            continue
+        rm_dir(child) if child.is_dir() else child.unlink()
 
 
 def uuid_subpath(uuid: UUID) -> Path:

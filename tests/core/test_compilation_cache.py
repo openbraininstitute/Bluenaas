@@ -1,4 +1,5 @@
 import os
+import platform
 import shutil
 import tempfile
 import unittest
@@ -7,7 +8,13 @@ from unittest.mock import patch
 
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
-from app.core.compilation_cache import compile_with_cache, compute_mod_hash
+from app.core.compilation_cache import (
+    compile_with_cache,
+    compute_cache_key,
+    compute_mod_hash,
+)
+
+ARCH = platform.machine()
 
 
 class TestComputeModHash(unittest.TestCase):
@@ -65,11 +72,65 @@ class TestComputeModHash(unittest.TestCase):
             compute_mod_hash(self.mod_dir)
 
 
+class TestComputeCacheKey(unittest.TestCase):
+    """The cache key covers the model MODs, BlueCelluLab's bundled MODs, the
+    compiler flags and the NEURON version."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.mod_dir = self.tmpdir / "mechanisms"
+        self.mod_dir.mkdir()
+        (self.mod_dir / "A.mod").write_text("model content")
+        self.bundled_dir = self.tmpdir / "bundled"
+        self.bundled_dir.mkdir()
+        (self.bundled_dir / "vecevent.mod").write_text("bundled content")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+
+    def key(self, mod_dir=None, bundled_dir=None, incflags="-DDISABLE_REPORTINGLIB", nrn="9.0.0"):
+        return compute_cache_key(
+            mod_dir or self.mod_dir, bundled_dir or self.bundled_dir, incflags, nrn
+        )
+
+    def test_deterministic(self):
+        self.assertEqual(self.key(), self.key())
+
+    def test_model_mod_change_changes_key(self):
+        key1 = self.key()
+        (self.mod_dir / "A.mod").write_text("changed")
+        self.assertNotEqual(key1, self.key())
+
+    def test_bundled_mod_change_changes_key(self):
+        key1 = self.key()
+        (self.bundled_dir / "vecevent.mod").write_text("changed")
+        self.assertNotEqual(key1, self.key())
+
+    def test_neuron_version_change_changes_key(self):
+        self.assertNotEqual(self.key(), self.key(nrn="9.0.1"))
+
+    def test_incflags_change_changes_key(self):
+        self.assertNotEqual(self.key(), self.key(incflags="-DOTHER"))
+
+    def test_missing_mod_dir_still_keys(self):
+        missing = self.tmpdir / "absent"
+        self.assertEqual(self.key(mod_dir=missing), self.key(mod_dir=missing))
+
+    def test_empty_mod_dir_still_keys(self):
+        empty = self.tmpdir / "empty"
+        empty.mkdir()
+        self.assertEqual(self.key(mod_dir=empty), self.key(mod_dir=empty))
+
+
 class TestCompileWithCache(unittest.TestCase):
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
         self.storage_path = self.tmpdir / "storage"
         self.storage_path.mkdir()
+
+        self.bundled_dir = self.tmpdir / "bundled"
+        self.bundled_dir.mkdir()
+        (self.bundled_dir / "vecevent.mod").write_text("bundled")
 
         self.model_path = self.tmpdir / "model"
         self.model_path.mkdir()
@@ -77,82 +138,80 @@ class TestCompileWithCache(unittest.TestCase):
         self.mod_dir.mkdir()
         (self.mod_dir / "test.mod").write_text("NEURON { SUFFIX test }")
 
+        self.cache_inputs = patch(
+            "app.core.compilation_cache._bcl_cache_inputs",
+            return_value=(self.bundled_dir, "-DDISABLE_REPORTINGLIB", "9.0.0"),
+        )
+        self.bcl_inputs = self.cache_inputs.start()
+
+        self.bcl_compile = patch("app.core.compilation_cache._bcl_compile_mods").start()
+        self.bcl_compile.side_effect = self._fake_compile
+
+        self.settings = patch("app.core.compilation_cache.settings").start()
+        self.settings.STORAGE_PATH = self.storage_path
+
     def tearDown(self):
+        patch.stopall()
         shutil.rmtree(self.tmpdir)
 
+    @staticmethod
+    def _fake_compile(input_dirs, output_dir):
+        lib = output_dir / ARCH / "lib"
+        lib.mkdir(parents=True)
+        nrnmech = lib / "nrnmech.so"
+        nrnmech.write_text("compiled")
+        return nrnmech
+
     def test_skips_if_already_compiled(self):
-        compiled = self.model_path / "x86_64"
-        compiled.mkdir()
-
-        with patch("app.core.compilation_cache.subprocess") as mock_sub:
-            compile_with_cache(self.model_path, "mechanisms")
-            mock_sub.check_output.assert_not_called()
-
-    @patch("app.core.compilation_cache.settings")
-    @patch("app.core.compilation_cache.subprocess")
-    def test_cache_miss_compiles_and_caches(self, mock_sub, mock_settings):
-        mock_settings.STORAGE_PATH = self.storage_path
-
-        def fake_compile(cmd, cwd, text=False, stderr=None):
-            (cwd / "x86_64" / "lib").mkdir(parents=True)
-            (cwd / "x86_64" / "lib" / "nrnmech.so").write_text("compiled")
-            return "compilation output"
-
-        mock_sub.check_output.side_effect = fake_compile
+        (self.model_path / ARCH).mkdir()
 
         compile_with_cache(self.model_path, "mechanisms")
 
-        mock_sub.check_output.assert_called_once()
-        self.assertTrue((self.model_path / "x86_64" / "lib" / "nrnmech.so").exists())
+        self.bcl_compile.assert_not_called()
 
-        # Verify cache was populated
-        cache_base = self.storage_path / "compilation-cache"
-        self.assertTrue(cache_base.exists())
-
-    @patch("app.core.compilation_cache.settings")
-    @patch("app.core.compilation_cache.subprocess")
-    def test_cache_hit_skips_compilation(self, mock_sub, mock_settings):
-        mock_settings.STORAGE_PATH = self.storage_path
-
-        def fake_compile(cmd, cwd, text=False, stderr=None):
-            (cwd / "x86_64" / "lib").mkdir(parents=True)
-            (cwd / "x86_64" / "lib" / "nrnmech.so").write_text("compiled")
-            return "compilation output"
-
-        mock_sub.check_output.side_effect = fake_compile
-
-        # First call: cache miss, compiles
+    def test_cache_miss_compiles_and_caches(self):
         compile_with_cache(self.model_path, "mechanisms")
-        self.assertEqual(mock_sub.check_output.call_count, 1)
 
-        # Remove compiled output from model path to simulate a second model
-        shutil.rmtree(self.model_path / "x86_64")
+        self.bcl_compile.assert_called_once()
+        input_dirs, output_dir = self.bcl_compile.call_args.args
+        self.assertEqual(input_dirs, [self.mod_dir])
+        self.assertTrue(output_dir.is_relative_to(self.storage_path))
+        self.assertTrue((self.model_path / ARCH / "lib" / "nrnmech.so").exists())
+        self.assertTrue((self.storage_path / "compilation-cache").exists())
 
-        # Second call: cache hit, should not compile again
+    def test_cache_hit_skips_compilation(self):
         compile_with_cache(self.model_path, "mechanisms")
-        self.assertEqual(mock_sub.check_output.call_count, 1)  # Still 1
-        self.assertTrue((self.model_path / "x86_64" / "lib" / "nrnmech.so").exists())
+        self.assertEqual(self.bcl_compile.call_count, 1)
 
-    def test_missing_mod_dir_skips(self):
+        # Remove compiled output to simulate a second, identical model.
+        shutil.rmtree(self.model_path / ARCH)
+
+        compile_with_cache(self.model_path, "mechanisms")
+        self.assertEqual(self.bcl_compile.call_count, 1)
+        self.assertTrue((self.model_path / ARCH / "lib" / "nrnmech.so").exists())
+
+    def test_missing_mod_dir_compiles_bundled_only(self):
+        """A passive model gets the bundled mechanisms compiled anyway."""
         model_path = self.tmpdir / "no_mechanisms"
         model_path.mkdir()
 
-        with patch("app.core.compilation_cache.subprocess") as mock_sub:
-            compile_with_cache(model_path, "mechanisms")
-            mock_sub.check_output.assert_not_called()
+        compile_with_cache(model_path, "mechanisms")
 
-        self.assertFalse((model_path / "x86_64").exists())
+        self.bcl_compile.assert_called_once()
+        input_dirs, _ = self.bcl_compile.call_args.args
+        self.assertEqual(input_dirs, [])
+        self.assertTrue((model_path / ARCH / "lib" / "nrnmech.so").exists())
 
-    def test_empty_mod_dir_skips(self):
+    def test_empty_mod_dir_compiles_bundled(self):
         model_path = self.tmpdir / "empty_mechanisms"
-        model_path.mkdir()
-        (model_path / "mechanisms").mkdir()
+        (model_path / "mechanisms").mkdir(parents=True)
 
-        with patch("app.core.compilation_cache.subprocess") as mock_sub:
-            compile_with_cache(model_path, "mechanisms")
-            mock_sub.check_output.assert_not_called()
+        compile_with_cache(model_path, "mechanisms")
 
-        self.assertFalse((model_path / "x86_64").exists())
+        self.bcl_compile.assert_called_once()
+        input_dirs, _ = self.bcl_compile.call_args.args
+        self.assertEqual(input_dirs, [model_path / "mechanisms"])
+        self.assertTrue((model_path / ARCH / "lib" / "nrnmech.so").exists())
 
 
 if __name__ == "__main__":
