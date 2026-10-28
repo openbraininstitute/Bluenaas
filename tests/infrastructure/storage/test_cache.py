@@ -3,8 +3,9 @@ import os
 import tempfile
 import time
 import unittest
+from datetime import timedelta
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
@@ -14,12 +15,16 @@ from app.infrastructure.storage import cache
 from app.infrastructure.storage.cache import (
     RetiredMarker,
     cleanup_lock,
+    enqueue_reclaim,
     has_unfinished_cleanup,
     reclaim_retired_roots,
     retired_roots,
     stamp_retired_roots,
 )
+from app.context import cid_var
+from app.infrastructure.rq import JobQueue, _queues
 from app.infrastructure.storage.epoch import CacheKind, current_epoch, epoch_dir_name
+from app.job import JobFn
 from tests.infrastructure.storage.fake_redis import FakeRedisTestCase
 
 EXCLUDED_FUNCS = frozenset({"app.some.cleanup"})
@@ -102,6 +107,15 @@ class TestRetiredRoots(CacheTestCase):
         self.assertNotIn(current, retired_roots(CacheKind.TASK_CONFIG))
         self.assertEqual(retired_roots(CacheKind.CIRCUIT), [])
 
+    def test_the_compilation_cache_from_before_the_epochs_is_retired(self):
+        # Kept under another name before the epochs
+        former = self.storage / "compilation-cache"
+        (former / "ab" / "cd" / "ef").mkdir(parents=True)
+        current = self.current_root(CacheKind.COMPILATION)
+
+        self.assertEqual(retired_roots(CacheKind.COMPILATION), [former])
+        self.assertNotIn(current, retired_roots(CacheKind.COMPILATION))
+
 
 class TestHasUnfinishedCleanup(CacheTestCase):
     def test_marked_retired_roots_and_trash_are_left_by_a_cleanup(self):
@@ -133,7 +147,7 @@ class TestStampRetiredRoots(CacheTestCase):
         old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
         current = self.current_root(CacheKind.CIRCUIT)
 
-        with patch.object(cache, "get_picked_up_job_ids", return_value={"job-b", "job-a"}) as jobs:
+        with patch.object(cache, "get_started_job_ids", return_value={"job-b", "job-a"}) as jobs:
             stamp(CacheKind.CIRCUIT)
 
         marker = cache._read_marker(old)
@@ -148,7 +162,7 @@ class TestStampRetiredRoots(CacheTestCase):
         old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
         self.mark(old, age=100, blocking=("early-job",))
 
-        with patch.object(cache, "get_picked_up_job_ids") as jobs:
+        with patch.object(cache, "get_started_job_ids") as jobs:
             stamp(CacheKind.CIRCUIT)
 
         jobs.assert_not_called()
@@ -160,22 +174,33 @@ class TestStampRetiredRoots(CacheTestCase):
         old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
         (old / RETIRED_MARKER_FILE_NAME).write_text("{not json")
 
-        with patch.object(cache, "get_picked_up_job_ids", return_value={"job-a"}):
+        with patch.object(cache, "get_started_job_ids", return_value={"job-a"}):
             stamp(CacheKind.CIRCUIT)
 
         marker = cache._read_marker(old)
         assert marker is not None
         self.assertEqual(marker.blocking_job_ids, ("job-a",))
 
-    def test_the_epoch_this_cleanup_retired_and_epochs_from_before_epochs_are_trusted(self):
+    def test_the_epoch_this_cleanup_retired_is_trusted(self):
         previous = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
-        legacy = self.make_root(CacheKind.CIRCUIT, "model")
 
-        with patch.object(cache, "get_picked_up_job_ids", return_value=set()):
+        with patch.object(cache, "get_started_job_ids", return_value=set()):
             stamp(CacheKind.CIRCUIT, OLD_EPOCH)
 
         self.assertTrue(cache._read_marker(previous).trusted)
-        self.assertTrue(cache._read_marker(legacy).trusted)
+
+    def test_the_layout_from_before_the_epochs_is_not_trusted(self):
+        # Workers of the previous version still start jobs on it during a deploy
+        legacy = self.make_root(CacheKind.CIRCUIT, "model")
+        former = self.storage / "compilation-cache"
+        former.mkdir()
+
+        with patch.object(cache, "get_started_job_ids", return_value=set()):
+            stamp(CacheKind.CIRCUIT, OLD_EPOCH)
+            stamp(CacheKind.COMPILATION, OLD_EPOCH)
+
+        self.assertFalse(cache._read_marker(legacy).trusted)
+        self.assertFalse(cache._read_marker(former).trusted)
 
     def test_an_epoch_the_cleanup_did_not_retire_is_not_trusted(self):
         # Left by a cleanup that stopped before marking it, or by Redis losing its data. The jobs
@@ -183,7 +208,7 @@ class TestStampRetiredRoots(CacheTestCase):
         orphan = self.make_epoch_root(CacheKind.CIRCUIT, OLDER_EPOCH)
         previous = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
 
-        with patch.object(cache, "get_picked_up_job_ids", return_value=set()):
+        with patch.object(cache, "get_started_job_ids", return_value=set()):
             stamp(CacheKind.CIRCUIT, OLD_EPOCH)
 
         self.assertFalse(cache._read_marker(orphan).trusted)
@@ -192,7 +217,7 @@ class TestStampRetiredRoots(CacheTestCase):
     def test_without_a_known_previous_epoch_no_epoch_is_trusted(self):
         old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
 
-        with patch.object(cache, "get_picked_up_job_ids", return_value=set()):
+        with patch.object(cache, "get_started_job_ids", return_value=set()):
             stamp(CacheKind.CIRCUIT)
 
         self.assertFalse(cache._read_marker(old).trusted)
@@ -200,7 +225,7 @@ class TestStampRetiredRoots(CacheTestCase):
     def test_the_previous_epoch_is_marked_before_its_jobs_create_it(self):
         # A job took the epoch just before the cleanup started a new one, and has not created
         # its directory yet
-        with patch.object(cache, "get_picked_up_job_ids", return_value={"slow-job"}):
+        with patch.object(cache, "get_started_job_ids", return_value={"slow-job"}):
             stamp(CacheKind.CIRCUIT, OLD_EPOCH)
 
         previous = self.storage / "circuit" / epoch_dir_name(OLD_EPOCH)
@@ -216,7 +241,7 @@ class TestStampRetiredRoots(CacheTestCase):
         orphan = self.make_epoch_root(CacheKind.CIRCUIT, OLDER_EPOCH)
         self.mark(orphan, age=100, trusted=False)
 
-        with patch.object(cache, "get_picked_up_job_ids", return_value={"job-a"}):
+        with patch.object(cache, "get_started_job_ids", return_value={"job-a"}):
             stamp(CacheKind.CIRCUIT, OLD_EPOCH)
 
         marker = cache._read_marker(previous)
@@ -233,7 +258,7 @@ class TestStampRetiredRoots(CacheTestCase):
         unmarked = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
         self.current_root(CacheKind.CIRCUIT)
 
-        with patch.object(cache, "get_picked_up_job_ids", return_value={"job-a"}):
+        with patch.object(cache, "get_started_job_ids", return_value={"job-a"}):
             markers = stamp(CacheKind.CIRCUIT)
 
         self.assertEqual(
@@ -243,7 +268,7 @@ class TestStampRetiredRoots(CacheTestCase):
     def test_marker_is_written_whole(self):
         old = self.make_epoch_root(CacheKind.CIRCUIT, OLD_EPOCH)
 
-        with patch.object(cache, "get_picked_up_job_ids", return_value=set()):
+        with patch.object(cache, "get_started_job_ids", return_value=set()):
             stamp(CacheKind.CIRCUIT)
 
         data = json.loads((old / RETIRED_MARKER_FILE_NAME).read_text())
@@ -291,17 +316,21 @@ class TestReclaimRetiredRoots(CacheTestCase):
         self.assertFalse(old.exists())
         self.assertTrue(legacy.exists())
 
-    def test_the_ion_channel_builds_are_deleted_with_the_task_config_runs(self):
+    def test_the_ion_channel_builds_are_deleted_with_the_task_config_runs_by_age(self):
         builds = self.storage / "ion-channel"
         (builds / "build" / "a").mkdir(parents=True)
 
         with (
-            patch.object(cache, "get_picked_up_job_ids", return_value=set()),
+            patch.object(cache, "get_started_job_ids", return_value=set()),
             patch.object(cache, "get_unfinished_job_ids", return_value=set()),
         ):
-            result = reclaim_retired_roots(CacheKind.TASK_CONFIG, stamp(CacheKind.TASK_CONFIG))
+            markers = stamp(CacheKind.TASK_CONFIG)
+            kept = reclaim_retired_roots(CacheKind.TASK_CONFIG, markers)
+            with patch.object(settings, "CACHE_RETIRED_MAX_AGE", 0):
+                deleted = reclaim_retired_roots(CacheKind.TASK_CONFIG, markers)
 
-        self.assertEqual((result.reclaimed, result.pending), (1, 0))
+        self.assertEqual((kept.reclaimed, kept.pending), (0, 1))
+        self.assertEqual((deleted.reclaimed, deleted.pending), (1, 0))
         self.assertFalse(builds.exists())
 
     def test_keeps_a_retired_root_while_a_job_that_might_use_it_runs(self):
@@ -471,6 +500,36 @@ class TestReclaimRetiredRoots(CacheTestCase):
         self.assertFalse(other.exists())
 
 
+class TestEnqueueReclaim(unittest.TestCase):
+    def setUp(self):
+        self.queue = MagicMock()
+        patcher = patch.dict(_queues, {JobQueue.MEDIUM: self.queue})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        token = cid_var.set("request-cid")
+        self.addCleanup(cid_var.reset, token)
+
+    def test_queued_right_away_by_default(self):
+        enqueue_reclaim(CacheKind.MESH, previous_epoch=OLD_EPOCH)
+
+        self.queue.enqueue_in.assert_not_called()
+        args, kwargs = self.queue.enqueue.call_args
+        self.assertEqual(args, (JobFn.RECLAIM_RETIRED_CACHE, "mesh", 1, OLD_EPOCH))
+        self.assertEqual(kwargs["meta"], {"cid": "request-cid"})
+        self.assertTrue(kwargs["follow_up"])
+        self.assertTrue(kwargs["mark"])
+
+    def test_scheduled_with_a_delay(self):
+        enqueue_reclaim(CacheKind.MESH, attempt=3, delay_seconds=300, follow_up=False)
+
+        self.queue.enqueue.assert_not_called()
+        args, kwargs = self.queue.enqueue_in.call_args
+        self.assertEqual(
+            args, (timedelta(seconds=300), JobFn.RECLAIM_RETIRED_CACHE, "mesh", 3, None)
+        )
+        self.assertFalse(kwargs["follow_up"])
+
+
 class TestCleanupLock(FakeRedisTestCase):
     def test_only_one_cleanup_of_a_kind_at_a_time(self):
         with cleanup_lock(CacheKind.CIRCUIT) as first:
@@ -493,6 +552,30 @@ class TestCleanupLock(FakeRedisTestCase):
     def test_an_expired_lock_is_not_an_error(self):
         with cleanup_lock(CacheKind.CIRCUIT):
             self.redis.held_locks.clear()
+
+    def test_the_lock_is_short_and_renewed_while_the_cleanup_runs(self):
+        # A cleanup that was killed does not hold up the next ones for long
+        with patch.object(cache, "CACHE_CLEANUP_LOCK_TTL", 0.03):
+            with cleanup_lock(CacheKind.CIRCUIT):
+                time.sleep(0.1)
+            (lock,) = self.redis.locks
+            renewals = len(lock.extensions)
+            time.sleep(0.05)
+
+        self.assertEqual(lock.timeout, 0.03)
+        self.assertGreater(renewals, 0)
+        self.assertEqual(lock.extensions[0], (0.03, True))
+        # Not renewed after the release
+        self.assertEqual(len(lock.extensions), renewals)
+
+    def test_the_renewal_stops_once_the_lock_is_lost(self):
+        with patch.object(cache, "CACHE_CLEANUP_LOCK_TTL", 0.03):
+            with cleanup_lock(CacheKind.CIRCUIT):
+                self.redis.held_locks.clear()
+                time.sleep(0.1)
+
+        (lock,) = self.redis.locks
+        self.assertEqual(lock.extensions, [])
 
 
 if __name__ == "__main__":

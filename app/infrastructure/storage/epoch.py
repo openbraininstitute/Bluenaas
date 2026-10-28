@@ -9,13 +9,16 @@ the old one is never modified or removed while a job that might be using it is r
 what makes it safe to delete a cache that is in use, including on a network filesystem where
 deleting a file under a reader on another host breaks that reader.
 
-A job takes the epoch on the first use and keeps it, also for the processes it starts, through an
-environment variable. Without that, a spawned child could end up in a newer epoch than its parent.
+A job takes the epochs when it starts, once a worker has put it among the started jobs, and keeps
+them, also for the processes it starts, through environment variables. A cleanup thus finds every
+job that might use the epoch it retires among the started jobs, and a spawned child cannot end up
+in a newer epoch than its parent.
 """
 
 import os
 import re
 from enum import StrEnum
+from typing import cast
 from uuid import uuid4
 
 from loguru import logger
@@ -28,7 +31,7 @@ class CacheKind(StrEnum):
     SINGLE_NEURON = "single-neuron"
     MESH = "mesh"
     TASK_CONFIG = "task-config"
-    COMPILATION = "compilation-cache"
+    COMPILATION = "compilation"
 
 
 # Not to be mistaken for a setting: the settings are read from environment variables named like
@@ -94,12 +97,16 @@ def current_epoch(kind: CacheKind) -> str:
     return epoch
 
 
+def pin_epochs() -> None:
+    """Fix the epochs of all the cache kinds for the running job, to be done when it starts."""
+    for kind in CacheKind:
+        current_epoch(kind)
+
+
 def rotate_epoch(kind: CacheKind) -> str | None:
     """Start a new epoch. Returns the previous one, None if there was none."""
-    with redis_client.pipeline(transaction=True) as pipe:
-        pipe.get(_redis_key(kind))
-        pipe.set(_redis_key(kind), uuid4().hex)
-        previous, _ = pipe.execute()
+    # With `get`, the result is the previous value, which redis-py does not reflect in the type
+    previous = cast(bytes | str | None, redis_client.set(_redis_key(kind), uuid4().hex, get=True))
     return _decode(previous)
 
 

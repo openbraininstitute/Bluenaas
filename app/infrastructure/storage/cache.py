@@ -8,7 +8,7 @@ is deleted (*reclaimed*) once those jobs have finished, or at the latest after
 The jobs that might use a retired epoch are written into a marker file inside it when it is first
 seen as retired, so that a cleanup that is interrupted, or run by another worker, can pick up where
 the last one stopped. Directories of a cache kind that are not epochs (the layout from before the
-epochs), and the directories of caches that were folded into another kind, are retired epochs too.
+epochs), and the directories where a cache kind was kept before, are retired epochs too.
 
 Nothing here relies on file locks or on a rename that happens under a reader, so it behaves the
 same on a local disk and on a network filesystem.
@@ -16,6 +16,7 @@ same on a local disk and on a network filesystem.
 
 import json
 import os
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -26,31 +27,33 @@ from uuid import uuid4
 
 from loguru import logger
 from redis.exceptions import LockError
+from redis.lock import Lock
 from rq.job import Job
 
 from app.config.settings import settings
-from app.constants import CACHE_CLEANUP_TIMEOUT, RETIRED_MARKER_FILE_NAME, STORAGE_TRASH_DIR_NAME
+from app.constants import (
+    CACHE_CLEANUP_LOCK_TTL,
+    CACHE_CLEANUP_TIMEOUT,
+    RETIRED_MARKER_FILE_NAME,
+    STORAGE_TRASH_DIR_NAME,
+)
 from app.context import cid_var
 from app.infrastructure.redis import redis_client
 from app.infrastructure.rq import (
     JobQueue,
-    get_picked_up_job_ids,
     get_queue,
+    get_started_job_ids,
     get_unfinished_job_ids,
 )
 from app.infrastructure.storage import rm_dir_parallel
-from app.infrastructure.storage.epoch import (
-    CacheKind,
-    epoch_dir_name,
-    get_epoch,
-    is_epoch_dir_name,
-)
+from app.infrastructure.storage.epoch import CacheKind, epoch_dir_name, get_epoch
 from app.job import JobFn
 
-# Directories under STORAGE_PATH from caches that are now part of another kind
-_FOLDED_IN_ROOTS: dict[CacheKind, tuple[str, ...]] = {
+# Directories under STORAGE_PATH where a cache kind was kept before
+_FORMER_ROOTS: dict[CacheKind, tuple[str, ...]] = {
     # The ion channel builds, before they became one of the task config runs
     CacheKind.TASK_CONFIG: ("ion-channel",),
+    CacheKind.COMPILATION: ("compilation-cache",),
 }
 
 
@@ -78,55 +81,95 @@ def _trash_dir(kind: CacheKind) -> Path:
     return settings.STORAGE_PATH / STORAGE_TRASH_DIR_NAME / kind.value
 
 
+def epoch_dir(kind: CacheKind, epoch: str) -> Path:
+    return _kind_dir(kind) / epoch_dir_name(epoch)
+
+
+def _renew_lock(lock: Lock, kind: CacheKind, stop: threading.Event) -> None:
+    while not stop.wait(CACHE_CLEANUP_LOCK_TTL / 3):
+        try:
+            lock.extend(CACHE_CLEANUP_LOCK_TTL, replace_ttl=True)
+        except LockError:
+            logger.warning(f"Lost the {kind.value} cache cleanup lock")
+            return
+        except Exception:
+            # Redis may be back by the next renewal
+            logger.exception(f"Could not renew the {kind.value} cache cleanup lock")
+
+
 @contextmanager
 def cleanup_lock(kind: CacheKind) -> Iterator[bool]:
-    """Only one cleanup of a cache kind at a time. Yields whether this one got the lock."""
+    """Only one cleanup of a cache kind at a time. Yields whether this one got the lock.
+
+    The lock expires soon unless it is renewed, which a thread does while the cleanup runs, so the
+    lock of a cleanup that was killed does not hold up the next ones for long.
+    """
     lock = redis_client.lock(
-        f"cache:cleanup-lock:{kind.value}", timeout=CACHE_CLEANUP_TIMEOUT, blocking=False
+        f"cache:cleanup-lock:{kind.value}",
+        timeout=CACHE_CLEANUP_LOCK_TTL,
+        blocking=False,
+        # Renewed from another thread
+        thread_local=False,
     )
-    acquired = bool(lock.acquire())
+    if not lock.acquire():
+        yield False
+        return
+
+    stop = threading.Event()
+    renewal = threading.Thread(target=_renew_lock, args=(lock, kind, stop), daemon=True)
+    renewal.start()
     try:
-        yield acquired
+        yield True
     finally:
-        if acquired:
-            try:
-                lock.release()
-            except LockError:
-                logger.warning(f"The {kind.value} cache cleanup lock expired before the release")
+        stop.set()
+        renewal.join()
+        try:
+            lock.release()
+        except LockError:
+            logger.warning(f"The {kind.value} cache cleanup lock expired before the release")
 
 
-def schedule_reclaim(
-    kind: CacheKind, *, attempt: int, previous_epoch: str | None, delay_seconds: int
+def enqueue_reclaim(
+    kind: CacheKind,
+    *,
+    attempt: int = 1,
+    previous_epoch: str | None = None,
+    delay_seconds: int = 0,
+    follow_up: bool = True,
+    mark: bool = True,
 ) -> Job:
-    """Schedule a check of the retired epochs of the cache, see `reclaim_retired_cache`."""
-    return get_queue(JobQueue.MEDIUM).enqueue_in(
-        timedelta(seconds=delay_seconds),
-        JobFn.RECLAIM_RETIRED_CACHE,
-        kind.value,
-        attempt,
-        previous_epoch,
-        job_timeout=CACHE_CLEANUP_TIMEOUT,
-        meta={"cid": cid_var.get()},
-    )
+    """Queue a check of the retired epochs of the cache, see `reclaim_retired_cache`."""
+    queue = get_queue(JobQueue.MEDIUM)
+    args = (JobFn.RECLAIM_RETIRED_CACHE, kind.value, attempt, previous_epoch)
+    kwargs = {
+        "follow_up": follow_up,
+        "mark": mark,
+        "job_timeout": CACHE_CLEANUP_TIMEOUT,
+        "meta": {"cid": cid_var.get()},
+    }
+    if delay_seconds:
+        return queue.enqueue_in(timedelta(seconds=delay_seconds), *args, **kwargs)
+    # Not scheduled: in burst mode a scheduled job waits for the next worker to start
+    return queue.enqueue(*args, **kwargs)
 
 
 def retired_roots(kind: CacheKind) -> list[Path]:
     """The directories of the cache kind that are not its current epoch."""
-    folded_in = [
+    former = [
         root
-        for name in _FOLDED_IN_ROOTS.get(kind, ())
+        for name in _FORMER_ROOTS.get(kind, ())
         if (root := settings.STORAGE_PATH / name).is_dir()
     ]
 
     kind_dir = _kind_dir(kind)
     if not kind_dir.is_dir():
-        return folded_in
+        return former
 
     current = get_epoch(kind)
     current_name = epoch_dir_name(current) if current else None
 
     with os.scandir(kind_dir) as entries:
-        return folded_in + [
+        return former + [
             Path(e.path)
             for e in entries
             if e.is_dir(follow_symlinks=False) and e.name != current_name
@@ -167,35 +210,36 @@ def stamp_retired_roots(
     all the retired epochs, None for the ones that could not be marked.
 
     The jobs recorded are the ones running now. For the epoch that was retired by the cleanup that
-    calls this (`previous_epoch`), and for epochs from before there were epochs, they include every
-    job that could be using it: a job takes its epoch only once it is running.
+    calls this (`previous_epoch`), they include every job that could be using it: a job takes its
+    epoch only once it is running.
 
-    That does not hold for any other epoch directory that is not marked yet. It was retired by a
+    That does not hold for any other directory that is not marked yet. An epoch was retired by a
     cleanup that stopped before marking it, or Redis lost its data, which also loses the record of
-    the jobs that are running, so the jobs listed now may be missing some that use that epoch.
-    Such an epoch is marked as not trusted and is deleted only when it is old enough. If it turns
-    out to be `previous_epoch` later on, e.g. it was marked by a check that did not know about the
-    cleanup, it is marked again as trusted.
+    the jobs that are running, so the jobs listed now may be missing some that use that epoch. The
+    layout from before the epochs is still used by the workers of the previous version during a
+    deploy, and they start new jobs on it. Such a directory is marked as not trusted and is
+    deleted only when it is old enough. If it turns out to be `previous_epoch` later on, e.g. it
+    was marked by a check that did not know about the cleanup, it is marked again as trusted.
     """
-    known_epoch = epoch_dir_name(previous_epoch) if previous_epoch else None
-    if known_epoch:
+    known_root = epoch_dir(kind, previous_epoch) if previous_epoch else None
+    if known_root:
         # A job that took the previous epoch may not have created its directory yet. Created now,
         # the directory is marked with that job among the ones it waits for.
         try:
-            (_kind_dir(kind) / known_epoch).mkdir(parents=True, exist_ok=True)
+            known_root.mkdir(parents=True, exist_ok=True)
         except OSError as ex:
-            logger.warning(f"Could not create the retired {kind.value} epoch {known_epoch}: {ex}")
+            logger.warning(f"Could not create the retired {kind.value} epoch {known_root}: {ex}")
 
     markers = {root: _read_marker(root) for root in retired_roots(kind)}
     to_mark = [
         root
         for root, marker in markers.items()
-        if marker is None or (not marker.trusted and root.name == known_epoch)
+        if marker is None or (not marker.trusted and root == known_root)
     ]
     if not to_mark:
         return markers
 
-    blocking = tuple(sorted(get_picked_up_job_ids(exclude_func_names=exclude_func_names)))
+    blocking = tuple(sorted(get_started_job_ids(exclude_func_names=exclude_func_names)))
     now = time.time()
 
     for root in to_mark:
@@ -203,7 +247,7 @@ def stamp_retired_roots(
         marker = RetiredMarker(
             retired_at=previous_marker.retired_at if previous_marker else now,
             blocking_job_ids=blocking,
-            trusted=not is_epoch_dir_name(root.name) or root.name == known_epoch,
+            trusted=root == known_root,
         )
         try:
             _write_marker(root, marker)

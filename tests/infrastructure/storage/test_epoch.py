@@ -14,6 +14,7 @@ from app.infrastructure.storage.epoch import (
     epoch_dir_name,
     get_epoch,
     is_epoch_dir_name,
+    pin_epochs,
     rotate_epoch,
 )
 from tests.infrastructure.storage.fake_redis import FakeRedisTestCase
@@ -73,13 +74,24 @@ class TestCurrentEpoch(FakeRedisTestCase):
 
         self.assertEqual(child.stdout.strip(), epoch)
 
+    def test_pin_epochs_fixes_every_kind_at_once(self):
+        current_epoch(CacheKind.CIRCUIT)
+        clear_pinned_epochs()
+
+        pin_epochs()
+        pinned = {kind: os.environ[f"PINNED_CACHE_EPOCH_{kind.name}"] for kind in CacheKind}
+        for kind in CacheKind:
+            rotate_epoch(kind)
+
+        self.assertEqual({kind: current_epoch(kind) for kind in CacheKind}, pinned)
+
     def test_clear_pinned_epochs_leaves_the_settings_alone(self):
-        os.environ["CACHE_EPOCH_SETTLE_SECONDS"] = "5"
-        self.addCleanup(os.environ.pop, "CACHE_EPOCH_SETTLE_SECONDS", None)
+        os.environ["CACHE_RETIRED_MAX_AGE"] = "5"
+        self.addCleanup(os.environ.pop, "CACHE_RETIRED_MAX_AGE", None)
 
         clear_pinned_epochs()
 
-        self.assertEqual(os.environ["CACHE_EPOCH_SETTLE_SECONDS"], "5")
+        self.assertEqual(os.environ["CACHE_RETIRED_MAX_AGE"], "5")
 
     def test_fails_loudly_when_the_epoch_cannot_be_read_back(self):
         with patch.object(self.redis, "get", return_value=None):

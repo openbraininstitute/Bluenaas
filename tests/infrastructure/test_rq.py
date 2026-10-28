@@ -8,12 +8,10 @@ os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 from rq.job import JobStatus
 
 from app.infrastructure import rq as rq_module
-from app.infrastructure.rq import get_picked_up_job_ids, get_unfinished_job_ids
+from app.infrastructure.rq import get_started_job_ids, get_unfinished_job_ids
 
 
-def fake_queue(
-    name: str, started: list[str], intermediate: list[str], expired: list[str] | None = None
-):
+def fake_queue(name: str, started: list[str], expired: list[str] | None = None):
     def get_started_job_ids(cleanup=True):
         # The registry cleanup fails abandoned jobs and runs their callbacks
         assert not cleanup
@@ -24,7 +22,6 @@ def fake_queue(
         started_job_registry=SimpleNamespace(
             get_job_ids=get_started_job_ids, get_expired_job_ids=lambda: expired or []
         ),
-        intermediate_queue=SimpleNamespace(get_job_ids=lambda: intermediate),
     )
 
 
@@ -43,20 +40,19 @@ class TestGetPickedUpJobIds(unittest.TestCase):
                 side_effect=lambda ids, **kw: [jobs.get(i) for i in ids],
             ),
         ):
-            return get_picked_up_job_ids(exclude_func_names=exclude_func_names)
+            return get_started_job_ids(exclude_func_names=exclude_func_names)
 
-    def test_jobs_started_and_jobs_taken_from_the_queue_but_not_yet_started_count(self):
-        queues = [fake_queue("high", ["running"], ["in-transit"]), fake_queue("low", ["long"], [])]
+    def test_the_started_jobs_of_all_queues_count(self):
+        queues = [fake_queue("high", ["running"]), fake_queue("low", ["long"])]
         jobs = {
             "running": fake_job("running", JobStatus.STARTED),
-            "in-transit": fake_job("in-transit", JobStatus.QUEUED),
             "long": fake_job("long", JobStatus.STARTED),
         }
 
-        self.assertEqual(self.run_with(queues, jobs), {"running", "in-transit", "long"})
+        self.assertEqual(self.run_with(queues, jobs), {"running", "long"})
 
     def test_abandoned_jobs_do_not_count(self):
-        queues = [fake_queue("high", ["running", "abandoned"], [], expired=["abandoned"])]
+        queues = [fake_queue("high", ["running", "abandoned"], expired=["abandoned"])]
         jobs = {
             "running": fake_job("running", JobStatus.STARTED),
             "abandoned": fake_job("abandoned", JobStatus.STARTED),
@@ -64,13 +60,8 @@ class TestGetPickedUpJobIds(unittest.TestCase):
 
         self.assertEqual(self.run_with(queues, jobs), {"running"})
 
-    def test_a_job_in_both_places_is_counted_once(self):
-        queues = [fake_queue("high", ["a"], ["a"])]
-
-        self.assertEqual(self.run_with(queues, {"a": fake_job("a", JobStatus.STARTED)}), {"a"})
-
     def test_finished_and_vanished_jobs_do_not_count(self):
-        queues = [fake_queue("high", ["done", "failed", "gone"], [])]
+        queues = [fake_queue("high", ["done", "failed", "gone"])]
         jobs = {
             "done": fake_job("done", JobStatus.FINISHED),
             "failed": fake_job("failed", JobStatus.FAILED),
@@ -79,7 +70,7 @@ class TestGetPickedUpJobIds(unittest.TestCase):
         self.assertEqual(self.run_with(queues, jobs), set())
 
     def test_excluded_functions_do_not_count(self):
-        queues = [fake_queue("medium", ["cleanup", "sim"], [])]
+        queues = [fake_queue("medium", ["cleanup", "sim"])]
         jobs = {
             "cleanup": fake_job("cleanup", JobStatus.STARTED, "app.job.handlers.admin.cache.clear"),
             "sim": fake_job("sim", JobStatus.STARTED),
@@ -102,14 +93,14 @@ class TestGetPickedUpJobIds(unittest.TestCase):
             def get_status(self, refresh=True):
                 return JobStatus.STARTED
 
-        queues = [fake_queue("high", ["broken"], [])]
+        queues = [fake_queue("high", ["broken"])]
 
         result = self.run_with(queues, {"broken": UnreadableJob()}, exclude_func_names={"x"})
 
         self.assertEqual(result, {"broken"})
 
     def test_queues_this_service_knows_are_checked_even_if_redis_does_not_list_them(self):
-        known = {"low": fake_queue("low", ["only-known"], [])}
+        known = {"low": fake_queue("low", ["only-known"])}
         jobs = {"only-known": fake_job("only-known", JobStatus.STARTED)}
 
         self.assertEqual(self.run_with([], jobs, known_queues=known), {"only-known"})

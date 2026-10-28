@@ -27,8 +27,16 @@ STORAGE_TRASH_DIR_NAME = ".trash"
 # Written into a retired cache epoch: when it was retired and which jobs might still be using it
 RETIRED_MARKER_FILE_NAME = ".retired"
 
+# The longest a job may run, except the cache cleanups. A retired cache epoch is deleted after this
+# much time, if not earlier, so no job may run longer.
+MAX_JOB_TIMEOUT = 60 * 60
+
 # Time limit of a cache cleanup job
 CACHE_CLEANUP_TIMEOUT = 2 * 60 * 60
+
+# How long the lock of a cache cleanup is kept without being renewed. A cleanup that is running
+# renews it, one that was killed holds up the next ones until it expires.
+CACHE_CLEANUP_LOCK_TTL = 5 * 60
 
 # A reclaim that keeps finding retired epochs that are still in use gives up after this many checks
 CACHE_RECLAIM_MAX_ATTEMPTS = 30

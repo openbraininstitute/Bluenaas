@@ -1,6 +1,5 @@
 import os
 import unittest
-from datetime import timedelta
 from http import HTTPStatus
 from unittest.mock import MagicMock, patch
 
@@ -9,7 +8,6 @@ os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 from fastapi.testclient import TestClient
 
 from app.app import app
-from app.config.settings import settings
 from app.context import cid_var
 from app.domains.auth import Auth, DecodedKeycloakToken
 from app.infrastructure.rq import JobQueue, _queues
@@ -44,7 +42,7 @@ class TestAdminRoutes(unittest.TestCase):
         mock_kc_auth.userinfo.return_value = {"groups": ["/service/small-scale-simulator/admin"]}
 
     @patch("app.infrastructure.kc.auth.kc_auth")
-    def test_clear_cache_starts_a_new_epoch_and_schedules_the_reclaim(self, mock_kc_auth):
+    def test_clear_cache_starts_a_new_epoch_and_queues_the_reclaim(self, mock_kc_auth):
         self._authorize_admin(mock_kc_auth)
 
         cases = [
@@ -58,7 +56,7 @@ class TestAdminRoutes(unittest.TestCase):
         for endpoint, kind, message in cases:
             with self.subTest(endpoint=endpoint):
                 mock_queue = MagicMock()
-                mock_queue.enqueue_in.return_value.id = "job-1"
+                mock_queue.enqueue.return_value.id = "job-1"
 
                 with (
                     patch.dict(_queues, {JobQueue.MEDIUM: mock_queue}),
@@ -71,19 +69,10 @@ class TestAdminRoutes(unittest.TestCase):
                 self.assertEqual(response.status_code, HTTPStatus.ACCEPTED)
                 self.assertEqual(response.json(), {"message": message, "job_id": "job-1"})
                 rotate.assert_called_once_with(kind)
-                # Jobs that started a moment ago may not have seen the new epoch yet
-                mock_queue.enqueue_in.assert_called_once()
-                args, _ = mock_queue.enqueue_in.call_args
-                self.assertEqual(
-                    args,
-                    (
-                        timedelta(seconds=settings.CACHE_EPOCH_SETTLE_SECONDS),
-                        JobFn.RECLAIM_RETIRED_CACHE,
-                        kind.value,
-                        1,
-                        "previous",
-                    ),
-                )
+                # Every job that might use the previous epoch is among the started jobs already
+                mock_queue.enqueue_in.assert_not_called()
+                args, _ = mock_queue.enqueue.call_args
+                self.assertEqual(args, (JobFn.RECLAIM_RETIRED_CACHE, kind.value, 1, "previous"))
 
     @patch("app.infrastructure.kc.auth.kc_auth")
     def test_clear_cache_of_an_unknown_cache(self, mock_kc_auth):
@@ -124,9 +113,9 @@ class TestStartCacheCleanup(unittest.IsolatedAsyncioTestCase):
             patch.dict(_queues, {JobQueue.MEDIUM: mock_queue}),
             patch.object(service, "rotate_epoch", return_value=None),
         ):
-            await service.start_cache_cleanup(CacheKind.MESH, description="Mesh cache")
+            await service.start_cache_cleanup(CacheKind.MESH)
 
-        _, kwargs = mock_queue.enqueue_in.call_args
+        _, kwargs = mock_queue.enqueue.call_args
         self.assertEqual(kwargs["meta"], {"cid": "request-cid"})
 
 

@@ -13,6 +13,7 @@ from obp_accounting_sdk.constants import ServiceSubtype
 from rq import Queue
 
 from app.config.settings import settings
+from app.constants import MAX_JOB_TIMEOUT
 from app.core.exceptions import AppError
 from app.core.job import JobInfo
 from app.domains.task_config import TaskConfigRunLaunch
@@ -42,7 +43,7 @@ ION_CHANNEL_BUILD = TaskConfigRun(
     config_type=TaskConfigType.ion_channel_modeling__config,
     activity_type=TaskActivityType.ion_channel_modeling__execution,
     service_subtype=ServiceSubtype.ION_CHANNEL_BUILD,
-    timeout=60 * 60,
+    timeout=MAX_JOB_TIMEOUT,
 )
 
 MEMODEL_BUILD = TaskConfigRun(

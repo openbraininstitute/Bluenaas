@@ -80,12 +80,11 @@ def _unfinished_jobs(job_ids: Iterable[str]) -> list[Job]:
     ]
 
 
-def get_picked_up_job_ids(*, exclude_func_names: Collection[str]) -> set[str]:
-    """Ids of the jobs that a worker has taken from a queue and that have not finished yet.
+def get_started_job_ids(*, exclude_func_names: Collection[str]) -> set[str]:
+    """Ids of the started jobs that have not finished yet.
 
-    A job counts from the moment it leaves the queue (the intermediate queue), not only once it
-    is in the started registry. Queued, deferred and scheduled jobs are not included, they have
-    not started to use anything yet.
+    Jobs that are not started yet are not included: a job takes its cache epochs only once it is
+    in the started registry (see `LoggingWorker.prepare_job_execution`).
     """
     queues = {queue.name: queue for queue in Queue.all(connection=redis_client)}
     queues.update({queue.name: queue for queue in _queues.values()})
@@ -98,7 +97,6 @@ def get_picked_up_job_ids(*, exclude_func_names: Collection[str]) -> set[str]:
         job_ids.update(
             set(registry.get_job_ids(cleanup=False)) - set(registry.get_expired_job_ids())
         )
-        job_ids.update(queue.intermediate_queue.get_job_ids())
 
     return {
         job.id for job in _unfinished_jobs(job_ids) if not _runs_function(job, exclude_func_names)

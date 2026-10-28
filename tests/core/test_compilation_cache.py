@@ -107,7 +107,7 @@ class TestCompileWithCache(unittest.TestCase):
         self.assertTrue((self.model_path / "x86_64" / "lib" / "nrnmech.so").exists())
 
         # Verify cache was populated, in the current epoch
-        cache_base = self.storage_path / "compilation-cache" / f"e{'e' * 32}"
+        cache_base = self.storage_path / "compilation" / f"e{'e' * 32}"
         self.assertTrue(cache_base.exists())
 
     @patch("app.infrastructure.storage.current_epoch", new=lambda kind: "e" * 32)

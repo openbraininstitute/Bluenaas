@@ -4,36 +4,17 @@ import os
 import unittest
 from unittest.mock import patch
 
-from redis.exceptions import LockError
+from redis.exceptions import LockError, LockNotOwnedError
 
 from app.infrastructure.storage.epoch import PINNED_EPOCH_ENV_PREFIX
 
 
-class _Pipeline:
-    def __init__(self, redis: "FakeRedis"):
-        self._redis = redis
-        self._commands: list = []
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def get(self, key):
-        self._commands.append(lambda: self._redis.get(key))
-
-    def set(self, key, value, **kwargs):
-        self._commands.append(lambda: self._redis.set(key, value, **kwargs))
-
-    def execute(self):
-        return [command() for command in self._commands]
-
-
 class _Lock:
-    def __init__(self, redis: "FakeRedis", name: str):
+    def __init__(self, redis: "FakeRedis", name: str, timeout):
         self._redis = redis
         self._name = name
+        self.timeout = timeout
+        self.extensions: list = []
 
     def acquire(self) -> bool:
         if self._name in self._redis.held_locks:
@@ -46,26 +27,36 @@ class _Lock:
             raise LockError("Cannot release an unlocked lock")
         self._redis.held_locks.discard(self._name)
 
+    def extend(self, additional_time, replace_ttl=False):
+        if self._name not in self._redis.held_locks:
+            raise LockNotOwnedError("Cannot extend a lock that's no longer owned")
+        self.extensions.append((additional_time, replace_ttl))
+        return True
+
 
 class FakeRedis:
     def __init__(self):
         self.data: dict[str, bytes] = {}
         self.held_locks: set[str] = set()
+        self.locks: list[_Lock] = []
 
     def get(self, key):
         return self.data.get(key)
 
-    def set(self, key, value, nx=False, ex=None):
-        if nx and key in self.data:
+    def set(self, key, value, nx=False, ex=None, get=False):
+        previous = self.data.get(key)
+        if nx and previous is not None:
             return None
         self.data[key] = value.encode() if isinstance(value, str) else value
-        return True
+        return previous if get else True
 
-    def pipeline(self, transaction=True):
-        return _Pipeline(self)
+    def delete(self, *keys):
+        return sum(self.data.pop(key, None) is not None for key in keys)
 
-    def lock(self, name, timeout=None, blocking=True):
-        return _Lock(self, name)
+    def lock(self, name, timeout=None, blocking=True, thread_local=True):
+        lock = _Lock(self, name, timeout)
+        self.locks.append(lock)
+        return lock
 
 
 class FakeRedisTestCase(unittest.TestCase):

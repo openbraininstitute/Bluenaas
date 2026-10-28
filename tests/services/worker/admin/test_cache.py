@@ -1,7 +1,8 @@
 import os
+import time
 import unittest
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
@@ -9,7 +10,7 @@ os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 from app.config.settings import settings
 from app.constants import CACHE_CLEANUP_TIMEOUT, CACHE_RECLAIM_MAX_ATTEMPTS
 from app.infrastructure.storage import cache
-from app.infrastructure.storage.cache import ReclaimResult
+from app.infrastructure.storage.cache import ReclaimResult, RetiredMarker, epoch_dir
 from app.infrastructure.storage.epoch import CacheKind
 from app.job import JobFn
 from app.services.worker.admin import cache as service
@@ -26,7 +27,9 @@ class ServiceTestCase(FakeRedisTestCase):
         # All collaborators hang off one parent, so that the order of calls can be checked
         self.parent = MagicMock()
         self.parent.stamp_retired_roots.return_value = MARKERS
-        self.parent.reclaim_retired_roots.side_effect = lambda kind, markers: self.reclaim_result
+        self.parent.reclaim_retired_roots.side_effect = lambda kind, markers=None: (
+            self.reclaim_result
+        )
 
         for name, replacement in (
             ("stamp_retired_roots", self.parent.stamp_retired_roots),
@@ -37,10 +40,9 @@ class ServiceTestCase(FakeRedisTestCase):
             self.addCleanup(patcher.stop)
 
         self.queue = MagicMock()
-        for target in (service, cache):
-            patcher = patch.object(target, "get_queue", return_value=self.queue)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        patcher = patch.object(cache, "get_queue", return_value=self.queue)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
         patcher = patch.object(service, "redis_client", self.redis)
         patcher.start()
@@ -80,6 +82,9 @@ class TestReclaimRetiredCache(ServiceTestCase):
 
     def test_checks_again_later_while_epochs_are_still_in_use(self):
         self.reclaim_result = ReclaimResult(pending=1)
+        self.parent.stamp_retired_roots.return_value = {
+            epoch_dir(CacheKind.CIRCUIT, "p"): RetiredMarker(time.time(), ())
+        }
 
         service.reclaim_retired_cache(CacheKind.CIRCUIT, attempt=3, previous_epoch="p")
 
@@ -97,6 +102,25 @@ class TestReclaimRetiredCache(ServiceTestCase):
             ),
         )
         self.assertEqual(kwargs["job_timeout"], CACHE_CLEANUP_TIMEOUT)
+
+    def test_the_next_check_still_gets_the_previous_epoch_until_it_is_marked_as_trusted(self):
+        # Writing the marker failed, or it could not replace an untrusted one
+        self.reclaim_result = ReclaimResult(pending=1)
+        cases = {
+            "not marked": {},
+            "could not be marked": {epoch_dir(CacheKind.CIRCUIT, "p"): None},
+            "not trusted": {
+                epoch_dir(CacheKind.CIRCUIT, "p"): RetiredMarker(time.time(), (), trusted=False)
+            },
+        }
+        for name, markers in cases.items():
+            with self.subTest(name):
+                self.parent.stamp_retired_roots.return_value = markers
+
+                service.reclaim_retired_cache(CacheKind.CIRCUIT, attempt=3, previous_epoch="p")
+
+                args, _ = self.queue.enqueue_in.call_args
+                self.assertEqual(args[1:], (JobFn.RECLAIM_RETIRED_CACHE, "circuit", 4, "p"))
 
     def test_gives_up_after_too_many_checks(self):
         self.reclaim_result = ReclaimResult(pending=1)
@@ -166,9 +190,7 @@ class TestReclaimWithoutMarking(ServiceTestCase):
             CacheKind.CIRCUIT, attempt=1, follow_up=False, mark=False
         )
 
-        self.assertEqual(
-            self.parent.mock_calls, [call.reclaim_retired_roots(CacheKind.CIRCUIT, None)]
-        )
+        self.assertEqual(self.parent.mock_calls, [call.reclaim_retired_roots(CacheKind.CIRCUIT)])
         self.assertEqual(result["status"], "ok")
 
 
@@ -188,7 +210,7 @@ class TestStartPendingReclaims(ServiceTestCase):
         self.queue.enqueue_in.assert_not_called()
         self.queue.enqueue.assert_called_once()
         args, kwargs = self.queue.enqueue.call_args
-        self.assertEqual(args, (JobFn.RECLAIM_RETIRED_CACHE, "circuit", 1))
+        self.assertEqual(args, (JobFn.RECLAIM_RETIRED_CACHE, "circuit", 1, None))
         self.assertFalse(kwargs["follow_up"])
         # Before the first cleanup, the layout from before the epochs looks retired
         self.assertFalse(kwargs["mark"])
@@ -209,6 +231,9 @@ class TestStartPendingReclaims(ServiceTestCase):
 
         self.assertEqual(self.queue.enqueue.call_count, 2)
         logger.exception.assert_called_once()
+        # The next worker that starts tries again
+        self.assertNotIn(service._startup_check_key(CacheKind.CIRCUIT), self.redis.data)
+        self.assertIn(service._startup_check_key(CacheKind.MESH), self.redis.data)
 
 
 if __name__ == "__main__":

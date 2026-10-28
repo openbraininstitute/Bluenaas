@@ -3,15 +3,14 @@ from dataclasses import asdict
 from loguru import logger
 
 from app.config.settings import settings
-from app.constants import CACHE_CLEANUP_TIMEOUT, CACHE_RECLAIM_MAX_ATTEMPTS
-from app.context import cid_var
+from app.constants import CACHE_RECLAIM_MAX_ATTEMPTS
 from app.infrastructure.redis import redis_client
-from app.infrastructure.rq import JobQueue, get_queue
 from app.infrastructure.storage.cache import (
     cleanup_lock,
+    enqueue_reclaim,
+    epoch_dir,
     has_unfinished_cleanup,
     reclaim_retired_roots,
-    schedule_reclaim,
     stamp_retired_roots,
 )
 from app.infrastructure.storage.epoch import CacheKind
@@ -30,7 +29,7 @@ def _schedule_again(kind: CacheKind, attempt: int, previous_epoch: str | None) -
         )
         return
 
-    schedule_reclaim(
+    enqueue_reclaim(
         kind,
         attempt=attempt + 1,
         previous_epoch=previous_epoch,
@@ -38,18 +37,27 @@ def _schedule_again(kind: CacheKind, attempt: int, previous_epoch: str | None) -
     )
 
 
-def _reclaim_once(kind: CacheKind, previous_epoch: str | None, mark: bool) -> dict | None:
-    """Returns the result of the reclaim, or None if another cleanup holds the lock."""
+def _reclaim_once(
+    kind: CacheKind, previous_epoch: str | None, mark: bool
+) -> tuple[dict, str | None] | None:
+    """Returns the result of the reclaim and the previous epoch if it is not marked as trusted
+    yet, or None if another cleanup holds the lock."""
     with cleanup_lock(kind) as acquired:
         if not acquired:
             return None
 
-        markers = (
-            stamp_retired_roots(kind, previous_epoch, exclude_func_names=CLEANUP_JOB_FUNC_NAMES)
-            if mark
-            else None
+        if not mark:
+            return asdict(reclaim_retired_roots(kind)), None
+
+        markers = stamp_retired_roots(
+            kind, previous_epoch, exclude_func_names=CLEANUP_JOB_FUNC_NAMES
         )
-        return asdict(reclaim_retired_roots(kind, markers))
+        unmarked = None
+        if previous_epoch:
+            marker = markers.get(epoch_dir(kind, previous_epoch))
+            if marker is None or not marker.trusted:
+                unmarked = previous_epoch
+        return asdict(reclaim_retired_roots(kind, markers)), unmarked
 
 
 def reclaim_retired_cache(
@@ -67,7 +75,7 @@ def reclaim_retired_cache(
     the retired epochs that are marked already are deleted.
     """
     try:
-        result = _reclaim_once(kind, previous_epoch, mark)
+        outcome = _reclaim_once(kind, previous_epoch, mark)
     except Exception:
         logger.exception(f"Reclaiming the retired {kind.value} cache epochs failed")
         if follow_up:
@@ -80,22 +88,23 @@ def reclaim_retired_cache(
                 )
         raise
 
-    if result is None:
+    if outcome is None:
         logger.info(f"Another {kind.value} cache cleanup is running, checking again later")
         if follow_up:
             _schedule_again(kind, attempt, previous_epoch)
         return {"status": "already_running"}
 
+    result, unmarked = outcome
     if result["pending"] and follow_up:
-        # The epoch the cleanup retired has its marker by now, the next checks do not need to
-        # know which one it was
-        _schedule_again(kind, attempt, None)
+        # Once the epoch the cleanup retired has its marker, the next checks do not need to know
+        # which one it was. Passed on, it would be created again after it is deleted.
+        _schedule_again(kind, attempt, unmarked)
 
     return {"status": "ok", **result}
 
 
-def _kick_key(kind: CacheKind) -> str:
-    return f"cache:reclaim-kick:{kind.value}"
+def _startup_check_key(kind: CacheKind) -> str:
+    return f"cache:reclaim-on-worker-start:{kind.value}"
 
 
 def start_pending_reclaims() -> None:
@@ -111,24 +120,29 @@ def start_pending_reclaims() -> None:
     schedule the first check, are left for the next cleanup, which deletes them by age.
     """
     for kind in CacheKind:
+        key = _startup_check_key(kind)
+        if not _try_set(key):
+            continue
         try:
-            if not redis_client.set(
-                _kick_key(kind), "1", nx=True, ex=settings.CACHE_RECLAIM_POLL_SECONDS
-            ):
-                continue
-            if not has_unfinished_cleanup(kind):
-                continue
-
-            # Not scheduled: in burst mode a scheduled job waits for the next worker to start
-            get_queue(JobQueue.MEDIUM).enqueue(
-                JobFn.RECLAIM_RETIRED_CACHE,
-                kind.value,
-                1,
-                follow_up=False,
-                mark=False,
-                job_timeout=CACHE_CLEANUP_TIMEOUT,
-                meta={"cid": cid_var.get()},
-            )
-            logger.info(f"Queued a check of the retired {kind.value} cache epochs")
+            if has_unfinished_cleanup(kind):
+                enqueue_reclaim(kind, follow_up=False, mark=False)
+                logger.info(f"Queued a check of the retired {kind.value} cache epochs")
         except Exception:
             logger.exception(f"Could not queue a check of the retired {kind.value} cache epochs")
+            # Leaves it to the next worker that starts
+            _try_delete(key)
+
+
+def _try_set(key: str) -> bool:
+    try:
+        return bool(redis_client.set(key, "1", nx=True, ex=settings.CACHE_RECLAIM_POLL_SECONDS))
+    except Exception:
+        logger.exception(f"Could not set {key}")
+        return False
+
+
+def _try_delete(key: str) -> None:
+    try:
+        redis_client.delete(key)
+    except Exception:
+        logger.exception(f"Could not delete {key}")
