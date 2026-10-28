@@ -14,6 +14,7 @@ class JobQueue(StrEnum):
     HIGH = "high"  # single cpu hi-priority / realtime tasks
     MEDIUM = "medium"  # single cpu low-priority tasks
     LOW = "low"  # multi cpu tasks, e.g. circuit simulation
+    CPU4_MEM16 = "4cpu-16gb"  # heavy jobs, a task of 4 CPUs and 16 GB each
 
 
 _queues: Dict[JobQueue, Queue] = {

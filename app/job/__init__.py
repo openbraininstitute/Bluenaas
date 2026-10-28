@@ -25,6 +25,7 @@ class JobFn(StrEnum):
     GET_CIRCUIT_SIMULATION_BATCH_PARAMS_MAP = (
         "app.job.handlers.circuit.simulation.get_batch_params_map"
     )
+    RUN_MORPHOLOGY_PACK = "app.job.handlers.circuit.morphology_pack.build"
 
     # obi-one tasks of single TaskConfigs
     RUN_TASK_CONFIG = "app.job.handlers.task_config.run"

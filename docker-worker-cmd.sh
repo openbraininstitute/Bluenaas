@@ -37,6 +37,17 @@ if [ -n "$EXIT_AFTER_JOBS_COMPLETE" ]; then
   esac
 fi
 
+# A single worker that stays a while after its last job, so that the next job queued soon after
+# finds it running. A worker pool has no such option, it can only exit as soon as it is idle.
+if [ "$NUM_WORKERS" = "1" ] && [ -n "$MAX_IDLE_TIME" ]; then
+  exec rq worker \
+    --url $REDIS_URL \
+    --worker-class app.worker.LoggingWorker \
+    --max-idle-time $MAX_IDLE_TIME \
+    --with-scheduler \
+    $QUEUES
+fi
+
 # Use exec to replace the shell and ensure that SIGINT is sent to the process
 # Start the RQ worker pool with specified queues, number of workers, and Redis URL
 exec rq worker-pool \
