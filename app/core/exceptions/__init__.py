@@ -46,10 +46,6 @@ class AppError(Exception):
         return f'{class_name}(message="{self.message}", error_code={self.error_code}, details={self.details}, http_status_code={self.http_status_code})'
 
 
-class NotInitializedError(RuntimeError):
-    pass
-
-
 class AppErrorResponse(BaseModel):
     """The format of an error response"""
 
@@ -124,5 +120,5 @@ class EMCellMeshInitError(_BaseMessageException):
     default_message = "EMCellMesh instantiation failed"
 
 
-class IonChannelBuildError(_BaseMessageException):
-    default_message = "Ion channel build failed"
+class JobFailedError(_BaseMessageException):
+    default_message = "Job failed"

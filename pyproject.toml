@@ -10,11 +10,11 @@ readme = "README.md"
 requires-python = "==3.12.14"
 
 dependencies = [
-    "entitysdk==0.19.14",
+    "entitysdk==0.19.33",
     "loguru==0.7.3",
     "msgpack>=1.2.1",
     "nanoid>=2.0.0",
-    "obp-accounting-sdk==0.6.3",
+    "obp-accounting-sdk==0.6.8",
     "pandas==2.3.1",
     "pydantic-settings==2.14.2",
     "pydantic==2.13.4",
@@ -34,12 +34,13 @@ worker = [
     "bluecellulab==2.6.112",
     "efel==5.7.27",
     "filelock==3.25.0",
-    "ion-channel-builder",
+    "ion-channel-builder==0.0.21",
+    "libsonata==0.2.2",
     "morphio==3.4.2",
     "numpy>=2.0.0,<2.5",
-    "obi-one==2026.6.19",
+    "obi-one==2026.10.18",
     "pynwb==3.1.3",
-    "requests==2.33.0"
+    "requests==2.33.0",
 ]
 dev = [
     "pyright>=1.1.410",
@@ -63,5 +64,10 @@ reportCallIssue = "warning"
 line-length = 100
 target-version = "py312"
 
+[[tool.uv.index]]
+name = "codeartifact"
+url = "https://openbraininstitute-985539765147.d.codeartifact.us-east-1.amazonaws.com/pypi/pypi-prod/simple/"
+explicit = true
+
 [tool.uv.sources]
-ion-channel-builder = { git = "https://github.com/openbraininstitute/ion-channel-builder.git", tag = "0.0.18" }
+ion-channel-builder = { index = "codeartifact" }

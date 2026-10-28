@@ -16,10 +16,12 @@ from entitysdk.staging.ion_channel_model import (
 from entitysdk.types import AssetLabel
 from filelock import FileLock
 from loguru import logger
-from obi_one import IonChannelModelSimulationSingleConfig
-from obi_one.scientific.blocks.ion_channel_model import (
+from obi_one.scientific.blocks.ion_channel_model.ion_channel_model import (
     IonChannelModelWithConductance,
     IonChannelModelWithMaxPermeability,
+)
+from obi_one.scientific.tasks.generate_simulations.config.neuron.neuron_ion_channel_models import (
+    IonChannelModelSimulationSingleConfig,
 )
 
 from app.constants import (
@@ -62,6 +64,18 @@ class CircuitBase(ABC):
         """Fetch the circuit files from entitycore and write to the disk storage"""
         pass
 
+    def _remove_legacy_mod_files(self):
+        """Remove MOD files superseded by BlueCelluLab's bundled ones.
+
+        vecevent.mod and InhPoissonStim.mod are added by ``compile_mods`` at
+        compile time; netstim_inhpoisson.mod exists in older circuits and
+        declares the same InhPoissonStim mechanism, so it is dropped here
+        rather than left for duplicate resolution.
+        """
+        legacy_inhpoisson = self.path / CIRCUIT_MOD_DIR / "netstim_inhpoisson.mod"
+        if legacy_inhpoisson.exists():
+            legacy_inhpoisson.unlink()
+
     def _compile_mod_files(self):
         """Compile MOD files"""
         from app.core.compilation_cache import compile_with_cache
@@ -93,6 +107,7 @@ class CircuitBase(ABC):
 
                 clear_stale(self.path)
                 self._fetch_assets()
+                self._remove_legacy_mod_files()
                 self._compile_mod_files()
                 mark_ready(self.path)
         except Exception:

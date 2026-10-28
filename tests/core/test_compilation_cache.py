@@ -147,7 +147,8 @@ class TestCompileWithCache(unittest.TestCase):
         self.bcl_compile = patch("app.core.compilation_cache._bcl_compile_mods").start()
         self.bcl_compile.side_effect = self._fake_compile
 
-        self.settings = patch("app.core.compilation_cache.settings").start()
+        patch("app.infrastructure.storage.current_epoch", new=lambda kind: "e" * 32).start()
+        self.settings = patch("app.infrastructure.storage.settings").start()
         self.settings.STORAGE_PATH = self.storage_path
 
     def tearDown(self):
@@ -177,7 +178,7 @@ class TestCompileWithCache(unittest.TestCase):
         self.assertEqual(input_dirs, [self.mod_dir])
         self.assertTrue(output_dir.is_relative_to(self.storage_path))
         self.assertTrue((self.model_path / ARCH / "lib" / "nrnmech.so").exists())
-        self.assertTrue((self.storage_path / "compilation-cache").exists())
+        self.assertTrue((self.storage_path / "compilation").exists())
 
     def test_cache_hit_skips_compilation(self):
         compile_with_cache(self.model_path, "mechanisms")

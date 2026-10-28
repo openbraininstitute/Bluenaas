@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from rq.job import JobStatus as RQJobStatus
 
 from app.constants import NULL_CID
+from app.core.exceptions import JobFailedError
 from app.utils.rq_job import _job_status_monitor
 
 
@@ -95,8 +96,7 @@ class TestJobStatusMonitor(unittest.TestCase):
                 on_failure=on_failure,
             )
 
-            # Verify on_failure was called exactly once
-            on_failure.assert_called_once()
+            on_failure.assert_called_once_with(JobFailedError)
 
         asyncio.run(test())
 
@@ -309,7 +309,7 @@ class TestJobStatusMonitor(unittest.TestCase):
             async def track_start():
                 execution_order.append("start")
 
-            async def track_failure():
+            async def track_failure(exc_type):
                 execution_order.append("failure")
 
             on_start.side_effect = track_start
@@ -447,6 +447,21 @@ class TestDispatchCidPropagation(unittest.TestCase):
         call_kwargs = mock_queue.enqueue.call_args
         meta = call_kwargs.kwargs["meta"]
         self.assertIsNone(meta["cid"])
+
+
+class TestDispatchTimeout(unittest.TestCase):
+    def test_a_job_may_not_outlive_the_retired_cache_epochs(self):
+        from app.config.settings import settings
+        from app.constants import MAX_JOB_TIMEOUT
+        from app.utils.rq_job import dispatch
+
+        mock_queue = Mock()
+
+        with self.assertRaises(ValueError):
+            asyncio.run(dispatch(mock_queue, "some.func", timeout=MAX_JOB_TIMEOUT + 1))
+
+        mock_queue.enqueue.assert_not_called()
+        self.assertGreater(settings.CACHE_RETIRED_MAX_AGE, MAX_JOB_TIMEOUT)
 
 
 class TestFailureSuccessHandlersCid(unittest.TestCase):

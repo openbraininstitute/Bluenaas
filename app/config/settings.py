@@ -7,6 +7,8 @@ from pydantic import model_validator
 from pydantic_core import Url
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.constants import MAX_JOB_TIMEOUT
+
 load_dotenv("")
 
 _ENVS = Literal["development", "testing", "staging", "production"]
@@ -52,6 +54,16 @@ class Settings(BaseSettings):
 
     STORAGE_PATH: Path = Path("/app/storage")
 
+    # Cache cleanup. A cleanup starts a new epoch of the cache, so that new jobs never see the old
+    # one, and deletes the old epoch once no job that could be using it is left.
+    # Upper bound on how long an old epoch is kept: the longest job timeout plus the grace period RQ
+    # gives before it kills the job, with a margin.
+    CACHE_RETIRED_MAX_AGE: int = MAX_JOB_TIMEOUT + 10 * 60
+    # How often a cleanup that is waiting for jobs to finish checks again
+    CACHE_RECLAIM_POLL_SECONDS: int = 5 * 60
+    # Threads deleting a retired epoch. Every delete is a network round trip on EFS
+    CACHE_CLEANUP_WORKERS: int = 8
+
     MAX_JOB_DURATION: int = 20 * 60  # 20 minutes
     DEFAULT_REDIS_STREAM_TTL: int = 60  # 1 minute
 
@@ -71,6 +83,15 @@ class Settings(BaseSettings):
         if not self.ACCOUNTING_DISABLED and not self.ACCOUNTING_BASE_URL:
             raise ValueError(
                 "ACCOUNTING_BASE_URL must be set if not explicitly disabled with ACCOUNTING_DISABLED"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_cache_retired_max_age(self) -> Self:
+        # Retired cache epochs would be deleted under jobs that are still running
+        if self.CACHE_RETIRED_MAX_AGE <= MAX_JOB_TIMEOUT:
+            raise ValueError(
+                f"CACHE_RETIRED_MAX_AGE must be longer than the job timeout of {MAX_JOB_TIMEOUT}s"
             )
         return self
 

@@ -161,6 +161,7 @@ async def create_single_neuron_model(
             "project_context": project_context,
             "access_token": auth.access_token,
         },
+        timeout=40 * 60,  # 40 minutes
     )
 
     return ApiResponse[MEModel](message="Single neuron model created successfully", data=memodel)

@@ -26,6 +26,7 @@ from app.core.compilation_cache import compile_with_cache
 from app.core.exceptions import SingleNeuronAssetError
 from app.infrastructure.storage import (
     copy_file_content,
+    find_morphology_file,
     get_model_candidate_location,
     clear_stale,
     get_single_neuron_location,
@@ -103,7 +104,7 @@ class SingleNeuronBase(ABC):
         hoc_path = next(hoc_dir_path.iterdir())
 
         morphology_dir_path = self.path / SINGLE_NEURON_MORPHOLOGY_DIR
-        morphology_path = next(morphology_dir_path.iterdir())
+        morphology_path = find_morphology_file(morphology_dir_path)
 
         self.cell = Cell(
             template_path=hoc_path,

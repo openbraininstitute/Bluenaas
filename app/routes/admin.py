@@ -1,42 +1,14 @@
+from http import HTTPStatus
+
 from fastapi import APIRouter
 
 from app.infrastructure.kc.auth import AdminAuthDep
-from app.infrastructure.storage import (
-    clear_circuit_cache,
-    clear_compilation_cache,
-    clear_ion_channel_cache,
-    clear_mesh_cache,
-    clear_single_neuron_cache,
-)
+from app.infrastructure.storage.epoch import CacheKind
+from app.services.api.admin.cache import start_cache_cleanup
 
 router = APIRouter(prefix="/admin")
 
 
-@router.delete("/cache/circuit", tags=["admin"])
-async def clear_circuit_storage(_: AdminAuthDep):
-    clear_circuit_cache()
-    return {"message": "Circuit cache cleared successfully"}
-
-
-@router.delete("/cache/single-neuron", tags=["admin"])
-async def clear_single_neuron_storage(_: AdminAuthDep):
-    clear_single_neuron_cache()
-    return {"message": "Single neuron cache cleared successfully"}
-
-
-@router.delete("/cache/mesh", tags=["admin"])
-async def clear_mesh_storage(_: AdminAuthDep):
-    clear_mesh_cache()
-    return {"message": "Mesh cache cleared successfully"}
-
-
-@router.delete("/cache/ion-channel", tags=["admin"])
-async def clear_ion_channel_storage(_: AdminAuthDep):
-    clear_ion_channel_cache()
-    return {"message": "Ion channel cache cleared successfully"}
-
-
-@router.delete("/cache/compilation", tags=["admin"])
-async def clear_compilation_storage(_: AdminAuthDep):
-    clear_compilation_cache()
-    return {"message": "Compilation cache cleared successfully"}
+@router.delete("/cache/{cache}", tags=["admin"], status_code=HTTPStatus.ACCEPTED)
+async def clear_cache(cache: CacheKind, _: AdminAuthDep):
+    return await start_cache_cleanup(cache)

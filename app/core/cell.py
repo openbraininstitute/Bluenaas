@@ -14,7 +14,7 @@ from app.domains.morphology import SynapseSeries
 from app.domains.simulation import (
     SingleNeuronSimulationConfig,
 )
-from app.infrastructure.storage import get_single_neuron_location
+from app.infrastructure.storage import find_morphology_file, get_single_neuron_location
 from app.utils.util import (
     compile_mechanisms,
     get_sec_name,
@@ -72,7 +72,7 @@ class BaseCell:
         logger.debug(f"hoc_file: {hoc_path}")
 
         morphology_dir_path = model_path / SINGLE_NEURON_MORPHOLOGY_DIR
-        morphology_path = next(morphology_dir_path.iterdir())
+        morphology_path = find_morphology_file(morphology_dir_path)
         logger.debug(f"morph_file: {morphology_path}")
 
         try:
