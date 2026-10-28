@@ -9,7 +9,7 @@ from rq.job import Job
 from rq.job import JobStatus as RQJobStatus
 
 from app.config.settings import settings
-from app.constants import NULL_CID
+from app.constants import MAX_JOB_TIMEOUT, NULL_CID
 from app.context import cid_var
 from app.core.exceptions import JobFailedError
 from app.core.job import JobInfo
@@ -118,6 +118,10 @@ async def dispatch(
     result_ttl: int | None = None,
     timeout: int = settings.MAX_JOB_DURATION,
 ) -> tuple[Job, AsyncGenerator[Any, Any]]:
+    if timeout > MAX_JOB_TIMEOUT:
+        # The cache epochs the job uses could be deleted while it is still running
+        raise ValueError(f"Job timeout {timeout}s is over the limit of {MAX_JOB_TIMEOUT}s")
+
     if job_id is None:
         job_id = str(uuid4())
 

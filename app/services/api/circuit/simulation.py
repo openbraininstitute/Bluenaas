@@ -23,6 +23,7 @@ from obp_accounting_sdk.errors import BaseAccountingError, InsufficientFundsErro
 from rq import Queue
 
 from app.config.settings import settings
+from app.constants import MAX_JOB_TIMEOUT
 from app.domains.circuit.circuit import CircuitOrigin
 from app.core.exceptions import AppError, AppErrorCode
 from app.core.http_stream import x_ndjson_http_stream
@@ -155,7 +156,7 @@ async def run_circuit_simulation(
         on_failure=on_failure,
         on_start=on_start,
         on_success=on_success,
-        timeout=60 * 60,  # one hour
+        timeout=MAX_JOB_TIMEOUT,
     )
     http_stream = x_ndjson_http_stream(request, stream)
 

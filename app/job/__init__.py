@@ -28,3 +28,6 @@ class JobFn(StrEnum):
 
     # obi-one tasks of single TaskConfigs
     RUN_TASK_CONFIG = "app.job.handlers.task_config.run"
+
+    # Admin
+    RECLAIM_RETIRED_CACHE = "app.job.handlers.admin.cache.reclaim"
