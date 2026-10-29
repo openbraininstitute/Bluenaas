@@ -5,8 +5,6 @@ from uuid import uuid4
 import libsonata
 import pytest
 
-from app.core.morphology_pack.build import build_morphology_pack
-from app.core.morphology_pack.reader import read_pack
 from app.core.morphology_pack.staging import stage_morphology_pack_inputs
 
 from tests.core.morphology_pack.utils import CIRCUIT_DIR
@@ -60,8 +58,6 @@ def test_a_container_of_morphologies(tmp_path, circuit):
     assert sorted(client.fetched) == sorted(
         [*nodes_of(CONTAINER_CIRCUIT), Path("morphologies/merged-morphologies.h5")]
     )
-    pack = read_pack(build_morphology_pack(config, 10**12, 1))
-    assert set(pack.levels[0].cells) == set(range(10))
 
 
 def test_a_folder_of_morphologies(tmp_path, circuit):

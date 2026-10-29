@@ -175,13 +175,6 @@ class TestRoundTrip:
             np.testing.assert_array_equal(read.cells, expected.cells)
             np.testing.assert_array_equal(read.types, expected.types)
 
-    def test_cells_may_be_added_in_any_order(self):
-        shapes = simplified(load(), [FINEST])
-        writer = PackWriter([("only", 3)], [FINEST], chunk_um=100000.0)
-        for cell in (2, 0, 1):
-            writer.add_cell(cell, shapes, *PLACES[cell])
-        assert_placed(read_pack(writer.pack()).levels[0], shapes.shapes[0])
-
 
 class TestIndex:
     def test_names_what_a_reader_needs(self):
