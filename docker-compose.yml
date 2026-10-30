@@ -56,7 +56,7 @@ services:
       PYTHONUNBUFFERED: 1
       ACCOUNTING_DISABLED: 1
       REDIS_URL: redis://redis:6379/0
-      QUEUES: high medium low
+      QUEUES: high medium low 4cpu-16gb
       NUM_WORKERS: 4
     develop:
       watch:

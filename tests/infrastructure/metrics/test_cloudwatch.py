@@ -81,6 +81,7 @@ class TestCloudWatchMetricsReporter(unittest.TestCase):
                 "Value": 42.5,
                 "Timestamp": datetime(2025, 1, 1, 12, 0, 0),
                 "Unit": "Count",
+                "StorageResolution": 1,
                 "Dimensions": [
                     {"Name": "queue", "Value": "high"},
                     {"Name": "worker", "Value": "w1"},
@@ -118,6 +119,7 @@ class TestCloudWatchMetricsReporter(unittest.TestCase):
                 "Value": 10.0,
                 "Timestamp": datetime(2025, 1, 1, 12, 0, 0),
                 "Unit": "Count",
+                "StorageResolution": 1,
             }
         ]
 
@@ -167,6 +169,7 @@ class TestCloudWatchMetricsReporter(unittest.TestCase):
                 "Value": 5.0,
                 "Timestamp": datetime(2025, 1, 1, 12, 0, 0),
                 "Unit": "Count",
+                "StorageResolution": 1,
                 "Dimensions": [{"Name": "queue", "Value": "high"}],
             }
         ]
@@ -301,6 +304,7 @@ class TestCloudWatchMetricsReporter(unittest.TestCase):
                 "Value": 1.0,
                 "Timestamp": datetime(2025, 1, 1, 12, 0, 0),
                 "Unit": "Count",
+                "StorageResolution": 1,
             }
         ]
 

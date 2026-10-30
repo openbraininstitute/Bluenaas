@@ -8,6 +8,9 @@ from app.config.settings import settings
 from app.utils.asyncio import run_async
 from .base import MetricsReporter
 
+# Kept at one second, so that the batch worker lambda sees a queue fill up within seconds
+HIGH_RESOLUTION = 1
+
 
 class CloudWatchMetricsReporter(MetricsReporter):
     def __init__(self, namespace: str = "SmallScaleSimulator/JobQueue"):
@@ -30,6 +33,7 @@ class CloudWatchMetricsReporter(MetricsReporter):
             "Value": value,
             "Timestamp": timestamp,
             "Unit": "Count",
+            "StorageResolution": HIGH_RESOLUTION,
         }
 
         if dimensions:
@@ -54,6 +58,7 @@ class CloudWatchMetricsReporter(MetricsReporter):
                 "Value": metric["value"],
                 "Timestamp": metric["timestamp"],
                 "Unit": "Count",
+                "StorageResolution": HIGH_RESOLUTION,
             }
             if metric.get("dimensions"):
                 data["Dimensions"] = [

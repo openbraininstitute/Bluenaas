@@ -1,10 +1,18 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import FileResponse
 from pydantic import UUID4
 from rq import Queue
 
+from app.domains.circuit.morphology_pack import MorphologyPackStatus
 from app.domains.circuit.simulation import RunBatchRequest
 from app.infrastructure.rq import JobQueue, queue_factory
 from app.routes.dependencies import ProjectContextDep, UserAuthDep
+from app.services.api.circuit.morphology_pack import (
+    get_morphology_pack,
+    get_morphology_pack_status,
+)
 from app.services.api.circuit.simulation import (
     run_circuit_simulation as run_circuit_simulation_service,
 )
@@ -57,3 +65,30 @@ async def run_circuit_simulation_batch(
         project_context=project_context,
         auth=auth,
     )
+
+
+@router.post(
+    "/{circuit_id}/morphology-pack",
+    tags=["circuit", "morphology-pack"],
+    description="The state of the circuit's morphology pack. Queues its build if it isn't built",
+)
+async def request_morphology_pack(
+    circuit_id: UUID,
+    project_context: ProjectContextDep,
+    auth: UserAuthDep,
+) -> MorphologyPackStatus:
+    return await get_morphology_pack_status(circuit_id, auth=auth, project_context=project_context)
+
+
+@router.get(
+    "/{circuit_id}/morphology-pack",
+    tags=["circuit", "morphology-pack"],
+    description="The circuit's morphology pack, once it is built",
+    response_class=FileResponse,
+)
+async def download_morphology_pack(
+    circuit_id: UUID,
+    project_context: ProjectContextDep,
+    auth: UserAuthDep,
+) -> FileResponse:
+    return await get_morphology_pack(circuit_id, auth=auth, project_context=project_context)
