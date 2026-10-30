@@ -33,7 +33,7 @@ from app.constants import (
 )
 from app.core.exceptions import CircuitInitError
 from app.domains.circuit.circuit import CircuitOrigin
-from app.infrastructure.storage import copy_file_content, get_circuit_location, rm_dir
+from app.infrastructure.storage import get_circuit_location, rm_dir
 
 
 class CircuitBase(ABC):
@@ -59,19 +59,14 @@ class CircuitBase(ABC):
         """Fetch the circuit files from entitycore and write to the disk storage"""
         pass
 
-    def _ensure_extra_mod_files(self):
-        """Ensure extra / technical MOD files"""
-        copy_file_content(
-            Path("/app/app/config/vecevent.mod"),
-            self.path / CIRCUIT_MOD_DIR / "vecevent.mod",
-        )
-        copy_file_content(
-            Path("/app/app/config/InhPoissonStim.mod"),
-            self.path / CIRCUIT_MOD_DIR / "InhPoissonStim.mod",
-        )
+    def _remove_legacy_mod_files(self):
+        """Remove MOD files superseded by BlueCelluLab's bundled ones.
 
-        # Clean up netstim_inhpoisson.mod that exists in older circuits.
-        # It conflicts with the newer InhPoissonStim.mod
+        vecevent.mod and InhPoissonStim.mod are added by ``compile_mods`` at
+        compile time; netstim_inhpoisson.mod exists in older circuits and
+        declares the same InhPoissonStim mechanism, so it is dropped here
+        rather than left for duplicate resolution.
+        """
         legacy_inhpoisson = self.path / CIRCUIT_MOD_DIR / "netstim_inhpoisson.mod"
         if legacy_inhpoisson.exists():
             legacy_inhpoisson.unlink()
@@ -108,7 +103,7 @@ class CircuitBase(ABC):
                     return
 
                 self._fetch_assets()
-                self._ensure_extra_mod_files()
+                self._remove_legacy_mod_files()
                 self._compile_mod_files()
                 ready_marker.touch()
         except Exception:
@@ -120,8 +115,7 @@ class CircuitBase(ABC):
 
     def is_fetched(self) -> bool:
         """Check if the circuit is in the storage"""
-        ready_marker = self.path / READY_MARKER_FILE_NAME
-        return ready_marker.exists()
+        return (self.path / READY_MARKER_FILE_NAME).exists()
 
 
 class Circuit(CircuitBase):
