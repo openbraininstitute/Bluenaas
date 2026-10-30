@@ -32,6 +32,7 @@ class CacheKind(StrEnum):
     MESH = "mesh"
     TASK_CONFIG = "task-config"
     COMPILATION = "compilation"
+    MORPHOLOGY_PACK = "morphology-pack"
 
 
 # Not to be mistaken for a setting: the settings are read from environment variables named like
@@ -79,6 +80,13 @@ def current_epoch(kind: CacheKind) -> str:
     if pinned:
         return pinned
 
+    epoch = ensure_epoch(kind)
+    os.environ[env_var] = epoch
+    return epoch
+
+
+def ensure_epoch(kind: CacheKind) -> str:
+    """The current epoch, started if the cache has never been used. Not fixed for the process."""
     epoch = get_epoch(kind)
     if epoch is None:
         # Whoever gets there first wins, the others use the winner's epoch
@@ -93,7 +101,6 @@ def current_epoch(kind: CacheKind) -> str:
         if epoch is None:
             raise RuntimeError(f"The {kind.value} cache epoch is gone right after it was created")
 
-    os.environ[env_var] = epoch
     return epoch
 
 

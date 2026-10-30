@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     MAX_JOB_DURATION: int = 20 * 60  # 20 minutes
     DEFAULT_REDIS_STREAM_TTL: int = 60  # 1 minute
 
+    # The workers that share a worker task, which a job's share of its memory and CPUs is cut by
+    NUM_WORKERS: int = 1
+
     HTTP_STREAM_KEEP_ALIVE_INTERVAL: int = 30  # 30 seconds
 
     METRICS_CLOUD_PROVIDER: _CLOUD_PROVIDER = None

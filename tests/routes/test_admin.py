@@ -51,6 +51,11 @@ class TestAdminRoutes(unittest.TestCase):
             ("mesh", CacheKind.MESH, "Mesh cache cleanup started"),
             ("task-config", CacheKind.TASK_CONFIG, "Task config cache cleanup started"),
             ("compilation", CacheKind.COMPILATION, "Compilation cache cleanup started"),
+            (
+                "morphology-pack",
+                CacheKind.MORPHOLOGY_PACK,
+                "Morphology pack cache cleanup started",
+            ),
         ]
 
         for endpoint, kind, message in cases:
