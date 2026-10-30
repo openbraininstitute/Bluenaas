@@ -28,7 +28,7 @@ from app.infrastructure.storage.morphology_pack import (
     read_no_pack_reason,
     read_pack_info,
 )
-from app.services.api.entitycore import get_entity_or_not_found
+from app.services.api.entitycore import get_entity_or_not_found, user_client
 from app.utils.asyncio import run_async
 
 
@@ -37,7 +37,10 @@ def _get_circuit(circuit_id: UUID, *, auth: Auth, project_context: ProjectContex
     for a circuit the user has access to.
     """
     return get_entity_or_not_found(
-        circuit_id, Circuit, auth=auth, project_context=project_context, message="Circuit not found"
+        user_client(auth.access_token, project_context),
+        circuit_id,
+        Circuit,
+        message="Circuit not found",
     )
 
 

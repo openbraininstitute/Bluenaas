@@ -77,7 +77,7 @@ class TestLfpSummaryRoutes(LfpSummaryTestCase):
         self.assertEqual(response.json()["state"], "building")
         self.assertEqual(
             self.queued_ids(JobQueue.LOW),
-            [build_job_id(self.epoch(), self.report.id)],
+            [build_job_id(self.epoch(), self.report.id, JobQueue.LOW)],
         )
         self.get_report.assert_called_once()
         self.assertEqual(self.get_report.call_args.args, (self.result_id, self.report.id))

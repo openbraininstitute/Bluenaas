@@ -2,6 +2,7 @@ import hashlib
 import json
 import shutil
 import tempfile
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,6 +13,8 @@ from filelock import FileLock
 
 from app.constants import DIR_LOCK_FILE_NAME, READY_MARKER_FILE_NAME
 from app.core.lfp_summary.summary import verify
+from app.domains.simulation_result.lfp_summary import NoSummaryReason
+from app.infrastructure.rq import JobQueue
 from app.infrastructure.storage.epoch import CacheKind, rotate_epoch
 from app.infrastructure.storage.lfp_summary import (
     INDEX_FILE_NAME,
@@ -49,13 +52,14 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def run_build(self, epoch: str | None = None):
+    def run_build(self, epoch: str | None = None, queue: JobQueue = JobQueue.LOW, url: str = URL):
         epoch = epoch or self.epoch()
         service.build_lfp_summary(
             self.asset_id,
             epoch=epoch,
-            job_id=build_job_id(epoch, self.asset_id),
-            url=URL,
+            queue=queue,
+            job_id=build_job_id(epoch, self.asset_id, queue),
+            url=url,
             size=self.report.stat().st_size,
         )
 
@@ -109,6 +113,36 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
 
         self.assertEqual(self.urls, [])
         self.assertFalse((directory / READY_MARKER_FILE_NAME).exists())
+
+    def test_a_summary_over_the_memory_of_low_is_moved_to_the_larger_queue(self):
+        with patch.object(service, "memory_limit", return_value=1):
+            self.run_build()
+
+        directory = self.directory()
+        self.assertFalse((directory / READY_MARKER_FILE_NAME).exists())
+        self.assertFalse((directory / NO_SUMMARY_FILE_NAME).exists())
+        self.assertFalse((directory / DIR_LOCK_FILE_NAME).exists())
+        self.assertEqual(
+            self.queued_ids(JobQueue.CPU4_MEM16),
+            [build_job_id(self.epoch(), self.asset_id, JobQueue.CPU4_MEM16)],
+        )
+
+    def test_a_summary_over_the_memory_of_the_larger_queue_is_refused(self):
+        with patch.object(service, "memory_limit", return_value=1):
+            self.run_build(queue=JobQueue.CPU4_MEM16)
+
+        marker = json.loads((self.directory() / NO_SUMMARY_FILE_NAME).read_text())
+        self.assertEqual(marker["reason"], NoSummaryReason.TOO_LARGE.value)
+        self.assertEqual(self.queued_ids(JobQueue.CPU4_MEM16), [])
+
+    def test_nothing_is_read_by_a_url_that_expires_before_a_build_could_end(self):
+        signed = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(time.time() - 5 * 3600 - 60))
+        url = f"https://bucket.s3/report.h5?X-Amz-Date={signed}&X-Amz-Expires=21600"
+
+        self.run_build(url=url)
+
+        self.assertEqual(self.urls, [])
+        self.assertFalse((self.directory() / NO_SUMMARY_FILE_NAME).exists())
 
     def test_nothing_is_built_after_the_cache_was_cleared(self):
         epoch = self.epoch()

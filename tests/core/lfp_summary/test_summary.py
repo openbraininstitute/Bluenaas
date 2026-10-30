@@ -12,6 +12,8 @@ from app.core.lfp_summary import summary
 from app.core.lfp_summary.summary import (
     MAX_OVERVIEW_STEPS,
     NotSummarisableError,
+    OverMemoryError,
+    peak_bytes,
     sum_report,
     verify,
     write_summary,
@@ -101,6 +103,46 @@ class TestSumReport(unittest.TestCase):
             self.summed()
 
         self.assertEqual(caught.exception.reason, NoSummaryReason.UNREADABLE)
+
+    def test_malformed_reports_are_unreadable(self):
+        def edit(change):
+            def make():
+                write_report(self.path)
+                with h5py.File(self.path, "r+") as f:
+                    change(f["report/pop"])
+
+            return make
+
+        def replace(group, name, value):
+            del group[name]
+            group[name] = value
+
+        cases = {
+            "more columns than element ids": edit(
+                lambda g: replace(g, "mapping/element_ids", np.arange(5, dtype=np.uint32))
+            ),
+            "negative element ids": edit(
+                lambda g: replace(g, "mapping/element_ids", -np.ones(12, dtype=np.int64))
+            ),
+            "a time without its step": edit(
+                lambda g: replace(g, "mapping/time", np.array([0.0, 5.0]))
+            ),
+            "a step of zero": edit(lambda g: replace(g, "mapping/time", np.array([0.0, 5.0, 0.0]))),
+            "no steps": edit(lambda g: replace(g, "data", np.zeros((0, 12), np.float32))),
+        }
+        for name, make in cases.items():
+            with self.subTest(name):
+                make()
+                with self.assertRaises(NotSummarisableError) as caught:
+                    self.summed()
+                self.assertEqual(caught.exception.reason, NoSummaryReason.UNREADABLE)
+
+    def test_a_summary_over_the_memory_given(self):
+        write_report(self.path, contacts=4, steps=50)
+
+        with self.assertRaises(OverMemoryError):
+            self.summed(memory=peak_bytes(50, 4) - 1)
+        self.summed(memory=peak_bytes(50, 4))
 
     def test_a_total_over_the_memory_cap(self):
         write_report(self.path, contacts=4, steps=50)

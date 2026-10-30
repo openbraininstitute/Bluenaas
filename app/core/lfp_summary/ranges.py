@@ -1,13 +1,19 @@
 """Reading a file by byte ranges: over HTTP, and as a file object h5py opens."""
 
 import io
+import logging
 import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable
+from datetime import UTC, datetime
 from http import HTTPStatus
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
+
+# httpx logs every request's URL at INFO, and a presigned URL's signature with it
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Reads `length` bytes at `offset`
 ReadRange = Callable[[int, int], bytes]
@@ -21,6 +27,20 @@ ATTEMPTS = 3
 
 class RangeReadError(Exception):
     pass
+
+
+def url_expires_at(url: str) -> float | None:
+    """When a presigned S3 URL expires, in seconds since the epoch. None for another URL."""
+    query = {key: values[0] for key, values in parse_qs(urlsplit(url).query).items()}
+    try:
+        if "X-Amz-Date" in query and "X-Amz-Expires" in query:
+            signed = datetime.strptime(query["X-Amz-Date"], "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
+            return signed.timestamp() + int(query["X-Amz-Expires"])
+        if "Expires" in query:
+            return float(query["Expires"])
+    except ValueError:
+        pass
+    return None
 
 
 class HttpRanges:
@@ -47,12 +67,12 @@ class HttpRanges:
                 if response.status_code >= HTTPStatus.INTERNAL_SERVER_ERROR and attempt < ATTEMPTS:
                     time.sleep(attempt)
                     continue
-                response.raise_for_status()
             except httpx.TransportError:
                 if attempt == ATTEMPTS:
                     raise
                 time.sleep(attempt)
                 continue
+            # Not raised by httpx, whose message holds the URL and so its signature
             if response.status_code != HTTPStatus.PARTIAL_CONTENT:
                 raise RangeReadError(f"A range read was answered with {response.status_code}")
             if len(response.content) != length:

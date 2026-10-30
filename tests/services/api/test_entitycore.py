@@ -1,15 +1,14 @@
 from http import HTTPStatus
 from unittest import TestCase
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from uuid import uuid4
 
-from entitysdk.common import ProjectContext
 from entitysdk.exception import EntitySDKError
 from entitysdk.models import Circuit
 from entitysdk.utils.http import HTTPStatusError
 
 from app.core.exceptions import AppError
-from app.services.api import entitycore as service
+from app.services.api.entitycore import get_entity_or_not_found
 
 
 def _http_error(status: HTTPStatus) -> EntitySDKError:
@@ -23,15 +22,9 @@ def _http_error(status: HTTPStatus) -> EntitySDKError:
 
 class TestGetEntityOrNotFound(TestCase):
     def get_with(self, error: EntitySDKError):
-        with patch.object(service, "Client") as client:
-            client.return_value.get_entity.side_effect = error
-            return service.get_entity_or_not_found(
-                uuid4(),
-                Circuit,
-                auth=MagicMock(),
-                project_context=ProjectContext(project_id=uuid4(), virtual_lab_id=uuid4()),
-                message="Circuit not found",
-            )
+        client = MagicMock()
+        client.get_entity.side_effect = error
+        return get_entity_or_not_found(client, uuid4(), Circuit, message="Circuit not found")
 
     def test_an_entity_the_user_cannot_see_is_not_found(self):
         for status in [HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND]:

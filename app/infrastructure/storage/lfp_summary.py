@@ -38,7 +38,8 @@ INDEX_FILE_NAME = "index.json"
 SUMMARY_INFO_FILE_NAME = "summary.json"
 NO_SUMMARY_FILE_NAME = ".no-summary"
 
-# Reports up to this size are summarised on `low`, in one worker's share of a shared task
+# Reports up to this size are summarised on `low`, in one worker's share of a shared task, and
+# moved to `4cpu-16gb` where the summary takes more memory than that
 SMALL_REPORT_BYTES = 2**30
 # No summary is made of a larger report: at about 0.5 GB/s, a build would near the job timeout
 MAX_REPORT_BYTES = 1_000 * 2**30
@@ -104,8 +105,8 @@ def write_no_summary(directory: Path, reason: NoSummaryReason, details: str) -> 
     )
 
 
-def build_job_id(epoch: str, asset_id: UUID) -> str:
-    return f"lfp-summary-{epoch}-v{FORMAT_VERSION}-{asset_id}"
+def build_job_id(epoch: str, asset_id: UUID, queue: JobQueue) -> str:
+    return f"lfp-summary-{epoch}-v{FORMAT_VERSION}-{asset_id}-{queue.value}"
 
 
 def build_queue(report_bytes: int) -> JobQueue:
@@ -143,7 +144,7 @@ def enqueue_build(
     already.
     """
     rq_queue = get_queue(queue)
-    job_id = build_job_id(epoch, asset_id)
+    job_id = build_job_id(epoch, asset_id, queue)
 
     # Else a request could delete the job another one has just queued in place of a finished one
     guard = f"lfp-summary:enqueue:{job_id}"
@@ -162,9 +163,12 @@ def enqueue_build(
             JobFn.RUN_LFP_SUMMARY,
             job_id=job_id,
             unique=True,
+            # Else RQ describes the job by its call, the URL's signature included, and logs it
+            description=f"LFP summary of {asset_id}",
             kwargs={
                 "asset_id": asset_id,
                 "epoch": epoch,
+                "queue": queue.value,
                 "url": url,
                 "size": size,
             },

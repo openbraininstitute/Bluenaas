@@ -1,11 +1,13 @@
 import io
+import logging
 import unittest
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import httpx
 
 from app.core.lfp_summary import ranges
-from app.core.lfp_summary.ranges import HttpRanges, RangeFile, RangeReadError
+from app.core.lfp_summary.ranges import HttpRanges, RangeFile, RangeReadError, url_expires_at
 
 CONTENT = bytes(range(256)) * 40
 
@@ -92,6 +94,28 @@ class TestHttpRanges(unittest.TestCase):
     def test_client_errors_are_not(self, _sleep):
         http = self.ranges_answered_by(httpx.Response(403))
 
-        with self.assertRaises(httpx.HTTPStatusError):
+        with self.assertRaises(RangeReadError) as caught:
             http.read(0, 4)
         self.assertEqual(len(self.requests), 1)
+        self.assertNotIn("bucket", str(caught.exception))
+
+    def test_httpx_logs_no_request_and_so_no_url(self):
+        self.assertFalse(logging.getLogger("httpx").isEnabledFor(logging.INFO))
+
+
+class TestUrlExpiresAt(unittest.TestCase):
+    def test_signature_version_4(self):
+        url = "https://b.s3/r.h5?X-Amz-Date=20261030T120000Z&X-Amz-Expires=21600&X-Amz-Signature=s"
+
+        self.assertEqual(url_expires_at(url), datetime(2026, 10, 30, 18, tzinfo=UTC).timestamp())
+
+    def test_signature_version_2(self):
+        self.assertEqual(url_expires_at("https://b.s3/r.h5?Expires=1790000000&Signature=s"), 1.79e9)
+
+    def test_other_urls(self):
+        for url in [
+            "https://bucket/report.h5",
+            "https://b.s3/r.h5?X-Amz-Date=yesterday&X-Amz-Expires=1",
+        ]:
+            with self.subTest(url=url):
+                self.assertIsNone(url_expires_at(url))

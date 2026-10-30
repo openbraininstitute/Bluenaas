@@ -1,9 +1,12 @@
+import json
+import re
 from http import HTTPStatus
+from pathlib import PurePosixPath
 from uuid import UUID
 
 import httpx
 from entitysdk.common import ProjectContext
-from entitysdk.models import SimulationResult
+from entitysdk.models import Simulation, SimulationResult
 from entitysdk.models.asset import Asset
 from entitysdk.route import get_assets_endpoint
 from entitysdk.types import AssetLabel
@@ -31,7 +34,7 @@ from app.infrastructure.storage.lfp_summary import (
     read_summary_info,
     summary_dir,
 )
-from app.services.api.entitycore import get_entity_or_not_found
+from app.services.api.entitycore import get_entity_or_not_found, user_client
 from app.utils.asyncio import run_async
 
 # launch-system labels every report `voltage_report`, LFP included
@@ -49,16 +52,44 @@ def _get_report(
     only read for a report the user has access to.
     """
     result = get_entity_or_not_found(
+        user_client(auth.access_token, project_context),
         result_id,
         SimulationResult,
-        auth=auth,
-        project_context=project_context,
         message="Simulation result not found",
     )
     asset = next((a for a in result.assets or [] if a.id == asset_id), None)
     if asset is None:
         raise _not_found("The simulation result has no such asset")
     return asset
+
+
+def _is_lfp_report(
+    result_id: UUID, report: Asset, *, access_token: str, project_context: ProjectContext
+) -> bool:
+    """An LFP report by its label, or a voltage report whose entry in the simulation's SONATA
+    config, found by its file's name, is of type `lfp`, as the web app reads it.
+    """
+    if report.label == AssetLabel.lfp_report:
+        return True
+    client = user_client(access_token, project_context)
+    result = get_entity_or_not_found(
+        client, result_id, SimulationResult, message="Simulation result not found"
+    )
+    simulation = get_entity_or_not_found(
+        client, result.simulation_id, Simulation, message="Simulation not found"
+    )
+    config = next(
+        (a for a in simulation.assets or [] if a.label == AssetLabel.sonata_simulation_config),
+        None,
+    )
+    if config is None:
+        return False
+    content = client.download_content(
+        entity_id=result.simulation_id, entity_type=Simulation, asset_id=config.id
+    )
+    reports = json.loads(content).get("reports") or {}
+    entry = reports.get(re.sub(r"\.h5$", "", PurePosixPath(report.path).name, flags=re.I))
+    return isinstance(entry, dict) and entry.get("type") == "lfp"
 
 
 def _download_url(
@@ -114,22 +145,35 @@ def _get_or_build_summary(
 
     clean_up_abandoned_jobs(BUILD_QUEUES)
 
-    queue = build_queue(report.size)
-    job = get_queue(queue).fetch_job(build_job_id(epoch, report.id))
-    job_status = job.get_status(refresh=False) if job else None
-    if job and job_status in LIVE_STATUSES:
-        return LfpSummaryStatus(state=LfpSummaryState.BUILDING, queue_position=job.get_position())
+    failed = False
+    for queue in BUILD_QUEUES:
+        job = get_queue(queue).fetch_job(build_job_id(epoch, report.id, queue))
+        if job is None:
+            continue
+        status = job.get_status(refresh=False)
+        if status in LIVE_STATUSES:
+            return LfpSummaryStatus(
+                state=LfpSummaryState.BUILDING, queue_position=job.get_position()
+            )
+        failed = failed or status == JobStatus.FAILED
 
     # A build may have finished since the cache was read
     if status := _status_in_cache(epoch, report.id):
         return status
 
     # A failed job is kept for a day, and only then is the report summarised again
-    if job_status == JobStatus.FAILED:
+    if failed:
         return LfpSummaryStatus(state=LfpSummaryState.FAILED)
 
+    if not _is_lfp_report(
+        result_id, report, access_token=access_token, project_context=project_context
+    ):
+        return LfpSummaryStatus(
+            state=LfpSummaryState.REFUSED, reason=NoSummaryReason.NOT_LFP_REPORT
+        )
+
     enqueue_build(
-        queue,
+        build_queue(report.size),
         epoch=epoch,
         asset_id=report.id,
         url=_download_url(

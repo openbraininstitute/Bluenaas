@@ -34,6 +34,9 @@ READS_IN_FLIGHT = 8
 
 # The total is summed in memory, steps x contacts in float64, and the summary built from it
 MAX_TOTAL_BYTES = 2 << 30
+# Summing and writing peak at about 3.3 times the total (measured), besides the reads in flight
+PEAK_PER_TOTAL_BYTE = 3.5
+FIXED_PEAK_BYTES = 1 << 30
 
 TO_UV = {"V": 1e6, "mV": 1e3, "uV": 1.0, "µV": 1.0}
 
@@ -42,6 +45,10 @@ class NotSummarisableError(Exception):
     def __init__(self, reason: NoSummaryReason, details: str):
         super().__init__(details)
         self.reason = reason
+
+
+class OverMemoryError(Exception):
+    """The summary would take more memory than the build has."""
 
 
 @dataclass
@@ -65,6 +72,10 @@ def _not_a_report(details: str) -> NotSummarisableError:
     return NotSummarisableError(NoSummaryReason.NOT_LFP_REPORT, details)
 
 
+def _unreadable(details: str) -> NotSummarisableError:
+    return NotSummarisableError(NoSummaryReason.UNREADABLE, details)
+
+
 def _group(parent: h5py.Group, path: str) -> h5py.Group:
     node = parent.get(path)
     if not isinstance(node, h5py.Group):
@@ -84,10 +95,16 @@ def _population(group: h5py.Group) -> _Population:
     units = data.attrs.get("units", "V")
     units = units.decode() if isinstance(units, bytes) else str(units)
     if units not in TO_UV:
-        raise NotSummarisableError(NoSummaryReason.UNREADABLE, f"Unknown units {units}")
+        raise _unreadable(f"Unknown units {units}")
     element_ids = np.asarray(_dataset(group, "mapping/element_ids")[:])
     if data.ndim != 2 or not len(element_ids):
         raise _not_a_report(f"{group.name} has no data on any contact")
+    if data.shape[1] != len(element_ids):
+        raise _unreadable(
+            f"{group.name} has {data.shape[1]} columns and {len(element_ids)} element ids"
+        )
+    if not np.issubdtype(element_ids.dtype, np.integer) or element_ids.min() < 0:
+        raise _unreadable(f"The element ids of {group.name} are not contacts")
     return _Population(
         data=data,
         element_ids=element_ids,
@@ -127,8 +144,17 @@ def _sum_population(
             total[a : a + len(values)] += values * population.to_uv
 
 
-def sum_report(read: ReadRange, size: int, *, workers: int = READS_IN_FLIGHT) -> SummedReport:
-    """The report's total over its cells, read by range."""
+def peak_bytes(steps: int, contacts: int) -> int:
+    """The memory a summary of this many steps and contacts takes, at most."""
+    return int(steps * contacts * 8 * PEAK_PER_TOTAL_BYTE) + FIXED_PEAK_BYTES
+
+
+def sum_report(
+    read: ReadRange, size: int, *, memory: int | None = None, workers: int = READS_IN_FLIGHT
+) -> SummedReport:
+    """The report's total over its cells, read by range. Raises `OverMemoryError` before the
+    total is allocated where the summary would take more than `memory`.
+    """
     try:
         f = h5py.File(RangeFile(read, size), "r")
     except OSError as ex:
@@ -144,13 +170,19 @@ def sum_report(read: ReadRange, size: int, *, workers: int = READS_IN_FLIGHT) ->
         steps = populations[0].data.shape[0]
         contacts = 1 + max(int(p.element_ids.max()) for p in populations)
 
+        if times.shape != (3,) or not times[2] > 0:
+            raise _unreadable("The mapping's time is not start, end and step")
+        if not steps:
+            raise _unreadable("The report has no steps")
         if any(p.data.shape[0] != steps for p in populations):
-            raise NotSummarisableError(
-                NoSummaryReason.UNREADABLE, "The populations have different numbers of steps"
-            )
+            raise _unreadable("The populations have different numbers of steps")
         if steps * contacts * 8 > MAX_TOTAL_BYTES:
             raise NotSummarisableError(
                 NoSummaryReason.TOO_LARGE, f"{steps} steps x {contacts} contacts"
+            )
+        if memory is not None and peak_bytes(steps, contacts) > memory:
+            raise OverMemoryError(
+                f"{steps} steps x {contacts} contacts take over {memory} bytes to summarise"
             )
 
         total = np.zeros((steps, contacts), np.float64)

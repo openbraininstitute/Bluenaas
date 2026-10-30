@@ -1,6 +1,8 @@
+import json
 from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import httpx
@@ -19,6 +21,7 @@ from app.infrastructure.storage.lfp_summary import (
     SUMMARY_FILE_NAME,
     SummaryInfo,
     build_job_id,
+    enqueue_build,
     write_no_summary,
     write_summary_info,
 )
@@ -35,6 +38,9 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         patcher = patch.object(service, "_download_url", return_value=URL)
         self.download_url = patcher.start()
         self.addCleanup(patcher.stop)
+        patcher = patch.object(service, "_is_lfp_report", return_value=True)
+        self.is_lfp_report = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def status_of(self, report):
         # In a thread, as the route runs it
@@ -48,7 +54,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
             ).result()
 
     def job_of(self, report, queue: JobQueue):
-        return get_queue(queue).fetch_job(build_job_id(self.epoch(), report.id))
+        return get_queue(queue).fetch_job(build_job_id(self.epoch(), report.id, queue))
 
     def test_ready(self):
         report = report_of(100)
@@ -103,7 +109,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
                 status = self.status_of(report)
 
                 self.assertEqual(status.state, LfpSummaryState.BUILDING)
-                self.assertIn(build_job_id(self.epoch(), report.id), self.queued_ids(queue))
+                self.assertIn(build_job_id(self.epoch(), report.id, queue), self.queued_ids(queue))
 
     def test_the_job_queued(self):
         report = report_of(100)
@@ -113,6 +119,8 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         job = self.job_of(report, JobQueue.LOW)
         self.assertEqual(job.kwargs["asset_id"], report.id)
         self.assertEqual(job.kwargs["epoch"], self.epoch())
+        self.assertEqual(job.kwargs["queue"], "low")
+        self.assertNotIn(URL, job.description)
         self.assertEqual(job.kwargs["url"], URL)
         self.assertEqual(job.kwargs["size"], 100)
         self.assertEqual(job.retries_left, 1)
@@ -133,6 +141,39 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.assertEqual(len(self.queued_ids(JobQueue.LOW)), 1)
         self.assertEqual(self.download_url.call_count, 1)
 
+    def test_a_voltage_report_that_is_no_lfp_is_refused(self):
+        self.is_lfp_report.return_value = False
+
+        status = self.status_of(report_of(100, AssetLabel.voltage_report))
+
+        self.assertEqual(status.state, LfpSummaryState.REFUSED)
+        self.assertEqual(status.reason, NoSummaryReason.NOT_LFP_REPORT)
+        self.assertEqual(self.queued_ids(JobQueue.LOW), [])
+
+    def test_a_job_moved_to_the_larger_queue_is_building(self):
+        report = report_of(100)
+        self.status_of(report)
+        self.job_of(report, JobQueue.LOW).set_status(JobStatus.FINISHED)
+        enqueue_build(
+            JobQueue.CPU4_MEM16, epoch=self.epoch(), asset_id=report.id, url=URL, size=100
+        )
+
+        self.assertEqual(self.status_of(report).state, LfpSummaryState.BUILDING)
+        self.assertEqual(self.job_of(report, JobQueue.LOW).get_status(), JobStatus.FINISHED)
+
+    def test_a_finished_job_without_a_summary_is_queued_again_with_a_new_url(self):
+        report = report_of(100)
+        self.status_of(report)
+        job = self.job_of(report, JobQueue.LOW)
+        get_queue(JobQueue.LOW).remove(job)
+        job.set_status(JobStatus.FINISHED)
+
+        status = self.status_of(report)
+
+        self.assertEqual(status.state, LfpSummaryState.BUILDING)
+        self.assertEqual(self.job_of(report, JobQueue.LOW).get_status(), JobStatus.QUEUED)
+        self.assertEqual(self.download_url.call_count, 2)
+
     def test_failed_after_its_retry(self):
         report = report_of(100)
         self.status_of(report)
@@ -152,6 +193,40 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
             status = self.status_of(report)
 
         self.assertEqual(status.state, LfpSummaryState.BUILDING)
+
+
+class TestIsLfpReport(LfpSummaryTestCase):
+    def is_lfp(self, report, reports: dict | None, config: bool = True) -> bool:
+        client = MagicMock()
+        result = SimpleNamespace(simulation_id=uuid4())
+        config_asset = SimpleNamespace(id=uuid4(), label=AssetLabel.sonata_simulation_config)
+        simulation = SimpleNamespace(assets=[config_asset] if config else [])
+        client.get_entity.side_effect = [result, simulation]
+        client.download_content.return_value = json.dumps({"reports": reports}).encode()
+        with patch.object(service, "user_client", return_value=client):
+            return service._is_lfp_report(
+                uuid4(), report, access_token="token", project_context=self.project_context
+            )
+
+    def voltage_report(self, path: str):
+        return SimpleNamespace(label=AssetLabel.voltage_report, path=path)
+
+    def test_an_lfp_report_by_its_label(self):
+        self.assertTrue(self.is_lfp(report_of(100), None, config=False))
+
+    def test_a_voltage_report_by_its_sonata_type(self):
+        for path, reports, expected in [
+            ("output/lfp.h5", {"lfp": {"type": "lfp"}}, True),
+            ("lfp.H5", {"lfp": {"type": "lfp"}}, True),
+            ("soma.h5", {"soma": {"type": "compartment"}, "lfp": {"type": "lfp"}}, False),
+            ("other.h5", {"lfp": {"type": "lfp"}}, False),
+            ("lfp.h5", None, False),
+        ]:
+            with self.subTest(path=path, reports=reports):
+                self.assertEqual(self.is_lfp(self.voltage_report(path), reports), expected)
+
+    def test_a_simulation_without_a_config(self):
+        self.assertFalse(self.is_lfp(self.voltage_report("lfp.h5"), {}, config=False))
 
 
 class TestDownloadUrl(LfpSummaryTestCase):

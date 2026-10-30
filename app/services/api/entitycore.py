@@ -9,23 +9,20 @@ from entitysdk.utils.http import HTTPStatusError
 
 from app.config.settings import settings
 from app.core.exceptions import AppError
-from app.infrastructure.kc.auth import Auth
+
+
+def user_client(access_token: str, project_context: ProjectContext) -> Client:
+    return Client(
+        api_url=str(settings.ENTITYCORE_URI),
+        project_context=project_context,
+        token_manager=access_token,
+    )
 
 
 def get_entity_or_not_found[T: Identifiable](
-    entity_id: UUID,
-    entity_type: type[T],
-    *,
-    auth: Auth,
-    project_context: ProjectContext,
-    message: str,
+    client: Client, entity_id: UUID, entity_type: type[T], *, message: str
 ) -> T:
-    """The entity, as the user may see it. One the user can't see is not found."""
-    client = Client(
-        api_url=str(settings.ENTITYCORE_URI),
-        project_context=project_context,
-        token_manager=auth.access_token,
-    )
+    """The entity, as the client's user may see it. One the user can't see is not found."""
     try:
         return client.get_entity(entity_id, entity_type=entity_type)
     except EntitySDKError as ex:
