@@ -32,6 +32,7 @@ class MorphologyPackTestCase(FakeRedisTestCase):
         for target in (
             "app.infrastructure.storage.epoch.redis_client",
             "app.infrastructure.storage.morphology_pack.redis_client",
+            "app.infrastructure.rq.redis_client",
         ):
             patcher = patch(target, self.redis)
             patcher.start()
@@ -70,4 +71,4 @@ class MorphologyPackTestCase(FakeRedisTestCase):
         queue.remove(job)
         job.set_status(JobStatus.STARTED)
         self.redis.zadd(queue.started_job_registry.key, {f"{job.id}:execution": time.time() - 1})
-        self.redis.delete(f"morphology-pack:cleanup:{queue.name}")
+        self.redis.delete(f"rq:cleanup:{queue.name}")

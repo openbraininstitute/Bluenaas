@@ -66,7 +66,7 @@ class TestLfpSummaryRoutes(LfpSummaryTestCase):
         sha256 = hashlib.sha256(CONTENT).hexdigest()
         (directory / SUMMARY_FILE_NAME).write_bytes(CONTENT)
         (directory / INDEX_FILE_NAME).write_text(json.dumps(INDEX))
-        write_summary_info(directory, SummaryInfo(size=len(CONTENT), sha256=sha256, queue="low"))
+        write_summary_info(directory, SummaryInfo(size=len(CONTENT), sha256=sha256))
         (directory / READY_MARKER_FILE_NAME).touch()
         return sha256
 
@@ -77,7 +77,7 @@ class TestLfpSummaryRoutes(LfpSummaryTestCase):
         self.assertEqual(response.json()["state"], "building")
         self.assertEqual(
             self.queued_ids(JobQueue.LOW),
-            [build_job_id(self.epoch(), self.report.id, JobQueue.LOW)],
+            [build_job_id(self.epoch(), self.report.id)],
         )
         self.get_report.assert_called_once()
         self.assertEqual(self.get_report.call_args.args, (self.result_id, self.report.id))

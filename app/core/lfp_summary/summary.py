@@ -132,7 +132,7 @@ def sum_report(read: ReadRange, size: int, *, workers: int = READS_IN_FLIGHT) ->
     try:
         f = h5py.File(RangeFile(read, size), "r")
     except OSError as ex:
-        raise NotSummarisableError(NoSummaryReason.NOT_LFP_REPORT, f"Not an HDF5 file: {ex}")
+        raise _not_a_report(f"Not an HDF5 file: {ex}")
 
     with f:
         report = _group(f, "report")
@@ -190,11 +190,12 @@ def min_max_levels(level0: np.ndarray) -> list[tuple[int, np.ndarray]]:
 def contact_stats(values: np.ndarray, start: float, dt: float) -> np.ndarray:
     """Per group and contact: STATS, from steps x groups x contacts."""
     trough = start + values.argmin(axis=0) * dt
+    low, high = values.min(axis=0), values.max(axis=0)
     return np.stack(
         [
-            values.min(axis=0),
-            values.max(axis=0),
-            np.ptp(values, axis=0),
+            low,
+            high,
+            high - low,
             np.sqrt((values**2).mean(axis=0)),
             values.mean(axis=0),
             trough,
@@ -256,7 +257,7 @@ def write_summary(report: SummedReport, h5_path: Path, *, version: int, source: 
                     f"lfp/{axis}/level{k}", data=level
                 )
             written[f"/lfp/{axis}/stats"] = h5.create_dataset(
-                f"lfp/{axis}/stats", data=np.ascontiguousarray(contact_stats(values, start, dt))
+                f"lfp/{axis}/stats", data=contact_stats(values, start, dt)
             )
             psd, freqs = welch(values, dt)
             written[f"/lfp/{axis}/psd"] = h5.create_dataset(f"lfp/{axis}/psd", data=psd)

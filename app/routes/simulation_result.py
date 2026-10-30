@@ -5,9 +5,9 @@ from fastapi.responses import FileResponse
 
 from app.domains.simulation_result.lfp_summary import LfpSummaryStatus
 from app.routes.dependencies import ProjectContextDep, UserAuthDep
+from app.infrastructure.storage.lfp_summary import INDEX_FILE_NAME, SUMMARY_FILE_NAME
 from app.services.api.simulation_result.lfp_summary import (
-    get_lfp_summary,
-    get_lfp_summary_index,
+    get_lfp_summary_file,
     get_lfp_summary_status,
 )
 
@@ -44,9 +44,11 @@ async def download_lfp_summary(
     auth: UserAuthDep,
     request: Request,
 ) -> FileResponse:
-    return await get_lfp_summary(
+    return await get_lfp_summary_file(
         result_id,
         asset,
+        SUMMARY_FILE_NAME,
+        "application/x-hdf5",
         if_match=request.headers.get("if-match"),
         auth=auth,
         project_context=project_context,
@@ -66,9 +68,11 @@ async def download_lfp_summary_index(
     auth: UserAuthDep,
     request: Request,
 ) -> FileResponse:
-    return await get_lfp_summary_index(
+    return await get_lfp_summary_file(
         result_id,
         asset,
+        INDEX_FILE_NAME,
+        "application/json",
         if_match=request.headers.get("if-match"),
         auth=auth,
         project_context=project_context,

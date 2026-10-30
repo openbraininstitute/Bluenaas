@@ -1,16 +1,12 @@
 from http import HTTPStatus
 from uuid import UUID
 
-from entitysdk import Client
 from entitysdk.common import ProjectContext
-from entitysdk.exception import EntitySDKError
 from entitysdk.models import Circuit
 from entitysdk.types import CircuitScale
 from fastapi.responses import FileResponse
-from httpx import HTTPStatusError
 from rq.job import JobStatus
 
-from app.config.settings import settings
 from app.core.exceptions import AppError
 from app.domains.circuit.morphology_pack import (
     MorphologyPackState,
@@ -18,7 +14,7 @@ from app.domains.circuit.morphology_pack import (
     NoPackReason,
 )
 from app.infrastructure.kc.auth import Auth
-from app.infrastructure.rq import JobQueue, get_queue
+from app.infrastructure.rq import JobQueue, clean_up_abandoned_jobs, get_queue
 from app.infrastructure.storage.epoch import CacheKind, ensure_epoch, get_epoch
 from app.infrastructure.storage.morphology_pack import (
     BUILD_QUEUES,
@@ -27,12 +23,12 @@ from app.infrastructure.storage.morphology_pack import (
     PACK_FILE_NAME,
     SMALL_BUILD_MAX_NEURONS,
     build_job_id,
-    clean_up_abandoned_builds,
     enqueue_build,
     pack_dir,
     read_no_pack_reason,
     read_pack_info,
 )
+from app.services.api.entitycore import get_entity_or_not_found
 from app.utils.asyncio import run_async
 
 
@@ -40,26 +36,9 @@ def _get_circuit(circuit_id: UUID, *, auth: Auth, project_context: ProjectContex
     """The circuit, as the user may see it. The cache is shared by everyone, so it is only read
     for a circuit the user has access to.
     """
-    client = Client(
-        api_url=str(settings.ENTITYCORE_URI),
-        project_context=project_context,
-        token_manager=auth.access_token,
+    return get_entity_or_not_found(
+        circuit_id, Circuit, auth=auth, project_context=project_context, message="Circuit not found"
     )
-    try:
-        return client.get_entity(circuit_id, entity_type=Circuit)
-    except EntitySDKError as ex:
-        cause = ex.__cause__
-        if isinstance(cause, HTTPStatusError) and cause.response.status_code in (
-            HTTPStatus.UNAUTHORIZED,
-            HTTPStatus.FORBIDDEN,
-            HTTPStatus.NOT_FOUND,
-        ):
-            raise AppError(
-                message="Circuit not found",
-                error_code=None,
-                http_status_code=HTTPStatus.NOT_FOUND,
-            ) from ex
-        raise
 
 
 def _status_in_cache(epoch: str, circuit_id: UUID) -> MorphologyPackStatus | None:
@@ -90,7 +69,7 @@ def _get_or_build_pack(
     if status := _status_in_cache(epoch, circuit.id):
         return status
 
-    clean_up_abandoned_builds()
+    clean_up_abandoned_jobs(BUILD_QUEUES)
 
     failed = False
     for queue in BUILD_QUEUES:

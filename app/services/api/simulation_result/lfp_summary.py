@@ -2,9 +2,7 @@ from http import HTTPStatus
 from uuid import UUID
 
 import httpx
-from entitysdk import Client
 from entitysdk.common import ProjectContext
-from entitysdk.exception import EntitySDKError
 from entitysdk.models import SimulationResult
 from entitysdk.models.asset import Asset
 from entitysdk.route import get_assets_endpoint
@@ -20,14 +18,12 @@ from app.domains.simulation_result.lfp_summary import (
     NoSummaryReason,
 )
 from app.infrastructure.kc.auth import Auth
-from app.infrastructure.rq import get_queue
+from app.infrastructure.rq import clean_up_abandoned_jobs, get_queue
 from app.infrastructure.storage.epoch import CacheKind, ensure_epoch, get_epoch
 from app.infrastructure.storage.lfp_summary import (
     BUILD_QUEUES,
-    INDEX_FILE_NAME,
     LIVE_STATUSES,
     MAX_REPORT_BYTES,
-    SUMMARY_FILE_NAME,
     build_job_id,
     build_queue,
     enqueue_build,
@@ -35,7 +31,7 @@ from app.infrastructure.storage.lfp_summary import (
     read_summary_info,
     summary_dir,
 )
-from app.infrastructure.storage.morphology_pack import clean_up_abandoned_builds
+from app.services.api.entitycore import get_entity_or_not_found
 from app.utils.asyncio import run_async
 
 # launch-system labels every report `voltage_report`, LFP included
@@ -52,22 +48,13 @@ def _get_report(
     """The result's report asset, as the user may see it. The cache is shared by everyone, so it is
     only read for a report the user has access to.
     """
-    client = Client(
-        api_url=str(settings.ENTITYCORE_URI),
+    result = get_entity_or_not_found(
+        result_id,
+        SimulationResult,
+        auth=auth,
         project_context=project_context,
-        token_manager=auth.access_token,
+        message="Simulation result not found",
     )
-    try:
-        result = client.get_entity(result_id, entity_type=SimulationResult)
-    except EntitySDKError as ex:
-        cause = ex.__cause__
-        if isinstance(cause, httpx.HTTPStatusError) and cause.response.status_code in (
-            HTTPStatus.UNAUTHORIZED,
-            HTTPStatus.FORBIDDEN,
-            HTTPStatus.NOT_FOUND,
-        ):
-            raise _not_found("Simulation result not found") from ex
-        raise
     asset = next((a for a in result.assets or [] if a.id == asset_id), None)
     if asset is None:
         raise _not_found("The simulation result has no such asset")
@@ -125,30 +112,24 @@ def _get_or_build_summary(
     if status := _status_in_cache(epoch, report.id):
         return status
 
-    clean_up_abandoned_builds()
+    clean_up_abandoned_jobs(BUILD_QUEUES)
 
-    failed = False
-    for queue in BUILD_QUEUES:
-        job = get_queue(queue).fetch_job(build_job_id(epoch, report.id, queue))
-        if job is None:
-            continue
-        status = job.get_status(refresh=False)
-        if status in LIVE_STATUSES:
-            return LfpSummaryStatus(
-                state=LfpSummaryState.BUILDING, queue_position=job.get_position()
-            )
-        failed = failed or status == JobStatus.FAILED
+    queue = build_queue(report.size)
+    job = get_queue(queue).fetch_job(build_job_id(epoch, report.id))
+    job_status = job.get_status(refresh=False) if job else None
+    if job and job_status in LIVE_STATUSES:
+        return LfpSummaryStatus(state=LfpSummaryState.BUILDING, queue_position=job.get_position())
 
     # A build may have finished since the cache was read
     if status := _status_in_cache(epoch, report.id):
         return status
 
     # A failed job is kept for a day, and only then is the report summarised again
-    if failed:
+    if job_status == JobStatus.FAILED:
         return LfpSummaryStatus(state=LfpSummaryState.FAILED)
 
     enqueue_build(
-        build_queue(report.size),
+        queue,
         epoch=epoch,
         asset_id=report.id,
         url=_download_url(
@@ -198,35 +179,22 @@ def _summary_file_response(
     return FileResponse(directory / name, media_type=media_type, headers={"ETag": etag})
 
 
-async def get_lfp_summary(
+async def get_lfp_summary_file(
     result_id: UUID,
     asset_id: UUID,
+    name: str,
+    media_type: str,
     *,
     if_match: str | None,
     auth: Auth,
     project_context: ProjectContext,
 ) -> FileResponse:
-    """The report's summary h5, if it is built. Never queues a build."""
-    await run_async(
-        lambda: _get_report(result_id, asset_id, auth=auth, project_context=project_context)
-    )
-    return await run_async(
-        lambda: _summary_file_response(asset_id, SUMMARY_FILE_NAME, "application/x-hdf5", if_match)
-    )
+    """A file of the report's summary, the h5 or its index, if it is built. Never queues a
+    build.
+    """
 
+    def response() -> FileResponse:
+        _get_report(result_id, asset_id, auth=auth, project_context=project_context)
+        return _summary_file_response(asset_id, name, media_type, if_match)
 
-async def get_lfp_summary_index(
-    result_id: UUID,
-    asset_id: UUID,
-    *,
-    if_match: str | None,
-    auth: Auth,
-    project_context: ProjectContext,
-) -> FileResponse:
-    """The index of the report's summary, if it is built. Never queues a build."""
-    await run_async(
-        lambda: _get_report(result_id, asset_id, auth=auth, project_context=project_context)
-    )
-    return await run_async(
-        lambda: _summary_file_response(asset_id, INDEX_FILE_NAME, "application/json", if_match)
-    )
+    return await run_async(response)

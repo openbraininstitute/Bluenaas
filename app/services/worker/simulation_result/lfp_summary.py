@@ -16,7 +16,7 @@ from app.core.lfp_summary.summary import (
     verify,
     write_summary,
 )
-from app.infrastructure.rq import JobQueue
+from app.infrastructure.storage import write_atomically
 from app.infrastructure.storage.epoch import CacheKind, current_epoch
 from app.infrastructure.storage.lfp_summary import (
     FORMAT_VERSION,
@@ -25,7 +25,6 @@ from app.infrastructure.storage.lfp_summary import (
     SUMMARY_FILE_NAME,
     SummaryInfo,
     summary_dir,
-    write_atomically,
     write_no_summary,
     write_summary_info,
 )
@@ -37,17 +36,7 @@ def _is_settled(directory: Path) -> bool:
     ).exists()
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as f:
-        while chunk := f.read(1 << 20):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _build(
-    asset_id: UUID, directory: Path, *, queue: JobQueue, job_id: str, url: str, size: int
-) -> None:
+def _build(asset_id: UUID, directory: Path, *, job_id: str, url: str, size: int) -> None:
     """Build the summary, or leave the reason there is none."""
     with HttpRanges(url, connections=READS_IN_FLIGHT) as ranges:
         try:
@@ -65,18 +54,17 @@ def _build(
         source={"asset_id": str(asset_id), "size": size},
     )
     verify(tmp, index)
-    sha256 = _sha256(tmp)
+    with tmp.open("rb") as f:
+        sha256 = hashlib.file_digest(f, "sha256").hexdigest()
     summary_size = tmp.stat().st_size
     os.replace(tmp, directory / SUMMARY_FILE_NAME)
     write_atomically(directory / INDEX_FILE_NAME, json.dumps(index))
-    write_summary_info(directory, SummaryInfo(size=summary_size, sha256=sha256, queue=queue.value))
+    write_summary_info(directory, SummaryInfo(size=summary_size, sha256=sha256))
     (directory / READY_MARKER_FILE_NAME).touch()
     logger.info(f"LFP summary of {asset_id} built, {summary_size} bytes")
 
 
-def build_lfp_summary(
-    asset_id: UUID, *, epoch: str, queue: JobQueue, job_id: str, url: str, size: int
-) -> None:
+def build_lfp_summary(asset_id: UUID, *, epoch: str, job_id: str, url: str, size: int) -> None:
     """Build the report's summary into the cache, unless it is there or another build holds it."""
     if current_epoch(CacheKind.LFP_SUMMARY) != epoch:
         # The next request for the summary queues it in the new epoch
@@ -98,6 +86,6 @@ def build_lfp_summary(
 
     try:
         if not _is_settled(directory):
-            _build(asset_id, directory, queue=queue, job_id=job_id, url=url, size=size)
+            _build(asset_id, directory, job_id=job_id, url=url, size=size)
     finally:
         lock.release()

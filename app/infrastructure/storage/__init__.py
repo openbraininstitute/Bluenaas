@@ -23,6 +23,12 @@ def create_file(path: Path, content: bytes) -> None:
         f.write(content)
 
 
+def write_atomically(path: Path, content: str) -> None:
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(content)
+    os.replace(tmp, path)
+
+
 def copy_file_content(source_file: Path, target_file: Path):
     with open(source_file, "br") as src, open(target_file, "bw") as dst:
         dst.write(src.read())

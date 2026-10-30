@@ -48,12 +48,12 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
             ).result()
 
     def job_of(self, report, queue: JobQueue):
-        return get_queue(queue).fetch_job(build_job_id(self.epoch(), report.id, queue))
+        return get_queue(queue).fetch_job(build_job_id(self.epoch(), report.id))
 
     def test_ready(self):
         report = report_of(100)
         directory = self.summary_dir_of(report.id)
-        write_summary_info(directory, SummaryInfo(size=12, sha256="abc", queue="low"))
+        write_summary_info(directory, SummaryInfo(size=12, sha256="abc"))
         (directory / READY_MARKER_FILE_NAME).touch()
 
         status = self.status_of(report)
@@ -103,7 +103,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
                 status = self.status_of(report)
 
                 self.assertEqual(status.state, LfpSummaryState.BUILDING)
-                self.assertIn(build_job_id(self.epoch(), report.id, queue), self.queued_ids(queue))
+                self.assertIn(build_job_id(self.epoch(), report.id), self.queued_ids(queue))
 
     def test_the_job_queued(self):
         report = report_of(100)
@@ -113,7 +113,6 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         job = self.job_of(report, JobQueue.LOW)
         self.assertEqual(job.kwargs["asset_id"], report.id)
         self.assertEqual(job.kwargs["epoch"], self.epoch())
-        self.assertEqual(job.kwargs["queue"], "low")
         self.assertEqual(job.kwargs["url"], URL)
         self.assertEqual(job.kwargs["size"], 100)
         self.assertEqual(job.retries_left, 1)
@@ -146,7 +145,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
     def test_a_new_format_version_is_built_again(self):
         report = report_of(100)
         directory = self.summary_dir_of(report.id)
-        write_summary_info(directory, SummaryInfo(size=12, sha256="abc", queue="low"))
+        write_summary_info(directory, SummaryInfo(size=12, sha256="abc"))
         (directory / READY_MARKER_FILE_NAME).touch()
 
         with patch.object(storage, "FORMAT_VERSION", storage.FORMAT_VERSION + 1):
@@ -182,7 +181,7 @@ class TestSummaryFile(LfpSummaryTestCase):
     def build(self, asset_id) -> str:
         directory = self.summary_dir_of(asset_id)
         (directory / SUMMARY_FILE_NAME).write_bytes(b"summary")
-        write_summary_info(directory, SummaryInfo(size=7, sha256="abc", queue="low"))
+        write_summary_info(directory, SummaryInfo(size=7, sha256="abc"))
         (directory / READY_MARKER_FILE_NAME).touch()
         return '"abc"'
 

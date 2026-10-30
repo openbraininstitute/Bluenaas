@@ -12,7 +12,6 @@ from filelock import FileLock
 
 from app.constants import DIR_LOCK_FILE_NAME, READY_MARKER_FILE_NAME
 from app.core.lfp_summary.summary import verify
-from app.infrastructure.rq import JobQueue
 from app.infrastructure.storage.epoch import CacheKind, rotate_epoch
 from app.infrastructure.storage.lfp_summary import (
     INDEX_FILE_NAME,
@@ -55,8 +54,7 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         service.build_lfp_summary(
             self.asset_id,
             epoch=epoch,
-            queue=JobQueue.LOW,
-            job_id=build_job_id(epoch, self.asset_id, JobQueue.LOW),
+            job_id=build_job_id(epoch, self.asset_id),
             url=URL,
             size=self.report.stat().st_size,
         )
@@ -76,7 +74,6 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
             {
                 "size": len(summary),
                 "sha256": hashlib.sha256(summary).hexdigest(),
-                "queue": "low",
             },
         )
         index = json.loads((directory / INDEX_FILE_NAME).read_text())

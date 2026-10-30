@@ -30,7 +30,7 @@ class LfpSummaryTestCase(FakeRedisTestCase):
         for target in (
             "app.infrastructure.storage.epoch.redis_client",
             "app.infrastructure.storage.lfp_summary.redis_client",
-            "app.infrastructure.storage.morphology_pack.redis_client",
+            "app.infrastructure.rq.redis_client",
         ):
             patcher = patch(target, self.redis)
             patcher.start()

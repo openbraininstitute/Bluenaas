@@ -27,7 +27,7 @@ from app.context import cid_var
 from app.domains.simulation_result.lfp_summary import NoSummaryReason
 from app.infrastructure.redis import redis_client
 from app.infrastructure.rq import JobQueue, get_queue
-from app.infrastructure.storage import uuid_subpath
+from app.infrastructure.storage import uuid_subpath, write_atomically
 from app.infrastructure.storage.epoch import CacheKind, epoch_dir_name
 from app.job import JobFn
 
@@ -60,8 +60,6 @@ LIVE_STATUSES = frozenset(
 class SummaryInfo:
     size: int
     sha256: str
-    # The queue of the build that made it
-    queue: str
 
 
 def summary_dir(epoch: str, asset_id: UUID) -> Path:
@@ -96,12 +94,6 @@ def read_no_summary_reason(directory: Path) -> NoSummaryReason | None:
         return NoSummaryReason.UNREADABLE
 
 
-def write_atomically(path: Path, content: str) -> None:
-    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-    tmp.write_text(content)
-    os.replace(tmp, path)
-
-
 def write_summary_info(directory: Path, info: SummaryInfo) -> None:
     write_atomically(directory / SUMMARY_INFO_FILE_NAME, json.dumps(asdict(info)))
 
@@ -112,8 +104,8 @@ def write_no_summary(directory: Path, reason: NoSummaryReason, details: str) -> 
     )
 
 
-def build_job_id(epoch: str, asset_id: UUID, queue: JobQueue) -> str:
-    return f"lfp-summary-{epoch}-v{FORMAT_VERSION}-{asset_id}-{queue.value}"
+def build_job_id(epoch: str, asset_id: UUID) -> str:
+    return f"lfp-summary-{epoch}-v{FORMAT_VERSION}-{asset_id}"
 
 
 def build_queue(report_bytes: int) -> JobQueue:
@@ -151,7 +143,7 @@ def enqueue_build(
     already.
     """
     rq_queue = get_queue(queue)
-    job_id = build_job_id(epoch, asset_id, queue)
+    job_id = build_job_id(epoch, asset_id)
 
     # Else a request could delete the job another one has just queued in place of a finished one
     guard = f"lfp-summary:enqueue:{job_id}"
@@ -173,7 +165,6 @@ def enqueue_build(
             kwargs={
                 "asset_id": asset_id,
                 "epoch": epoch,
-                "queue": queue.value,
                 "url": url,
                 "size": size,
             },

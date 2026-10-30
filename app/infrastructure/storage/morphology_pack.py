@@ -19,8 +19,6 @@ from loguru import logger
 from rq import Callback, Retry
 from rq.exceptions import DuplicateJobError
 from rq.job import Job, JobStatus
-from rq.registry import StartedJobRegistry
-from rq.timeouts import TimerDeathPenalty
 
 from app.config.settings import settings
 from app.constants import DIR_LOCK_FILE_NAME, MAX_JOB_TIMEOUT, READY_MARKER_FILE_NAME
@@ -28,7 +26,7 @@ from app.context import cid_var
 from app.domains.circuit.morphology_pack import NoPackReason
 from app.infrastructure.redis import redis_client
 from app.infrastructure.rq import JobQueue, get_queue
-from app.infrastructure.storage import uuid_subpath
+from app.infrastructure.storage import uuid_subpath, write_atomically
 from app.infrastructure.storage.epoch import CacheKind, epoch_dir_name
 from app.job import JobFn
 
@@ -45,9 +43,6 @@ BUILD_QUEUES = (JobQueue.LOW, JobQueue.CPU4_MEM16)
 
 # A build that failed after its retry is not tried again for this long
 FAILED_BUILD_TTL = 24 * 60 * 60
-
-# The registries of started jobs are cleaned up at most this often
-CLEANUP_INTERVAL_SECONDS = 30
 
 # How long a request that queues a build keeps the others from queueing the same one, at most
 ENQUEUE_GUARD_SECONDS = 10
@@ -96,18 +91,12 @@ def read_no_pack_reason(directory: Path) -> NoPackReason | None:
         return NoPackReason.NO_MORPHOLOGIES
 
 
-def _write_atomically(path: Path, content: str) -> None:
-    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-    tmp.write_text(content)
-    os.replace(tmp, path)
-
-
 def write_pack_info(directory: Path, info: PackInfo) -> None:
-    _write_atomically(directory / PACK_INFO_FILE_NAME, json.dumps(asdict(info)))
+    write_atomically(directory / PACK_INFO_FILE_NAME, json.dumps(asdict(info)))
 
 
 def write_no_pack(directory: Path, reason: NoPackReason, details: str) -> None:
-    _write_atomically(
+    write_atomically(
         directory / NO_PACK_FILE_NAME, json.dumps({"reason": reason.value, "details": details})
     )
 
@@ -184,25 +173,3 @@ def enqueue_build(
         return None
     finally:
         redis_client.delete(guard)
-
-
-def clean_up_abandoned_builds() -> None:
-    """Fail or retry the builds whose worker died, as RQ does for a queue it has workers on.
-
-    A queue served by batch workers may have none left to do it. At most one cleanup of a queue
-    every `CLEANUP_INTERVAL_SECONDS`: two at once could both run a dead build's failure callback
-    and both retry it.
-    """
-    for queue in BUILD_QUEUES:
-        if not redis_client.set(
-            f"morphology-pack:cleanup:{queue.value}", 1, nx=True, ex=CLEANUP_INTERVAL_SECONDS
-        ):
-            continue
-        # The default death penalty sets a signal handler, which only the main thread may do
-        registry = StartedJobRegistry(queue=get_queue(queue), death_penalty_class=TimerDeathPenalty)
-        try:
-            registry.cleanup()
-        except Exception:
-            # The failure callback of another kind of job on the queue raised. Its worker's own
-            # maintenance cleans the registry up then.
-            logger.exception(f"Could not clean up the started jobs of {queue.value}")

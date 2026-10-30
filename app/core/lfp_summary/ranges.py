@@ -31,7 +31,6 @@ class HttpRanges:
         self.client = httpx.Client(
             timeout=httpx.Timeout(60.0, connect=10.0),
             limits=httpx.Limits(max_connections=connections),
-            transport=httpx.HTTPTransport(retries=ATTEMPTS),
         )
 
     def __enter__(self) -> "HttpRanges":

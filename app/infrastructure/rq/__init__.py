@@ -4,6 +4,8 @@ from rq import Queue
 from rq import get_current_job
 from loguru import logger
 from rq.job import Job, JobStatus
+from rq.registry import StartedJobRegistry
+from rq.timeouts import TimerDeathPenalty
 
 from app.infrastructure.redis import redis_client
 from app.utils.streaming import compose_key
@@ -15,6 +17,10 @@ class JobQueue(StrEnum):
     MEDIUM = "medium"  # single cpu low-priority tasks
     LOW = "low"  # multi cpu tasks, e.g. circuit simulation
     CPU4_MEM16 = "4cpu-16gb"  # heavy jobs, a task of 4 CPUs and 16 GB each
+
+
+# The registries of started jobs are cleaned up at most this often
+CLEANUP_INTERVAL_SECONDS = 30
 
 
 _queues: Dict[JobQueue, Queue] = {
@@ -110,3 +116,25 @@ def get_unfinished_job_ids(job_ids: Iterable[str]) -> set[str]:
     A job that does not exist any more (its record expired) has finished.
     """
     return {job.id for job in _unfinished_jobs(job_ids)}
+
+
+def clean_up_abandoned_jobs(queues: Iterable[JobQueue]) -> None:
+    """Fail or retry the jobs whose worker died, as RQ does for a queue it has workers on.
+
+    A queue served by batch workers may have none left to do it. At most one cleanup of a queue
+    every `CLEANUP_INTERVAL_SECONDS`: two at once could both run a dead job's failure callback
+    and both retry it.
+    """
+    for queue in queues:
+        if not redis_client.set(
+            f"rq:cleanup:{queue.value}", 1, nx=True, ex=CLEANUP_INTERVAL_SECONDS
+        ):
+            continue
+        # The default death penalty sets a signal handler, which only the main thread may do
+        registry = StartedJobRegistry(queue=get_queue(queue), death_penalty_class=TimerDeathPenalty)
+        try:
+            registry.cleanup()
+        except Exception:
+            # The failure callback of another kind of job on the queue raised. Its worker's own
+            # maintenance cleans the registry up then.
+            logger.exception(f"Could not clean up the started jobs of {queue.value}")
