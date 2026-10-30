@@ -33,6 +33,7 @@ class CacheKind(StrEnum):
     TASK_CONFIG = "task-config"
     COMPILATION = "compilation"
     MORPHOLOGY_PACK = "morphology-pack"
+    LFP_SUMMARY = "lfp-summary"
 
 
 # Not to be mistaken for a setting: the settings are read from environment variables named like

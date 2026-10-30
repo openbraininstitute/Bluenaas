@@ -27,6 +27,9 @@ class JobFn(StrEnum):
     )
     RUN_MORPHOLOGY_PACK = "app.job.handlers.circuit.morphology_pack.build"
 
+    # Simulation result
+    RUN_LFP_SUMMARY = "app.job.handlers.simulation_result.lfp_summary.build"
+
     # obi-one tasks of single TaskConfigs
     RUN_TASK_CONFIG = "app.job.handlers.task_config.run"
 

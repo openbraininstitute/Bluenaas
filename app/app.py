@@ -18,6 +18,7 @@ from app.middleware.request_id import add_request_id_middleware
 from app.routes.admin import router as admin_router
 from app.routes.circuit import router as circuit_router
 from app.routes.ion_channel import router as ion_channel_router
+from app.routes.simulation_result import router as simulation_result_router
 from app.routes.single_neuron import router as single_neuron_router
 
 setup_logging()
@@ -54,6 +55,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Accept-Ranges", "Content-Length", "Content-Range", "ETag"],
 )
 
 app.middleware("http")(add_request_id_middleware)
@@ -97,6 +99,7 @@ def health() -> str:
 
 base_router.include_router(admin_router)
 base_router.include_router(circuit_router)
+base_router.include_router(simulation_result_router)
 base_router.include_router(single_neuron_router)
 base_router.include_router(ion_channel_router)
 
