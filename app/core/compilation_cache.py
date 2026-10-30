@@ -123,10 +123,8 @@ def compile_with_cache(model_path: Path, mod_dir_name: str) -> None:
 
         logger.info(f"Compilation cache miss for hash {cache_key[:12]}, compiling")
 
-        libnrnmech = _bcl_compile_mods([mod_dir] if mod_dir.is_dir() else [], cache_path)
+        _bcl_compile_mods([mod_dir] if mod_dir.is_dir() else [], cache_path)
 
         cache_ready.touch()
 
-    # libnrnmech is <arch>/lib/nrnmech.<so|dylib>; its grandparent is the
-    # architecture directory nrnivmodl produced for this machine.
-    shutil.copytree(libnrnmech.parent.parent, compiled_path)
+    shutil.copytree(compiled_mechanisms_path(cache_path), compiled_path)

@@ -157,11 +157,12 @@ class TestCompileWithCache(unittest.TestCase):
 
     @staticmethod
     def _fake_compile(input_dirs, output_dir):
-        lib = output_dir / ARCH / "lib"
-        lib.mkdir(parents=True)
-        nrnmech = lib / "nrnmech.so"
-        nrnmech.write_text("compiled")
-        return nrnmech
+        # nrnivmodl puts libnrnmech.<ext> directly in the architecture dir.
+        arch_dir = output_dir / ARCH
+        arch_dir.mkdir(parents=True)
+        libnrnmech = arch_dir / "libnrnmech.so"
+        libnrnmech.write_text("compiled")
+        return libnrnmech
 
     def test_skips_if_already_compiled(self):
         (self.model_path / ARCH).mkdir()
@@ -177,7 +178,10 @@ class TestCompileWithCache(unittest.TestCase):
         input_dirs, output_dir = self.bcl_compile.call_args.args
         self.assertEqual(input_dirs, [self.mod_dir])
         self.assertTrue(output_dir.is_relative_to(self.storage_path))
-        self.assertTrue((self.model_path / ARCH / "lib" / "nrnmech.so").exists())
+        self.assertTrue((self.model_path / ARCH / "libnrnmech.so").exists())
+        # The cache directory's internals (.ready, dir.lock, mod_files/) must
+        # not end up inside the model's mechanisms directory.
+        self.assertEqual([p.name for p in (self.model_path / ARCH).iterdir()], ["libnrnmech.so"])
         self.assertTrue((self.storage_path / "compilation").exists())
 
     def test_cache_hit_skips_compilation(self):
@@ -189,7 +193,7 @@ class TestCompileWithCache(unittest.TestCase):
 
         compile_with_cache(self.model_path, "mechanisms")
         self.assertEqual(self.bcl_compile.call_count, 1)
-        self.assertTrue((self.model_path / ARCH / "lib" / "nrnmech.so").exists())
+        self.assertTrue((self.model_path / ARCH / "libnrnmech.so").exists())
 
     def test_missing_mod_dir_compiles_bundled_only(self):
         """A passive model gets the bundled mechanisms compiled anyway."""
@@ -201,7 +205,7 @@ class TestCompileWithCache(unittest.TestCase):
         self.bcl_compile.assert_called_once()
         input_dirs, _ = self.bcl_compile.call_args.args
         self.assertEqual(input_dirs, [])
-        self.assertTrue((model_path / ARCH / "lib" / "nrnmech.so").exists())
+        self.assertTrue((model_path / ARCH / "libnrnmech.so").exists())
 
     def test_empty_mod_dir_compiles_bundled(self):
         model_path = self.tmpdir / "empty_mechanisms"
@@ -212,7 +216,7 @@ class TestCompileWithCache(unittest.TestCase):
         self.bcl_compile.assert_called_once()
         input_dirs, _ = self.bcl_compile.call_args.args
         self.assertEqual(input_dirs, [model_path / "mechanisms"])
-        self.assertTrue((model_path / ARCH / "lib" / "nrnmech.so").exists())
+        self.assertTrue((model_path / ARCH / "libnrnmech.so").exists())
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ from loguru import logger
 
 from app.constants import (
     DIR_LOCK_FILE_NAME,
+    READY_MARKER_FILE_NAME,
     SINGLE_NEURON_HOC_DIR,
     SINGLE_NEURON_MOD_DIR,
     SINGLE_NEURON_MORPHOLOGY_DIR,
@@ -28,10 +29,7 @@ from app.infrastructure.storage import (
     copy_file_content,
     find_morphology_file,
     get_model_candidate_location,
-    clear_stale,
     get_single_neuron_location,
-    is_ready,
-    mark_ready,
     rm_dir,
 )
 
@@ -71,22 +69,23 @@ class SingleNeuronBase(ABC):
         )
 
     def _init_model_files(self):
-        if is_ready(self.path):
+        ready_marker = self.path / READY_MARKER_FILE_NAME
+
+        if ready_marker.exists():
             logger.debug("Found existing single neuron model in the storage")
             return
 
         lock = FileLock(self.path / DIR_LOCK_FILE_NAME)
 
         with lock.acquire(timeout=2 * 60):
-            if is_ready(self.path):
+            if ready_marker.exists():
                 logger.debug("Found existing single neuron model in the storage")
                 return
 
-            clear_stale(self.path)
             self._fetch_assets()
             self._add_syn_mod_files()
             compile_with_cache(self.path, SINGLE_NEURON_MOD_DIR)
-            mark_ready(self.path)
+            ready_marker.touch()
 
     def _init_bcl_cell(self):
         chdir(self.path)
@@ -120,11 +119,13 @@ class SingleNeuronBase(ABC):
         try:
             self._init_model_files()
         except Exception as ex:
-            # A failed nrnivmodl keeps the compiler transcript on .output.
+            # CalledProcessError keeps the compiler transcript on .output;
+            # ModCompilationError embeds it after the first line of its message.
             details = getattr(ex, "output", None)
-            raise SingleNeuronAssetError(
-                f"{type(ex).__name__}: {ex}", details=details or None
-            ) from ex
+            message = f"{type(ex).__name__}: {ex}"
+            if details is None and "\n" in message:
+                message, _, details = message.partition("\n")
+            raise SingleNeuronAssetError(message, details=details or None) from ex
 
     def init(self):
         """Fetch model assets, compile MOD files and initialize BlueCelluLab Cell"""
@@ -146,7 +147,7 @@ class SingleNeuronBase(ABC):
 
     def is_fetched(self) -> bool:
         """Check if the model files are in the storage"""
-        return is_ready(self.path)
+        return (self.path / READY_MARKER_FILE_NAME).exists()
 
 
 class SingleNeuron(SingleNeuronBase):

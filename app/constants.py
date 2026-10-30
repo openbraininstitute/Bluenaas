@@ -1,4 +1,5 @@
 import platform
+import sys
 
 CID_LENGTH = 8
 NULL_CID = "-" * CID_LENGTH
@@ -18,13 +19,10 @@ SINGLE_NEURON_MORPHOLOGY_DIR = "morphology"
 
 # nrnivmodl compiles into a directory named after the machine architecture.
 MECHANISMS_DIR_NAME = platform.machine()
-LIBNRNMECH_PATH = f"{MECHANISMS_DIR_NAME}/lib/nrnmech.so"
+_LIBNRNMECH_EXT = ".dylib" if sys.platform == "darwin" else ".so"
+LIBNRNMECH_PATH = f"{MECHANISMS_DIR_NAME}/libnrnmech{_LIBNRNMECH_EXT}"
 
 READY_MARKER_FILE_NAME = ".ready"
-# Contents written into READY_MARKER_FILE_NAME. Bump when what an initialized
-# directory contains changes, so entries initialized by an older version are
-# re-fetched and re-compiled instead of keeping the old build.
-READY_MARKER_VERSION = "2"
 DIR_LOCK_FILE_NAME = ".dir-lock"
 
 # Retired cache epochs are first moved here (inside the storage root, so that the move stays on
