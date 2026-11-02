@@ -122,8 +122,7 @@ def run_bluecellulab(
         h.nrn_load_dll(libnrnmech_path)
     else:
         logger.info(
-            f"No compiled mechanisms at {libnrnmech_path}; "
-            "using NEURON built-in mechanisms only"
+            f"No compiled mechanisms at {libnrnmech_path}; using NEURON built-in mechanisms only"
         )
     h.nrnmpi_init()
     pc = h.ParallelContext()

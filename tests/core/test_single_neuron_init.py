@@ -93,15 +93,17 @@ class TestSingleNeuronInit(unittest.TestCase):
         self.assertIn("download timed out", ctx.exception.message)
 
     def test_compiler_transcript_is_kept_on_a_compilation_failure(self):
-        import subprocess
-
-        failure = subprocess.CalledProcessError(1, "nrnivmodl", output="mod file syntax error")
+        # ModCompilationError embeds the compiler transcript after the first
+        # line of its message: the short line becomes the error message and
+        # the transcript the details.
+        failure = Exception("Failed to compile mod files (exit code 1):\nmod file syntax error")
         neuron = _StubNeuron(self.tmp_dir, files_error=failure)
 
         with self.assertRaises(SingleNeuronAssetError) as ctx:
             neuron.init()
 
         self.assertEqual(ctx.exception.details, "mod file syntax error")
+        self.assertNotIn("mod file syntax error", ctx.exception.message)
 
     def test_successful_init_marks_the_model_initialized(self):
         neuron = _StubNeuron(self.tmp_dir)

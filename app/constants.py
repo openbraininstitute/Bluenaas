@@ -1,3 +1,6 @@
+import platform
+import sys
+
 CID_LENGTH = 8
 NULL_CID = "-" * CID_LENGTH
 
@@ -14,8 +17,10 @@ SINGLE_NEURON_MOD_DIR = "mechanisms"
 SINGLE_NEURON_HOC_DIR = "hoc"
 SINGLE_NEURON_MORPHOLOGY_DIR = "morphology"
 
-MECHANISMS_DIR_NAME = "x86_64"
-LIBNRNMECH_PATH = f"{MECHANISMS_DIR_NAME}/lib/nrnmech.so"
+# nrnivmodl compiles into a directory named after the machine architecture.
+MECHANISMS_DIR_NAME = platform.machine()
+_LIBNRNMECH_EXT = ".dylib" if sys.platform == "darwin" else ".so"
+LIBNRNMECH_PATH = f"{MECHANISMS_DIR_NAME}/libnrnmech{_LIBNRNMECH_EXT}"
 
 READY_MARKER_FILE_NAME = ".ready"
 DIR_LOCK_FILE_NAME = ".dir-lock"

@@ -8,6 +8,7 @@ from unittest import mock
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
 from app.core import neuron_runtime
+from app.constants import MECHANISMS_DIR_NAME
 from app.core.exceptions import SingleNeuronAssetError
 
 
@@ -21,7 +22,7 @@ class TestNeuronRuntime(unittest.TestCase):
         shutil.rmtree(self.tmp_dir)
 
     def test_mechanisms_are_loaded_by_path(self):
-        (self.tmp_dir / "x86_64").mkdir()
+        (self.tmp_dir / MECHANISMS_DIR_NAME).mkdir()
 
         with mock.patch("neuron.load_mechanisms", return_value=True) as load_mechanisms:
             neuron_runtime.load(self.tmp_dir)
@@ -35,16 +36,16 @@ class TestNeuronRuntime(unittest.TestCase):
         load_mechanisms.assert_not_called()
 
     def test_mechanisms_that_do_not_load_are_reported_as_an_asset_failure(self):
-        (self.tmp_dir / "x86_64").mkdir()
+        (self.tmp_dir / MECHANISMS_DIR_NAME).mkdir()
 
         with mock.patch("neuron.load_mechanisms", return_value=False):
             with self.assertRaises(SingleNeuronAssetError) as ctx:
                 neuron_runtime.load(self.tmp_dir)
 
-        self.assertIn("x86_64", ctx.exception.message)
+        self.assertIn(MECHANISMS_DIR_NAME, ctx.exception.message)
 
     def test_reloading_the_same_model_leaves_neuron_alone(self):
-        (self.tmp_dir / "x86_64").mkdir()
+        (self.tmp_dir / MECHANISMS_DIR_NAME).mkdir()
 
         with mock.patch("neuron.load_mechanisms", return_value=True) as load_mechanisms:
             neuron_runtime.load(self.tmp_dir)

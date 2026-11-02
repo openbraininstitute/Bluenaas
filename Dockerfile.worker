@@ -75,8 +75,13 @@ ENV PYTHONPATH="/app"
 ENV HDF5_USE_FILE_LOCKING=FALSE
 
 # Skeletonized morphologies are more complex and require higher values for the params below
-# compared to the NEURON defaults
-ENV NEURON_MODULE_OPTIONS="-NSTACK 100000 -NFRAME 10000"
+# compared to the NEURON defaults. -nogui silences NEURON's GUI/DISPLAY warning, which now
+# also appears during mechanism compilation at model init.
+ENV NEURON_MODULE_OPTIONS="-nogui -NSTACK 100000 -NFRAME 10000"
+
+# When a model ships a mechanism that BlueCelluLab also bundles (TTXDynamicsSwitch,
+# vecevent, ...), keep the model's copy: bundled MODs only fill in the missing ones.
+ENV BLUECELLULAB_MOD_PRECEDENCE=circuit
 
 COPY --chown=app:app --from=builder /app/.venv/ .venv
 COPY --chown=app:app docker-worker-cmd.sh ./docker-cmd.sh
