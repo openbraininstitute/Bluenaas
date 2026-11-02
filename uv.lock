@@ -97,7 +97,7 @@ wheels = [
 
 [[package]]
 name = "bluecellulab"
-version = "2.6.106"
+version = "2.6.112"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bluepysnap" },
@@ -116,9 +116,9 @@ dependencies = [
     { name = "seaborn" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cd/9e/f2d68a4c06caf96faafff14ffd9bfe50403d1916989938ad627637e53df8/bluecellulab-2.6.106.tar.gz", hash = "sha256:8f46f481839be548266564136327eb90b11d69f9920391323869d86b6e3509b2", size = 572282, upload-time = "2026-09-30T09:06:02.174Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/12/f77daf22a7632555fc88399567b5b073b03794f0d8d979e12d5757fd96eb/bluecellulab-2.6.112.tar.gz", hash = "sha256:58efe01dd4b1f81b52eced11586bae6d2ddef1d07953167e0facc0432ab81a58", size = 621113, upload-time = "2026-10-28T16:50:56.345Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/c7/89c19e37fe93a29b5eb7eb7a5a22b43f3a1272a738ca8c1cabab292ef2c2/bluecellulab-2.6.106-py3-none-any.whl", hash = "sha256:e1ee69857008a13f6aeaf090a58d409e59e432fb95d6213c32d1c8d01ce533c3", size = 192493, upload-time = "2026-09-30T09:06:00.972Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/be/79afa29629a4786d28653d6b574316920b375680c6cdbaa086b510b260c6/bluecellulab-2.6.112-py3-none-any.whl", hash = "sha256:9442871db60c3eb8e659df927a2ff4b1b21e609a3ca003d7a515d7d004e851e3", size = 244935, upload-time = "2026-10-28T16:50:54.492Z" },
 ]
 
 [[package]]
@@ -242,7 +242,7 @@ types = [
     { name = "types-requests", specifier = "==2.32.4.20260107" },
 ]
 worker = [
-    { name = "bluecellulab", specifier = "==2.6.106" },
+    { name = "bluecellulab", specifier = "==2.6.112" },
     { name = "bluepysnap", specifier = "==3.0.8" },
     { name = "efel", specifier = "==5.7.27" },
     { name = "filelock", specifier = "==3.25.0" },
