@@ -73,7 +73,7 @@ class TestMorphologyPackStatus(MorphologyPackTestCase):
     def test_refused_without_a_job(self):
         for circuit, reason in [
             (circuit_of(1, CircuitScale.single), NoPackReason.SINGLE_NEURON),
-            (circuit_of(160_001), NoPackReason.TOO_LARGE),
+            (circuit_of(170_001), NoPackReason.TOO_LARGE),
         ]:
             with self.subTest(reason=reason):
                 status = self.status_of(circuit)
@@ -88,7 +88,7 @@ class TestMorphologyPackStatus(MorphologyPackTestCase):
             (2, JobQueue.LOW),
             (2_000, JobQueue.LOW),
             (2_001, JobQueue.CPU4_MEM16),
-            (160_000, JobQueue.CPU4_MEM16),
+            (170_000, JobQueue.CPU4_MEM16),
         ]:
             with self.subTest(neurons=neurons):
                 circuit = circuit_of(neurons, CircuitScale.small)
