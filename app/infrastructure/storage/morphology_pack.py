@@ -167,6 +167,8 @@ def enqueue_build(
             JobFn.RUN_MORPHOLOGY_PACK,
             job_id=job_id,
             unique=True,
+            # Else RQ describes the job by its call, the user's token included, and logs it
+            description=f"Morphology pack of {circuit_id}",
             kwargs={
                 "circuit_id": circuit_id,
                 "epoch": epoch,
