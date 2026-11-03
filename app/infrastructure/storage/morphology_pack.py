@@ -39,7 +39,7 @@ NO_PACK_FILE_NAME = ".no-pack"
 # Circuits up to this many neurons are built on `low`, in one worker's share of a shared task
 SMALL_BUILD_MAX_NEURONS = 2_000
 # No pack is built for more neurons: the whole FlyWire brain is the largest circuit that fits
-MAX_NEURONS = 160_000
+MAX_NEURONS = 170_000
 
 BUILD_QUEUES = (JobQueue.LOW, JobQueue.CPU4_MEM16)
 
