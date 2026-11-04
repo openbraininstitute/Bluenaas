@@ -6,17 +6,37 @@ template's mechanisms stay undefined, and NEURON segfaults when bluecellulab
 instantiates it. load_mechanisms with the model path depends on neither.
 """
 
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
 from loguru import logger
 
+from app.constants import LIBNRNMECH_PATH
 from app.core.compilation_cache import compiled_mechanisms_path
 from app.core.exceptions import SingleNeuronAssetError, SingleNeuronInitError
 from app.utils.neuron_output import capture_neuron_output, neuron_error_summary
 
 _loaded: Path | None = None
+
+
+def ensure_libnrnmech_loaded(libnrnmech_path: Path, load_dll: Callable[[str], None]) -> None:
+    """Load a compiled mechanisms library unless NEURON already registered it.
+
+    NEURON registers ``./<arch>/libnrnmech.*`` from the working directory during hoc
+    initialisation, so a library at that location must not be loaded again: a second
+    load aborts with ``The user defined name already exists: <mechanism>``.
+    """
+    if not libnrnmech_path.exists():
+        logger.info(
+            f"No compiled mechanisms at {libnrnmech_path}; using NEURON built-in mechanisms only"
+        )
+        return
+    if libnrnmech_path.resolve() == (Path.cwd() / LIBNRNMECH_PATH).resolve():
+        logger.info(f"Mechanisms already registered by NEURON from {libnrnmech_path}")
+        return
+    load_dll(str(libnrnmech_path))
 
 
 def load(model_path: Path) -> None:

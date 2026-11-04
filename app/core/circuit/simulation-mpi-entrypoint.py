@@ -24,6 +24,7 @@ from bluecellulab.reports.utils import (
     prepare_recordings_for_reports,
 )
 
+from app.core import neuron_runtime
 from app.core.circuit.node_sets import resolve_simulation_cells
 
 
@@ -117,13 +118,9 @@ def run_bluecellulab(
         save_nwb: Whether to save results in NWB format.
     """
 
+    neuron_runtime.ensure_libnrnmech_loaded(Path(libnrnmech_path), h.nrn_load_dll)
+
     # Get MPI info using NEURON's ParallelContext
-    if Path(libnrnmech_path).exists():
-        h.nrn_load_dll(libnrnmech_path)
-    else:
-        logger.info(
-            f"No compiled mechanisms at {libnrnmech_path}; using NEURON built-in mechanisms only"
-        )
     h.nrnmpi_init()
     pc = h.ParallelContext()
     rank = int(pc.id())
