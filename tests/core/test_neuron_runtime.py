@@ -8,7 +8,7 @@ from unittest import mock
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
 from app.core import neuron_runtime
-from app.constants import MECHANISMS_DIR_NAME
+from app.constants import LIBNRNMECH_PATH, MECHANISMS_DIR_NAME
 from app.core.exceptions import SingleNeuronAssetError
 
 
@@ -62,6 +62,45 @@ class TestNeuronRuntime(unittest.TestCase):
 
             with self.assertRaises(RuntimeError):
                 neuron_runtime.load(other_dir)
+
+
+class TestEnsureLibnrnmechLoaded(unittest.TestCase):
+    """NEURON auto-loads ``./<arch>/libnrnmech.*`` from the working directory at hoc
+    init; the circuit MPI entrypoint must not load that same library again."""
+
+    def setUp(self):
+        self.tmp_dir = Path(tempfile.mkdtemp())
+        self.load_dll = mock.Mock()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir)
+
+    def test_library_in_the_working_directory_is_not_loaded_again(self):
+        circuit_dir = self.tmp_dir / "circuit"
+        lib = circuit_dir / LIBNRNMECH_PATH
+        lib.parent.mkdir(parents=True)
+        lib.touch()
+
+        with mock.patch.object(Path, "cwd", return_value=circuit_dir):
+            neuron_runtime.ensure_libnrnmech_loaded(lib, self.load_dll)
+
+        self.load_dll.assert_not_called()
+
+    def test_library_outside_the_working_directory_is_loaded(self):
+        lib = self.tmp_dir / "elsewhere" / Path(LIBNRNMECH_PATH).name
+        lib.parent.mkdir(parents=True)
+        lib.touch()
+
+        neuron_runtime.ensure_libnrnmech_loaded(lib, self.load_dll)
+
+        self.load_dll.assert_called_once_with(str(lib))
+
+    def test_missing_library_loads_nothing(self):
+        missing = self.tmp_dir / LIBNRNMECH_PATH
+
+        neuron_runtime.ensure_libnrnmech_loaded(missing, self.load_dll)
+
+        self.load_dll.assert_not_called()
 
 
 if __name__ == "__main__":
