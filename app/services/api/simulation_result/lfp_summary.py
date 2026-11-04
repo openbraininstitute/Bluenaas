@@ -10,7 +10,7 @@ from entitysdk.models import Simulation, SimulationResult
 from entitysdk.models.asset import Asset
 from entitysdk.route import get_assets_endpoint
 from entitysdk.types import AssetLabel
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from rq.job import JobStatus
 
 from app.config.settings import settings
@@ -47,9 +47,9 @@ def _not_found(message: str) -> AppError:
 
 def _get_report(
     result_id: UUID, asset_id: UUID, *, auth: Auth, project_context: ProjectContext
-) -> Asset:
-    """The result's report asset, as the user may see it. The cache is shared by everyone, so it is
-    only read for a report the user has access to.
+) -> tuple[SimulationResult, Asset]:
+    """The result and its report asset, as the user may see them. The cache is shared by
+    everyone, so it is only read for a report the user has access to.
     """
     result = get_entity_or_not_found(
         user_client(auth.access_token, project_context),
@@ -60,11 +60,11 @@ def _get_report(
     asset = next((a for a in result.assets or [] if a.id == asset_id), None)
     if asset is None:
         raise _not_found("The simulation result has no such asset")
-    return asset
+    return result, asset
 
 
 def _is_lfp_report(
-    result_id: UUID, report: Asset, *, access_token: str, project_context: ProjectContext
+    simulation_id: UUID, report: Asset, *, access_token: str, project_context: ProjectContext
 ) -> bool:
     """An LFP report by its label, or a voltage report whose entry in the simulation's SONATA
     config, found by its file's name, is of type `lfp`, as the web app reads it.
@@ -72,11 +72,8 @@ def _is_lfp_report(
     if report.label == AssetLabel.lfp_report:
         return True
     client = user_client(access_token, project_context)
-    result = get_entity_or_not_found(
-        client, result_id, SimulationResult, message="Simulation result not found"
-    )
     simulation = get_entity_or_not_found(
-        client, result.simulation_id, Simulation, message="Simulation not found"
+        client, simulation_id, Simulation, message="Simulation not found"
     )
     config = next(
         (a for a in simulation.assets or [] if a.label == AssetLabel.sonata_simulation_config),
@@ -85,11 +82,22 @@ def _is_lfp_report(
     if config is None:
         return False
     content = client.download_content(
-        entity_id=result.simulation_id, entity_type=Simulation, asset_id=config.id
+        entity_id=simulation_id, entity_type=Simulation, asset_id=config.id
     )
-    reports = json.loads(content).get("reports") or {}
-    entry = reports.get(re.sub(r"\.h5$", "", PurePosixPath(report.path).name, flags=re.I))
+    stem = re.sub(r"\.h5$", "", PurePosixPath(report.path).name, flags=re.I)
+    try:
+        entry = json.loads(content)["reports"].get(stem)
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return False
     return isinstance(entry, dict) and entry.get("type") == "lfp"
+
+
+def _no_download_url() -> AppError:
+    return AppError(
+        message="The report's download URL could not be read",
+        error_code=None,
+        http_status_code=HTTPStatus.BAD_GATEWAY,
+    )
 
 
 def _download_url(
@@ -110,13 +118,12 @@ def _download_url(
     }
     if project_context.virtual_lab_id:
         headers["virtual-lab-id"] = str(project_context.virtual_lab_id)
-    response = httpx.get(f"{endpoint}/download", headers=headers, timeout=30)
+    try:
+        response = httpx.get(f"{endpoint}/download", headers=headers, timeout=30)
+    except httpx.TransportError as ex:
+        raise _no_download_url() from ex
     if not response.is_redirect or "location" not in response.headers:
-        raise AppError(
-            message="The report's download URL could not be read",
-            error_code=None,
-            http_status_code=HTTPStatus.BAD_GATEWAY,
-        )
+        raise _no_download_url()
     return response.headers["location"]
 
 
@@ -130,7 +137,12 @@ def _status_in_cache(epoch: str, asset_id: UUID) -> LfpSummaryStatus | None:
 
 
 def _get_or_build_summary(
-    result_id: UUID, report: Asset, *, access_token: str, project_context: ProjectContext
+    result_id: UUID,
+    simulation_id: UUID,
+    report: Asset,
+    *,
+    access_token: str,
+    project_context: ProjectContext,
 ) -> LfpSummaryStatus:
     if report.label not in LFP_REPORT_LABELS or report.is_directory:
         return LfpSummaryStatus(
@@ -161,12 +173,12 @@ def _get_or_build_summary(
     if status := _status_in_cache(epoch, report.id):
         return status
 
-    # A failed job is kept for a day, and only then is the report summarised again
+    # A failed job is kept for FAILED_BUILD_TTL, and only then is the report summarised again
     if failed:
         return LfpSummaryStatus(state=LfpSummaryState.FAILED)
 
     if not _is_lfp_report(
-        result_id, report, access_token=access_token, project_context=project_context
+        simulation_id, report, access_token=access_token, project_context=project_context
     ):
         return LfpSummaryStatus(
             state=LfpSummaryState.REFUSED, reason=NoSummaryReason.NOT_LFP_REPORT
@@ -188,12 +200,16 @@ async def get_lfp_summary_status(
     result_id: UUID, asset_id: UUID, *, auth: Auth, project_context: ProjectContext
 ) -> LfpSummaryStatus:
     """The state of the report's summary. A build is queued if the summary is not built yet."""
-    report = await run_async(
+    result, report = await run_async(
         lambda: _get_report(result_id, asset_id, auth=auth, project_context=project_context)
     )
     return await run_async(
         lambda: _get_or_build_summary(
-            result_id, report, access_token=auth.access_token, project_context=project_context
+            result_id,
+            result.simulation_id,
+            report,
+            access_token=auth.access_token,
+            project_context=project_context,
         )
     )
 
@@ -206,21 +222,22 @@ def _matches(if_match: str | None, etag: str) -> bool:
 
 def _summary_file_response(
     asset_id: UUID, name: str, media_type: str, if_match: str | None
-) -> FileResponse:
+) -> Response:
     epoch = get_epoch(CacheKind.LFP_SUMMARY)
     directory = summary_dir(epoch, asset_id) if epoch else None
     info = read_summary_info(directory) if directory else None
     if directory is None or info is None:
         raise _not_found("The report's LFP summary is not built")
     etag = f'"{info.sha256}"'
-    # Else a reader holding a rebuilt summary's index would read its bytes at the old offsets
+    # Else a reader holding a rebuilt summary's index would read its bytes at the old offsets.
+    # Not an AppError: this is how a reader learns of a rebuild, and those are logged as errors.
     if not _matches(if_match, etag):
-        raise AppError(
-            message="The report's LFP summary has changed",
-            error_code=None,
-            http_status_code=HTTPStatus.PRECONDITION_FAILED,
-        )
-    return FileResponse(directory / name, media_type=media_type, headers={"ETag": etag})
+        return Response(status_code=HTTPStatus.PRECONDITION_FAILED)
+    return FileResponse(
+        directory / name,
+        media_type=media_type,
+        headers={"ETag": etag, "Cache-Control": "private, no-cache"},
+    )
 
 
 async def get_lfp_summary_file(
@@ -232,12 +249,12 @@ async def get_lfp_summary_file(
     if_match: str | None,
     auth: Auth,
     project_context: ProjectContext,
-) -> FileResponse:
+) -> Response:
     """A file of the report's summary, the h5 or its index, if it is built. Never queues a
     build.
     """
 
-    def response() -> FileResponse:
+    def response() -> Response:
         _get_report(result_id, asset_id, auth=auth, project_context=project_context)
         return _summary_file_response(asset_id, name, media_type, if_match)
 

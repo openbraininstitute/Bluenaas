@@ -11,11 +11,16 @@ import numpy as np
 from app.core.lfp_summary import summary
 from app.core.lfp_summary.summary import (
     MAX_OVERVIEW_STEPS,
+    STATS,
+    WELCH_MAX_SEGMENT,
     NotSummarisableError,
     OverMemoryError,
+    contact_stats,
+    correlation,
     peak_bytes,
     sum_report,
     verify,
+    welch,
     write_summary,
 )
 from app.domains.simulation_result.lfp_summary import NoSummaryReason
@@ -137,6 +142,28 @@ class TestSumReport(unittest.TestCase):
                     self.summed()
                 self.assertEqual(caught.exception.reason, NoSummaryReason.UNREADABLE)
 
+    def test_values_that_are_not_finite_are_unreadable(self):
+        for value in (np.nan, np.inf):
+            with self.subTest(value=value):
+                write_report(self.path)
+                with h5py.File(self.path, "r+") as f:
+                    f["report/pop/data"][3, 1] = value
+
+                with self.assertRaises(NotSummarisableError) as caught:
+                    self.summed()
+
+                self.assertEqual(caught.exception.reason, NoSummaryReason.UNREADABLE)
+
+    def test_units_missing_are_unreadable(self):
+        write_report(self.path)
+        with h5py.File(self.path, "r+") as f:
+            del f["report/pop/data"].attrs["units"]
+
+        with self.assertRaises(NotSummarisableError) as caught:
+            self.summed()
+
+        self.assertEqual(caught.exception.reason, NoSummaryReason.UNREADABLE)
+
     def test_a_summary_over_the_memory_given(self):
         write_report(self.path, contacts=4, steps=50)
 
@@ -154,6 +181,49 @@ class TestSumReport(unittest.TestCase):
             self.summed()
 
         self.assertEqual(caught.exception.reason, NoSummaryReason.TOO_LARGE)
+
+
+class TestTheNumbers(unittest.TestCase):
+    def test_the_spectrum_of_a_sine(self):
+        dt_ms = 0.025
+        t = np.arange(40_000) * dt_ms / 1000
+        x = (3 * np.sin(2 * np.pi * 40 * t))[:, None, None]
+
+        psd, frequencies = welch(x, dt_ms)
+
+        bin_hz = frequencies[1] - frequencies[0]
+        self.assertLessEqual(abs(frequencies[psd[0, 0].argmax()] - 40), bin_hz)
+        # Parseval: the density sums to the variance
+        np.testing.assert_allclose(psd[0, 0].sum() * bin_hz, x.var(), rtol=0.01)
+
+    def test_a_long_run_keeps_the_segment_small(self):
+        steps = WELCH_MAX_SEGMENT * 8
+        x = np.zeros((steps, 1, 1), np.float32)
+
+        psd, frequencies = welch(x, 0.025)
+
+        self.assertEqual(len(frequencies), WELCH_MAX_SEGMENT // 2 + 1)
+        self.assertEqual(psd.shape, (1, 1, WELCH_MAX_SEGMENT // 2 + 1))
+
+    def test_the_stats_of_a_contact(self):
+        x = np.array([1.0, -3.0, 2.0, 0.0])[:, None, None]
+
+        stats = dict(zip(STATS, contact_stats(x, start=10.0, dt=0.5)[0, 0], strict=True))
+
+        self.assertEqual((stats["min"], stats["max"], stats["ptp"]), (-3, 2, 5))
+        self.assertEqual(stats["mean"], 0)
+        self.assertAlmostEqual(float(stats["rms"]), np.sqrt(14 / 4), places=5)
+        self.assertEqual(stats["trough_ms"], 10.5)
+
+    def test_correlation(self):
+        a = np.array([1.0, -1.0, 2.0, -2.0])
+        total = np.stack([a, -a, 2 * a, np.zeros(4)], axis=1)
+
+        c = correlation(total)
+
+        self.assertEqual(list(c[0, :3]), [32767, -32767, 32767])
+        # A silent contact has no correlation to give
+        self.assertEqual(c[0, 3], 0)
 
 
 class TestWriteSummary(unittest.TestCase):

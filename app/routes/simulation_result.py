@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from app.domains.simulation_result.lfp_summary import LfpSummaryStatus
 from app.routes.dependencies import ProjectContextDep, UserAuthDep
@@ -43,7 +43,7 @@ async def download_lfp_summary(
     project_context: ProjectContextDep,
     auth: UserAuthDep,
     request: Request,
-) -> FileResponse:
+) -> Response:
     return await get_lfp_summary_file(
         result_id,
         asset,
@@ -67,7 +67,7 @@ async def download_lfp_summary_index(
     project_context: ProjectContextDep,
     auth: UserAuthDep,
     request: Request,
-) -> FileResponse:
+) -> Response:
     return await get_lfp_summary_file(
         result_id,
         asset,

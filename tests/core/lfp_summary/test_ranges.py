@@ -77,6 +77,16 @@ class TestHttpRanges(unittest.TestCase):
         with self.assertRaises(RangeReadError):
             http.read(0, 4)
 
+    def test_a_whole_file_is_not_read_into_memory(self):
+        class Unread(httpx.SyncByteStream):
+            def __iter__(self):
+                raise AssertionError("The body was read")
+
+        http = self.ranges_answered_by(httpx.Response(200, stream=Unread()))
+
+        with self.assertRaises(RangeReadError):
+            http.read(0, 4)
+
     def test_a_short_read_is_refused(self):
         http = self.ranges_answered_by(httpx.Response(206, content=b"ab"))
 

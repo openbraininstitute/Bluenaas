@@ -9,7 +9,7 @@ from filelock import FileLock, Timeout
 from loguru import logger
 
 from app.config.settings import settings
-from app.constants import DIR_LOCK_FILE_NAME, MAX_JOB_TIMEOUT, READY_MARKER_FILE_NAME
+from app.constants import DIR_LOCK_FILE_NAME, READY_MARKER_FILE_NAME
 from app.core.lfp_summary.ranges import HttpRanges, url_expires_at
 from app.core.lfp_summary.summary import (
     READS_IN_FLIGHT,
@@ -28,6 +28,7 @@ from app.infrastructure.storage.lfp_summary import (
     FORMAT_VERSION,
     INDEX_FILE_NAME,
     NO_SUMMARY_FILE_NAME,
+    READ_BYTES_PER_SECOND,
     SUMMARY_FILE_NAME,
     SummaryInfo,
     enqueue_build,
@@ -35,6 +36,9 @@ from app.infrastructure.storage.lfp_summary import (
     write_no_summary,
     write_summary_info,
 )
+
+# What a URL must have left besides the time its report takes to read
+URL_MARGIN_SECONDS = 60
 
 
 def _is_settled(directory: Path) -> bool:
@@ -100,9 +104,13 @@ def build_lfp_summary(
         return
 
     expires_at = url_expires_at(url)
-    if expires_at is not None and expires_at - time.time() < MAX_JOB_TIMEOUT:
-        # Finished, not failed: the next request for the summary queues it with a new URL
-        logger.info(f"The URL of the LFP report {asset_id} expires before a build could end")
+    needed = URL_MARGIN_SECONDS + size / READ_BYTES_PER_SECOND
+    if expires_at is not None and (left := expires_at - time.time()) < needed:
+        # Finished, not failed: the next request for the summary queues it with a new URL. A URL too
+        # short even when new would repeat this on every poll, so it is a warning.
+        logger.warning(
+            f"The URL of the LFP report {asset_id} has {left:.0f} s left, its read needs {needed:.0f} s"
+        )
         return
 
     # Not waiting: the one holding the lock builds the same summary

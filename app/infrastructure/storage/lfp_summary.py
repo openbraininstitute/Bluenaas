@@ -43,11 +43,14 @@ NO_SUMMARY_FILE_NAME = ".no-summary"
 SMALL_REPORT_BYTES = 2**30
 # No summary is made of a larger report: at about 0.5 GB/s, a build would near the job timeout
 MAX_REPORT_BYTES = 1_000 * 2**30
+# The slow end of reading a report from S3, for how long a build needs its URL
+READ_BYTES_PER_SECOND = 250_000_000
 
 BUILD_QUEUES = (JobQueue.LOW, JobQueue.CPU4_MEM16)
 
-# A build that failed after its retry is not tried again for this long
-FAILED_BUILD_TTL = 24 * 60 * 60
+# A build that failed after its retry is not tried again for this long. What always fails is
+# refused instead, so a failure is mostly passing, and a retry costs one read of the report.
+FAILED_BUILD_TTL = 60 * 60
 
 # How long a request that queues a build keeps the others from queueing the same one, at most
 ENQUEUE_GUARD_SECONDS = 10

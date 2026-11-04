@@ -63,8 +63,11 @@ class HttpRanges:
         headers = {"Range": f"bytes={offset}-{offset + length - 1}"}
         for attempt in range(1, ATTEMPTS + 1):
             try:
-                response = self.client.get(self.url, headers=headers)
-                if response.status_code >= HTTPStatus.INTERNAL_SERVER_ERROR and attempt < ATTEMPTS:
+                with self.client.stream("GET", self.url, headers=headers) as response:
+                    status = response.status_code
+                    # Only a range: an answer with the whole file would fill the memory
+                    content = response.read() if status == HTTPStatus.PARTIAL_CONTENT else b""
+                if status >= HTTPStatus.INTERNAL_SERVER_ERROR and attempt < ATTEMPTS:
                     time.sleep(attempt)
                     continue
             except httpx.TransportError:
@@ -73,13 +76,11 @@ class HttpRanges:
                 time.sleep(attempt)
                 continue
             # Not raised by httpx, whose message holds the URL and so its signature
-            if response.status_code != HTTPStatus.PARTIAL_CONTENT:
-                raise RangeReadError(f"A range read was answered with {response.status_code}")
-            if len(response.content) != length:
-                raise RangeReadError(
-                    f"{len(response.content)} bytes read at {offset}, {length} asked for"
-                )
-            return response.content
+            if status != HTTPStatus.PARTIAL_CONTENT:
+                raise RangeReadError(f"A range read was answered with {status}")
+            if len(content) != length:
+                raise RangeReadError(f"{len(content)} bytes read at {offset}, {length} asked for")
+            return content
         raise AssertionError("unreachable")
 
 

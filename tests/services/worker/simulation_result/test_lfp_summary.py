@@ -135,14 +135,29 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         self.assertEqual(marker["reason"], NoSummaryReason.TOO_LARGE.value)
         self.assertEqual(self.queued_ids(JobQueue.CPU4_MEM16), [])
 
-    def test_nothing_is_read_by_a_url_that_expires_before_a_build_could_end(self):
-        signed = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(time.time() - 5 * 3600 - 60))
-        url = f"https://bucket.s3/report.h5?X-Amz-Date={signed}&X-Amz-Expires=21600"
+    def url_with(self, seconds_left: int) -> str:
+        lifetime = 6 * 3600
+        signed = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(time.time() - lifetime + seconds_left))
+        return f"https://bucket.s3/report.h5?X-Amz-Date={signed}&X-Amz-Expires={lifetime}"
 
-        self.run_build(url=url)
+    def test_nothing_is_read_by_a_url_that_expires_before_the_report_is_read(self):
+        self.run_build(url=self.url_with(30))
 
         self.assertEqual(self.urls, [])
         self.assertFalse((self.directory() / NO_SUMMARY_FILE_NAME).exists())
+
+    def test_a_url_needs_only_to_outlast_the_read(self):
+        url = self.url_with(300)
+
+        self.run_build(url=url)
+
+        self.assertEqual(self.urls, [url])
+
+    def test_a_url_is_needed_for_longer_by_a_larger_report(self):
+        with patch.object(service, "READ_BYTES_PER_SECOND", 1):
+            self.run_build(url=self.url_with(300))
+
+        self.assertEqual(self.urls, [])
 
     def test_nothing_is_built_after_the_cache_was_cleared(self):
         epoch = self.epoch()

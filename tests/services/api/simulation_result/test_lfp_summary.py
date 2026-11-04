@@ -48,6 +48,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
             return pool.submit(
                 service._get_or_build_summary,
                 self.result_id,
+                uuid4(),
                 report,
                 access_token="token",
                 project_context=self.project_context,
@@ -196,13 +197,15 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
 
 
 class TestIsLfpReport(LfpSummaryTestCase):
-    def is_lfp(self, report, reports: dict | None, config: bool = True) -> bool:
+    def is_lfp(self, report, reports: object, config: bool = True) -> bool:
+        return self.is_lfp_with(report, json.dumps({"reports": reports}).encode(), config)
+
+    def is_lfp_with(self, report, content: bytes, config: bool = True) -> bool:
         client = MagicMock()
-        result = SimpleNamespace(simulation_id=uuid4())
         config_asset = SimpleNamespace(id=uuid4(), label=AssetLabel.sonata_simulation_config)
         simulation = SimpleNamespace(assets=[config_asset] if config else [])
-        client.get_entity.side_effect = [result, simulation]
-        client.download_content.return_value = json.dumps({"reports": reports}).encode()
+        client.get_entity.side_effect = [simulation]
+        client.download_content.return_value = content
         with patch.object(service, "user_client", return_value=client):
             return service._is_lfp_report(
                 uuid4(), report, access_token="token", project_context=self.project_context
@@ -225,6 +228,12 @@ class TestIsLfpReport(LfpSummaryTestCase):
             with self.subTest(path=path, reports=reports):
                 self.assertEqual(self.is_lfp(self.voltage_report(path), reports), expected)
 
+    def test_a_malformed_config_is_no_lfp(self):
+        report = self.voltage_report("lfp.h5")
+        for content in [b"not json", b"[]", b"{}", b'{"reports": []}']:
+            with self.subTest(content=content):
+                self.assertFalse(self.is_lfp_with(report, content))
+
     def test_a_simulation_without_a_config(self):
         self.assertFalse(self.is_lfp(self.voltage_report("lfp.h5"), {}, config=False))
 
@@ -244,6 +253,17 @@ class TestDownloadUrl(LfpSummaryTestCase):
         self.assertEqual(self.url_answered_by(response), URL)
         self.assertEqual(self.headers["Authorization"], "Bearer token")
         self.assertEqual(self.headers["project-id"], str(self.project_context.project_id))
+
+    def test_the_download_not_answered(self):
+        with (
+            patch.object(service.httpx, "get", side_effect=httpx.ConnectTimeout("late")),
+            self.assertRaises(AppError) as caught,
+        ):
+            service._download_url(
+                uuid4(), uuid4(), access_token="token", project_context=self.project_context
+            )
+
+        self.assertEqual(caught.exception.http_status_code, HTTPStatus.BAD_GATEWAY)
 
     def test_no_redirect(self):
         with self.assertRaises(AppError) as caught:
@@ -273,19 +293,14 @@ class TestSummaryFile(LfpSummaryTestCase):
             ("abc", False),
         ]:
             with self.subTest(if_match=if_match):
+                response = service._summary_file_response(
+                    asset_id, SUMMARY_FILE_NAME, "application/x-hdf5", if_match
+                )
                 if served:
-                    response = service._summary_file_response(
-                        asset_id, SUMMARY_FILE_NAME, "application/x-hdf5", if_match
-                    )
                     self.assertEqual(response.headers["etag"], etag)
+                    self.assertEqual(response.headers["cache-control"], "private, no-cache")
                 else:
-                    with self.assertRaises(AppError) as caught:
-                        service._summary_file_response(
-                            asset_id, SUMMARY_FILE_NAME, "application/x-hdf5", if_match
-                        )
-                    self.assertEqual(
-                        caught.exception.http_status_code, HTTPStatus.PRECONDITION_FAILED
-                    )
+                    self.assertEqual(response.status_code, HTTPStatus.PRECONDITION_FAILED)
 
     def test_not_built(self):
         with self.assertRaises(AppError) as caught:

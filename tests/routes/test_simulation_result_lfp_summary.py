@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 from http import HTTPStatus
+from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -50,7 +51,11 @@ class TestLfpSummaryRoutes(LfpSummaryTestCase):
             "email": "user@example.com",
         }
 
-        patcher = patch.object(service, "_get_report", return_value=self.report)
+        patcher = patch.object(
+            service,
+            "_get_report",
+            return_value=(SimpleNamespace(simulation_id=uuid4()), self.report),
+        )
         self.get_report = patcher.start()
         self.addCleanup(patcher.stop)
 

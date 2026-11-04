@@ -27,6 +27,8 @@ from app.domains.simulation_result.lfp_summary import NoSummaryReason
 MAX_OVERVIEW_STEPS = 2048
 STATS = ["min", "max", "ptp", "rms", "mean", "trough_ms"]
 WELCH_SEGMENT = 256
+# Else the index's frequencies and the spectra grow with the run
+WELCH_MAX_SEGMENT = 1 << 16
 
 # The report is read in blocks of rows of about this size, this many at once
 BLOCK_BYTES = 32 << 20
@@ -92,7 +94,9 @@ def _dataset(parent: h5py.Group, path: str) -> h5py.Dataset:
 
 def _population(group: h5py.Group) -> _Population:
     data = _dataset(group, "data")
-    units = data.attrs.get("units", "V")
+    units = data.attrs.get("units")
+    if units is None:
+        raise _unreadable(f"{group.name} has no units")
     units = units.decode() if isinstance(units, bytes) else str(units)
     if units not in TO_UV:
         raise _unreadable(f"Unknown units {units}")
@@ -188,6 +192,8 @@ def sum_report(
         total = np.zeros((steps, contacts), np.float64)
         for population in populations:
             _sum_population(population, read, total, workers=workers)
+        if not np.isfinite(total).all():
+            raise _unreadable("The report has values that are not finite")
 
     return SummedReport(populations=names, start=float(times[0]), dt=float(times[2]), total=total)
 
@@ -241,7 +247,8 @@ def welch(values: np.ndarray, dt_ms: float) -> tuple[np.ndarray, np.ndarray]:
     steps = values.shape[0]
     # A quarter of the run, as a power of two: segments to average over, at a resolution that
     # holds below the gamma band whatever dt is.
-    n = min(steps, max(WELCH_SEGMENT, 2 ** int(np.floor(np.log2(max(1, steps / 4))))))
+    quarter = min(WELCH_MAX_SEGMENT, 2 ** int(np.floor(np.log2(max(1, steps / 4)))))
+    n = min(steps, max(WELCH_SEGMENT, quarter))
     hop = max(1, n // 2)
     window = np.hanning(n)
     fs = 1000.0 / dt_ms
