@@ -107,6 +107,7 @@ class TestMorphologyPackStatus(MorphologyPackTestCase):
         self.assertEqual(job.kwargs["circuit_id"], circuit.id)
         self.assertEqual(job.kwargs["epoch"], self.epoch())
         self.assertEqual(job.kwargs["queue"], "low")
+        self.assertNotIn(job.kwargs["access_token"], job.description)
         self.assertEqual(job.retries_left, 1)
         self.assertEqual(job.failure_ttl, FAILED_BUILD_TTL)
         self.assertEqual(
