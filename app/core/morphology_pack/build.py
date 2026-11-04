@@ -27,6 +27,7 @@ from app.core.morphology_pack.circuit import (
 )
 from app.core.morphology_pack.geometry import (
     LEVELS,
+    Level,
     Morphology,
     MorphologyLevels,
 )
@@ -35,13 +36,14 @@ from app.utils.parallel import Processes, available_cpus
 
 L = logging.getLogger(__name__)
 
-# Segments over every level a pack may hold, however much memory the machine has: above the whole
-# FlyWire brain's, about 255 million.
+# Segments over its levels a pack may hold, however much memory the machine has: above the whole
+# FlyWire brain's three levels, about 255 million.
 MAX_SEGMENTS = 300_000_000
 # The memory a build holds at its peak beyond what the process held as it began, on two processes,
-# both included: `BASE_BYTES`, and `BYTES_A_SEGMENT` a segment over every level. Measured on 2 CPUs
+# both included: `BASE_BYTES`, and `BYTES_A_SEGMENT` a segment over its levels. Measured on 2 CPUs
 # in a Linux container, in the memory that cannot be reclaimed: 300 MB and 40 B a segment where
-# cells share their morphologies (CA1), 290 MB and 43 B where none share one.
+# cells share their morphologies (CA1), 290 MB and 43 B where none share one. The male CNS
+# measured about 67 B: see ADR 0020.
 BASE_BYTES = 400 * 2**20
 BYTES_A_SEGMENT = 50
 # What each process past two holds beside them, measured at about 110 MB while simplifying.
@@ -118,35 +120,39 @@ def read_morphologies(populations: Sequence[Population]) -> dict[MorphologyKey, 
     return morphologies
 
 
-def every_level_within(
+def levels_within(
     morphologies: dict[MorphologyKey, Morphology],
     cells: Counter[MorphologyKey],
+    levels: tuple[Level, ...],
     max_segments: int,
     processes: Processes,
 ) -> dict[MorphologyKey, MorphologyLevels]:
-    """Every morphology at each of `LEVELS`, which come to at most `max_segments` together:
+    """Every morphology at each of `levels`, which come to at most `max_segments` together:
     the build stops at the first morphology past them. Each is taken out of `morphologies` as
     it is simplified.
     """
     library = {}
     segments = 0
-    for key, levels in simplified_all(morphologies, LEVELS, processes):
-        segments += cells[key] * sum(shape.segments for shape in levels.shapes)
+    for key, simplified in simplified_all(morphologies, levels, processes):
+        segments += cells[key] * sum(shape.segments for shape in simplified.shapes)
         if segments > max_segments:
             msg = (
                 f"The circuit's levels come to over the {max_segments} segments a pack may hold"
                 " here"
             )
             raise PackTooLargeError(msg)
-        library[key] = levels
+        library[key] = simplified
     return library
 
 
 def build_morphology_pack(
-    config_path: Path, max_segments: int, workers: int | None = None
+    config_path: Path,
+    max_segments: int,
+    workers: int | None = None,
+    levels: tuple[Level, ...] = LEVELS,
 ) -> bytes:
-    """The pack of every level of the circuit at `config_path`, over `workers` processes, one a
-    CPU up to `MAX_WORKERS` unless given.
+    """The pack at `levels` of the circuit at `config_path`, over `workers` processes, one a CPU
+    up to `MAX_WORKERS` unless given.
 
     Raises NoPackError for a circuit without a biophysical population or none of whose
     morphologies can be read, PackTooLargeError for one whose levels come to over `max_segments`
@@ -159,10 +165,10 @@ def build_morphology_pack(
     with Processes(processes_for(workers), PRELOAD) as processes:
         morphologies = read_morphologies(populations)
         stages.done("%d morphologies read", len(morphologies))
-        shapes = every_level_within(morphologies, cells, max_segments, processes)
-        stages.done("%d levels simplified", len(LEVELS))
+        shapes = levels_within(morphologies, cells, levels, max_segments, processes)
+        stages.done("%d levels simplified", len(levels))
         hand_back_freed()
-        writer = place_cells(populations, LEVELS, shapes)
+        writer = place_cells(populations, levels, shapes)
         del shapes
         hand_back_freed()
         stages.done("%d cells placed", sum(cells.values()))

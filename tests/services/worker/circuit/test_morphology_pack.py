@@ -13,6 +13,7 @@ from rq.job import JobStatus
 from app.config.settings import settings
 from app.constants import CIRCUIT_CONFIG_NAME, DIR_LOCK_FILE_NAME, READY_MARKER_FILE_NAME
 from app.core.morphology_pack.build import NoPackError, PackTooLargeError
+from app.core.morphology_pack.geometry import COARSER_LEVELS
 from app.infrastructure.rq import JobQueue, get_queue
 from app.infrastructure.storage.epoch import CacheKind, rotate_epoch
 from app.infrastructure.storage.morphology_pack import (
@@ -151,13 +152,38 @@ class TestBuildMorphologyPack(MorphologyPackTestCase):
         self.assertEqual(marker["reason"], "no_morphologies")
         self.assertFalse((self.directory() / READY_MARKER_FILE_NAME).exists())
 
-    def test_too_large_for_the_largest_queue(self):
+    def test_too_large_at_every_level_is_built_at_the_coarser_levels(self):
+        self.build_pack.side_effect = [PackTooLargeError("over the cap"), PACK]
+
+        self.run_build(JobQueue.CPU4_MEM16)
+
+        first, coarser = self.build_pack.call_args_list
+        self.assertEqual(len(first.args), 3)
+        self.assertEqual(coarser.args[-1], COARSER_LEVELS)
+        self.assertEqual(self.segment_cap.call_count, 2)
+        self.assertEqual((self.directory() / PACK_FILE_NAME).read_bytes(), PACK)
+        self.assertTrue((self.directory() / READY_MARKER_FILE_NAME).exists())
+        self.assertFalse((self.directory() / NO_PACK_FILE_NAME).exists())
+
+    def test_the_coarser_levels_are_built_from_the_same_stage(self):
+        self.build_pack.side_effect = [PackTooLargeError("over the cap"), PACK]
+
+        self.run_build(JobQueue.CPU4_MEM16)
+
+        (staged,) = self.staged_into
+        self.assertEqual(self.stage.call_count, 1)
+        for call in self.build_pack.call_args_list:
+            self.assertEqual(call.args[0], staged / CIRCUIT_CONFIG_NAME)
+
+    def test_too_large_at_the_coarser_levels_too(self):
         self.build_pack.side_effect = PackTooLargeError("over the cap")
 
         self.run_build(JobQueue.CPU4_MEM16)
 
+        self.assertEqual(self.build_pack.call_count, 2)
         marker = json.loads((self.directory() / NO_PACK_FILE_NAME).read_text())
         self.assertEqual(marker["reason"], "too_large")
+        self.assertFalse((self.directory() / READY_MARKER_FILE_NAME).exists())
 
     def test_too_large_for_low_is_moved_once_the_lock_is_free(self):
         self.build_pack.side_effect = PackTooLargeError("over the cap")
@@ -169,6 +195,7 @@ class TestBuildMorphologyPack(MorphologyPackTestCase):
         with patch.object(service, "enqueue_build", side_effect=check_the_lock_is_free):
             self.run_build(JobQueue.LOW)
 
+        self.build_pack.assert_called_once()
         self.assertEqual(
             self.queued_ids(JobQueue.CPU4_MEM16),
             [build_job_id(self.epoch(), self.circuit.id, JobQueue.CPU4_MEM16)],

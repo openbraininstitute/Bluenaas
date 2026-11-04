@@ -1,6 +1,6 @@
 # 0019. Built on demand in Bluenaas and kept in its cache; no stored asset
 
-- Status: Accepted. Supersedes [0014](0014-stored-as-a-circuit-asset.md) and [0015](0015-built-in-the-asset-job.md).
+- Status: Accepted. Supersedes [0014](0014-stored-as-a-circuit-asset.md) and [0015](0015-built-in-the-asset-job.md). What a build over the cap does changed by [0020](0020-coarser-levels-over-the-cap.md).
 - Date: 2026-10-28, the user's word
 
 ## Context
@@ -14,10 +14,10 @@ Bluenaas already keeps caches on EFS by epoch, clears them from an admin route, 
 - The package moves to Bluenaas, `app/core/morphology_pack/`, with its tests and these docs.
 - A pack is built the first time a viewer asks for it, `POST /circuit/{id}/morphology-pack`, and kept in the `morphology-pack` cache until the cache is cleared. `GET` on the same path serves it from there. Nothing is stored on the circuit.
 - The build is sized by the circuit's neuron count, with one retry:
-  - over 160,000 neurons, it is refused and nothing is queued;
+  - over 170,000 neurons (160,000 when decided), it is refused and nothing is queued;
   - up to 2,000, it runs on `low`, in one worker's share of a shared task;
   - above that, or when a build on `low` goes over its share, on `4cpu-16gb`, a batch worker of its own size, one worker a task.
-- A build on `4cpu-16gb` over the cap, or of a circuit with no morphologies, leaves a `.no-pack` marker with the reason, so it is never tried again in that epoch.
+- A build on `4cpu-16gb` over the cap at its coarser levels too ([0020](0020-coarser-levels-over-the-cap.md)), or of a circuit with no morphologies, leaves a `.no-pack` marker with the reason, so it is never tried again in that epoch.
 - Pair and small circuits are staged whole into the circuit cache, as their simulations stage them. Larger ones are staged partially, on the task's own disk, and deleted after the build.
 
 ## Alternatives weighed

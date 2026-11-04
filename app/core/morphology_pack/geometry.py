@@ -30,6 +30,8 @@ FINEST = Level(tolerance_um=0.125)
 MIDDLE = Level(tolerance_um=0.25)
 FAR = Level(tolerance_um=1.0, prune_um=5.0)
 LEVELS = (FINEST, MIDDLE, FAR)
+# The levels of a circuit whose `LEVELS` come to more than a pack may hold
+COARSER_LEVELS = (MIDDLE, FAR)
 
 
 @dataclass(frozen=True)

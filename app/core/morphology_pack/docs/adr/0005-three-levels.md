@@ -1,6 +1,6 @@
 # 0005. Three levels: 0.125 µm, 0.25 µm, and 1 µm with twigs under 5 µm pruned
 
-- Status: Accepted
+- Status: Accepted. A circuit whose three levels are over the cap holds the coarser two since [0020](0020-coarser-levels-over-the-cap.md).
 - Date: 2026-10-13
 
 ## Context

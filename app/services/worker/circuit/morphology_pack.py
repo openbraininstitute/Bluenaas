@@ -21,6 +21,7 @@ from app.core.morphology_pack.build import (
     build_morphology_pack,
     segment_cap,
 )
+from app.core.morphology_pack.geometry import COARSER_LEVELS
 from app.core.morphology_pack.staging import stage_morphology_pack_inputs
 from app.domains.circuit.morphology_pack import NoPackReason
 from app.infrastructure.rq import JobQueue
@@ -80,6 +81,26 @@ def _is_settled(directory: Path) -> bool:
     return (directory / READY_MARKER_FILE_NAME).exists() or (directory / NO_PACK_FILE_NAME).exists()
 
 
+def _pack_of(
+    circuit_id: UUID, config_path: Path, queue: JobQueue, memory: int, workers: int
+) -> bytes:
+    """The pack at every level or, on the largest queue where those are too many, at the coarser
+    levels. Raises PackTooLargeError where those are too many as well.
+    """
+    try:
+        return build_morphology_pack(
+            config_path, segment_cap(limit=memory, workers=workers), workers
+        )
+    except PackTooLargeError:
+        if queue == JobQueue.LOW:
+            raise
+        logger.info(f"The morphology pack of {circuit_id} is built at its coarser levels")
+    # Out of the except, so that the first build's memory is freed before the cap is worked out
+    return build_morphology_pack(
+        config_path, segment_cap(limit=memory, workers=workers), workers, COARSER_LEVELS
+    )
+
+
 def _build(
     circuit_id: UUID,
     directory: Path,
@@ -95,9 +116,7 @@ def _build(
     memory, workers = _slot()
     try:
         with _staged(circuit, client) as config_path:
-            pack = build_morphology_pack(
-                config_path, segment_cap(limit=memory, workers=workers), workers
-            )
+            pack = _pack_of(circuit_id, config_path, queue, memory, workers)
     except PackTooLargeError as ex:
         if queue == JobQueue.LOW:
             logger.info(f"The morphology pack of {circuit_id} is too large for {queue.value}")

@@ -2,7 +2,7 @@
 
 A pack holds every biophysical cell's morphology of a circuit in one binary file, ready for a viewer to draw:
 
-- simplified at three levels of detail;
+- simplified at three levels of detail, or the coarser two where three would be too many;
 - turned and moved into the circuit's frame;
 - cut into cubes of space, each level held as what it adds to the coarser one.
 
@@ -67,9 +67,9 @@ The queues, by the circuit's `number_neurons`:
 
 | Neurons | What happens |
 | --- | --- |
-| a single neuron, or over 160,000 | Refused, nothing queued |
+| a single neuron, or over 170,000 | Refused, nothing queued |
 | up to 2,000 | A build on `low`, in one worker's share of its task. Over that share, it is moved to `4cpu-16gb` |
-| over 2,000 | A build on `4cpu-16gb`, a task to itself. Over the cap, `.no-pack` says too large |
+| over 2,000 | A build on `4cpu-16gb`, a task to itself. Over the cap, built again at the coarser two levels. Over the cap there too, `.no-pack` says too large |
 
 A build that fails is retried once, then reported `failed` for a day. A build whose worker died is failed or retried by the next `POST`, which cleans up the registries of started jobs; its failure callback frees the lock and removes the partial files.
 
@@ -96,6 +96,7 @@ A build that fails is retried once, then reported `failed` for a day. A build wh
 | Name | Where | Value | What it sets |
 | --- | --- | --- | --- |
 | `LEVELS` | `geometry` | 0.125 µm; 0.25 µm; 1 µm with end branches under 5 µm pruned | The levels a pack holds, finest first |
+| `COARSER_LEVELS` | `geometry` | 0.25 µm; 1 µm with end branches under 5 µm pruned | The levels of a circuit whose `LEVELS` are over the cap on `4cpu-16gb` ([ADR 0020](adr/0020-coarser-levels-over-the-cap.md)) |
 | `GRID_UM` | `codec` | 0.025 | The grid step in micrometres |
 | `RADIUS_STEPS` | `codec` | 16 | Radius steps an octave |
 | `SMALLEST_RADIUS_UM` | `codec` | 1/1024 | The least radius stored, so that its logarithm is finite |
@@ -103,10 +104,10 @@ A build that fails is retried once, then reported `failed` for a day. A build wh
 | `PLAIN_DEFLATE_BYTES` | `codec` | 1,024 | Blocks up to this size inflated are deflated whole; larger ones end a deflate block at every byte plane, with `Z_FILTERED` |
 | `CHUNK_UM` | `writer` | 50 | The side of a chunk before it is doubled |
 | `MAX_CHUNKS` | `writer` | 4,096 | The most chunks a level may have; the side doubles until every level fits |
-| `MAX_SEGMENTS` | `build` | 300,000,000 | The most segments over every level a pack may hold, whatever the memory |
+| `MAX_SEGMENTS` | `build` | 300,000,000 | The most segments over its levels a pack may hold, whatever the memory |
 | `BASE_BYTES` | `build` | 400 MiB | The build's own memory on two processes, beyond what the process held when it began |
 | `BYTES_A_WORKER` | `build` | 128 MiB | What each process past two adds |
-| `BYTES_A_SEGMENT` | `build` | 50 | The build's memory a segment over every level |
+| `BYTES_A_SEGMENT` | `build` | 50 | The build's memory a segment over its levels |
 | `MAX_WORKERS` | `build` | 8 | The most processes a build runs over |
 | `MORPHOLOGIES_A_JOB` | `circuit` | 4 | Morphologies simplified in one job of the pool |
 | `CHUNKS_A_JOB` | `writer` | 8 | Chunks encoded in one job of the pool |
@@ -117,11 +118,11 @@ A build that fails is retried once, then reported `failed` for a day. A build wh
 min(MAX_SEGMENTS, (memory left - BASE_BYTES - BYTES_A_WORKER * max(0, processes - 2)) // BYTES_A_SEGMENT)
 ```
 
-The memory left is the container's cgroup limit, or the machine's memory, less what the process holds. A build whose levels come to more segments than that stops at the first morphology past it, with `PackTooLargeError`, a `NoPackError`.
+The memory left is the container's cgroup limit, or the machine's memory, less what the process holds. A build whose levels come to more segments than that stops at the first morphology past it, with `PackTooLargeError`, a `NoPackError`. The job on `4cpu-16gb` then builds again at `COARSER_LEVELS`.
 
 ## What a pack does not hold
 
 - **Section ids.** A segment knows its cell and its section type, not its section or where along the section it lies. Anything addressed by section, such as a synapse's place on a morphology, needs the morphology itself.
-- **Every traced point.** The finest level is within 0.125 µm of the trace, in position and in radius.
+- **Every traced point.** The finest level is within 0.125 µm of the trace, in position and in radius, and a pack at the coarser two levels within 0.25 µm.
 - **Cells without a morphology that can be read.** They are somas of radius zero, as are cells whose position or rotation is not a finite number.
 - **Point neurons and virtual populations.** Only biophysical populations are packed.

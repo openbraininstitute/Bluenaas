@@ -14,7 +14,7 @@ from app.core.morphology_pack.build import (
     build_morphology_pack,
     segment_cap,
 )
-from app.core.morphology_pack.geometry import LEVELS
+from app.core.morphology_pack.geometry import COARSER_LEVELS, LEVELS, Level
 from app.core.morphology_pack.reader import read_pack
 
 from tests.core.morphology_pack.utils import CIRCUIT_DIR
@@ -27,8 +27,13 @@ NODES = Path(POPULATION) / "nodes.h5"
 LOTS = 10**12
 
 
-def pack_of(circuit: Path, max_segments: int = LOTS, workers: int = 1):
-    return read_pack(build_morphology_pack(circuit / CONFIG, max_segments, workers))
+def pack_of(
+    circuit: Path,
+    max_segments: int = LOTS,
+    workers: int = 1,
+    levels: tuple[Level, ...] = LEVELS,
+):
+    return read_pack(build_morphology_pack(circuit / CONFIG, max_segments, workers, levels))
 
 
 def kinds(pack) -> list[tuple[float, float]]:
@@ -54,6 +59,14 @@ class TestPack:
         assert segments == sorted(segments, reverse=True)
         assert segments[0] > 10_000
         assert all(set(level.cells) == set(range(10)) for level in pack.levels)
+
+    def test_the_coarser_levels_are_the_same_as_in_a_pack_of_every_level(self):
+        every = pack_of(CONTAINER_CIRCUIT)
+        coarser = pack_of(CONTAINER_CIRCUIT, levels=COARSER_LEVELS)
+        assert kinds(coarser) == [(0.25, 0.0), (1.0, 5.0)]
+        assert [level.entry.base for level in coarser.levels] == [1, None]
+        for theirs, ours in zip(every.levels[1:], coarser.levels, strict=True):
+            assert sorted(map(tuple, theirs.segments)) == sorted(map(tuple, ours.segments))
 
     def test_a_circuit_with_a_folder_of_morphologies(self):
         pack = pack_of(FOLDER_CIRCUIT)
@@ -109,6 +122,13 @@ class TestNoPack:
         assert pack_of(CONTAINER_CIRCUIT, together).levels
         with pytest.raises(PackTooLargeError, match=f"over the {together - 1}"):
             pack_of(CONTAINER_CIRCUIT, together - 1)
+
+    def test_the_cap_counts_only_the_levels_asked_for(self):
+        every = pack_of(CONTAINER_CIRCUIT)
+        fewer = sum(len(level.segments) for level in every.levels[1:])
+        assert pack_of(CONTAINER_CIRCUIT, fewer, levels=COARSER_LEVELS).levels
+        with pytest.raises(PackTooLargeError):
+            pack_of(CONTAINER_CIRCUIT, fewer)
 
 
 class TestSegmentCap:

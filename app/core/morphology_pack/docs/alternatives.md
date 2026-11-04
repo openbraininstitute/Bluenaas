@@ -326,6 +326,10 @@ Baseline: the build itself. Peaks are the anonymous memory of a Linux container 
 | The cap at a flat 100 B a segment | a 4 GB machine about 40M segments; a 16 GB one about 165M; 2.5 times what CA1 holds | | | Rejected ([ADR 0017](adr/0017-memory-cap.md)) |
 | `MAX_SEGMENTS` at 600M | | a pack past 300M is several GB for the viewer | | Rejected ([ADR 0017](adr/0017-memory-cap.md)) |
 | 30 GB for a circuit past a microcircuit | nothing: 16 GB holds `MAX_SEGMENTS` under the cap | | | Rejected ([ADR 0017](adr/0017-memory-cap.md)) |
+| Over the cap, built again at the coarser two levels | the male CNS, 178.1M segments: 12,094 MiB, a pack of 532 MB, 60 fps; 0.25 µm close up | about 185 s of its 488 s lost to the attempt at three levels | `COARSER_LEVELS` and the job's second attempt | Chosen ([ADR 0020](adr/0020-coarser-levels-over-the-cap.md)) |
+| `MAX_SEGMENTS` raised, three levels kept | the finest level for the male CNS, about 368M segments, about 23 GiB at its rate | the pack's size and how the viewer holds it not measured | a larger task | Rejected ([ADR 0020](adr/0020-coarser-levels-over-the-cap.md)) |
+| The coarser levels for fly circuits only | rat circuits over the cap keep their somas | | the species known to the build | Rejected ([ADR 0020](adr/0020-coarser-levels-over-the-cap.md)) |
+| The first attempt's work kept for the second | | about 185 s of the male CNS's 488 s saved | 11.4 GiB held at the attempt's stop, a level of it to be dropped | Not built ([ADR 0020](adr/0020-coarser-levels-over-the-cap.md)) |
 | Each level's flat values in a file-backed array | about 13 B a segment off the peak where cells share morphologies 3 to 1, estimated | writing up to 16 B a point once | | Deferred ([ADR 0017](adr/0017-memory-cap.md)) |
 | A writer through disk, a group of chunks at a time | memory bounded by the library and one group, whatever the circuit | unmeasured | a writer rewrite checked to the byte; temporary disk of about 20 B a segment | Deferred ([ADR 0017](adr/0017-memory-cap.md)) |
 | Each level placed just before it is packed | | +15-25% time | a second placing pass | Rejected ([ADR 0017](adr/0017-memory-cap.md)) |
@@ -336,4 +340,4 @@ Baseline: the build itself. Peaks are the anonymous memory of a Linux container 
 - **The peak is in packing the middle or the finest level.** On Linux about 300 MB of it is the allocator's, not live arrays.
 - **The pool's results are unpickled in the caller's thread.** On Linux the executor's own thread gets a malloc arena of its own, where memory the raw morphologies freed is never reused.
 - **The cap is fitted on the cgroup's peak less page cache:** 299 MB and 40.3 B a segment where cells share morphologies, 286 MB and 43.3 B where none do. It is set at 400 MiB and 50 B, with 128 MiB more for each process past two.
-- **A 30,000-cell CA1 slice,** about 470M segments by estimate, is refused. Only a writer through disk would bound memory by something other than the circuit.
+- **A 30,000-cell CA1 slice,** about 470M segments by estimate, is over the cap at three levels; whether its coarser two fit is not measured. Only a writer through disk would bound memory by something other than the circuit.
