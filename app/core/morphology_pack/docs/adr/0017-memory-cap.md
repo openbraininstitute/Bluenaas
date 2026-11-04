@@ -1,6 +1,6 @@
 # 0017. The build's memory cap from the container's limit, with `MAX_SEGMENTS` at 300M; job sizes by scale, 16 GB past a microcircuit
 
-- Status: Accepted. Replaces the ceiling of 212M traced points of [0001](0001-one-pack-built-by-obi-one.md). A writer through disk (Phase 3) Deferred.
+- Status: Accepted. Replaces the ceiling of 212M traced points of [0001](0001-one-pack-built-by-obi-one.md). A writer through disk (Phase 3) Deferred. What a circuit over the cap gets changed by [0020](0020-coarser-levels-over-the-cap.md).
 - Date: 2026-10-23, the user's word
 
 ## Context
@@ -45,7 +45,7 @@ The asset job's machine followed the circuit's scale. Since [0019](0019-built-on
 
 ## Consequences
 
-- The whole FlyWire brain, about 255M segments, fits under `MAX_SEGMENTS` on a 16 GB job.
+- The whole FlyWire brain, about 255M segments, fits under `MAX_SEGMENTS` on a 16 GB job. By the slope only: [0020](0020-coarser-levels-over-the-cap.md) measured a rate above it.
 - The fit holds on two processes. The base covers the pool, measured over the whole cgroup, so the cap is taken before the pool starts.
-- A circuit over the cap gets no pack and keeps its somas. Dropping its finer levels to fit is not built.
+- A circuit over the cap gets no pack and keeps its somas. Since [0020](0020-coarser-levels-over-the-cap.md), it is first built again without its finest level.
 - One slope for every circuit, set above the rate with no sharing. It cannot see sharing: a circuit that shares its morphologies far more than CA1 holds less than the cap allows for. A cap counting placed and distinct segments apart would help only with `MAX_SEGMENTS` raised too; not built.

@@ -15,7 +15,7 @@
 
 ## From files to bytes
 
-`build_morphology_pack(config_path, max_segments, workers)` runs these steps in order. Each is logged as it ends, with the seconds it took.
+`build_morphology_pack(config_path, max_segments, workers, levels)` runs these steps in order. Each is logged as it ends, with the seconds it took.
 
 ```mermaid
 flowchart TD
@@ -31,7 +31,7 @@ flowchart TD
     finest --> bytes["Header, index, somas, blocks"]
 ```
 
-The levels are packed coarsest first. Each level's chunks are encoded over the pool as they are cut.
+The levels are packed coarsest first. Each level's chunks are encoded over the pool as they are cut. `levels` is `LEVELS` unless given. At `COARSER_LEVELS`, which the job asks for where `LEVELS` are over the cap on `4cpu-16gb`, the middle level is the last packed.
 
 1. **The populations.** The circuit's biophysical node populations, sorted by name.
    - For each: every cell's position, its rotation as a matrix, and its morphology's name.
@@ -40,7 +40,7 @@ The levels are packed coarsest first. Each level's chunks are encoded over the p
 2. **The morphologies.** Each distinct morphology is read once, through MorphIO.
    - A morphology is told apart by where it is read from and its name.
    - A morphology that cannot be read is left out, with a warning.
-3. **The levels.** Every distinct morphology is simplified to every level, over the process pool, `MORPHOLOGIES_A_JOB` a job.
+3. **The levels.** Every distinct morphology is simplified to each of `levels`, over the process pool, `MORPHOLOGIES_A_JOB` a job.
    - There is one simplification pass for each pruning length. Each level takes the points of its pass that stay kept past its own tolerance, so the levels that prune alike are nested by construction.
    - Between each level and the next, `geometry.nesting` records which of the finer level's points end segments following each coarser segment. That record is what the writer stores as counts and inner points.
    - As each morphology is done, its segments times its cells are added up. The build stops with `NoPackError` at the first morphology that takes the total past `max_segments`.
@@ -57,13 +57,13 @@ The levels are packed coarsest first. Each level's chunks are encoded over the p
 
 ## Memory
 
-At its peak a build holds every level's placed points and the encoded blocks of the level in hand. The cap therefore counts segments over every level.
+At its peak a build holds its levels' placed points and the encoded blocks of the level in hand. The cap therefore counts segments over its levels.
 
 | What | Bytes |
 | --- | --- |
 | The build itself, two processes | `BASE_BYTES`, 400 MiB |
 | Each process past two | `BYTES_A_WORKER`, 128 MiB, measured at about 110 MB while simplifying |
-| A segment, over every level | `BYTES_A_SEGMENT`, 50 |
+| A segment, over the build's levels | `BYTES_A_SEGMENT`, 50 |
 
 These are counted in the memory that cannot be reclaimed. They were measured in a Linux container on 2 CPUs, 2026-10-23:
 
@@ -82,8 +82,9 @@ What keeps the peak there:
 - **Only `AHEAD` jobs per process are in flight at once.** The pool does not run ahead of what the caller has taken.
 
 `segment_cap` turns this into the most segments a build may hold where it runs, as in the [README](README.md#limits-and-settings).
-- On 16 GiB, `MAX_SEGMENTS` (300M) holds on two processes or on four: 300M × 50 B plus the base is about 14.4 GiB, and about 14.6 GiB with two more processes.
-- The whole FlyWire brain's three levels come to about 255M segments.
+- By these settings, `MAX_SEGMENTS` (300M) holds on 16 GiB on two processes or on four: 300M × 50 B plus the base is about 14.4 GiB, and about 14.6 GiB with two more processes.
+- The male CNS measured more: 12,094 MiB for 178.1M segments at two levels, about 67 B a segment. At that rate, a build past about 246M segments, at either set of levels, would not fit 16 GiB, and a build killed for its memory gets no second attempt ([ADR 0020](adr/0020-coarser-levels-over-the-cap.md)).
+- The whole FlyWire brain's three levels come to about 255M segments by estimate, and have never been built.
 
 Not built: memory bounded by a group of chunks rather than by the whole circuit. A build's memory still grows with the circuit's segments.
 
@@ -123,7 +124,7 @@ What uses the package:
 
 | Caller | What it uses |
 | --- | --- |
-| `app/services/worker/circuit/morphology_pack.py` | `build_morphology_pack`, `segment_cap`, `NoPackError`, `PackTooLargeError`, `staging.stage_morphology_pack_inputs` |
+| `app/services/worker/circuit/morphology_pack.py` | `build_morphology_pack`, `segment_cap`, `COARSER_LEVELS`, `NoPackError`, `PackTooLargeError`, `staging.stage_morphology_pack_inputs` |
 
 Its other dependencies come with it:
 

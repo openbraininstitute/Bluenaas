@@ -6,7 +6,7 @@
 | 0002 | [Cut in chunks of space; the layout by morphology waits for a circuit that meets both its conditions](0002-chunks-of-space.md) | Accepted; the layout by morphology Deferred | 2026-10-13 |
 | 0003 | [Positions on a 25 nm grid, radius on a log scale of 16 steps an octave](0003-grid-and-radius-steps.md) | Accepted; a coarser grid and fewer radius steps Deferred | 2026-10-13 |
 | 0004 | [Ramer-Douglas-Peucker on path and diameter, the viewer's measure; the finest level at 0.125 µm, a setting of the build](0004-simplification-tolerance.md) | Accepted | 2026-10-13 |
-| 0005 | [Three levels: 0.125 µm, 0.25 µm, and 1 µm with twigs under 5 µm pruned](0005-three-levels.md) | Accepted | 2026-10-13 |
+| 0005 | [Three levels: 0.125 µm, 0.25 µm, and 1 µm with twigs under 5 µm pruned](0005-three-levels.md) | Accepted; the coarser two over the cap since 0020 | 2026-10-13 |
 | 0006 | [Streams of whole numbers as byte planes, deflated](0006-byte-planes-deflated.md) | Accepted for deflate; another coder Deferred | 2026-10-13, confirmed 2026-10-19 |
 | 0007 | [Each level held as additions over its base, the chord's guess for inner points, in version 1](0007-levels-nested-over-their-base.md) | Accepted | 2026-10-19 |
 | 0008 | [Run starts back-referenced, with the radius as a delta; each step guessed at three quarters of the one before](0008-run-starts-and-guessed-steps.md) | Accepted | 2026-10-19 |
@@ -18,8 +18,9 @@
 | 0014 | [Stored as the circuit's `circuit_morphology_pack` asset, `.mpack`, `application/octet-stream`](0014-stored-as-a-circuit-asset.md) | Superseded by 0019 | 2026-10-21, changed 2026-10-22 |
 | 0015 | [Built in the circuit asset job, last of its assets, at every scale under a segment cap; the endpoint is removed](0015-built-in-the-asset-job.md) | Superseded by 0019 | 2026-10-22 |
 | 0016 | [Simplification and encoding over a process pool of at most 8; the same bytes on any number](0016-process-pool.md) | Accepted | 2026-10-19 |
-| 0017 | [The build's memory cap from the container's limit, with `MAX_SEGMENTS` at 300M; job sizes by scale, 16 GB past a microcircuit](0017-memory-cap.md) | Accepted; a writer through disk Deferred | 2026-10-23 |
+| 0017 | [The build's memory cap from the container's limit, with `MAX_SEGMENTS` at 300M; job sizes by scale, 16 GB past a microcircuit](0017-memory-cap.md) | Accepted; a writer through disk Deferred; a circuit over the cap changed by 0020 | 2026-10-23 |
 | 0018 | [No pack for single-neuron circuits, and no section ids in the format](0018-no-pack-for-single-neurons.md) | Accepted | 2026-10-21 |
-| 0019 | [Built on demand in Bluenaas and kept in its cache; no stored asset](0019-built-on-demand-in-bluenaas.md) | Accepted | 2026-10-28 |
+| 0019 | [Built on demand in Bluenaas and kept in its cache; no stored asset](0019-built-on-demand-in-bluenaas.md) | Accepted; a build over the cap changed by 0020 | 2026-10-28 |
+| 0020 | [Over the cap, a circuit is built again at the coarser two levels](0020-coarser-levels-over-the-cap.md) | Accepted | 2026-11-04 |
 
 Each file gives a status and the day the decision was made, then its context, the decision, the alternatives weighed in a table of what each gave against the one chosen and on which pack it was measured, and the consequences. A status is Accepted, Superseded by another decision, or Deferred, and a decision can be Accepted with a part Deferred or superseded; the date is the decision's own, with "the user's word" where the user made it.

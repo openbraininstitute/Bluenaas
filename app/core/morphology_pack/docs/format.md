@@ -1,6 +1,6 @@
 # The morphology pack format
 
-A pack holds the morphologies of a circuit's biophysical neurons in one binary file, ready for a viewer to draw: simplified, placed in the circuit and cut into chunks of space, at three levels of detail. The `build` module writes it from a SONATA circuit on disk; `reader.py` reads it back. A pack is usually named with the suffix `.mpack` and served as `application/octet-stream`.
+A pack holds the morphologies of a circuit's biophysical neurons in one binary file, ready for a viewer to draw: simplified, placed in the circuit and cut into chunks of space, at three levels of detail or, for a circuit whose three are too many, the coarser two. The `build` module writes it from a SONATA circuit on disk; `reader.py` reads it back. A pack is usually named with the suffix `.mpack` and served as `application/octet-stream`.
 
 This page is the specification. What a reader relies on beyond it is in [the reader's contract](reader-contract.md); why it is so, in [the decision records](adr/README.md).
 

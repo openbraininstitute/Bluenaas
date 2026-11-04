@@ -41,4 +41,4 @@ The circuit viewer reads packs in a worker of its own, in TypeScript. [format.md
 ## What it does not get
 
 - **Section ids.** A single-neuron circuit stays on its per-cell path, which reads its morphology for location picks and synapses. A pack is not built for it.
-- **Traced points.** The finest level is simplified within 0.125 µm, and the viewer shows what the pack holds.
+- **Traced points.** The finest level is simplified within 0.125 µm, or 0.25 µm in a pack at the coarser two levels, and the viewer shows what the pack holds.

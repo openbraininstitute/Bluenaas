@@ -214,6 +214,42 @@ cap = min(max(0, left - base) // BYTES_A_SEGMENT, MAX_SEGMENTS)
 | 4 GB | about 70M segments |
 | 16 GB | `MAX_SEGMENTS` |
 
+### The male CNS at two levels
+
+MaleCNS-v1.0, 164,606 neurons: the largest circuit built. `_pack_of` on a kept stage, in a Linux container held to 4 CPUs in a VM of 15.6 GiB, 2026-11-04. The build at three levels went over the cap, so it was built again at the coarser two ([ADR 0020](adr/0020-coarser-levels-over-the-cap.md)).
+
+| Pack | |
+| --- | --- |
+| Middle level | 147.0M segments |
+| Far level | 31.1M segments |
+| The file | 531,644,698 bytes, 507 MiB |
+
+| Step | Time |
+| --- | --- |
+| The attempt at three levels, to the cap | about 185 s |
+| Reading | 90.4 s |
+| Simplifying | 96.8 s |
+| Placing | 37.9 s |
+| Packing | 70.1 s |
+| All, the attempt included | 488 s |
+
+| Memory | MiB |
+| --- | --- |
+| The attempt at three levels, at its peak, anonymous and shared | 11,423 |
+| The build at two levels, at its peak, anonymous and shared | 12,094 |
+| The same with page cache, which can be reclaimed | 14,554 |
+
+Past the base and the two processes over two, the peak is about 67 B a segment, against `BYTES_A_SEGMENT`'s 50. The cause is not established. This is the one circuit measured at this size, and at two levels.
+
+Drawn in Chrome with WebGPU on an M4 Pro with 24 GB, the pack fetched and read:
+
+| View | Frame rate |
+| --- | --- |
+| Orbit at 1206 x 640, far, middle and close | 60 fps |
+| Full screen, 2550 x 1260 | 16.7 ms median, with one-off hitches of 818 and 851 ms |
+
+Chrome held about 3.8 GB in its GPU process and 3.8 GB in the renderer at its peak.
+
 ## Fidelity
 
 The first review, the whole fly brain as the 1,379-cell sample times 100.5, each level held against the traced points. Off the path: each traced point's distance to the simplified path of its section.
