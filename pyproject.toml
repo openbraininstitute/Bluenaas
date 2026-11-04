@@ -35,6 +35,7 @@ worker = [
     "bluepysnap==3.0.8",
     "efel==5.7.27",
     "filelock==3.25.0",
+    "h5py==3.16.0",
     "ion-channel-builder==0.0.21",
     "libsonata==0.2.2",
     "morphio==3.4.2",

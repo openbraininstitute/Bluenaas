@@ -56,6 +56,7 @@ class TestAdminRoutes(unittest.TestCase):
                 CacheKind.MORPHOLOGY_PACK,
                 "Morphology pack cache cleanup started",
             ),
+            ("lfp-summary", CacheKind.LFP_SUMMARY, "Lfp summary cache cleanup started"),
         ]
 
         for endpoint, kind, message in cases:

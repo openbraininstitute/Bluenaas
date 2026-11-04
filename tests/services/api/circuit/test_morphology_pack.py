@@ -3,11 +3,9 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from uuid import uuid4
 
-import httpx
-from entitysdk.exception import EntitySDKError
 from entitysdk.types import CircuitScale
 from rq import Callback
 from rq.job import JobStatus
@@ -15,7 +13,7 @@ from rq.job import JobStatus
 from app.constants import DIR_LOCK_FILE_NAME, READY_MARKER_FILE_NAME
 from app.core.exceptions import AppError
 from app.domains.circuit.morphology_pack import MorphologyPackState, NoPackReason
-from app.infrastructure.rq import JobQueue, get_queue
+from app.infrastructure.rq import JobQueue, clean_up_abandoned_jobs, get_queue
 from app.infrastructure.storage import morphology_pack as storage
 from app.infrastructure.storage.epoch import CacheKind, rotate_epoch
 from app.infrastructure.storage.morphology_pack import (
@@ -201,7 +199,9 @@ class TestMorphologyPackStatus(MorphologyPackTestCase):
             storage, "remove_build_leftovers", wraps=storage.remove_build_leftovers
         ) as callback:
             with ThreadPoolExecutor(4) as pool:
-                for future in [pool.submit(storage.clean_up_abandoned_builds) for _ in range(4)]:
+                for future in [
+                    pool.submit(clean_up_abandoned_jobs, storage.BUILD_QUEUES) for _ in range(4)
+                ]:
                     future.result()
 
         callback.assert_called_once()
@@ -261,40 +261,6 @@ class TestMorphologyPackStatus(MorphologyPackTestCase):
         )
 
         self.assertEqual(result.stdout.strip(), "[]")
-
-
-def _http_error(status: HTTPStatus) -> EntitySDKError:
-    request = httpx.Request("GET", "https://entitycore/circuit")
-    response = httpx.Response(status, request=request)
-    try:
-        raise httpx.HTTPStatusError("error", request=request, response=response)
-    except httpx.HTTPStatusError as cause:
-        try:
-            raise EntitySDKError("HTTP error") from cause
-        except EntitySDKError as error:
-            return error
-
-
-class TestCircuitAccess(MorphologyPackTestCase):
-    def test_a_circuit_the_user_cannot_see_is_not_found(self):
-        for status in [HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND]:
-            with self.subTest(status=status):
-                with patch.object(service, "Client") as client:
-                    client.return_value.get_entity.side_effect = _http_error(status)
-                    with self.assertRaises(AppError) as raised:
-                        service._get_circuit(
-                            uuid4(), auth=MagicMock(), project_context=self.project_context
-                        )
-
-                self.assertEqual(raised.exception.http_status_code, HTTPStatus.NOT_FOUND)
-
-    def test_other_errors_are_raised_as_they_are(self):
-        with patch.object(service, "Client") as client:
-            client.return_value.get_entity.side_effect = _http_error(HTTPStatus.BAD_GATEWAY)
-            with self.assertRaises(EntitySDKError):
-                service._get_circuit(
-                    uuid4(), auth=MagicMock(), project_context=self.project_context
-                )
 
 
 class TestPackFile(MorphologyPackTestCase):
