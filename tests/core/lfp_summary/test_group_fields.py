@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import h5py
 import numpy as np
+from loguru import logger
 
 from app.core.lfp_summary import summary
 from app.core.lfp_summary.nodes import cell_labels
@@ -41,6 +42,53 @@ def fields_of(path: Path, population: str = "pop") -> np.ndarray:
         cells = f[f"report/{population}/mapping/node_ids"].shape[0]
         data = f[f"report/{population}/data"][:]
     return data.reshape(data.shape[0], cells, -1).astype(np.float64) * 1e6
+
+
+class TestReadProgress(unittest.TestCase):
+    def setUp(self):
+        self.messages: list[str] = []
+        sink = logger.add(self.messages.append, format="{message}")
+        self.addCleanup(logger.remove, sink)
+        patcher = patch.object(summary.time, "monotonic")
+        self.clock = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.clock.return_value = 0.0
+        self.progress = summary.ReadProgress("a", 100_000_000_000)
+
+    def test_how_far_how_fast_and_how_long_left(self):
+        self.clock.return_value = 60.0
+        self.progress.add(6_000_000_000)
+
+        self.assertEqual(
+            self.messages,
+            [
+                "LFP report a: read 6.0 of 100.0 GB (6%), 100 MB/s, 100 MB/s on average,"
+                " about 16 min left\n"
+            ],
+        )
+
+    def test_the_speed_is_of_the_last_stretch_beside_the_average(self):
+        self.clock.return_value = 60.0
+        self.progress.add(6_000_000_000)
+        self.clock.return_value = 120.0
+        self.progress.add(3_000_000_000)
+
+        self.assertIn("50 MB/s, 75 MB/s on average", self.messages[1])
+
+    def test_no_more_often_than_it_should(self):
+        self.clock.return_value = summary.PROGRESS_LOG_SECONDS - 1
+        self.progress.add(1_000_000)
+
+        self.assertEqual(self.messages, [])
+
+    def test_the_read_in_all(self):
+        self.progress.add(100_000_000_000)
+        self.clock.return_value = 1000.0
+        self.progress.finish()
+
+        self.assertEqual(
+            self.messages, ["LFP report a: read 100.0 GB in 17 min, 100 MB/s on average\n"]
+        )
 
 
 class TestCellLabels(unittest.TestCase):

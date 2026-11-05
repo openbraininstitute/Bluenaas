@@ -19,6 +19,7 @@ from app.core.lfp_summary.summary import (
     CellLabels,
     NotSummarisableError,
     OverMemoryError,
+    duration,
     sum_report,
     verify,
     write_summary,
@@ -27,7 +28,7 @@ from app.domains.simulation_result.lfp_summary import NoSummaryReason
 from app.infrastructure.rq import JobQueue
 from app.infrastructure.storage import write_atomically
 from app.infrastructure.storage.epoch import CacheKind, current_epoch
-from app.utils.memory import memory_limit
+from app.utils.memory import memory_limit, peak_held
 from app.infrastructure.storage.lfp_summary import (
     FORMAT_VERSION,
     INDEX_FILE_NAME,
@@ -90,6 +91,7 @@ def _build(
                 ranges.read,
                 size,
                 labels_of=_labels_from(nodes),
+                label=str(asset_id),
                 memory=memory_limit() // settings.NUM_WORKERS,
                 move_for_groups=queue == JobQueue.LOW,
             )
@@ -105,13 +107,16 @@ def _build(
             return False
 
     tmp = directory / f"{SUMMARY_FILE_NAME}.{job_id}.tmp"
+    write_started = time.monotonic()
     index = write_summary(
         report,
         tmp,
         version=FORMAT_VERSION,
         source={"asset_id": str(asset_id), "size": size},
     )
+    verify_started = time.monotonic()
     verify(tmp, index)
+    verified = time.monotonic()
     with tmp.open("rb") as f:
         sha256 = hashlib.file_digest(f, "sha256").hexdigest()
     summary_size = tmp.stat().st_size
@@ -119,7 +124,11 @@ def _build(
     write_atomically(directory / INDEX_FILE_NAME, json.dumps(index))
     write_summary_info(directory, SummaryInfo(size=summary_size, sha256=sha256))
     (directory / READY_MARKER_FILE_NAME).touch()
-    logger.info(f"LFP summary of {asset_id} built, {summary_size} bytes")
+    logger.info(
+        f"LFP summary of {asset_id} built, {summary_size} bytes: written in"
+        f" {duration(verify_started - write_started)}, verified in"
+        f" {duration(verified - verify_started)}, {peak_held() / 2**30:.1f} GiB of memory at most"
+    )
     return False
 
 

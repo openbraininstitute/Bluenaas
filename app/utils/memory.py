@@ -2,6 +2,7 @@
 
 import ctypes
 import ctypes.util
+import resource
 import sys
 from collections.abc import Callable
 from functools import cache
@@ -56,3 +57,11 @@ def memory_left(limit: int | None = None) -> int:
     """
     held = psutil.Process().memory_info().rss
     return max(0, (memory_limit() if limit is None else limit) - held)
+
+
+def peak_held() -> int:
+    """The most bytes this process has held. The system counts them in bytes on macOS, in KiB
+    elsewhere.
+    """
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return peak if sys.platform == "darwin" else peak * 1024

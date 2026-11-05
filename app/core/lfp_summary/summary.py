@@ -23,6 +23,7 @@ The field of each group of cells, on each axis of GROUP_COLUMNS the report's cel
 """
 
 import math
+import time
 import zlib
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -51,6 +52,9 @@ DEFLATES_AT_ONCE = 4
 BLOCK_BYTES = 32 << 20
 READS_IN_FLIGHT = 8
 
+# How often the read of a report says how far it has got, at most
+PROGRESS_LOG_SECONDS = 30.0
+
 # The total is summed in memory, steps x contacts in float64, and the summary built from it
 MAX_TOTAL_BYTES = 2 << 30
 # Summing and writing peak at about 3.3 times the total (measured), besides the reads in flight
@@ -63,6 +67,45 @@ TO_UV = {"V": 1e6, "mV": 1e3, "uV": 1.0, "µV": 1.0}
 
 # A population's cells, by their node ids: their labels per column of GROUP_COLUMNS it has
 CellLabels = Callable[[str, np.ndarray], dict[str, np.ndarray]]
+
+
+def duration(seconds: float) -> str:
+    return f"{seconds:.0f} s" if seconds < 90 else f"{seconds / 60:.0f} min"
+
+
+class ReadProgress:
+    """Logs how far the read of a report has got: only numbers and its label, never its URL."""
+
+    def __init__(self, label: str, total_bytes: int):
+        self.label = label
+        self.total_bytes = total_bytes
+        self.done = 0
+        self.started = self.logged_at = time.monotonic()
+        self.logged_bytes = 0
+
+    def add(self, count: int) -> None:
+        self.done += count
+        now = time.monotonic()
+        if now - self.logged_at < PROGRESS_LOG_SECONDS:
+            return
+        recent = (self.done - self.logged_bytes) / (now - self.logged_at)
+        average = self.done / (now - self.started)
+        left = (self.total_bytes - self.done) / recent if recent else 0
+        logger.info(
+            f"LFP report {self.label}: read {self.done / 1e9:.1f} of {self.total_bytes / 1e9:.1f} GB"
+            f" ({100 * self.done / self.total_bytes:.0f}%), {recent / 1e6:.0f} MB/s,"
+            f" {average / 1e6:.0f} MB/s on average, about {duration(left)} left"
+        )
+        self.logged_at = now
+        self.logged_bytes = self.done
+
+    def finish(self) -> None:
+        seconds = time.monotonic() - self.started
+        speed = self.done / seconds if seconds else 0
+        logger.info(
+            f"LFP report {self.label}: read {self.done / 1e9:.1f} GB in {duration(seconds)},"
+            f" {speed / 1e6:.0f} MB/s on average"
+        )
 
 
 class NotSummarisableError(Exception):
@@ -204,6 +247,7 @@ def _sum_population(
     total: np.ndarray,
     fields: dict[str, GroupFields],
     orders: dict[str, _CellOrder],
+    progress: ReadProgress,
     *,
     workers: int,
 ) -> None:
@@ -244,6 +288,7 @@ def _sum_population(
             total[a:b] += values * population.to_uv
             for axis, by_group in grouped.items():
                 fields[axis].values[a:b, orders[axis].groups] += by_group * population.to_uv
+            progress.add((b - a) * row_bytes)
 
 
 def peak_bytes(steps: int, contacts: int, group_fields: int = 0) -> int:
@@ -273,6 +318,7 @@ def sum_report(
     size: int,
     *,
     labels_of: CellLabels = _no_labels,
+    label: str = "",
     memory: int | None = None,
     move_for_groups: bool = False,
     workers: int = READS_IN_FLIGHT,
@@ -314,7 +360,12 @@ def sum_report(
                 f"{steps} steps x {contacts} contacts take over {memory} bytes to summarise"
             )
 
+        labels_started = time.monotonic()
         groups, orders = _cell_orders(populations, contacts, labels_of)
+        logger.info(
+            f"LFP report {label}: groups { ({a: len(g) for a, g in groups.items()}) }, found in"
+            f" {duration(time.monotonic() - labels_started)}"
+        )
         if memory is not None:
             if (
                 move_for_groups
@@ -330,9 +381,13 @@ def sum_report(
             axis: GroupFields(names_, np.zeros((steps, len(names_), contacts), np.float32))
             for axis, names_ in groups.items()
         }
+        progress = ReadProgress(
+            label, sum(p.data.size * p.data.dtype.itemsize for p in populations)
+        )
         for population in populations:
             kept = {a: o for a, o in orders[population.name].items() if a in fields}
-            _sum_population(population, read, total, fields, kept, workers=workers)
+            _sum_population(population, read, total, fields, kept, progress, workers=workers)
+        progress.finish()
         if not np.isfinite(total).all():
             raise _unreadable("The report has values that are not finite")
 

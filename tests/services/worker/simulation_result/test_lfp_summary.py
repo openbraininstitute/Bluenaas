@@ -119,6 +119,20 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
 
         self.assertEqual([a["name"] for a in self.index()["axes"]], ["total"])
 
+    def test_a_build_logs_its_stages_and_no_url(self):
+        messages = []
+        sink = logger.add(messages.append, format="{message}")
+        self.addCleanup(logger.remove, sink)
+
+        self.run_build(nodes={"pop": NODES_URL})
+
+        logged = "".join(messages)
+        self.assertIn("groups {'mtype': 2}", logged)
+        self.assertIn(f"LFP report {self.asset_id}: read", logged)
+        self.assertIn("written in", logged)
+        self.assertIn("GiB of memory at most", logged)
+        self.assertNotIn("signature", logged)
+
     def test_the_url_of_nodes_that_cannot_be_read_is_not_logged(self):
         self.nodes_file.write_bytes(b"not an h5 file" * 100)
         messages = []
