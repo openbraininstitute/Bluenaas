@@ -9,10 +9,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
+import httpx
 from filelock import FileLock
 from loguru import logger
 
 from app.constants import DIR_LOCK_FILE_NAME, READY_MARKER_FILE_NAME
+from app.core.lfp_summary.ranges import NoSuchFileError, RangeReadError
 from app.core.lfp_summary.summary import verify
 from app.domains.simulation_result.lfp_summary import NoSummaryReason
 from app.infrastructure.rq import JobQueue, get_queue
@@ -45,12 +47,19 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         write_nodes(self.nodes_file, "pop", {"mtype": ["A", "B", "A"], "layer": ["5", "5", "5"]})
 
         self.urls: list[str] = []
+        self.nodes_failure: Exception | None = None
 
         @contextmanager
         def http_ranges(url, *, connections):
             self.urls.append(url)
             read, size = local_reader(self.nodes_file if url == NODES_URL else self.report)
-            yield SimpleNamespace(read=read, size=lambda: size)
+
+            def size_of() -> int:
+                if url == NODES_URL and self.nodes_failure:
+                    raise self.nodes_failure
+                return size
+
+            yield SimpleNamespace(read=read, size=size_of)
 
         patcher = patch.object(service, "HttpRanges", side_effect=http_ranges)
         patcher.start()
@@ -118,6 +127,24 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         self.run_build(nodes={"pop": NODES_URL})
 
         self.assertEqual([a["name"] for a in self.index()["axes"]], ["total"])
+
+    def test_a_nodes_file_that_is_not_there_leaves_the_total(self):
+        self.nodes_failure = NoSuchFileError("no")
+
+        self.run_build(nodes={"pop": NODES_URL})
+
+        self.assertEqual([a["name"] for a in self.index()["axes"]], ["total"])
+
+    def test_a_failed_read_of_the_nodes_keeps_a_summary_without_groups_out_of_the_cache(self):
+        for failure in (RangeReadError("answered with 503"), httpx.ConnectTimeout("late")):
+            with self.subTest(failure=failure):
+                self.nodes_failure = failure
+
+                with self.assertRaises(type(failure)):
+                    self.run_build(nodes={"pop": NODES_URL})
+
+                self.assertFalse((self.directory() / READY_MARKER_FILE_NAME).exists())
+                self.assertFalse((self.directory() / NO_SUMMARY_FILE_NAME).exists())
 
     def test_a_build_logs_its_stages_and_no_url(self):
         messages = []

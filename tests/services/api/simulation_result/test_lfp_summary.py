@@ -10,6 +10,7 @@ import httpx
 from entitysdk.exception import EntitySDKError
 from entitysdk.models import SimulationResult
 from entitysdk.types import AssetLabel
+from entitysdk.utils.http import HTTPStatusError, RequestError
 from rq.job import JobStatus
 
 from app.constants import READY_MARKER_FILE_NAME
@@ -291,6 +292,12 @@ class TestDownloadUrl(LfpSummaryTestCase):
 
         self.assertEqual(caught.exception.http_status_code, HTTPStatus.BAD_GATEWAY)
 
+    def test_no_such_file(self):
+        with self.assertRaises(AppError) as caught:
+            self.url_answered_by(httpx.Response(404))
+
+        self.assertEqual(caught.exception.http_status_code, HTTPStatus.NOT_FOUND)
+
     def test_no_redirect(self):
         with self.assertRaises(AppError) as caught:
             self.url_answered_by(httpx.Response(200, content=b"the file"))
@@ -408,10 +415,45 @@ class TestNodesUrls(LfpSummaryTestCase):
 
                 self.assertEqual(self.urls(), {})
 
-    def test_a_nodes_file_with_no_url(self):
+    def test_a_nodes_file_that_is_not_there(self):
+        self.download_url.side_effect = AppError(
+            message="no", error_code=None, http_status_code=HTTPStatus.NOT_FOUND
+        )
+
+        self.assertEqual(self.urls(), {})
+
+    def test_a_nodes_url_not_given_just_now_is_not_taken_for_no_groups(self):
         self.download_url.side_effect = AppError(
             message="no", error_code=None, http_status_code=HTTPStatus.BAD_GATEWAY
         )
+
+        with self.assertRaises(AppError):
+            self.urls()
+
+    def sdk_error(self, cause: Exception) -> EntitySDKError:
+        error = EntitySDKError("failed")
+        error.__cause__ = cause
+        return error
+
+    def status_error(self, status: int) -> HTTPStatusError:
+        return HTTPStatusError(
+            "failed", request=MagicMock(), response=MagicMock(status_code=status)
+        )
+
+    def test_entitycore_failing_to_answer_is_not_taken_for_no_groups(self):
+        for cause in (RequestError("late"), self.status_error(503)):
+            with self.subTest(cause=cause):
+                self.client.get_entity.side_effect = [
+                    SimpleNamespace(entity_id=self.circuit.id),
+                    self.circuit,
+                ]
+                self.client.download_content.side_effect = self.sdk_error(cause)
+
+                with self.assertRaises(EntitySDKError):
+                    self.urls()
+
+    def test_a_circuit_config_that_is_not_there(self):
+        self.client.download_content.side_effect = self.sdk_error(self.status_error(404))
 
         self.assertEqual(self.urls(), {})
 

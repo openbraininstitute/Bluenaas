@@ -199,6 +199,28 @@ class TestSumByGroup(unittest.TestCase):
 
         self.assertEqual(report.fields, {})
 
+    def test_columns_not_in_the_order_of_the_node_ids_have_no_groups(self):
+        write_report(self.path, cells=2, contacts=3, steps=5)
+        total = fields_of(self.path).sum(1)
+        with h5py.File(self.path, "r+") as f:
+            f["report/pop/mapping/index_pointers"][...] = np.array([3, 6, 0])
+
+        report = self.summed({"pop": {"mtype": np.array(["A", "B"])}})
+
+        self.assertEqual(report.fields, {})
+        np.testing.assert_allclose(report.total, total, rtol=1e-4)
+
+    def test_a_report_without_index_pointers_is_summed_and_has_no_groups(self):
+        write_report(self.path, cells=2, contacts=3, steps=5)
+        total = fields_of(self.path).sum(1)
+        with h5py.File(self.path, "r+") as f:
+            del f["report/pop/mapping/index_pointers"]
+
+        report = self.summed({"pop": {"mtype": np.array(["A", "B"])}})
+
+        self.assertEqual(report.fields, {})
+        np.testing.assert_allclose(report.total, total, rtol=1e-4)
+
     def test_groups_over_the_memory_move_a_build_that_can(self):
         write_report(self.path, cells=2, contacts=4, steps=50)
 

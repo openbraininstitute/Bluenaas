@@ -142,6 +142,7 @@ class _Population:
     data: h5py.Dataset
     element_ids: np.ndarray
     node_ids: np.ndarray
+    index_pointers: np.ndarray | None
     to_uv: float
 
     @property
@@ -149,9 +150,12 @@ class _Population:
         return len(self.node_ids)
 
     def is_regular(self, contacts: int) -> bool:
-        """Every cell on every contact, in order."""
-        return len(self.element_ids) == self.cells * contacts and bool(
-            (self.element_ids.reshape(self.cells, contacts) == np.arange(contacts)).all()
+        """Every cell on every contact, in order, and the cells' columns in the order of `node_ids`."""
+        return (
+            len(self.element_ids) == self.cells * contacts
+            and self.index_pointers is not None
+            and np.array_equal(self.index_pointers, contacts * np.arange(self.cells + 1))
+            and bool((self.element_ids.reshape(self.cells, contacts) == np.arange(contacts)).all())
         )
 
 
@@ -205,11 +209,15 @@ def _population(name: str, group: h5py.Group) -> _Population:
         )
     if not np.issubdtype(element_ids.dtype, np.integer) or element_ids.min() < 0:
         raise _unreadable(f"The element ids of {group.name} are not contacts")
+    index_pointers = group.get("mapping/index_pointers")
     return _Population(
         name=name,
         data=data,
         element_ids=element_ids,
         node_ids=np.asarray(_dataset(group, "mapping/node_ids")[:]),
+        index_pointers=(
+            np.asarray(index_pointers[:]) if isinstance(index_pointers, h5py.Dataset) else None
+        ),
         to_uv=TO_UV[units],
     )
 
@@ -219,11 +227,13 @@ def _cell_orders(
 ) -> tuple[dict[str, list[str]], dict[str, dict[str, _CellOrder]]]:
     """The groups of each axis the cells differ on, and the order of each population's cells for
     it. Only an axis every population has: its groups must add up to the total. None where the cells
-    are not all on all contacts, which is no report that is written, and saves a slower sum.
+    are not all on all contacts in the order of their ids, as the groups go by that, which is no
+    report that is written, and saves a slower sum.
     """
     groups = {}
     orders: dict[str, dict[str, _CellOrder]] = {p.name: {} for p in populations}
     if not all(p.is_regular(contacts) for p in populations):
+        logger.warning("The cells of an LFP report are not in order, so it has no groups")
         return groups, orders
     labels = {p.name: labels_of(p.name, p.node_ids) for p in populations}
     for axis in GROUP_COLUMNS:

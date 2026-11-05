@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 from uuid import UUID
 
-import httpx
 import numpy as np
 from filelock import FileLock, Timeout
 from loguru import logger
@@ -13,7 +12,7 @@ from loguru import logger
 from app.config.settings import settings
 from app.constants import DIR_LOCK_FILE_NAME, READY_MARKER_FILE_NAME
 from app.core.lfp_summary.nodes import cell_labels
-from app.core.lfp_summary.ranges import HttpRanges, RangeReadError, url_expires_at
+from app.core.lfp_summary.ranges import HttpRanges, NoSuchFileError, url_expires_at
 from app.core.lfp_summary.summary import (
     READS_IN_FLIGHT,
     CellLabels,
@@ -53,8 +52,10 @@ def _is_settled(directory: Path) -> bool:
 
 
 def _labels_from(nodes: dict[str, str]) -> CellLabels:
-    """A population's cells' labels from its nodes file. None if that can't be read: the report is
-    still summarised, and without its groups.
+    """A population's cells' labels from its nodes file. None if it isn't there or is no nodes file:
+    the report is still summarised, and without its groups. A read that fails raises, for the build
+    to be tried again, as a summary without groups would stay in the cache. It comes before the
+    report is read, so it costs little.
     """
 
     def labels_of(population: str, node_ids: np.ndarray) -> dict[str, np.ndarray]:
@@ -64,7 +65,7 @@ def _labels_from(nodes: dict[str, str]) -> CellLabels:
         try:
             with HttpRanges(url, connections=READS_IN_FLIGHT) as ranges:
                 return cell_labels(ranges.read, ranges.size(), population, node_ids)
-        except (OSError, ValueError, IndexError, RangeReadError, httpx.TransportError) as ex:
+        except (OSError, ValueError, IndexError, NoSuchFileError) as ex:
             # Its type alone: the message of some of these holds the URL's signature
             logger.warning(f"The nodes of {population} can't be read: {type(ex).__name__}")
             return {}

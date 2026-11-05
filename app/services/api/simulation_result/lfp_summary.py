@@ -13,6 +13,7 @@ from entitysdk.models.asset import Asset
 from entitysdk.models.core import Identifiable
 from entitysdk.route import get_assets_endpoint
 from entitysdk.types import AssetLabel
+from entitysdk.utils.http import HTTPStatusError, RequestError
 from fastapi.responses import FileResponse, Response
 from loguru import logger
 from rq.job import JobStatus
@@ -134,6 +135,8 @@ def _download_url(
         response = httpx.get(f"{endpoint}/download", headers=headers, params=params, timeout=30)
     except httpx.TransportError as ex:
         raise _no_download_url() from ex
+    if response.status_code == HTTPStatus.NOT_FOUND:
+        raise _not_found("The asset has no such file")
     if not response.is_redirect or "location" not in response.headers:
         raise _no_download_url()
     return response.headers["location"]
@@ -161,12 +164,23 @@ def nodes_files(config: dict) -> dict[str, str]:
     return files
 
 
+def _may_pass(ex: Exception) -> bool:
+    """Whether entitycore failed to answer, and so may yet, rather than having nothing to give."""
+    if isinstance(ex, AppError):
+        return ex.http_status_code != HTTPStatus.NOT_FOUND
+    cause = ex.__cause__
+    if isinstance(cause, HTTPStatusError):
+        return cause.response.status_code >= HTTPStatus.INTERNAL_SERVER_ERROR
+    return isinstance(cause, RequestError)
+
+
 def _nodes_urls(
     simulation_id: UUID, *, access_token: str, project_context: ProjectContext
 ) -> dict[str, str]:
-    """A presigned URL of each population's nodes file. None where they can't be found: the report
-    is still summarised, without its cells' groups, as a simulation of something other than a
-    circuit has none.
+    """A presigned URL of each population's nodes file. None where there are none to find: the
+    report is still summarised, without its cells' groups, as a simulation of something other than a
+    circuit has none. Raises where they could not be asked for just now, as a summary without groups
+    would stay in the cache.
     """
     client = user_client(access_token, project_context)
     try:
@@ -213,6 +227,8 @@ def _nodes_urls(
         TypeError,
         AttributeError,
     ) as ex:
+        if _may_pass(ex):
+            raise
         logger.info(f"No cell groups for simulation {simulation_id}: {type(ex).__name__}")
         return {}
     return {population: urls[path] for population, path in files.items()}
