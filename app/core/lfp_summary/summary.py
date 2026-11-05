@@ -3,23 +3,20 @@
 The summary is one HDF5 file plus a JSON index of its datasets' byte offsets, so a browser reads any
 slice with an HTTP Range request and no HDF5 library. It is made for the browser alone.
 
-The total, the axis "total" with one group:
-  /lfp/total/level0      int16  group x contact x step, value = raw * scale[group] uV
-  /lfp/total/level{k}    int16  group x contact x bin x 2 (min, max over 2**k steps),
-                                only while steps > MAX_OVERVIEW_STEPS, halving until under
-  /lfp/total/stats       float32 group x contact x len(STATS)
-  /lfp/total/psd         float32 group x contact x frequency, Welch, uV^2/Hz
-  /lfp/correlation       int16  contact x contact, value = raw / 32767
-
-The field of each group of cells, on each axis of GROUP_COLUMNS the report's cells differ on:
-  /lfp/{axis}/level0     int16  group x contact x step, as the total's. Past MAX_OVERVIEW_STEPS it
-                                is in chunks of one contact's row, shuffled and deflated, not listed
-                                in the index's datasets, and these two are added:
+Each axis is written alike: "total", with its one group, and each of GROUP_COLUMNS the report's cells
+differ on:
+  /lfp/{axis}/level0     int16  group x contact x step, value = raw * scale[group] uV. Past
+                                MAX_OVERVIEW_STEPS it is in chunks of one contact's row, shuffled and
+                                deflated, not listed in the index's datasets, and these two are added:
   /lfp/{axis}/chunks     uint64 group x contact x 2, each chunk's byte offset and size in the file
-  /lfp/{axis}/level{k}   int16  group x contact x bin, the mean over 2**k steps at the k the total
-                                ends on: means of groups add up, as min and max don't
+  /lfp/{axis}/level{k}   int16  the overview, over the 2**k steps that bring it under
+                                MAX_OVERVIEW_STEPS bins. The total's is group x contact x bin x 2, the
+                                min and the max. A group's is group x contact x bin, the mean: means of
+                                groups add up, as min and max don't
   /lfp/{axis}/stats      float32 group x contact x len(STATS)
-  /lfp/{axis}/psd        float32 group x contact x frequency, the Welch means over PSD_BANDS bands
+  /lfp/{axis}/psd        float32 group x contact x frequency, Welch, uV^2/Hz, the means over PSD_BANDS
+                                bands
+  /lfp/total/correlation int16  group x contact x contact, value = raw / 32767
 """
 
 import math
@@ -413,23 +410,24 @@ def quantize(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return np.ascontiguousarray(q.transpose(1, 2, 0)), scales
 
 
-def min_max_levels(level0: np.ndarray) -> list[tuple[int, np.ndarray]]:
-    """Min/max of each 2**k steps, halving until the bins are under MAX_OVERVIEW_STEPS."""
-    levels = []
-    lo, hi = level0, level0
+def overview_level(steps: int) -> int:
+    """The k at which bins of 2**k steps come under MAX_OVERVIEW_STEPS."""
     k = 0
-    while lo.shape[-1] > MAX_OVERVIEW_STEPS:
+    while math.ceil(steps / 2**k) > MAX_OVERVIEW_STEPS:
         k += 1
-        n = lo.shape[-1] // 2 * 2
-        rest = lo.shape[-1] - n
-        lo2 = np.minimum(lo[..., 0:n:2], lo[..., 1:n:2])
-        hi2 = np.maximum(hi[..., 0:n:2], hi[..., 1:n:2])
-        if rest:
-            lo2 = np.concatenate([lo2, lo[..., n:]], axis=-1)
-            hi2 = np.concatenate([hi2, hi[..., n:]], axis=-1)
-        lo, hi = lo2, hi2
-        levels.append((k, np.ascontiguousarray(np.stack([lo, hi], axis=-1))))
-    return levels
+    return k
+
+
+def min_max_level(level0: np.ndarray, k: int) -> np.ndarray:
+    """The min and max of each 2**k steps of contact x step, a last shorter bin as it comes."""
+    starts = np.arange(0, level0.shape[-1], 2**k)
+    return np.stack(
+        [
+            np.minimum.reduceat(level0, starts, axis=-1),
+            np.maximum.reduceat(level0, starts, axis=-1),
+        ],
+        axis=-1,
+    )
 
 
 def contact_stats(values: np.ndarray, start: float, dt: float) -> np.ndarray:
@@ -543,24 +541,14 @@ def _chunk_table(dataset: h5py.Dataset) -> np.ndarray:
     return table
 
 
-def _axis_entry(
-    name: str, groups: list[str], scales: list[float], levels: list[dict], frequencies: np.ndarray
-) -> dict:
-    return {
-        "name": name,
-        "groups": groups,
-        "scales": scales,
-        "levels": levels,
-        "stats": f"/lfp/{name}/stats",
-        "psd": f"/lfp/{name}/psd",
-        "psd_frequencies": [float(f) for f in frequencies],
-    }
+OVERVIEWS = {"min_max": min_max_level, "mean": mean_level}
 
 
-def _write_group_axis(
-    h5: h5py.File, axis: str, fields: GroupFields, report: SummedReport, k: int
+def _write_axis(
+    h5: h5py.File, axis: str, fields: GroupFields, report: SummedReport, overview_kind: str
 ) -> dict:
     steps, groups, contacts = fields.values.shape
+    k = overview_level(steps)
     name = f"lfp/{axis}"
     levels: list[dict] = [{"step": 1, "kind": "value", "dataset": f"/{name}/level0"}]
     overview = None
@@ -577,9 +565,12 @@ def _write_group_axis(
             shuffle=True,
         )
         bins = math.ceil(steps / 2**k)
-        overview = h5.create_dataset(f"{name}/level{k}", (groups, contacts, bins), "<i2")
+        shape = (
+            (groups, contacts, bins, 2) if overview_kind == "min_max" else (groups, contacts, bins)
+        )
+        overview = h5.create_dataset(f"{name}/level{k}", shape, "<i2")
         levels[0]["chunks"] = f"/{name}/chunks"
-        levels.append({"step": 2**k, "kind": "mean", "dataset": f"/{name}/level{k}"})
+        levels.append({"step": 2**k, "kind": overview_kind, "dataset": f"/{name}/level{k}"})
 
     scales, shares, stats, spectra = [], [], [], []
     frequencies = np.zeros(0)
@@ -597,31 +588,22 @@ def _write_group_axis(
             level0[group] = rows[0]
         else:
             _write_chunks(level0, group, rows[0])
-            overview[group] = mean_level(rows[0], k)
+            overview[group] = OVERVIEWS[overview_kind](rows[0], k)
 
     if overview is not None:
         h5.create_dataset(f"{name}/chunks", data=_chunk_table(level0))
     h5.create_dataset(f"{name}/stats", data=np.stack(stats))
     h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
-    entry = _axis_entry(axis, fields.groups, scales, levels, frequencies)
-    return {**entry, "shares": shares}
-
-
-def _write_total(h5: h5py.File, report: SummedReport) -> dict:
-    values = report.total[:, None, :]
-    level0, scales = quantize(values)
-    h5.create_dataset("lfp/total/level0", data=level0)
-    levels = min_max_levels(level0)
-    for k, level in levels:
-        h5.create_dataset(f"lfp/total/level{k}", data=level)
-    h5.create_dataset("lfp/total/stats", data=contact_stats(values, report.start, report.dt))
-    psd, frequencies = welch(values, report.dt)
-    h5.create_dataset("lfp/total/psd", data=psd)
-    entries = [
-        {"step": 1, "kind": "value", "dataset": "/lfp/total/level0"},
-        *({"step": 2**k, "kind": "min_max", "dataset": f"/lfp/total/level{k}"} for k, _ in levels),
-    ]
-    return _axis_entry("total", ["total"], [float(s) for s in scales], entries, frequencies)
+    return {
+        "name": axis,
+        "groups": fields.groups,
+        "scales": scales,
+        "shares": shares,
+        "levels": levels,
+        "stats": f"/{name}/stats",
+        "psd": f"/{name}/psd",
+        "psd_frequencies": [float(f) for f in frequencies],
+    }
 
 
 def _contiguous_datasets(h5: h5py.File) -> dict[str, dict]:
@@ -643,12 +625,13 @@ def _contiguous_datasets(h5: h5py.File) -> dict[str, dict]:
 def write_summary(report: SummedReport, h5_path: Path, *, version: int, source: dict) -> dict:
     """Write the summary's h5 at `h5_path`. Returns its index."""
     with h5py.File(h5_path, "w", libver="latest") as h5:
-        axes = [_write_total(h5, report)]
-        h5.create_dataset("lfp/correlation", data=correlation(report.total))
-        # Groups' means are over the bins the total's overview ends on
-        k = len(axes[0]["levels"]) - 1
-        for axis, fields in report.fields.items():
-            axes.append(_write_group_axis(h5, axis, fields, report, k))
+        total = GroupFields(["total"], report.total[:, None, :])
+        axes = [_write_axis(h5, "total", total, report, "min_max")]
+        axes += [
+            _write_axis(h5, axis, fields, report, "mean") for axis, fields in report.fields.items()
+        ]
+        h5.create_dataset("lfp/total/correlation", data=correlation(report.total)[None])
+        axes[0]["correlation"] = {"dataset": "/lfp/total/correlation", "scale": 1 / 32767}
         h5.flush()
         datasets = _contiguous_datasets(h5)
 
@@ -662,7 +645,6 @@ def write_summary(report: SummedReport, h5_path: Path, *, version: int, source: 
         "contacts": report.total.shape[1],
         "stats": STATS,
         "axes": axes,
-        "correlation": {"dataset": "/lfp/correlation", "scale": 1 / 32767},
         "datasets": datasets,
     }
 

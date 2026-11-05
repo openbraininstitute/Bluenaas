@@ -388,23 +388,23 @@ class TestWriteGroupFields(unittest.TestCase):
 
         verify(self.h5_path, index)
 
-    def test_spectra_per_axis_and_in_bands_for_groups(self):
+    def test_spectra_per_axis_and_in_bands(self):
         _, index = self.summarise(steps=MAX_OVERVIEW_STEPS * 4)
 
-        axis = self.axis(index)
-        total = next(a for a in index["axes"] if a["name"] == "total")
         self.assertNotIn("psd_frequencies", index)
-        self.assertEqual(total["psd_frequencies"][0], 0)
-        self.assertGreater(axis["psd_frequencies"][0], 0)
-        self.assertLessEqual(len(axis["psd_frequencies"]), PSD_BANDS)
-        self.assertEqual(
-            index["datasets"]["/lfp/mtype/psd"]["shape"], [2, 3, len(axis["psd_frequencies"])]
-        )
+        for axis in index["axes"]:
+            self.assertGreater(axis["psd_frequencies"][0], 0)
+            self.assertLessEqual(len(axis["psd_frequencies"]), PSD_BANDS)
+            self.assertEqual(
+                index["datasets"][axis["psd"]]["shape"],
+                [len(axis["groups"]), 3, len(axis["psd_frequencies"])],
+            )
 
     def test_shares_of_the_total_add_up_to_one(self):
         _, index = self.summarise(steps=200)
 
-        self.assertAlmostEqual(sum(self.axis(index)["shares"]), 1.0, places=4)
+        for axis in index["axes"]:
+            self.assertAlmostEqual(sum(axis["shares"]), 1.0, places=4)
 
     def test_no_copy_of_the_report(self):
         _, _ = self.summarise(steps=50)

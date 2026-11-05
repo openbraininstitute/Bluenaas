@@ -17,6 +17,7 @@ from app.core.lfp_summary.summary import (
     OverMemoryError,
     contact_stats,
     correlation,
+    overview_level,
     peak_bytes,
     sum_report,
     verify,
@@ -215,6 +216,11 @@ class TestTheNumbers(unittest.TestCase):
         self.assertAlmostEqual(float(stats["rms"]), np.sqrt(14 / 4), places=5)
         self.assertEqual(stats["trough_ms"], 10.5)
 
+    def test_the_overview_level_is_where_the_bins_get_under_the_size(self):
+        self.assertEqual(overview_level(MAX_OVERVIEW_STEPS), 0)
+        self.assertEqual(overview_level(MAX_OVERVIEW_STEPS + 1), 1)
+        self.assertEqual(overview_level(30_000), 4)
+
     def test_correlation(self):
         a = np.array([1.0, -1.0, 2.0, -2.0])
         total = np.stack([a, -a, 2 * a, np.zeros(4)], axis=1)
@@ -267,11 +273,39 @@ class TestWriteSummary(unittest.TestCase):
         scale = index["axes"][0]["scales"][0]
         np.testing.assert_allclose(level0.T * scale, expected, atol=scale)
 
-    def test_min_max_levels_over_the_overview_size(self):
-        _, h5_path, index = self.summarise(steps=MAX_OVERVIEW_STEPS * 2 + 1)
+    def test_a_long_run_has_its_rows_in_chunks_and_one_level_of_min_and_max(self):
+        expected, h5_path, index = self.summarise(steps=MAX_OVERVIEW_STEPS * 2 + 1)
 
-        # 2,049 bins after one halving, 1,025 after two
-        levels = index["axes"][0]["levels"]
-        self.assertEqual([level["step"] for level in levels], [1, 2, 4])
+        # 2,049 bins of 2 steps are too many, 1,025 of 4 are not
+        self.assertEqual(
+            index["axes"][0]["levels"],
+            [
+                {
+                    "step": 1,
+                    "kind": "value",
+                    "dataset": "/lfp/total/level0",
+                    "chunks": "/lfp/total/chunks",
+                },
+                {"step": 4, "kind": "min_max", "dataset": "/lfp/total/level2"},
+            ],
+        )
+        self.assertNotIn("/lfp/total/level0", index["datasets"])
         self.assertEqual(index["datasets"]["/lfp/total/level2"]["shape"], [1, 3, 1025, 2])
         verify(h5_path, index)
+        with h5py.File(h5_path, "r") as h5:
+            rows = h5["lfp/total/level0"][0]
+            overview = h5["lfp/total/level2"][0]
+        scale = index["axes"][0]["scales"][0]
+        np.testing.assert_allclose(rows.T * scale, expected, atol=scale)
+        np.testing.assert_array_equal(overview[1, 1], [rows[1, 4:8].min(), rows[1, 4:8].max()])
+        # The last bin is the one step left over
+        np.testing.assert_array_equal(overview[2, -1], [rows[2, -1], rows[2, -1]])
+
+    def test_the_correlation_is_on_the_total_alone(self):
+        _, h5_path, index = self.summarise(steps=50)
+
+        stored = index["axes"][0]["correlation"]
+        self.assertEqual(index["datasets"][stored["dataset"]]["shape"], [1, 3, 3])
+        self.assertNotIn("correlation", index)
+        with h5py.File(h5_path, "r") as h5:
+            self.assertEqual(round(h5[stored["dataset"]][0, 1, 1] * stored["scale"], 3), 1)
