@@ -5,14 +5,18 @@ import time
 from pathlib import Path
 from uuid import UUID
 
+import httpx
+import numpy as np
 from filelock import FileLock, Timeout
 from loguru import logger
 
 from app.config.settings import settings
 from app.constants import DIR_LOCK_FILE_NAME, READY_MARKER_FILE_NAME
-from app.core.lfp_summary.ranges import HttpRanges, url_expires_at
+from app.core.lfp_summary.nodes import cell_labels
+from app.core.lfp_summary.ranges import HttpRanges, RangeReadError, url_expires_at
 from app.core.lfp_summary.summary import (
     READS_IN_FLIGHT,
+    CellLabels,
     NotSummarisableError,
     OverMemoryError,
     sum_report,
@@ -47,15 +51,48 @@ def _is_settled(directory: Path) -> bool:
     ).exists()
 
 
+def _labels_from(nodes: dict[str, str]) -> CellLabels:
+    """A population's cells' labels from its nodes file. None if that can't be read: the report is
+    still summarised, and without its groups.
+    """
+
+    def labels_of(population: str, node_ids: np.ndarray) -> dict[str, np.ndarray]:
+        url = nodes.get(population)
+        if url is None:
+            return {}
+        try:
+            with HttpRanges(url, connections=READS_IN_FLIGHT) as ranges:
+                return cell_labels(ranges.read, ranges.size(), population, node_ids)
+        except (OSError, ValueError, IndexError, RangeReadError, httpx.TransportError) as ex:
+            # Its type alone: the message of some of these holds the URL's signature
+            logger.warning(f"The nodes of {population} can't be read: {type(ex).__name__}")
+            return {}
+
+    return labels_of
+
+
 def _build(
-    asset_id: UUID, directory: Path, *, queue: JobQueue, job_id: str, url: str, size: int
+    asset_id: UUID,
+    directory: Path,
+    *,
+    queue: JobQueue,
+    job_id: str,
+    url: str,
+    size: int,
+    nodes: dict[str, str],
 ) -> bool:
     """Build the summary, or leave the reason there is none. Returns whether it takes more memory
     than this queue's share but maybe not a larger one's.
     """
     with HttpRanges(url, connections=READS_IN_FLIGHT) as ranges:
         try:
-            report = sum_report(ranges.read, size, memory=memory_limit() // settings.NUM_WORKERS)
+            report = sum_report(
+                ranges.read,
+                size,
+                labels_of=_labels_from(nodes),
+                memory=memory_limit() // settings.NUM_WORKERS,
+                move_for_groups=queue == JobQueue.LOW,
+            )
         except NotSummarisableError as ex:
             logger.info(f"The LFP report {asset_id} is not summarised: {ex}")
             write_no_summary(directory, ex.reason, str(ex))
@@ -87,7 +124,14 @@ def _build(
 
 
 def build_lfp_summary(
-    asset_id: UUID, *, epoch: str, queue: JobQueue, job_id: str, url: str, size: int
+    asset_id: UUID,
+    *,
+    epoch: str,
+    queue: JobQueue,
+    job_id: str,
+    url: str,
+    size: int,
+    nodes: dict[str, str],
 ) -> None:
     """Build the report's summary into the cache, unless it is there or another build holds it.
 
@@ -123,11 +167,13 @@ def build_lfp_summary(
 
     try:
         too_large = not _is_settled(directory) and _build(
-            asset_id, directory, queue=queue, job_id=job_id, url=url, size=size
+            asset_id, directory, queue=queue, job_id=job_id, url=url, size=size, nodes=nodes
         )
     finally:
         lock.release()
 
     if too_large:
         # Queued once the lock is free, so the larger build doesn't find it held
-        enqueue_build(JobQueue.CPU4_MEM16, epoch=epoch, asset_id=asset_id, url=url, size=size)
+        enqueue_build(
+            JobQueue.CPU4_MEM16, epoch=epoch, asset_id=asset_id, url=url, size=size, nodes=nodes
+        )

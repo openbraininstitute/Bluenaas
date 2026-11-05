@@ -42,3 +42,16 @@ def local_reader(path: Path) -> tuple[ReadRange, int]:
         return content[offset : offset + length]
 
     return read, len(content)
+
+
+def write_nodes(path: Path, population: str, columns: dict[str, list]) -> None:
+    """A SONATA nodes file: text columns as indices into their library, others as they are."""
+    with h5py.File(path, "w") as f:
+        group = f.create_group(f"nodes/{population}/0")
+        for name, values in columns.items():
+            if isinstance(values[0], str):
+                library = sorted(set(values))
+                group.create_dataset(f"@library/{name}", data=library, dtype=h5py.string_dtype())
+                group[name] = np.array([library.index(v) for v in values], np.uint32)
+            else:
+                group[name] = np.array(values)

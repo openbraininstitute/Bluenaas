@@ -275,12 +275,3 @@ class TestWriteSummary(unittest.TestCase):
         self.assertEqual([level["step"] for level in levels], [1, 2, 4])
         self.assertEqual(index["datasets"]["/lfp/total/level2"]["shape"], [1, 3, 1025, 2])
         verify(h5_path, index)
-
-    def test_the_total_for_sonata_readers(self):
-        expected, h5_path, _ = self.summarise(steps=50)
-
-        with h5py.File(h5_path, "r") as h5:
-            g = h5["report/pop"]
-            np.testing.assert_allclose(g["data"][:], expected / 1e6, rtol=1e-6)
-            self.assertEqual(list(g["mapping/node_ids"][:]), [0])
-            self.assertEqual(list(g["mapping/index_pointers"][:]), [0, 3])

@@ -31,7 +31,7 @@ from app.infrastructure.storage import uuid_subpath, write_atomically
 from app.infrastructure.storage.epoch import CacheKind, epoch_dir_name
 from app.job import JobFn
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 
 SUMMARY_FILE_NAME = "summary.h5"
 INDEX_FILE_NAME = "index.json"
@@ -141,10 +141,11 @@ def enqueue_build(
     asset_id: UUID,
     url: str,
     size: int,
+    nodes: dict[str, str],
 ) -> Job | None:
     """Queue the build of the report at `url`, a presigned URL that is read by range, unless a job
-    of the same id is already queued or running. Returns the job queued, None if there was one
-    already.
+    of the same id is already queued or running. `nodes` holds the same for each population's nodes
+    file, for its cells' groups. Returns the job queued, None if there was one already.
     """
     rq_queue = get_queue(queue)
     job_id = build_job_id(epoch, asset_id, queue)
@@ -174,6 +175,7 @@ def enqueue_build(
                 "queue": queue.value,
                 "url": url,
                 "size": size,
+                "nodes": nodes,
             },
             job_timeout=MAX_JOB_TIMEOUT,
             retry=Retry(max=1),

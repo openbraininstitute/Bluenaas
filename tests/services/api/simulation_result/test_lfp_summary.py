@@ -1,4 +1,5 @@
 import json
+import unittest
 from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
 from types import SimpleNamespace
@@ -6,6 +7,8 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import httpx
+from entitysdk.exception import EntitySDKError
+from entitysdk.models import SimulationResult
 from entitysdk.types import AssetLabel
 from rq.job import JobStatus
 
@@ -29,6 +32,7 @@ from app.services.api.simulation_result import lfp_summary as service
 from tests.infrastructure.storage.lfp_summary_case import LfpSummaryTestCase, report_of
 
 URL = "https://bucket.s3/report.h5?signature"
+NODES_URL = "https://bucket.s3/nodes.h5?signature"
 
 
 class TestLfpSummaryStatus(LfpSummaryTestCase):
@@ -40,6 +44,9 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.addCleanup(patcher.stop)
         patcher = patch.object(service, "_is_lfp_report", return_value=True)
         self.is_lfp_report = patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = patch.object(service, "_nodes_urls", return_value={"pop": NODES_URL})
+        self.nodes_urls = patcher.start()
         self.addCleanup(patcher.stop)
 
     def status_of(self, report):
@@ -124,6 +131,8 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.assertNotIn(URL, job.description)
         self.assertEqual(job.kwargs["url"], URL)
         self.assertEqual(job.kwargs["size"], 100)
+        self.assertEqual(job.kwargs["nodes"], {"pop": NODES_URL})
+        self.assertNotIn(NODES_URL, job.description)
         self.assertEqual(job.retries_left, 1)
         self.assertEqual(job.failure_ttl, FAILED_BUILD_TTL)
         self.assertEqual(
@@ -156,7 +165,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.status_of(report)
         self.job_of(report, JobQueue.LOW).set_status(JobStatus.FINISHED)
         enqueue_build(
-            JobQueue.CPU4_MEM16, epoch=self.epoch(), asset_id=report.id, url=URL, size=100
+            JobQueue.CPU4_MEM16, epoch=self.epoch(), asset_id=report.id, url=URL, size=100, nodes={}
         )
 
         self.assertEqual(self.status_of(report).state, LfpSummaryState.BUILDING)
@@ -239,12 +248,18 @@ class TestIsLfpReport(LfpSummaryTestCase):
 
 
 class TestDownloadUrl(LfpSummaryTestCase):
-    def url_answered_by(self, response: httpx.Response) -> str:
+    def url_answered_by(self, response: httpx.Response, asset_path: str | None = None) -> str:
         with patch.object(service.httpx, "get", return_value=response) as get:
             url = service._download_url(
-                uuid4(), uuid4(), access_token="token", project_context=self.project_context
+                SimulationResult,
+                uuid4(),
+                uuid4(),
+                access_token="token",
+                project_context=self.project_context,
+                asset_path=asset_path,
             )
         self.headers = get.call_args.kwargs["headers"]
+        self.params = get.call_args.kwargs["params"]
         return url
 
     def test_the_redirect_of_the_download(self):
@@ -253,6 +268,13 @@ class TestDownloadUrl(LfpSummaryTestCase):
         self.assertEqual(self.url_answered_by(response), URL)
         self.assertEqual(self.headers["Authorization"], "Bearer token")
         self.assertEqual(self.headers["project-id"], str(self.project_context.project_id))
+        self.assertIsNone(self.params)
+
+    def test_a_file_within_a_directory_asset(self):
+        response = httpx.Response(307, headers={"location": URL})
+
+        self.assertEqual(self.url_answered_by(response, asset_path="pop/nodes.h5"), URL)
+        self.assertEqual(self.params, {"asset_path": "pop/nodes.h5"})
 
     def test_the_download_not_answered(self):
         with (
@@ -260,7 +282,11 @@ class TestDownloadUrl(LfpSummaryTestCase):
             self.assertRaises(AppError) as caught,
         ):
             service._download_url(
-                uuid4(), uuid4(), access_token="token", project_context=self.project_context
+                SimulationResult,
+                uuid4(),
+                uuid4(),
+                access_token="token",
+                project_context=self.project_context,
             )
 
         self.assertEqual(caught.exception.http_status_code, HTTPStatus.BAD_GATEWAY)
@@ -270,6 +296,124 @@ class TestDownloadUrl(LfpSummaryTestCase):
             self.url_answered_by(httpx.Response(200, content=b"the file"))
 
         self.assertEqual(caught.exception.http_status_code, HTTPStatus.BAD_GATEWAY)
+
+
+class TestNodesFiles(unittest.TestCase):
+    def config(self, *networks, manifest=None):
+        return {"manifest": manifest or {"$BASE_DIR": "./"}, "networks": {"nodes": list(networks)}}
+
+    def network(self, path, **populations):
+        return {"nodes_file": path, "populations": populations}
+
+    def test_the_manifest_is_expanded_within_the_asset(self):
+        config = self.config(
+            self.network("$BASE_DIR/pop/nodes.h5", pop={"type": "biophysical"}),
+        )
+
+        self.assertEqual(service.nodes_files(config), {"pop": "pop/nodes.h5"})
+
+    def test_a_manifest_of_several_steps(self):
+        config = self.config(
+            self.network("$NETWORK/nodes.h5", pop={}),
+            manifest={"$BASE_DIR": ".", "$NETWORK": "$BASE_DIR/network"},
+        )
+
+        self.assertEqual(service.nodes_files(config), {"pop": "network/nodes.h5"})
+
+    def test_virtual_populations_report_no_field(self):
+        config = self.config(
+            self.network("a/nodes.h5", a={"type": "biophysical"}),
+            self.network("b/nodes.h5", b={"type": "virtual"}),
+        )
+
+        self.assertEqual(service.nodes_files(config), {"a": "a/nodes.h5"})
+
+    def test_files_outside_the_asset_are_left_out(self):
+        for path in ("/data/nodes.h5", "../nodes.h5", "$UNKNOWN/nodes.h5"):
+            with self.subTest(path=path):
+                config = self.config(self.network(path, pop={}))
+
+                self.assertEqual(service.nodes_files(config), {})
+
+
+class TestNodesUrls(LfpSummaryTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client = MagicMock()
+        self.asset = SimpleNamespace(id=uuid4(), label=AssetLabel.sonata_circuit, is_directory=True)
+        self.circuit = SimpleNamespace(id=uuid4(), assets=[self.asset])
+        self.client.get_entity.side_effect = [
+            SimpleNamespace(entity_id=self.circuit.id),
+            self.circuit,
+        ]
+        self.client.download_content.return_value = json.dumps(
+            {
+                "manifest": {"$BASE_DIR": "./"},
+                "networks": {
+                    "nodes": [
+                        {
+                            "nodes_file": "$BASE_DIR/nodes.h5",
+                            "populations": {"a": {}, "b": {}},
+                        }
+                    ]
+                },
+            }
+        ).encode()
+        patcher = patch.object(service, "user_client", return_value=self.client)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = patch.object(service, "_download_url", return_value=NODES_URL)
+        self.download_url = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def urls(self):
+        return service._nodes_urls(
+            uuid4(), access_token="token", project_context=self.project_context
+        )
+
+    def test_a_url_per_population_and_one_per_file(self):
+        self.assertEqual(self.urls(), {"a": NODES_URL, "b": NODES_URL})
+
+        self.assertEqual(self.download_url.call_count, 1)
+        self.assertEqual(self.download_url.call_args.kwargs["asset_path"], "nodes.h5")
+
+    def test_the_config_is_read_from_the_circuits_directory(self):
+        self.urls()
+
+        self.assertEqual(
+            self.client.download_content.call_args.kwargs["asset_path"], "circuit_config.json"
+        )
+
+    def test_a_circuit_without_its_sonata_directory(self):
+        self.circuit.assets = []
+
+        self.assertEqual(self.urls(), {})
+
+    def test_a_simulation_of_something_else(self):
+        self.client.get_entity.side_effect = [
+            SimpleNamespace(entity_id=uuid4()),
+            EntitySDKError("not a circuit"),
+        ]
+
+        self.assertEqual(self.urls(), {})
+
+    def test_a_malformed_config(self):
+        for content in (b"not json", b"[]", b"{}", b'{"networks": {"nodes": [{}]}}'):
+            with self.subTest(content=content):
+                self.client.get_entity.side_effect = [
+                    SimpleNamespace(entity_id=self.circuit.id),
+                    self.circuit,
+                ]
+                self.client.download_content.return_value = content
+
+                self.assertEqual(self.urls(), {})
+
+    def test_a_nodes_file_with_no_url(self):
+        self.download_url.side_effect = AppError(
+            message="no", error_code=None, http_status_code=HTTPStatus.BAD_GATEWAY
+        )
+
+        self.assertEqual(self.urls(), {})
 
 
 class TestSummaryFile(LfpSummaryTestCase):

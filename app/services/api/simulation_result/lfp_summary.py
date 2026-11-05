@@ -1,4 +1,5 @@
 import json
+import posixpath
 import re
 from http import HTTPStatus
 from pathlib import PurePosixPath
@@ -6,14 +7,18 @@ from uuid import UUID
 
 import httpx
 from entitysdk.common import ProjectContext
-from entitysdk.models import Simulation, SimulationResult
+from entitysdk.exception import EntitySDKError
+from entitysdk.models import Circuit, Simulation, SimulationResult
 from entitysdk.models.asset import Asset
+from entitysdk.models.core import Identifiable
 from entitysdk.route import get_assets_endpoint
 from entitysdk.types import AssetLabel
 from fastapi.responses import FileResponse, Response
+from loguru import logger
 from rq.job import JobStatus
 
 from app.config.settings import settings
+from app.constants import CIRCUIT_CONFIG_NAME
 from app.core.exceptions import AppError
 from app.domains.simulation_result.lfp_summary import (
     LfpSummaryState,
@@ -101,15 +106,21 @@ def _no_download_url() -> AppError:
 
 
 def _download_url(
-    result_id: UUID, asset_id: UUID, *, access_token: str, project_context: ProjectContext
+    entity_type: type[Identifiable],
+    entity_id: UUID,
+    asset_id: UUID,
+    *,
+    access_token: str,
+    project_context: ProjectContext,
+    asset_path: str | None = None,
 ) -> str:
     """The presigned URL entitycore redirects the asset's download to, which the job reads by range
     without a token of the user's.
     """
     endpoint = get_assets_endpoint(
         api_url=str(settings.ENTITYCORE_URI),
-        entity_type=SimulationResult,
-        entity_id=result_id,
+        entity_type=entity_type,
+        entity_id=entity_id,
         asset_id=asset_id,
     )
     headers = {
@@ -118,13 +129,88 @@ def _download_url(
     }
     if project_context.virtual_lab_id:
         headers["virtual-lab-id"] = str(project_context.virtual_lab_id)
+    params = {"asset_path": asset_path} if asset_path else None
     try:
-        response = httpx.get(f"{endpoint}/download", headers=headers, timeout=30)
+        response = httpx.get(f"{endpoint}/download", headers=headers, params=params, timeout=30)
     except httpx.TransportError as ex:
         raise _no_download_url() from ex
     if not response.is_redirect or "location" not in response.headers:
         raise _no_download_url()
     return response.headers["location"]
+
+
+def _expand_manifest(path: str, manifest: dict) -> str:
+    for _ in range(len(manifest) + 1):
+        path = re.sub(r"\$\w+", lambda m: str(manifest.get(m.group(), m.group())), path)
+    return path
+
+
+def nodes_files(config: dict) -> dict[str, str]:
+    """Where each population's nodes file lies within the circuit's directory asset, by its SONATA
+    config. Virtual populations are left out, as they report no field, and any file not inside it.
+    """
+    manifest = config.get("manifest", {})
+    files = {}
+    for network in config["networks"]["nodes"]:
+        path = posixpath.normpath(_expand_manifest(network["nodes_file"], manifest))
+        if posixpath.isabs(path) or path.startswith((".", "$")):
+            continue
+        for population, properties in network["populations"].items():
+            if properties.get("type") != "virtual":
+                files[population] = path
+    return files
+
+
+def _nodes_urls(
+    simulation_id: UUID, *, access_token: str, project_context: ProjectContext
+) -> dict[str, str]:
+    """A presigned URL of each population's nodes file. None where they can't be found: the report
+    is still summarised, without its cells' groups, as a simulation of something other than a
+    circuit has none.
+    """
+    client = user_client(access_token, project_context)
+    try:
+        simulation = get_entity_or_not_found(
+            client, simulation_id, Simulation, message="Simulation not found"
+        )
+        circuit = get_entity_or_not_found(
+            client, simulation.entity_id, Circuit, message="Circuit not found"
+        )
+        asset = next(
+            a
+            for a in circuit.assets or []
+            if a.label == AssetLabel.sonata_circuit and a.is_directory
+        )
+        config = client.download_content(
+            entity_id=circuit.id,
+            entity_type=Circuit,
+            asset_id=asset.id,
+            asset_path=CIRCUIT_CONFIG_NAME,
+        )
+        files = nodes_files(json.loads(config))
+        urls = {
+            path: _download_url(
+                Circuit,
+                circuit.id,
+                asset.id,
+                access_token=access_token,
+                project_context=project_context,
+                asset_path=path,
+            )
+            for path in set(files.values())
+        }
+    except (
+        AppError,
+        EntitySDKError,
+        StopIteration,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+    ) as ex:
+        logger.info(f"No cell groups for simulation {simulation_id}: {type(ex).__name__}")
+        return {}
+    return {population: urls[path] for population, path in files.items()}
 
 
 def _status_in_cache(epoch: str, asset_id: UUID) -> LfpSummaryStatus | None:
@@ -189,9 +275,16 @@ def _get_or_build_summary(
         epoch=epoch,
         asset_id=report.id,
         url=_download_url(
-            result_id, report.id, access_token=access_token, project_context=project_context
+            SimulationResult,
+            result_id,
+            report.id,
+            access_token=access_token,
+            project_context=project_context,
         ),
         size=report.size,
+        nodes=_nodes_urls(
+            simulation_id, access_token=access_token, project_context=project_context
+        ),
     )
     return LfpSummaryStatus(state=LfpSummaryState.BUILDING)
 

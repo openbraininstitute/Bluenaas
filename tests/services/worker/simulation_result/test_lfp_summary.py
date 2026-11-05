@@ -10,11 +10,12 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from filelock import FileLock
+from loguru import logger
 
 from app.constants import DIR_LOCK_FILE_NAME, READY_MARKER_FILE_NAME
 from app.core.lfp_summary.summary import verify
 from app.domains.simulation_result.lfp_summary import NoSummaryReason
-from app.infrastructure.rq import JobQueue
+from app.infrastructure.rq import JobQueue, get_queue
 from app.infrastructure.storage.epoch import CacheKind, rotate_epoch
 from app.infrastructure.storage.lfp_summary import (
     INDEX_FILE_NAME,
@@ -25,10 +26,11 @@ from app.infrastructure.storage.lfp_summary import (
     summary_dir,
 )
 from app.services.worker.simulation_result import lfp_summary as service
-from tests.core.lfp_summary.utils import local_reader, write_report
+from tests.core.lfp_summary.utils import local_reader, write_nodes, write_report
 from tests.infrastructure.storage.lfp_summary_case import LfpSummaryTestCase
 
 URL = "https://bucket.s3/report.h5?signature"
+NODES_URL = "https://bucket.s3/nodes.h5?signature"
 
 
 class TestBuildLfpSummary(LfpSummaryTestCase):
@@ -39,20 +41,28 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         self.addCleanup(shutil.rmtree, self.inputs)
         self.report = self.inputs / "lfp.h5"
         write_report(self.report)
+        self.nodes_file = self.inputs / "nodes.h5"
+        write_nodes(self.nodes_file, "pop", {"mtype": ["A", "B", "A"], "layer": ["5", "5", "5"]})
 
         self.urls: list[str] = []
 
         @contextmanager
         def http_ranges(url, *, connections):
             self.urls.append(url)
-            read, _ = local_reader(self.report)
-            yield SimpleNamespace(read=read)
+            read, size = local_reader(self.nodes_file if url == NODES_URL else self.report)
+            yield SimpleNamespace(read=read, size=lambda: size)
 
         patcher = patch.object(service, "HttpRanges", side_effect=http_ranges)
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def run_build(self, epoch: str | None = None, queue: JobQueue = JobQueue.LOW, url: str = URL):
+    def run_build(
+        self,
+        epoch: str | None = None,
+        queue: JobQueue = JobQueue.LOW,
+        url: str = URL,
+        nodes: dict[str, str] | None = None,
+    ):
         epoch = epoch or self.epoch()
         service.build_lfp_summary(
             self.asset_id,
@@ -61,6 +71,7 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
             job_id=build_job_id(epoch, self.asset_id, queue),
             url=url,
             size=self.report.stat().st_size,
+            nodes=nodes or {},
         )
 
     def directory(self) -> Path:
@@ -84,6 +95,48 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         self.assertEqual(index["source"]["asset_id"], str(self.asset_id))
         verify(directory / SUMMARY_FILE_NAME, index)
         self.assertEqual(list(directory.glob("*.tmp")), [])
+
+    def index(self) -> dict:
+        return json.loads((self.directory() / INDEX_FILE_NAME).read_text())
+
+    def test_the_cells_groups_come_from_the_nodes_file(self):
+        self.run_build(nodes={"pop": NODES_URL})
+
+        index = self.index()
+        self.assertEqual(self.urls, [URL, NODES_URL])
+        self.assertEqual([a["name"] for a in index["axes"]], ["total", "mtype"])
+        self.assertEqual(index["axes"][1]["groups"], ["A", "B"])
+
+    def test_without_nodes_only_the_total(self):
+        self.run_build()
+
+        self.assertEqual([a["name"] for a in self.index()["axes"]], ["total"])
+
+    def test_nodes_that_cannot_be_read_leave_the_total(self):
+        self.nodes_file.write_bytes(b"not an h5 file" * 100)
+
+        self.run_build(nodes={"pop": NODES_URL})
+
+        self.assertEqual([a["name"] for a in self.index()["axes"]], ["total"])
+
+    def test_the_url_of_nodes_that_cannot_be_read_is_not_logged(self):
+        self.nodes_file.write_bytes(b"not an h5 file" * 100)
+        messages = []
+        sink = logger.add(messages.append)
+        self.addCleanup(logger.remove, sink)
+
+        self.run_build(nodes={"pop": NODES_URL})
+
+        self.assertFalse([m for m in messages if "signature" in m])
+
+    def test_the_move_to_the_larger_queue_keeps_the_nodes(self):
+        with patch.object(service, "memory_limit", return_value=1):
+            self.run_build(nodes={"pop": NODES_URL})
+
+        job = get_queue(JobQueue.CPU4_MEM16).fetch_job(
+            build_job_id(self.epoch(), self.asset_id, JobQueue.CPU4_MEM16)
+        )
+        self.assertEqual(job.kwargs["nodes"], {"pop": NODES_URL})
 
     def test_a_file_that_is_no_report_is_marked(self):
         self.report.write_bytes(b"not an h5 file" * 100)

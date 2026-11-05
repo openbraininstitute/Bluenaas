@@ -1,26 +1,39 @@
 """The summary of a SONATA LFP report, per-cell or summed, in the format the web app's viewer reads.
 
-The summary is one HDF5 file whose datasets are all contiguous and uncompressed, plus a JSON index
-of their byte offsets, so a browser reads any slice with an HTTP Range request and no HDF5 library.
-Python users open the h5 as usual.
+The summary is one HDF5 file plus a JSON index of its datasets' byte offsets, so a browser reads any
+slice with an HTTP Range request and no HDF5 library. It is made for the browser alone.
 
-Layout, per axis (the total is the axis "total" with one group):
-  /lfp/{axis}/level0     int16  group x contact x step, value = raw * scale[group] uV
-  /lfp/{axis}/level{k}   int16  group x contact x bin x 2 (min, max over 2**k steps),
+The total, the axis "total" with one group:
+  /lfp/total/level0      int16  group x contact x step, value = raw * scale[group] uV
+  /lfp/total/level{k}    int16  group x contact x bin x 2 (min, max over 2**k steps),
                                 only while steps > MAX_OVERVIEW_STEPS, halving until under
+  /lfp/total/stats       float32 group x contact x len(STATS)
+  /lfp/total/psd         float32 group x contact x frequency, Welch, uV^2/Hz
+  /lfp/correlation       int16  contact x contact, value = raw / 32767
+
+The field of each group of cells, on each axis of GROUP_COLUMNS the report's cells differ on:
+  /lfp/{axis}/level0     int16  group x contact x step, as the total's. Past MAX_OVERVIEW_STEPS it
+                                is in chunks of one contact's row, shuffled and deflated, not listed
+                                in the index's datasets, and these two are added:
+  /lfp/{axis}/chunks     uint64 group x contact x 2, each chunk's byte offset and size in the file
+  /lfp/{axis}/level{k}   int16  group x contact x bin, the mean over 2**k steps at the k the total
+                                ends on: means of groups add up, as min and max don't
   /lfp/{axis}/stats      float32 group x contact x len(STATS)
-  /lfp/{axis}/psd        float32 group x contact x frequency, Welch, uV^2/Hz
-  /lfp/correlation       int16  contact x contact, value = raw / 32767, total only
-  /report/{pop}/...      the float32 total in V, laid out as sonata-extension#51
+  /lfp/{axis}/psd        float32 group x contact x frequency, the Welch means over PSD_BANDS bands
 """
 
+import math
+import zlib
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import h5py
 import numpy as np
+from loguru import logger
 
+from app.core.lfp_summary.nodes import GROUP_COLUMNS
 from app.core.lfp_summary.ranges import RangeFile, ReadRange
 from app.domains.simulation_result.lfp_summary import NoSummaryReason
 
@@ -29,6 +42,10 @@ STATS = ["min", "max", "ptp", "rms", "mean", "trough_ms"]
 WELCH_SEGMENT = 256
 # Else the index's frequencies and the spectra grow with the run
 WELCH_MAX_SEGMENT = 1 << 16
+PSD_BANDS = 128
+
+DEFLATE_LEVEL = 6
+DEFLATES_AT_ONCE = 4
 
 # The report is read in blocks of rows of about this size, this many at once
 BLOCK_BYTES = 32 << 20
@@ -39,8 +56,13 @@ MAX_TOTAL_BYTES = 2 << 30
 # Summing and writing peak at about 3.3 times the total (measured), besides the reads in flight
 PEAK_PER_TOTAL_BYTE = 3.5
 FIXED_PEAK_BYTES = 1 << 30
+# Each group's field is held in memory too, as float32
+GROUP_FIELD_SAMPLE_BYTES = 4
 
 TO_UV = {"V": 1e6, "mV": 1e3, "uV": 1.0, "µV": 1.0}
+
+# A population's cells, by their node ids: their labels per column of GROUP_COLUMNS it has
+CellLabels = Callable[[str, np.ndarray], dict[str, np.ndarray]]
 
 
 class NotSummarisableError(Exception):
@@ -54,20 +76,51 @@ class OverMemoryError(Exception):
 
 
 @dataclass
+class GroupFields:
+    groups: list[str]
+    # steps x groups x contacts, uV
+    values: np.ndarray
+
+
+@dataclass
 class SummedReport:
     populations: list[str]
     start: float
     dt: float
     # steps x contacts, uV
     total: np.ndarray
+    # By axis, none where the report's cells can't be told apart
+    fields: dict[str, GroupFields]
 
 
 @dataclass
 class _Population:
+    name: str
     data: h5py.Dataset
     element_ids: np.ndarray
-    cells: int
+    node_ids: np.ndarray
     to_uv: float
+
+    @property
+    def cells(self) -> int:
+        return len(self.node_ids)
+
+    def is_regular(self, contacts: int) -> bool:
+        """Every cell on every contact, in order."""
+        return len(self.element_ids) == self.cells * contacts and bool(
+            (self.element_ids.reshape(self.cells, contacts) == np.arange(contacts)).all()
+        )
+
+
+@dataclass
+class _CellOrder:
+    """How to add up a population's cells into groups: the cells in the order of their group, where
+    each group starts, and which of the axis's groups each is.
+    """
+
+    permutation: np.ndarray
+    starts: np.ndarray
+    groups: np.ndarray
 
 
 def _not_a_report(details: str) -> NotSummarisableError:
@@ -110,21 +163,53 @@ def _population(group: h5py.Group) -> _Population:
     if not np.issubdtype(element_ids.dtype, np.integer) or element_ids.min() < 0:
         raise _unreadable(f"The element ids of {group.name} are not contacts")
     return _Population(
+        name=str(PurePosixPath(group.name).name),
         data=data,
         element_ids=element_ids,
-        cells=len(_dataset(group, "mapping/node_ids")),
+        node_ids=np.asarray(_dataset(group, "mapping/node_ids")[:]),
         to_uv=TO_UV[units],
     )
 
 
+def _cell_orders(
+    populations: list[_Population], contacts: int, labels_of: CellLabels
+) -> tuple[dict[str, list[str]], dict[str, dict[str, _CellOrder]]]:
+    """The groups of each axis the cells differ on, and the order of each population's cells for
+    it. Only an axis every population has: its groups must add up to the total. None where the cells
+    are not all on all contacts, which is no report that is written, and saves a slower sum.
+    """
+    groups = {}
+    orders: dict[str, dict[str, _CellOrder]] = {p.name: {} for p in populations}
+    if not all(p.is_regular(contacts) for p in populations):
+        return groups, orders
+    labels = {p.name: labels_of(p.name, p.node_ids) for p in populations}
+    for axis in GROUP_COLUMNS:
+        if not all(axis in labels[p.name] for p in populations):
+            continue
+        names = np.unique(np.concatenate([labels[p.name][axis] for p in populations]))
+        if len(names) < 2:
+            continue
+        groups[axis] = [str(name) for name in names]
+        for p in populations:
+            which = np.searchsorted(names, labels[p.name][axis])
+            permutation = np.argsort(which, kind="stable")
+            starts = np.flatnonzero(np.r_[True, np.diff(which[permutation]) != 0])
+            orders[p.name][axis] = _CellOrder(permutation, starts, which[permutation][starts])
+    return groups, orders
+
+
 def _sum_population(
-    population: _Population, read: ReadRange, total: np.ndarray, *, workers: int
+    population: _Population,
+    read: ReadRange,
+    total: np.ndarray,
+    fields: dict[str, GroupFields],
+    orders: dict[str, _CellOrder],
+    *,
+    workers: int,
 ) -> None:
     data, eids, cells = population.data, population.element_ids, population.cells
     steps, contacts = total.shape
-    regular = len(eids) == cells * contacts and bool(
-        (eids.reshape(cells, contacts) == np.arange(contacts)).all()
-    )
+    regular = population.is_regular(contacts)
 
     offset = data.id.get_offset()
     # Read by range where the rows lie one after the other in the file, else through h5py
@@ -132,32 +217,72 @@ def _sum_population(
     row_bytes = data.shape[1] * data.dtype.itemsize
     rows_per_block = max(1, BLOCK_BYTES // row_bytes)
 
-    def summed(a: int) -> tuple[int, np.ndarray]:
+    def summed(a: int) -> tuple[int, np.ndarray, dict[str, np.ndarray]]:
         b = min(steps, a + rows_per_block)
         if offset is not None and contiguous:
             raw = read(offset + a * row_bytes, (b - a) * row_bytes)
             rows = np.frombuffer(raw, data.dtype).reshape(b - a, data.shape[1])
         else:
             rows = np.asarray(data[a:b])
-        if regular:
-            return a, rows.reshape(b - a, cells, contacts).sum(1, dtype=np.float64)
-        return a, np.stack([np.bincount(eids, weights=row, minlength=contacts) for row in rows])
+        if not regular:
+            rows_total = np.stack(
+                [np.bincount(eids, weights=row, minlength=contacts) for row in rows]
+            )
+            return a, rows_total, {}
+        cube = rows.reshape(b - a, cells, contacts)
+        grouped = {
+            axis: np.add.reduceat(
+                cube[:, order.permutation], order.starts, axis=1, dtype=np.float64
+            )
+            for axis, order in orders.items()
+        }
+        return a, cube.sum(1, dtype=np.float64), grouped
 
     with ThreadPoolExecutor(workers if contiguous else 1) as pool:
-        for a, values in pool.map(summed, range(0, steps, rows_per_block)):
-            total[a : a + len(values)] += values * population.to_uv
+        for a, values, grouped in pool.map(summed, range(0, steps, rows_per_block)):
+            b = a + len(values)
+            total[a:b] += values * population.to_uv
+            for axis, by_group in grouped.items():
+                fields[axis].values[a:b, orders[axis].groups] += by_group * population.to_uv
 
 
-def peak_bytes(steps: int, contacts: int) -> int:
-    """The memory a summary of this many steps and contacts takes, at most."""
-    return int(steps * contacts * 8 * PEAK_PER_TOTAL_BYTE) + FIXED_PEAK_BYTES
+def peak_bytes(steps: int, contacts: int, group_fields: int = 0) -> int:
+    """The memory a summary of this many steps, contacts and fields of groups takes, at most."""
+    per_sample = 8 * PEAK_PER_TOTAL_BYTE + group_fields * GROUP_FIELD_SAMPLE_BYTES
+    return int(steps * contacts * per_sample) + FIXED_PEAK_BYTES
+
+
+def _no_labels(_population: str, _node_ids: np.ndarray) -> dict[str, np.ndarray]:
+    return {}
+
+
+def _axes_in_memory(
+    groups: dict[str, list[str]], steps: int, contacts: int, memory: int
+) -> dict[str, list[str]]:
+    """The axes that fit: the largest are left out first, as they cost the most."""
+    kept = dict(groups)
+    while peak_bytes(steps, contacts, sum(len(g) for g in kept.values())) > memory:
+        largest = max(kept, key=lambda axis: len(kept[axis]))
+        logger.warning(f"The fields by {largest} of an LFP report would not fit in the memory")
+        del kept[largest]
+    return kept
 
 
 def sum_report(
-    read: ReadRange, size: int, *, memory: int | None = None, workers: int = READS_IN_FLIGHT
+    read: ReadRange,
+    size: int,
+    *,
+    labels_of: CellLabels = _no_labels,
+    memory: int | None = None,
+    move_for_groups: bool = False,
+    workers: int = READS_IN_FLIGHT,
 ) -> SummedReport:
-    """The report's total over its cells, read by range. Raises `OverMemoryError` before the
-    total is allocated where the summary would take more than `memory`.
+    """The report's total over its cells and its fields per group of cells, read by range.
+
+    Raises `OverMemoryError` before they are allocated where the summary would take more than
+    `memory`. Where only the groups take it over, it is raised if `move_for_groups`, for a build
+    that can move to a larger queue, and otherwise the fields that don't fit are left out: a report
+    is better summarised without them than not at all.
     """
     try:
         f = h5py.File(RangeFile(read, size), "r")
@@ -189,13 +314,31 @@ def sum_report(
                 f"{steps} steps x {contacts} contacts take over {memory} bytes to summarise"
             )
 
+        groups, orders = _cell_orders(populations, contacts, labels_of)
+        if memory is not None:
+            if (
+                move_for_groups
+                and peak_bytes(steps, contacts, sum(len(g) for g in groups.values())) > memory
+            ):
+                raise OverMemoryError(
+                    f"{steps} steps x {contacts} contacts by group take over {memory} bytes"
+                )
+            groups = _axes_in_memory(groups, steps, contacts, memory)
+
         total = np.zeros((steps, contacts), np.float64)
+        fields = {
+            axis: GroupFields(names_, np.zeros((steps, len(names_), contacts), np.float32))
+            for axis, names_ in groups.items()
+        }
         for population in populations:
-            _sum_population(population, read, total, workers=workers)
+            kept = {a: o for a, o in orders[population.name].items() if a in fields}
+            _sum_population(population, read, total, fields, kept, workers=workers)
         if not np.isfinite(total).all():
             raise _unreadable("The report has values that are not finite")
 
-    return SummedReport(populations=names, start=float(times[0]), dt=float(times[2]), total=total)
+    return SummedReport(
+        populations=names, start=float(times[0]), dt=float(times[2]), total=total, fields=fields
+    )
 
 
 def quantize(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -278,55 +421,181 @@ def correlation(total: np.ndarray) -> np.ndarray:
     return np.round(np.nan_to_num(c) * 32767).astype(np.int16)
 
 
+def overview_level(steps: int) -> int:
+    """The k at which 2**k steps a bin gets under MAX_OVERVIEW_STEPS, as the halving does."""
+    k = 0
+    while math.ceil(steps / 2**k) > MAX_OVERVIEW_STEPS:
+        k += 1
+    return k
+
+
+def mean_level(level0: np.ndarray, k: int) -> np.ndarray:
+    """The mean of each 2**k steps of contact x step, a last shorter bin as it comes."""
+    starts = np.arange(0, level0.shape[-1], 2**k)
+    counts = np.diff(np.r_[starts, level0.shape[-1]])
+    summed = np.add.reduceat(level0, starts, axis=-1, dtype=np.int64)
+    return np.round(summed / counts).astype(np.int16)
+
+
+def log_bands(psd: np.ndarray, frequencies: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """A spectrum's means over PSD_BANDS bands of equal width on a log axis, 0 Hz left out."""
+    if len(frequencies) <= PSD_BANDS + 1:
+        return psd, frequencies
+    above_zero = frequencies[1:]
+    edges = np.geomspace(above_zero[0], above_zero[-1], PSD_BANDS + 1)
+    bands = np.minimum(np.searchsorted(edges, above_zero, side="right") - 1, PSD_BANDS - 1)
+    starts = np.flatnonzero(np.r_[True, np.diff(bands) != 0])
+    counts = np.diff(np.r_[starts, len(above_zero)])
+    means = np.add.reduceat(psd[..., 1:], starts, axis=-1, dtype=np.float64) / counts
+    return means.astype(np.float32), np.add.reduceat(above_zero, starts) / counts
+
+
+def share_of_total(values: np.ndarray, total: np.ndarray) -> float:
+    """How much of the total's variance a group's field accounts for, steps x contacts both. The
+    groups' shares add up to 1, and one working against the rest has a negative share.
+    """
+    centred = total - total.mean(axis=0)
+    power = float((centred * centred).sum())
+    if power == 0:
+        return 0.0
+    return float(((values - values.mean(axis=0)) * centred).sum()) / power
+
+
+def deflated_row(row: np.ndarray) -> bytes:
+    """A row of int16 as HDF5's shuffle and deflate filters leave it."""
+    shuffled = np.frombuffer(row.astype("<i2").tobytes(), np.uint8).reshape(-1, 2).T
+    return zlib.compress(shuffled.tobytes(), DEFLATE_LEVEL)
+
+
+def _write_chunks(dataset: h5py.Dataset, group: int, rows: np.ndarray) -> None:
+    # Written deflated, or HDF5 would keep a row that doesn't shrink as it is and flag it in the
+    # chunk's filter mask, for the browser to tell apart
+    with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
+        for contact, chunk in enumerate(pool.map(deflated_row, rows)):
+            dataset.id.write_direct_chunk((group, contact, 0), chunk, 0)
+
+
+def _chunk_table(dataset: h5py.Dataset) -> np.ndarray:
+    groups, contacts, _ = dataset.shape
+    table = np.zeros((groups, contacts, 2), np.uint64)
+
+    def note(chunk) -> None:
+        group, contact, _ = chunk.chunk_offset
+        table[group, contact] = chunk.byte_offset, chunk.size
+
+    dataset.id.chunk_iter(note)
+    return table
+
+
+def _write_group_axis(
+    h5: h5py.File,
+    axis: str,
+    fields: GroupFields,
+    report: SummedReport,
+    written: dict[str, h5py.Dataset],
+) -> dict:
+    steps, groups, contacts = fields.values.shape
+    k = overview_level(steps)
+    name = f"lfp/{axis}"
+    levels: list[dict] = [{"step": 1, "kind": "value", "dataset": f"/{name}/level0"}]
+    overview = None
+    if k == 0:
+        level0 = written[f"/{name}/level0"] = h5.create_dataset(
+            f"{name}/level0", (groups, contacts, steps), "<i2"
+        )
+    else:
+        # Not listed in the index's datasets: it has no one offset
+        level0 = h5.create_dataset(
+            f"{name}/level0",
+            (groups, contacts, steps),
+            "<i2",
+            chunks=(1, 1, steps),
+            compression="gzip",
+            compression_opts=DEFLATE_LEVEL,
+            shuffle=True,
+        )
+        bins = math.ceil(steps / 2**k)
+        overview = written[f"/{name}/level{k}"] = h5.create_dataset(
+            f"{name}/level{k}", (groups, contacts, bins), "<i2"
+        )
+        levels[0]["chunks"] = f"/{name}/chunks"
+        levels.append({"step": 2**k, "kind": "mean", "dataset": f"/{name}/level{k}"})
+
+    scales, shares, stats, spectra = [], [], [], []
+    frequencies = np.zeros(0)
+    for group in range(groups):
+        # One group at a time: a segment of the spectra over all of them could take tens of GB
+        values = fields.values[:, group : group + 1, :]
+        rows, scale = quantize(values)
+        scales.append(float(scale[0]))
+        shares.append(share_of_total(values[:, 0, :], report.total))
+        stats.append(contact_stats(values, report.start, report.dt)[0])
+        psd, fine = welch(values, report.dt)
+        band_psd, frequencies = log_bands(psd[0], fine)
+        spectra.append(band_psd)
+        if overview is None:
+            level0[group] = rows[0]
+        else:
+            _write_chunks(level0, group, rows[0])
+            overview[group] = mean_level(rows[0], k)
+
+    if overview is not None:
+        written[f"/{name}/chunks"] = h5.create_dataset(f"{name}/chunks", data=_chunk_table(level0))
+    written[f"/{name}/stats"] = h5.create_dataset(f"{name}/stats", data=np.stack(stats))
+    written[f"/{name}/psd"] = h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
+    return {
+        "name": axis,
+        "groups": fields.groups,
+        "scales": scales,
+        "shares": shares,
+        "levels": levels,
+        "stats": f"/{name}/stats",
+        "psd": f"/{name}/psd",
+        "psd_frequencies": [float(f) for f in frequencies],
+    }
+
+
+def _write_total(h5: h5py.File, report: SummedReport, written: dict[str, h5py.Dataset]) -> dict:
+    values = report.total[:, None, :]
+    level0, scales = quantize(values)
+    written["/lfp/total/level0"] = h5.create_dataset("lfp/total/level0", data=level0)
+    levels = min_max_levels(level0)
+    for k, level in levels:
+        written[f"/lfp/total/level{k}"] = h5.create_dataset(f"lfp/total/level{k}", data=level)
+    written["/lfp/total/stats"] = h5.create_dataset(
+        "lfp/total/stats", data=contact_stats(values, report.start, report.dt)
+    )
+    psd, frequencies = welch(values, report.dt)
+    written["/lfp/total/psd"] = h5.create_dataset("lfp/total/psd", data=psd)
+    return {
+        "name": "total",
+        "groups": ["total"],
+        "scales": [float(s) for s in scales],
+        "levels": [
+            {"step": 1, "kind": "value", "dataset": "/lfp/total/level0"},
+            *(
+                {"step": 2**k, "kind": "min_max", "dataset": f"/lfp/total/level{k}"}
+                for k, _ in levels
+            ),
+        ],
+        "stats": "/lfp/total/stats",
+        "psd": "/lfp/total/psd",
+        "psd_frequencies": [float(f) for f in frequencies],
+    }
+
+
 def write_summary(report: SummedReport, h5_path: Path, *, version: int, source: dict) -> dict:
     """Write the summary's h5 at `h5_path`. Returns its index."""
     start, dt = report.start, report.dt
     steps, contacts = report.total.shape
-    fields = {"total": (["total"], report.total[:, None, :])}
-    axes = []
-    written = {}
-    freqs = np.zeros(0)
+    written: dict[str, h5py.Dataset] = {}
     with h5py.File(h5_path, "w", libver="latest") as h5:
-        for axis, (groups, values) in fields.items():
-            level0, scales = quantize(values)
-            written[f"/lfp/{axis}/level0"] = h5.create_dataset(f"lfp/{axis}/level0", data=level0)
-            levels = min_max_levels(level0)
-            for k, level in levels:
-                written[f"/lfp/{axis}/level{k}"] = h5.create_dataset(
-                    f"lfp/{axis}/level{k}", data=level
-                )
-            written[f"/lfp/{axis}/stats"] = h5.create_dataset(
-                f"lfp/{axis}/stats", data=contact_stats(values, start, dt)
-            )
-            psd, freqs = welch(values, dt)
-            written[f"/lfp/{axis}/psd"] = h5.create_dataset(f"lfp/{axis}/psd", data=psd)
-            axes.append(
-                {
-                    "name": axis,
-                    "groups": list(groups),
-                    "scales": [float(s) for s in scales],
-                    "levels": [
-                        {"step": 1, "kind": "value", "dataset": f"/lfp/{axis}/level0"},
-                        *(
-                            {"step": 2**k, "kind": "min_max", "dataset": f"/lfp/{axis}/level{k}"}
-                            for k, _ in levels
-                        ),
-                    ],
-                    "stats": f"/lfp/{axis}/stats",
-                    "psd": f"/lfp/{axis}/psd",
-                }
-            )
+        axes = [_write_total(h5, report, written)]
         written["/lfp/correlation"] = h5.create_dataset(
             "lfp/correlation", data=correlation(report.total)
         )
-        # The total as sonata-extension#51 has it, for libsonata and bluepysnap
-        g = h5.create_group(f"report/{'+'.join(report.populations)}")
-        g.create_dataset("data", data=(report.total / 1e6).astype(np.float32)).attrs["units"] = "V"
-        m = g.create_group("mapping")
-        m["node_ids"] = np.array([0], np.uint64)
-        m["index_pointers"] = np.array([0, contacts], np.uint64)
-        m["element_ids"] = np.arange(contacts, dtype=np.uint32)
-        m["time"] = np.array([start, start + steps * dt, dt])
+        for axis, fields in report.fields.items():
+            axes.append(_write_group_axis(h5, axis, fields, report, written))
         h5.flush()
         datasets = {
             name: {
@@ -346,15 +615,22 @@ def write_summary(report: SummedReport, h5_path: Path, *, version: int, source: 
         "units": "uV",
         "contacts": contacts,
         "stats": STATS,
-        "psd_frequencies": [float(f) for f in freqs],
         "axes": axes,
         "correlation": {"dataset": "/lfp/correlation", "scale": 1 / 32767},
         "datasets": datasets,
     }
 
 
+def _inflated_row(chunk: bytes) -> np.ndarray:
+    """What a browser does to a chunk: deflate undone, then shuffle."""
+    bytes_ = np.frombuffer(zlib.decompress(chunk), np.uint8)
+    return bytes_.reshape(2, -1).T.ravel().view("<i2")
+
+
 def verify(h5_path: Path, index: dict) -> None:
-    """Every dataset read as raw bytes at its offset equals the dataset."""
+    """Every dataset read as raw bytes at its offset equals the dataset, and so does every chunk of
+    the rows of a group's field, read the same way and undone as a browser does.
+    """
     raw = np.memmap(h5_path, dtype=np.uint8, mode="r")
     with h5py.File(h5_path, "r") as h5:
         for name, d in index["datasets"].items():
@@ -363,3 +639,15 @@ def verify(h5_path: Path, index: dict) -> None:
             view = raw[d["offset"] : d["offset"] + n].view(dtype).reshape(d["shape"])
             if not np.array_equal(view, _dataset(h5, name)[:]):
                 raise AssertionError(f"{name} is not where the index says it is")
+        for axis in index["axes"]:
+            level0 = axis["levels"][0]
+            if "chunks" not in level0:
+                continue
+            rows = _dataset(h5, level0["dataset"])
+            table = _dataset(h5, level0["chunks"])[:]
+            for (group, contact), (offset, size) in zip(
+                np.ndindex(table.shape[:2]), table.reshape(-1, 2).tolist(), strict=True
+            ):
+                row = _inflated_row(raw[offset : offset + size].tobytes())
+                if not np.array_equal(row, rows[group, contact]):
+                    raise AssertionError(f"{axis['name']} row {group}, {contact} is not there")
