@@ -21,7 +21,6 @@ from app.core.lfp_summary.summary import (
     deflated_row,
     log_bands,
     mean_level,
-    overview_level,
     peak_bytes,
     sum_report,
     verify,
@@ -237,11 +236,6 @@ class TestSumByGroup(unittest.TestCase):
 
 
 class TestTheNumbers(unittest.TestCase):
-    def test_the_overview_level_ends_where_the_halving_does(self):
-        self.assertEqual(overview_level(MAX_OVERVIEW_STEPS), 0)
-        self.assertEqual(overview_level(MAX_OVERVIEW_STEPS + 1), 1)
-        self.assertEqual(overview_level(30_000), 4)
-
     def test_means_with_a_shorter_last_bin(self):
         rows = np.array([[1, 3, 10, 20, 7]], np.int16)
 

@@ -30,9 +30,8 @@ def cell_labels(
                 continue
             # Text columns are usually indices into their library
             library = columns.get(f"@library/{name}")
-            values = column[:]
-            all_labels = (
+            values = column[:][node_ids]
+            labels[name] = (
                 _text(library[:])[values] if isinstance(library, h5py.Dataset) else _text(values)
             )
-            labels[name] = all_labels[node_ids]
         return labels

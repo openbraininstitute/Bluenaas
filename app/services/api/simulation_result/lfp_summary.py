@@ -177,10 +177,16 @@ def _nodes_urls(
             client, simulation.entity_id, Circuit, message="Circuit not found"
         )
         asset = next(
-            a
-            for a in circuit.assets or []
-            if a.label == AssetLabel.sonata_circuit and a.is_directory
+            (
+                a
+                for a in circuit.assets or []
+                if a.label == AssetLabel.sonata_circuit and a.is_directory
+            ),
+            None,
         )
+        if asset is None:
+            logger.info(f"No cell groups for simulation {simulation_id}: no circuit directory")
+            return {}
         config = client.download_content(
             entity_id=circuit.id,
             entity_type=Circuit,
@@ -202,7 +208,6 @@ def _nodes_urls(
     except (
         AppError,
         EntitySDKError,
-        StopIteration,
         ValueError,
         KeyError,
         TypeError,

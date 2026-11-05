@@ -28,7 +28,7 @@ import zlib
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -188,7 +188,7 @@ def _dataset(parent: h5py.Group, path: str) -> h5py.Dataset:
     return node
 
 
-def _population(group: h5py.Group) -> _Population:
+def _population(name: str, group: h5py.Group) -> _Population:
     data = _dataset(group, "data")
     units = data.attrs.get("units")
     if units is None:
@@ -206,7 +206,7 @@ def _population(group: h5py.Group) -> _Population:
     if not np.issubdtype(element_ids.dtype, np.integer) or element_ids.min() < 0:
         raise _unreadable(f"The element ids of {group.name} are not contacts")
     return _Population(
-        name=str(PurePosixPath(group.name).name),
+        name=name,
         data=data,
         element_ids=element_ids,
         node_ids=np.asarray(_dataset(group, "mapping/node_ids")[:]),
@@ -302,11 +302,17 @@ def _no_labels(_population: str, _node_ids: np.ndarray) -> dict[str, np.ndarray]
 
 
 def _axes_in_memory(
-    groups: dict[str, list[str]], steps: int, contacts: int, memory: int
+    groups: dict[str, list[str]], steps: int, contacts: int, memory: int, move_for_groups: bool
 ) -> dict[str, list[str]]:
-    """The axes that fit: the largest are left out first, as they cost the most."""
+    """The axes that fit: the largest are left out first, as they cost the most. None are left out
+    if `move_for_groups`: it raises instead.
+    """
     kept = dict(groups)
     while peak_bytes(steps, contacts, sum(len(g) for g in kept.values())) > memory:
+        if move_for_groups:
+            raise OverMemoryError(
+                f"{steps} steps x {contacts} contacts by group take over {memory} bytes"
+            )
         largest = max(kept, key=lambda axis: len(kept[axis]))
         logger.warning(f"The fields by {largest} of an LFP report would not fit in the memory")
         del kept[largest]
@@ -340,7 +346,7 @@ def sum_report(
         names = list(report)
         if not names:
             raise _not_a_report("No population in /report")
-        populations = [_population(_group(report, name)) for name in names]
+        populations = [_population(name, _group(report, name)) for name in names]
         times = np.asarray(_dataset(_group(report, names[0]), "mapping/time")[:])
         steps = populations[0].data.shape[0]
         contacts = 1 + max(int(p.element_ids.max()) for p in populations)
@@ -367,14 +373,7 @@ def sum_report(
             f" {duration(time.monotonic() - labels_started)}"
         )
         if memory is not None:
-            if (
-                move_for_groups
-                and peak_bytes(steps, contacts, sum(len(g) for g in groups.values())) > memory
-            ):
-                raise OverMemoryError(
-                    f"{steps} steps x {contacts} contacts by group take over {memory} bytes"
-                )
-            groups = _axes_in_memory(groups, steps, contacts, memory)
+            groups = _axes_in_memory(groups, steps, contacts, memory, move_for_groups)
 
         total = np.zeros((steps, contacts), np.float64)
         fields = {
@@ -476,14 +475,6 @@ def correlation(total: np.ndarray) -> np.ndarray:
     return np.round(np.nan_to_num(c) * 32767).astype(np.int16)
 
 
-def overview_level(steps: int) -> int:
-    """The k at which 2**k steps a bin gets under MAX_OVERVIEW_STEPS, as the halving does."""
-    k = 0
-    while math.ceil(steps / 2**k) > MAX_OVERVIEW_STEPS:
-        k += 1
-    return k
-
-
 def mean_level(level0: np.ndarray, k: int) -> np.ndarray:
     """The mean of each 2**k steps of contact x step, a last shorter bin as it comes."""
     starts = np.arange(0, level0.shape[-1], 2**k)
@@ -542,24 +533,30 @@ def _chunk_table(dataset: h5py.Dataset) -> np.ndarray:
     return table
 
 
+def _axis_entry(
+    name: str, groups: list[str], scales: list[float], levels: list[dict], frequencies: np.ndarray
+) -> dict:
+    return {
+        "name": name,
+        "groups": groups,
+        "scales": scales,
+        "levels": levels,
+        "stats": f"/lfp/{name}/stats",
+        "psd": f"/lfp/{name}/psd",
+        "psd_frequencies": [float(f) for f in frequencies],
+    }
+
+
 def _write_group_axis(
-    h5: h5py.File,
-    axis: str,
-    fields: GroupFields,
-    report: SummedReport,
-    written: dict[str, h5py.Dataset],
+    h5: h5py.File, axis: str, fields: GroupFields, report: SummedReport, k: int
 ) -> dict:
     steps, groups, contacts = fields.values.shape
-    k = overview_level(steps)
     name = f"lfp/{axis}"
     levels: list[dict] = [{"step": 1, "kind": "value", "dataset": f"/{name}/level0"}]
     overview = None
     if k == 0:
-        level0 = written[f"/{name}/level0"] = h5.create_dataset(
-            f"{name}/level0", (groups, contacts, steps), "<i2"
-        )
+        level0 = h5.create_dataset(f"{name}/level0", (groups, contacts, steps), "<i2")
     else:
-        # Not listed in the index's datasets: it has no one offset
         level0 = h5.create_dataset(
             f"{name}/level0",
             (groups, contacts, steps),
@@ -570,9 +567,7 @@ def _write_group_axis(
             shuffle=True,
         )
         bins = math.ceil(steps / 2**k)
-        overview = written[f"/{name}/level{k}"] = h5.create_dataset(
-            f"{name}/level{k}", (groups, contacts, bins), "<i2"
-        )
+        overview = h5.create_dataset(f"{name}/level{k}", (groups, contacts, bins), "<i2")
         levels[0]["chunks"] = f"/{name}/chunks"
         levels.append({"step": 2**k, "kind": "mean", "dataset": f"/{name}/level{k}"})
 
@@ -595,80 +590,66 @@ def _write_group_axis(
             overview[group] = mean_level(rows[0], k)
 
     if overview is not None:
-        written[f"/{name}/chunks"] = h5.create_dataset(f"{name}/chunks", data=_chunk_table(level0))
-    written[f"/{name}/stats"] = h5.create_dataset(f"{name}/stats", data=np.stack(stats))
-    written[f"/{name}/psd"] = h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
-    return {
-        "name": axis,
-        "groups": fields.groups,
-        "scales": scales,
-        "shares": shares,
-        "levels": levels,
-        "stats": f"/{name}/stats",
-        "psd": f"/{name}/psd",
-        "psd_frequencies": [float(f) for f in frequencies],
-    }
+        h5.create_dataset(f"{name}/chunks", data=_chunk_table(level0))
+    h5.create_dataset(f"{name}/stats", data=np.stack(stats))
+    h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
+    entry = _axis_entry(axis, fields.groups, scales, levels, frequencies)
+    return {**entry, "shares": shares}
 
 
-def _write_total(h5: h5py.File, report: SummedReport, written: dict[str, h5py.Dataset]) -> dict:
+def _write_total(h5: h5py.File, report: SummedReport) -> dict:
     values = report.total[:, None, :]
     level0, scales = quantize(values)
-    written["/lfp/total/level0"] = h5.create_dataset("lfp/total/level0", data=level0)
+    h5.create_dataset("lfp/total/level0", data=level0)
     levels = min_max_levels(level0)
     for k, level in levels:
-        written[f"/lfp/total/level{k}"] = h5.create_dataset(f"lfp/total/level{k}", data=level)
-    written["/lfp/total/stats"] = h5.create_dataset(
-        "lfp/total/stats", data=contact_stats(values, report.start, report.dt)
-    )
+        h5.create_dataset(f"lfp/total/level{k}", data=level)
+    h5.create_dataset("lfp/total/stats", data=contact_stats(values, report.start, report.dt))
     psd, frequencies = welch(values, report.dt)
-    written["/lfp/total/psd"] = h5.create_dataset("lfp/total/psd", data=psd)
-    return {
-        "name": "total",
-        "groups": ["total"],
-        "scales": [float(s) for s in scales],
-        "levels": [
-            {"step": 1, "kind": "value", "dataset": "/lfp/total/level0"},
-            *(
-                {"step": 2**k, "kind": "min_max", "dataset": f"/lfp/total/level{k}"}
-                for k, _ in levels
-            ),
-        ],
-        "stats": "/lfp/total/stats",
-        "psd": "/lfp/total/psd",
-        "psd_frequencies": [float(f) for f in frequencies],
-    }
+    h5.create_dataset("lfp/total/psd", data=psd)
+    entries = [
+        {"step": 1, "kind": "value", "dataset": "/lfp/total/level0"},
+        *({"step": 2**k, "kind": "min_max", "dataset": f"/lfp/total/level{k}"} for k, _ in levels),
+    ]
+    return _axis_entry("total", ["total"], [float(s) for s in scales], entries, frequencies)
+
+
+def _contiguous_datasets(h5: h5py.File) -> dict[str, dict]:
+    """Where each dataset lies in the file. One in chunks has no one offset, so it isn't listed."""
+    datasets = {}
+
+    def note(name: str, node: h5py.Dataset | h5py.Group) -> None:
+        if isinstance(node, h5py.Dataset) and node.chunks is None:
+            datasets[f"/{name}"] = {
+                "offset": int(node.id.get_offset()),
+                "shape": list(node.shape),
+                "dtype": node.dtype.str,
+            }
+
+    h5.visititems(note)
+    return datasets
 
 
 def write_summary(report: SummedReport, h5_path: Path, *, version: int, source: dict) -> dict:
     """Write the summary's h5 at `h5_path`. Returns its index."""
-    start, dt = report.start, report.dt
-    steps, contacts = report.total.shape
-    written: dict[str, h5py.Dataset] = {}
     with h5py.File(h5_path, "w", libver="latest") as h5:
-        axes = [_write_total(h5, report, written)]
-        written["/lfp/correlation"] = h5.create_dataset(
-            "lfp/correlation", data=correlation(report.total)
-        )
+        axes = [_write_total(h5, report)]
+        h5.create_dataset("lfp/correlation", data=correlation(report.total))
+        # Groups' means are over the bins the total's overview ends on
+        k = len(axes[0]["levels"]) - 1
         for axis, fields in report.fields.items():
-            axes.append(_write_group_axis(h5, axis, fields, report, written))
+            axes.append(_write_group_axis(h5, axis, fields, report, k))
         h5.flush()
-        datasets = {
-            name: {
-                "offset": int(d.id.get_offset()),
-                "shape": list(d.shape),
-                "dtype": d.dtype.str,
-            }
-            for name, d in written.items()
-        }
+        datasets = _contiguous_datasets(h5)
 
     return {
         "format": "lfp-summary",
         "version": version,
         "source": source,
         "populations": report.populations,
-        "time": {"start": start, "dt": dt, "steps": steps},
+        "time": {"start": report.start, "dt": report.dt, "steps": report.total.shape[0]},
         "units": "uV",
-        "contacts": contacts,
+        "contacts": report.total.shape[1],
         "stats": STATS,
         "axes": axes,
         "correlation": {"dataset": "/lfp/correlation", "scale": 1 / 32767},
@@ -700,9 +681,8 @@ def verify(h5_path: Path, index: dict) -> None:
                 continue
             rows = _dataset(h5, level0["dataset"])
             table = _dataset(h5, level0["chunks"])[:]
-            for (group, contact), (offset, size) in zip(
-                np.ndindex(table.shape[:2]), table.reshape(-1, 2).tolist(), strict=True
-            ):
+            for group, contact in np.ndindex(table.shape[:2]):
+                offset, size = table[group, contact].tolist()
                 row = _inflated_row(raw[offset : offset + size].tobytes())
                 if not np.array_equal(row, rows[group, contact]):
                     raise AssertionError(f"{axis['name']} row {group}, {contact} is not there")
