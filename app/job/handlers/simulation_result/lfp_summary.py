@@ -13,7 +13,7 @@ def build(
     url: str,
     size: int,
     nodes: dict[str, str],
-    groups_unavailable: str | None = None,
+    groups_unavailable: GroupsUnavailable | None = None,
     regroup: bool = False,
 ) -> None:
     build_lfp_summary(
@@ -24,8 +24,6 @@ def build(
         url=url,
         size=size,
         nodes=nodes,
-        groups_unavailable=None
-        if groups_unavailable is None
-        else GroupsUnavailable(groups_unavailable),
+        groups_unavailable=groups_unavailable,
         regroup=regroup,
     )
