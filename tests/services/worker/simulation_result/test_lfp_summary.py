@@ -26,9 +26,11 @@ from app.infrastructure.storage.lfp_summary import (
     SUMMARY_INFO_FILE_NAME,
     SummaryInfo,
     build_job_id,
+    enqueue_build,
     read_summary_info,
     summary_dir,
 )
+from app.job.handlers.simulation_result import lfp_summary as handler
 from app.services.worker.simulation_result import lfp_summary as service
 from tests.core.lfp_summary.utils import local_reader, write_nodes, write_report
 from tests.infrastructure.storage.lfp_summary_case import LfpSummaryTestCase
@@ -336,3 +338,31 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
 
         self.assertEqual(self.urls, [])
         self.assertFalse(summary_dir(epoch, self.asset_id).exists())
+
+
+class TestBuildJob(LfpSummaryTestCase):
+    def test_a_queued_job_runs_with_all_it_was_queued_with(self):
+        asset_id = uuid4()
+        job = enqueue_build(
+            JobQueue.LOW,
+            epoch=self.epoch(),
+            asset_id=asset_id,
+            url="https://bucket.s3/report.h5",
+            size=100,
+            nodes={"pop": "https://bucket.s3/nodes.h5"},
+            groups_unavailable=GroupsUnavailable.CIRCUIT_NOT_READABLE,
+            regroup=True,
+        )
+        assert job is not None
+
+        with (
+            patch.object(handler, "build_lfp_summary") as build,
+            patch.object(handler, "get_current_job_id", return_value=job.id),
+        ):
+            handler.build(**get_queue(JobQueue.LOW).fetch_job(job.id).kwargs)
+
+        kwargs = build.call_args.kwargs
+        self.assertEqual(build.call_args.args, (asset_id,))
+        self.assertEqual(kwargs["queue"], JobQueue.LOW)
+        self.assertEqual(kwargs["groups_unavailable"], GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        self.assertTrue(kwargs["regroup"])
