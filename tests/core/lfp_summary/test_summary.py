@@ -13,6 +13,7 @@ from app.core.lfp_summary.summary import (
     MAX_OVERVIEW_STEPS,
     STATS,
     WELCH_MAX_SEGMENT,
+    Centred,
     NotSummarisableError,
     OverMemoryError,
     contact_stats,
@@ -225,7 +226,7 @@ class TestTheNumbers(unittest.TestCase):
         a = np.array([1.0, -1.0, 2.0, -2.0])
         total = np.stack([a, -a, 2 * a, np.zeros(4)], axis=1)
 
-        c = correlation(total)
+        c = correlation(Centred.of(total))
 
         self.assertEqual(list(c[0, :3]), [32767, -32767, 32767])
         # A silent contact has no correlation to give

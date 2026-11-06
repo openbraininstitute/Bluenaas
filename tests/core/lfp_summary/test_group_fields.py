@@ -243,6 +243,14 @@ class TestSumByGroup(unittest.TestCase):
         report = self.summed(labels, memory=peak_bytes(50, 4, 2))
 
         self.assertEqual(list(report.fields), ["etype"])
+        self.assertEqual(report.axes_left_out, {"mtype": "memory"})
+
+    def test_no_axis_is_left_out_where_all_fit(self):
+        write_report(self.path, cells=2, contacts=2, steps=10)
+
+        report = self.summed({"pop": {"mtype": np.array(["A", "B"])}})
+
+        self.assertEqual(report.axes_left_out, {})
 
     def test_the_sum_is_the_same_across_blocks(self):
         write_report(self.path, cells=4, contacts=2, steps=101)
@@ -405,6 +413,73 @@ class TestWriteGroupFields(unittest.TestCase):
 
         for axis in index["axes"]:
             self.assertAlmostEqual(sum(axis["shares"]), 1.0, places=4)
+
+    def test_shares_at_each_contact_add_up_to_one(self):
+        values, index = self.summarise(steps=200)
+
+        axis = self.axis(index)
+        self.assertEqual(axis["contact_shares"], "/lfp/mtype/contact_shares")
+        self.assertEqual(index["datasets"][axis["contact_shares"]]["shape"], [2, 3])
+        with h5py.File(self.h5_path, "r") as h5:
+            at_contacts = h5["lfp/mtype/contact_shares"][:]
+            of_total = h5["lfp/total/contact_shares"][:]
+        np.testing.assert_allclose(at_contacts.sum(0), 1.0, atol=1e-5)
+        np.testing.assert_allclose(of_total, 1.0, atol=1e-6)
+        total = values.sum(1, dtype=np.float64)
+        centred = total - total.mean(0)
+        group = values[:, 1].astype(np.float64)
+        expected = ((group - group.mean(0)) * centred).sum(0) / (centred**2).sum(0)
+        np.testing.assert_allclose(at_contacts[1], expected, rtol=1e-5)
+
+    def test_shares_are_the_same_in_blocks_of_any_size(self):
+        _, index = self.summarise(steps=200)
+        with h5py.File(self.h5_path, "r") as h5:
+            whole = h5["lfp/mtype/contact_shares"][:]
+
+        with patch.object(summary, "SHARE_BLOCK_BYTES", 8 * 3 * 7):
+            _, blocked = self.summarise(steps=200)
+        with h5py.File(self.h5_path, "r") as h5:
+            np.testing.assert_allclose(h5["lfp/mtype/contact_shares"][:], whole, rtol=1e-6)
+        np.testing.assert_allclose(self.axis(blocked)["shares"], self.axis(index)["shares"])
+
+    def test_a_contact_with_no_variance_gives_no_share(self):
+        values = np.zeros((100, 2, 2), np.float32)
+        values[:, 0, 0] = np.sin(np.arange(100))
+        values[:, :, 1] = 3.0
+        report = SummedReport(
+            populations=["pop"],
+            start=0.0,
+            dt=0.1,
+            total=values.sum(1, dtype=np.float64),
+            fields={"mtype": GroupFields(["A", "B"], values)},
+        )
+
+        write_summary(report, self.h5_path, version=2, source={})
+
+        with h5py.File(self.h5_path, "r") as h5:
+            np.testing.assert_allclose(
+                h5["lfp/mtype/contact_shares"][:], [[1.0, 0.0], [0.0, 0.0]], atol=1e-6
+            )
+
+    def test_the_index_says_which_axes_were_left_out_and_why_there_are_no_groups(self):
+        report = SummedReport(
+            populations=["pop"],
+            start=0.0,
+            dt=0.1,
+            total=np.ones((10, 2)),
+            fields={},
+            axes_left_out={"mtype": "memory"},
+        )
+
+        index = write_summary(
+            report, self.h5_path, version=2, source={}, groups_unavailable="circuit_not_readable"
+        )
+
+        self.assertEqual(index["axes_left_out"], {"mtype": "memory"})
+        self.assertEqual(index["groups_unavailable"], "circuit_not_readable")
+        self.assertIsNone(
+            write_summary(report, self.dir / "other.h5", version=2, source={})["groups_unavailable"]
+        )
 
     def test_no_copy_of_the_report(self):
         _, _ = self.summarise(steps=50)

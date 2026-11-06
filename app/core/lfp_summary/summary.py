@@ -16,6 +16,9 @@ differ on:
   /lfp/{axis}/stats      float32 group x contact x len(STATS)
   /lfp/{axis}/psd        float32 group x contact x frequency, Welch, uV^2/Hz, the means over PSD_BANDS
                                 bands
+  /lfp/{axis}/contact_shares float32 group x contact, the part of the total's variance at each
+                                contact a group makes. They add up to 1 at a contact, as the
+                                index's `shares` over all of them do
   /lfp/total/correlation int16  group x contact x contact, value = raw / 32767
 """
 
@@ -24,7 +27,7 @@ import time
 import zlib
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import h5py
@@ -59,6 +62,8 @@ PEAK_PER_TOTAL_BYTE = 3.5
 FIXED_PEAK_BYTES = 1 << 30
 # Each group's field is held in memory too, as float32
 GROUP_FIELD_SAMPLE_BYTES = 4
+# A group's field is set against the total in blocks of steps of about this size, in float64
+SHARE_BLOCK_BYTES = 64 << 20
 
 TO_UV = {"V": 1e6, "mV": 1e3, "uV": 1.0, "µV": 1.0}
 
@@ -131,6 +136,8 @@ class SummedReport:
     total: np.ndarray
     # By axis, none where the report's cells can't be told apart
     fields: dict[str, GroupFields]
+    # The axes the cells differ on that were not summed, and why
+    axes_left_out: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -379,6 +386,7 @@ def sum_report(
             f"LFP report {label}: groups { ({a: len(g) for a, g in groups.items()}) }, found in"
             f" {duration(time.monotonic() - labels_started)}"
         )
+        found = groups
         if memory is not None:
             groups = _axes_in_memory(groups, steps, contacts, memory, move_for_groups)
 
@@ -398,7 +406,12 @@ def sum_report(
             raise _unreadable("The report has values that are not finite")
 
     return SummedReport(
-        populations=names, start=float(times[0]), dt=float(times[2]), total=total, fields=fields
+        populations=names,
+        start=float(times[0]),
+        dt=float(times[2]),
+        total=total,
+        fields=fields,
+        axes_left_out={axis: "memory" for axis in found if axis not in fields},
     )
 
 
@@ -476,11 +489,26 @@ def welch(values: np.ndarray, dt_ms: float) -> tuple[np.ndarray, np.ndarray]:
     return np.ascontiguousarray(np.moveaxis(psd, 0, -1)).astype(np.float32), freqs
 
 
-def correlation(total: np.ndarray) -> np.ndarray:
+@dataclass
+class Centred:
+    """The total less its mean, steps x contacts, and its power at each contact: what each group's
+    field is set against.
+    """
+
+    values: np.ndarray
+    power: np.ndarray
+
+    @classmethod
+    def of(cls, total: np.ndarray) -> "Centred":
+        values = total - total.mean(axis=0)
+        return cls(values, np.einsum("tc,tc->c", values, values))
+
+
+def correlation(centred: Centred) -> np.ndarray:
     """Zero-lag Pearson correlation between contacts, as int16 / 32767."""
     with np.errstate(divide="ignore", invalid="ignore"):
-        c = np.atleast_2d(np.corrcoef(total.T))
-    return np.round(np.nan_to_num(c) * 32767).astype(np.int16)
+        c = (centred.values.T @ centred.values) / np.sqrt(np.outer(centred.power, centred.power))
+    return np.round(np.clip(np.nan_to_num(c), -1, 1) * 32767).astype(np.int16)
 
 
 def mean_level(level0: np.ndarray, k: int) -> np.ndarray:
@@ -504,15 +532,30 @@ def log_bands(psd: np.ndarray, frequencies: np.ndarray) -> tuple[np.ndarray, np.
     return means.astype(np.float32), np.add.reduceat(above_zero, starts) / counts
 
 
-def share_of_total(values: np.ndarray, total: np.ndarray) -> float:
-    """How much of the total's variance a group's field accounts for, steps x contacts both. The
-    groups' shares add up to 1, and one working against the rest has a negative share.
+def covariance_with_total(values: np.ndarray, centred: Centred) -> np.ndarray:
+    """A group's field, steps x contacts, summed against the centred total at each contact. Its own
+    mean needs no taking off, as the centred total sums to 0.
     """
-    centred = total - total.mean(axis=0)
-    power = float((centred * centred).sum())
-    if power == 0:
-        return 0.0
-    return float(((values - values.mean(axis=0)) * centred).sum()) / power
+    steps, contacts = values.shape
+    rows = max(1, SHARE_BLOCK_BYTES // (8 * contacts))
+    covariance = np.zeros(contacts)
+    for a in range(0, steps, rows):
+        block = np.asarray(values[a : a + rows], np.float64)
+        covariance += np.einsum("tc,tc->c", block, centred.values[a : a + rows])
+    return covariance
+
+
+def shares_of_total(values: np.ndarray, centred: Centred) -> tuple[float, np.ndarray]:
+    """How much of the total's variance a group's field accounts for, over all contacts and at each.
+    The groups' shares add up to 1, and one working against the rest has a negative share. A contact
+    with no variance gives none.
+    """
+    covariance = covariance_with_total(values, centred)
+    power = float(centred.power.sum())
+    at_contacts = np.divide(
+        covariance, centred.power, out=np.zeros_like(covariance), where=centred.power > 0
+    )
+    return (float(covariance.sum()) / power if power else 0.0), at_contacts.astype(np.float32)
 
 
 def deflated_row(row: np.ndarray) -> bytes:
@@ -545,7 +588,12 @@ OVERVIEWS = {"min_max": min_max_level, "mean": mean_level}
 
 
 def _write_axis(
-    h5: h5py.File, axis: str, fields: GroupFields, report: SummedReport, overview_kind: str
+    h5: h5py.File,
+    axis: str,
+    fields: GroupFields,
+    report: SummedReport,
+    centred: Centred,
+    overview_kind: str,
 ) -> dict:
     steps, groups, contacts = fields.values.shape
     k = overview_level(steps)
@@ -572,14 +620,16 @@ def _write_axis(
         levels[0]["chunks"] = f"/{name}/chunks"
         levels.append({"step": 2**k, "kind": overview_kind, "dataset": f"/{name}/level{k}"})
 
-    scales, shares, stats, spectra = [], [], [], []
+    scales, shares, contact_shares, stats, spectra = [], [], [], [], []
     frequencies = np.zeros(0)
     for group in range(groups):
         # One group at a time: a segment of the spectra over all of them could take tens of GB
         values = fields.values[:, group : group + 1, :]
         rows, scale = quantize(values)
         scales.append(float(scale[0]))
-        shares.append(share_of_total(values[:, 0, :], report.total))
+        share, at_contacts = shares_of_total(values[:, 0, :], centred)
+        shares.append(share)
+        contact_shares.append(at_contacts)
         stats.append(contact_stats(values, report.start, report.dt)[0])
         psd, fine = welch(values, report.dt)
         band_psd, frequencies = log_bands(psd[0], fine)
@@ -594,6 +644,7 @@ def _write_axis(
         h5.create_dataset(f"{name}/chunks", data=_chunk_table(level0))
     h5.create_dataset(f"{name}/stats", data=np.stack(stats))
     h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
+    h5.create_dataset(f"{name}/contact_shares", data=np.stack(contact_shares))
     return {
         "name": axis,
         "groups": fields.groups,
@@ -603,6 +654,7 @@ def _write_axis(
         "stats": f"/{name}/stats",
         "psd": f"/{name}/psd",
         "psd_frequencies": [float(f) for f in frequencies],
+        "contact_shares": f"/{name}/contact_shares",
     }
 
 
@@ -622,15 +674,26 @@ def _contiguous_datasets(h5: h5py.File) -> dict[str, dict]:
     return datasets
 
 
-def write_summary(report: SummedReport, h5_path: Path, *, version: int, source: dict) -> dict:
-    """Write the summary's h5 at `h5_path`. Returns its index."""
+def write_summary(
+    report: SummedReport,
+    h5_path: Path,
+    *,
+    version: int,
+    source: dict,
+    groups_unavailable: str | None = None,
+) -> dict:
+    """Write the summary's h5 at `h5_path`. Returns its index. `groups_unavailable` says why the
+    report has no groups where that is not down to the report itself.
+    """
+    centred = Centred.of(report.total)
     with h5py.File(h5_path, "w", libver="latest") as h5:
         total = GroupFields(["total"], report.total[:, None, :])
-        axes = [_write_axis(h5, "total", total, report, "min_max")]
+        axes = [_write_axis(h5, "total", total, report, centred, "min_max")]
         axes += [
-            _write_axis(h5, axis, fields, report, "mean") for axis, fields in report.fields.items()
+            _write_axis(h5, axis, fields, report, centred, "mean")
+            for axis, fields in report.fields.items()
         ]
-        h5.create_dataset("lfp/total/correlation", data=correlation(report.total)[None])
+        h5.create_dataset("lfp/total/correlation", data=correlation(centred)[None])
         axes[0]["correlation"] = {"dataset": "/lfp/total/correlation", "scale": 1 / 32767}
         h5.flush()
         datasets = _contiguous_datasets(h5)
@@ -645,6 +708,8 @@ def write_summary(report: SummedReport, h5_path: Path, *, version: int, source: 
         "contacts": report.total.shape[1],
         "stats": STATS,
         "axes": axes,
+        "axes_left_out": report.axes_left_out,
+        "groups_unavailable": groups_unavailable,
         "datasets": datasets,
     }
 
