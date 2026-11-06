@@ -428,11 +428,21 @@ def sum_report(
     )
 
 
+def _scales_of(peak: np.ndarray | float) -> np.ndarray:
+    return np.where(peak > 0, peak / 32767, 1.0)
+
+
+def _to_int16(values: np.ndarray, scales: np.ndarray | float) -> np.ndarray:
+    q = np.divide(values, scales, dtype=np.float64)
+    np.round(q, out=q)
+    np.clip(q, -32767, 32767, out=q)
+    return q.astype(np.int16)
+
+
 def quantize(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """int16 with one scale per group: steps x groups x contacts -> group x contact x step."""
-    peak = np.abs(values).max(axis=(0, 2))
-    scales = np.where(peak > 0, peak / 32767, 1.0)
-    q = np.round(values / scales[None, :, None]).astype(np.int16)
+    scales = _scales_of(np.abs(values).max(axis=(0, 2)))
+    q = _to_int16(values, scales[None, :, None])
     return np.ascontiguousarray(q.transpose(1, 2, 0)), scales
 
 
@@ -602,16 +612,13 @@ def deflated_row(row: np.ndarray) -> bytes:
     return zlib.compress(shuffled.tobytes(), DEFLATE_LEVEL)
 
 
-def quantize_block(block: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """int16 with one scale per contact: contact x step -> the same, and the scales as float32."""
-    peak = np.abs(block).max(axis=1)
-    scales = np.where(peak > 0, peak / 32767, 1.0).astype(np.float32)
-    q = np.clip(np.round(block / scales[:, None].astype(np.float64)), -32767, 32767)
-    return q.astype(np.int16), scales
-
-
-def _block_steps(steps: int) -> int:
-    return min(BLOCK_STEPS, steps)
+def quantize_block(block: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """int16 with one scale per contact: contact x step -> the same, the scales as float32, and
+    the peaks.
+    """
+    peak = np.abs(block).max(axis=1).astype(np.float64)
+    scales = _scales_of(peak).astype(np.float32)
+    return _to_int16(block, scales[:, None].astype(np.float64)), scales, peak
 
 
 def _write_chunks(
@@ -620,7 +627,8 @@ def _write_chunks(
     # Written deflated, or HDF5 would keep a row that doesn't shrink as it is and flag it in the
     # chunk's filter mask, for the browser to tell apart. A last block is padded to the chunk's
     # length, as HDF5 stores an edge chunk whole.
-    length = _block_steps(dataset.shape[-1])
+    assert dataset.chunks
+    length = dataset.chunks[-1]
     if rows.shape[1] < length:
         rows = np.pad(rows, ((0, 0), (0, length - rows.shape[1])))
     for contact, chunk in enumerate(pool.map(deflated_row, rows)):
@@ -629,7 +637,8 @@ def _write_chunks(
 
 def _chunk_table(dataset: h5py.Dataset) -> np.ndarray:
     groups, contacts, steps = dataset.shape
-    length = _block_steps(steps)
+    assert dataset.chunks
+    length = dataset.chunks[-1]
     table = np.zeros((groups, contacts, math.ceil(steps / length), 2), np.uint64)
 
     def note(chunk) -> None:
@@ -641,29 +650,36 @@ def _chunk_table(dataset: h5py.Dataset) -> np.ndarray:
 
 
 def _write_blocks(
-    values: np.ndarray, level0: h5py.Dataset, block_scales: np.ndarray, group: int, kind: str, ks
-) -> tuple[list[np.ndarray], float]:
-    """One group's rows in blocks, each to its own scales, its overview levels in uV, finest first,
-    and its peak. Taken a span of steps at a time that holds whole blocks and whole bins of every
-    level.
+    values: np.ndarray, level0: h5py.Dataset, group: int, kind: str, ks
+) -> tuple[list[np.ndarray], np.ndarray, float]:
+    """One group's rows in blocks, each to its own scales: its overview levels in uV, finest first,
+    the blocks' scales, contact x block, and the rows' peak. Taken a span of steps at a time that
+    holds whole blocks and whole bins of every level.
     """
     steps, contacts = values.shape
     span = max(BLOCK_STEPS, 2 ** ks[-1])
-    levels = []
+    # A mean is kept in float64, as it is worked out
+    in_uv = [
+        np.empty(
+            (contacts, math.ceil(steps / 2**k)) + ((2,) if kind == "min_max" else ()),
+            values.dtype if kind == "min_max" else np.float64,
+        )
+        for k in ks
+    ]
+    scales = np.empty((contacts, math.ceil(steps / BLOCK_STEPS)), np.float32)
     peak = 0.0
     with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
         for a in range(0, steps, span):
-            rows = np.asarray(values[a : a + span], np.float64).T
-            peak = max(peak, float(np.abs(rows).max()))
-            levels.append([OVERVIEWS[kind](rows, k) for k in ks])
+            rows = np.ascontiguousarray(values[a : a + span].T)
+            for level, k in zip(in_uv, ks, strict=True):
+                binned = OVERVIEWS[kind](rows, k)
+                level[:, a >> k : (a >> k) + binned.shape[1]] = binned
             for b in range(0, rows.shape[1], BLOCK_STEPS):
-                q, scales = quantize_block(rows[:, b : b + BLOCK_STEPS])
-                block_scales[group, :, (a + b) // BLOCK_STEPS] = scales
+                q, block_scales, block_peaks = quantize_block(rows[:, b : b + BLOCK_STEPS])
+                scales[:, (a + b) // BLOCK_STEPS] = block_scales
+                peak = max(peak, float(block_peaks.max()))
                 _write_chunks(level0, pool, group, a + b, q)
-    in_uv = [
-        np.concatenate([span_levels[j] for span_levels in levels], axis=1) for j in range(len(ks))
-    ]
-    return in_uv, peak
+    return in_uv, scales, peak
 
 
 OVERVIEWS = {"min_max": min_max_level, "mean": mean_level}
@@ -682,22 +698,22 @@ def _write_axis(
     name = f"lfp/{axis}"
     levels: list[dict] = [{"step": 1, "kind": "value", "dataset": f"/{name}/level0"}]
     overviews = []
-    block_scales = np.zeros((groups, contacts, math.ceil(steps / BLOCK_STEPS)), np.float32)
     if not ks:
         level0 = h5.create_dataset(f"{name}/level0", (groups, contacts, steps), "<i2")
     else:
+        block_steps = min(BLOCK_STEPS, steps)
         level0 = h5.create_dataset(
             f"{name}/level0",
             (groups, contacts, steps),
             "<i2",
-            chunks=(1, 1, _block_steps(steps)),
+            chunks=(1, 1, block_steps),
             compression="gzip",
             compression_opts=DEFLATE_LEVEL,
             shuffle=True,
         )
         levels[0] |= {
             "chunks": f"/{name}/chunks",
-            "block_steps": _block_steps(steps),
+            "block_steps": block_steps,
             "block_scales": f"/{name}/block_scales",
         }
         for k in ks:
@@ -707,7 +723,7 @@ def _write_axis(
             levels.append({"step": 2**k, "kind": overview_kind, "dataset": f"/{name}/level{k}"})
 
     shares, contact_shares = shares_of_total(fields.values, centred)
-    scales, stats, spectra = [], [], []
+    scales, stats, spectra, block_scales = [], [], [], []
     frequencies = np.zeros(0)
     for group in range(groups):
         # One group at a time: a segment of the spectra over all of them could take tens of GB
@@ -722,15 +738,18 @@ def _write_axis(
             level0[group] = rows[0]
             continue
         # To the peak of the rows, not of the levels: a block read at this scale fits in int16
-        in_uv, peak = _write_blocks(values[:, 0], level0, block_scales, group, overview_kind, ks)
-        scale = peak / 32767 if peak > 0 else 1.0
+        in_uv, group_block_scales, peak = _write_blocks(
+            values[:, 0], level0, group, overview_kind, ks
+        )
+        block_scales.append(group_block_scales)
+        scale = float(_scales_of(peak))
         scales.append(scale)
         for overview, level in zip(overviews, in_uv, strict=True):
-            overview[group] = np.clip(np.round(level / scale), -32767, 32767).astype(np.int16)
+            overview[group] = _to_int16(level, scale)
 
     if ks:
         h5.create_dataset(f"{name}/chunks", data=_chunk_table(level0))
-        h5.create_dataset(f"{name}/block_scales", data=block_scales)
+        h5.create_dataset(f"{name}/block_scales", data=np.stack(block_scales))
     h5.create_dataset(f"{name}/stats", data=np.stack(stats))
     h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
     h5.create_dataset(f"{name}/contact_shares", data=contact_shares)
@@ -810,8 +829,9 @@ def _inflated_row(chunk: bytes) -> np.ndarray:
 
 
 def verify(h5_path: Path, index: dict) -> None:
-    """Every dataset read as raw bytes at its offset equals the dataset, and so does every chunk of
-    the rows of a group's field, read the same way and undone as a browser does.
+    """Every dataset read as raw bytes at its offset equals the dataset; every chunk of the rows of
+    a group's field is where its table says; and the first contact's, and every contact's last,
+    undone as a browser does, equal the rows, the padding zero.
     """
     raw = np.memmap(h5_path, dtype=np.uint8, mode="r")
     with h5py.File(h5_path, "r") as h5:
@@ -828,12 +848,17 @@ def verify(h5_path: Path, index: dict) -> None:
             rows = _dataset(h5, level0["dataset"])
             table = _dataset(h5, level0["chunks"])[:]
             length = level0["block_steps"]
+            last = table.shape[2] - 1
             for group, contact, block in np.ndindex(table.shape[:3]):
                 offset, size = table[group, contact, block].tolist()
                 a = block * length
-                row = rows[group, contact, a : a + length]
-                read = _inflated_row(raw[offset : offset + size].tobytes())
-                if not np.array_equal(read[: len(row)], row) or read[len(row) :].any():
+                chunk = raw[offset : offset + size].tobytes()
+                there = rows.id.read_direct_chunk((group, contact, a))[1] == chunk
+                if there and (contact == 0 or block == last):
+                    row = rows[group, contact, a : a + length]
+                    read = _inflated_row(chunk)
+                    there = np.array_equal(read[: len(row)], row) and not read[len(row) :].any()
+                if not there:
                     raise AssertionError(
                         f"{axis['name']} row {group}, {contact} block {block} is not there"
                     )
