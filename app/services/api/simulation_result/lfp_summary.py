@@ -1,6 +1,10 @@
+import hashlib
 import json
 import posixpath
 import re
+import threading
+import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import PurePosixPath
@@ -49,8 +53,59 @@ from app.utils.asyncio import run_async
 LFP_REPORT_LABELS = frozenset({AssetLabel.lfp_report, AssetLabel.voltage_report})
 
 
+# How long a user's access to a report is taken as found, at most. A viewer reads a summary in many
+# requests, and each would ask entitycore again.
+ACCESS_SECONDS = 60
+ACCESS_ENTRIES = 4096
+
+
 def _not_found(message: str) -> AppError:
     return AppError(message=message, error_code=None, http_status_code=HTTPStatus.NOT_FOUND)
+
+
+class AccessFound:
+    """The reports users were found to have access to lately, by their token and project, as
+    entitycore answers. Access taken away is seen once the entry is gone.
+    """
+
+    def __init__(self):
+        self._found: OrderedDict[tuple, tuple[float, SimulationResult, Asset]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def key(result_id: UUID, asset_id: UUID, auth: Auth, project_context: ProjectContext) -> tuple:
+        token = hashlib.sha256(auth.access_token.encode()).hexdigest()
+        return (
+            token,
+            project_context.project_id,
+            project_context.virtual_lab_id,
+            result_id,
+            asset_id,
+        )
+
+    def get(self, key: tuple) -> tuple[SimulationResult, Asset] | None:
+        with self._lock:
+            entry = self._found.get(key)
+            if entry is None or entry[0] < time.monotonic():
+                return None
+            return entry[1], entry[2]
+
+    def add(self, key: tuple, found: tuple[SimulationResult, Asset], token_expires_at: int) -> None:
+        seconds = min(ACCESS_SECONDS, token_expires_at - time.time())
+        if seconds <= 0:
+            return
+        with self._lock:
+            self._found[key] = (time.monotonic() + seconds, *found)
+            self._found.move_to_end(key)
+            while len(self._found) > ACCESS_ENTRIES:
+                self._found.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._found.clear()
+
+
+access_found = AccessFound()
 
 
 def _get_report(
@@ -59,6 +114,9 @@ def _get_report(
     """The result and its report asset, as the user may see them. The cache is shared by
     everyone, so it is only read for a report the user has access to.
     """
+    key = AccessFound.key(result_id, asset_id, auth, project_context)
+    if found := access_found.get(key):
+        return found
     result = get_entity_or_not_found(
         user_client(auth.access_token, project_context),
         result_id,
@@ -68,6 +126,7 @@ def _get_report(
     asset = next((a for a in result.assets or [] if a.id == asset_id), None)
     if asset is None:
         raise _not_found("The simulation result has no such asset")
+    access_found.add(key, (result, asset), auth.decoded_token.exp)
     return result, asset
 
 
@@ -452,8 +511,19 @@ async def get_lfp_summary_file(
     build.
     """
 
+    asked = time.perf_counter()
+
     def response() -> Response:
+        started, started_cpu = time.perf_counter(), time.thread_time()
         _get_report(result_id, asset_id, auth=auth, project_context=project_context)
-        return _summary_file_response(asset_id, name, media_type, if_match)
+        access, access_cpu = time.perf_counter() - started, time.thread_time() - started_cpu
+        answer = _summary_file_response(asset_id, name, media_type, if_match)
+        # For how a read's time is spent to be seen from outside: waiting for a thread, then on
+        # checking the user's access, of which this much is this process's own work
+        answer.headers["Server-Timing"] = (
+            f"queued;dur={1000 * (started - asked):.1f}, access;dur={1000 * access:.1f}, "
+            f"access-cpu;dur={1000 * access_cpu:.1f}"
+        )
+        return answer
 
     return await run_async(response)

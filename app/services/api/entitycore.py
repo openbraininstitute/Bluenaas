@@ -5,16 +5,21 @@ from entitysdk import Client
 from entitysdk.common import ProjectContext
 from entitysdk.exception import EntitySDKError
 from entitysdk.models.core import Identifiable
-from entitysdk.utils.http import HTTPStatusError
+from entitysdk.utils.http import HTTPClient, HTTPStatusError
 
 from app.config.settings import settings
 from app.core.exceptions import AppError
+
+
+# Shared by every user's client, so that a request to entitycore reuses a connection
+_http_client = HTTPClient()
 
 
 def user_client(access_token: str, project_context: ProjectContext) -> Client:
     return Client(
         api_url=str(settings.ENTITYCORE_URI),
         project_context=project_context,
+        http_client=_http_client,
         token_manager=access_token,
     )
 

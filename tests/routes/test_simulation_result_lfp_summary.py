@@ -138,6 +138,14 @@ class TestLfpSummaryRoutes(LfpSummaryTestCase):
         self.assertEqual(response.headers["content-range"], f"bytes 40-49/{len(CONTENT)}")
         self.assertEqual(response.headers["etag"], f'"{sha256}"')
 
+    def test_a_read_says_where_its_time_went(self):
+        self.build()
+
+        response = self.client.get(self.url(), headers={**self.headers, "Range": "bytes=0-9"})
+
+        timings = [part.split(";")[0] for part in response.headers["server-timing"].split(", ")]
+        self.assertEqual(timings, ["queued", "access", "access-cpu"])
+
     def test_get_several_ranges_with_one_check_of_access(self):
         sha256 = self.build()
 

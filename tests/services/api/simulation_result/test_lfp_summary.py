@@ -1,4 +1,5 @@
 import json
+import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
@@ -7,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import httpx
+from entitysdk.common import ProjectContext
 from entitysdk.exception import EntitySDKError
 from entitysdk.models import SimulationResult
 from entitysdk.types import AssetLabel
@@ -284,6 +286,75 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
             status = self.status_of(report)
 
         self.assertEqual(status.state, LfpSummaryState.BUILDING)
+
+
+class TestGetReport(LfpSummaryTestCase):
+    def setUp(self):
+        super().setUp()
+        service.access_found.clear()
+        self.addCleanup(service.access_found.clear)
+        self.result_id = uuid4()
+        self.report = report_of(100)
+        self.result = SimpleNamespace(assets=[self.report])
+        patcher = patch.object(service, "user_client")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = patch.object(service, "get_entity_or_not_found", return_value=self.result)
+        self.get_entity = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def auth(self, token: str = "token", expires_in: float = 3600):
+        return SimpleNamespace(
+            access_token=token,
+            decoded_token=SimpleNamespace(exp=int(time.time() + expires_in)),
+        )
+
+    def get(self, auth=None, project_context=None):
+        return service._get_report(
+            self.result_id,
+            self.report.id,
+            auth=auth or self.auth(),
+            project_context=project_context or self.project_context,
+        )
+
+    def test_access_found_is_kept_for_the_reads_that_follow(self):
+        for _ in range(3):
+            self.assertEqual(self.get(), (self.result, self.report))
+
+        self.assertEqual(self.get_entity.call_count, 1)
+
+    def test_kept_per_user_and_project(self):
+        self.get()
+        self.get(auth=self.auth("another"))
+        self.get(project_context=ProjectContext(project_id=uuid4(), virtual_lab_id=uuid4()))
+
+        self.assertEqual(self.get_entity.call_count, 3)
+
+    def test_asked_again_once_it_is_old(self):
+        self.get()
+
+        later = time.monotonic() + service.ACCESS_SECONDS + 1
+        with patch.object(service.time, "monotonic", return_value=later):
+            self.get()
+
+        self.assertEqual(self.get_entity.call_count, 2)
+
+    def test_not_kept_past_the_token(self):
+        self.get(auth=self.auth(expires_in=-1))
+        self.get(auth=self.auth(expires_in=-1))
+
+        self.assertEqual(self.get_entity.call_count, 2)
+
+    def test_no_access_is_not_kept(self):
+        self.get_entity.side_effect = AppError(
+            message="no", error_code=None, http_status_code=HTTPStatus.NOT_FOUND
+        )
+
+        for _ in range(2):
+            with self.assertRaises(AppError):
+                self.get()
+
+        self.assertEqual(self.get_entity.call_count, 2)
 
 
 class TestIsLfpReport(LfpSummaryTestCase):
