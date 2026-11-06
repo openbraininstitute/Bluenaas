@@ -344,15 +344,17 @@ class TestWriteGroupFields(unittest.TestCase):
                 {
                     "step": 1,
                     "kind": "value",
-                    "dataset": "/lfp/mtype/level0",
-                    "chunks": "/lfp/mtype/chunks",
-                    "block_steps": MAX_OVERVIEW_STEPS * 4,
-                    "block_scales": "/lfp/mtype/block_scales",
+                    "dataset": "/lfp/mtype/rows",
+                    "blocks": {
+                        "chunks": "/lfp/mtype/chunks",
+                        "steps": MAX_OVERVIEW_STEPS * 4,
+                        "scales": "/lfp/mtype/block_scales",
+                    },
                 },
                 {"step": 4, "kind": "mean", "dataset": "/lfp/mtype/level2"},
             ],
         )
-        self.assertNotIn("/lfp/mtype/level0", index["datasets"])
+        self.assertNotIn("/lfp/mtype/rows", index["datasets"])
         self.assertEqual(
             index["datasets"]["/lfp/mtype/level2"]["shape"], [2, 3, MAX_OVERVIEW_STEPS]
         )
@@ -360,8 +362,8 @@ class TestWriteGroupFields(unittest.TestCase):
         self.assertEqual(index["datasets"]["/lfp/mtype/chunks"]["dtype"], "<u8")
         self.assertEqual(index["datasets"]["/lfp/mtype/block_scales"]["shape"], [2, 3, 1])
         with h5py.File(self.h5_path, "r") as h5:
-            self.assertEqual(h5["lfp/mtype/level0"].chunks, (1, 1, MAX_OVERVIEW_STEPS * 4))
-            row = h5["lfp/mtype/level0"][1, 2]
+            self.assertEqual(h5["lfp/mtype/rows"].chunks, (1, 1, MAX_OVERVIEW_STEPS * 4))
+            row = h5["lfp/mtype/rows"][1, 2]
             means = h5["lfp/mtype/level2"][1, 2]
             row_scale = h5["lfp/mtype/block_scales"][1, 2, 0]
         np.testing.assert_allclose(row * row_scale, values[:, 1, 2], atol=row_scale)
@@ -372,20 +374,36 @@ class TestWriteGroupFields(unittest.TestCase):
             means * scale, values[:, 1, 2].reshape(-1, 4).mean(1), atol=scale
         )
 
-    def test_a_run_under_the_overview_size_is_plain_and_whole(self):
+    def test_a_run_under_the_overview_size_has_one_block_and_its_values_for_overview(self):
         values, index = self.summarise(steps=50)
 
         axis = self.axis(index)
         self.assertEqual(
-            axis["levels"], [{"step": 1, "kind": "value", "dataset": "/lfp/mtype/level0"}]
+            axis["levels"],
+            [
+                {
+                    "step": 1,
+                    "kind": "value",
+                    "dataset": "/lfp/mtype/rows",
+                    "blocks": {
+                        "chunks": "/lfp/mtype/chunks",
+                        "steps": 50,
+                        "scales": "/lfp/mtype/block_scales",
+                    },
+                },
+                {"step": 1, "kind": "value", "dataset": "/lfp/mtype/level0"},
+            ],
         )
         self.assertEqual(index["datasets"]["/lfp/mtype/level0"]["shape"], [2, 3, 50])
-        self.assertNotIn("/lfp/mtype/chunks", index["datasets"])
+        self.assertEqual(index["datasets"]["/lfp/mtype/chunks"]["shape"], [2, 3, 1, 2])
         verify(self.h5_path, index)
         with h5py.File(self.h5_path, "r") as h5:
             row = h5["lfp/mtype/level0"][0, 1]
+            block = h5["lfp/mtype/rows"][0, 1]
+            block_scale = h5["lfp/mtype/block_scales"][0, 1, 0]
         scale = axis["scales"][0]
         np.testing.assert_allclose(row * scale, values[:, 0, 1], atol=scale)
+        np.testing.assert_allclose(block * block_scale, values[:, 0, 1], atol=block_scale)
 
     def test_a_silent_group_is_written_and_read_back(self):
         values = np.zeros((MAX_OVERVIEW_STEPS * 2, 2, 2), np.float32)

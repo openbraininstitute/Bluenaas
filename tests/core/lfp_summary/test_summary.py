@@ -225,7 +225,7 @@ class TestTheNumbers(unittest.TestCase):
         self.assertEqual(overview_level(30_000), 4)
 
     def test_finer_levels_at_a_quarter_of_the_steps_down_to_the_least(self):
-        self.assertEqual(overview_levels(MAX_OVERVIEW_STEPS), [])
+        self.assertEqual(overview_levels(MAX_OVERVIEW_STEPS), [0])
         self.assertEqual(overview_levels(MAX_OVERVIEW_STEPS * 2 + 1), [2])
         self.assertEqual(overview_levels(30_000), [4])
         # 300 contacts at 40 kHz for 100 s: bins of 32 to 2,048 steps
@@ -270,9 +270,22 @@ class TestWriteSummary(unittest.TestCase):
         self.assertEqual(index["time"], {"start": 0.0, "dt": 0.1, "steps": 50})
         self.assertEqual(index["contacts"], 3)
         self.assertEqual([a["name"] for a in index["axes"]], ["total"])
+        # The rows in one block, and the values themselves for the overview
         self.assertEqual(
             index["axes"][0]["levels"],
-            [{"step": 1, "kind": "value", "dataset": "/lfp/total/level0"}],
+            [
+                {
+                    "step": 1,
+                    "kind": "value",
+                    "dataset": "/lfp/total/rows",
+                    "blocks": {
+                        "chunks": "/lfp/total/chunks",
+                        "steps": 50,
+                        "scales": "/lfp/total/block_scales",
+                    },
+                },
+                {"step": 1, "kind": "value", "dataset": "/lfp/total/level0"},
+            ],
         )
 
     def test_level0_is_the_total_to_its_scale(self):
@@ -293,19 +306,21 @@ class TestWriteSummary(unittest.TestCase):
                 {
                     "step": 1,
                     "kind": "value",
-                    "dataset": "/lfp/total/level0",
-                    "chunks": "/lfp/total/chunks",
-                    "block_steps": MAX_OVERVIEW_STEPS * 2 + 1,
-                    "block_scales": "/lfp/total/block_scales",
+                    "dataset": "/lfp/total/rows",
+                    "blocks": {
+                        "chunks": "/lfp/total/chunks",
+                        "steps": MAX_OVERVIEW_STEPS * 2 + 1,
+                        "scales": "/lfp/total/block_scales",
+                    },
                 },
                 {"step": 4, "kind": "min_max", "dataset": "/lfp/total/level2"},
             ],
         )
-        self.assertNotIn("/lfp/total/level0", index["datasets"])
+        self.assertNotIn("/lfp/total/rows", index["datasets"])
         self.assertEqual(index["datasets"]["/lfp/total/level2"]["shape"], [1, 3, 1025, 2])
         verify(h5_path, index)
         with h5py.File(h5_path, "r") as h5:
-            rows = h5["lfp/total/level0"][0] * h5["lfp/total/block_scales"][0]
+            rows = h5["lfp/total/rows"][0] * h5["lfp/total/block_scales"][0]
             overview = h5["lfp/total/level2"][0]
         np.testing.assert_allclose(rows.T, expected, atol=np.abs(expected).max() / 32767)
         scale = index["axes"][0]["scales"][0]
@@ -331,12 +346,12 @@ class TestWriteSummary(unittest.TestCase):
         total, h5_path, index = self.written(steps, block_steps=256)
 
         level0 = index["axes"][0]["levels"][0]
-        self.assertEqual(level0["block_steps"], 256)
+        self.assertEqual(level0["blocks"]["steps"], 256)
         # 17 blocks, the last of one step, padded with zeros
         self.assertEqual(index["datasets"]["/lfp/total/chunks"]["shape"], [1, 3, 17, 2])
         verify(h5_path, index)
         with h5py.File(h5_path, "r") as h5:
-            rows = h5["lfp/total/level0"][0]
+            rows = h5["lfp/total/rows"][0]
             block_scales = h5["lfp/total/block_scales"][0]
         self.assertGreater(block_scales[0, 15], block_scales[0, 0] * 2)
         for block in range(17):

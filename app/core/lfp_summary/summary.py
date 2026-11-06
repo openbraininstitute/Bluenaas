@@ -5,18 +5,19 @@ slice with an HTTP Range request and no HDF5 library. It is made for the browser
 
 Each axis is written alike: "total", with its one group, and each of GROUP_COLUMNS the report's cells
 differ on:
-  /lfp/{axis}/level0     int16  group x contact x step, value = raw * scale[group] uV. Past
-                                MAX_OVERVIEW_STEPS it is in chunks of BLOCK_STEPS of one contact's row,
-                                the last one padded with zeros, each shuffled and deflated, value =
-                                raw * block_scales[group, contact, block] uV. Then it is not listed in the
-                                index's datasets, and these two are added:
+  /lfp/{axis}/rows       int16  group x contact x step, in chunks of BLOCK_STEPS of one contact's row
+                                (or the whole row, where shorter), the last one padded with zeros, each
+                                shuffled and deflated, value = raw * block_scales[group, contact, block]
+                                uV. Not listed in the index's datasets, as a chunked dataset has no one
+                                offset: its chunks are found by
   /lfp/{axis}/chunks     uint64 group x contact x block x 2, each chunk's byte offset and size in the file
   /lfp/{axis}/block_scales float32 group x contact x block
   /lfp/{axis}/level{k}   int16  an overview, value = raw * scale[group] uV, over bins of 2**k steps: the
                                 coarsest under MAX_OVERVIEW_STEPS bins, and finer ones at a quarter of the
-                                steps each, down to MIN_LEVEL_STEPS. The total's are group x contact x bin
-                                x 2, the min and the max. A group's are group x contact x bin, the mean:
-                                means of groups add up, as min and max don't
+                                steps each, down to MIN_LEVEL_STEPS. A run of MAX_OVERVIEW_STEPS or fewer
+                                has just level0, its values, group x contact x step. Else the total's are
+                                group x contact x bin x 2, the min and the max, and a group's group x
+                                contact x bin, the mean: means of groups add up, as min and max don't
   /lfp/{axis}/stats      float32 group x contact x len(STATS)
   /lfp/{axis}/psd        float32 group x contact x frequency, Welch, uV^2/Hz, the means over PSD_BANDS
                                 bands
@@ -439,13 +440,6 @@ def _to_int16(values: np.ndarray, scales: np.ndarray | float) -> np.ndarray:
     return q.astype(np.int16)
 
 
-def quantize(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """int16 with one scale per group: steps x groups x contacts -> group x contact x step."""
-    scales = _scales_of(np.abs(values).max(axis=(0, 2)))
-    q = _to_int16(values, scales[None, :, None])
-    return np.ascontiguousarray(q.transpose(1, 2, 0)), scales
-
-
 def overview_level(steps: int) -> int:
     """The k at which bins of 2**k steps come under MAX_OVERVIEW_STEPS."""
     k = 0
@@ -455,11 +449,8 @@ def overview_level(steps: int) -> int:
 
 
 def overview_levels(steps: int) -> list[int]:
-    """The k of each overview level, finest first: none where every step is under the size."""
-    k = overview_level(steps)
-    if k == 0:
-        return []
-    levels = [k]
+    """The k of each overview level, finest first: just 0, the values, where they are under the size."""
+    levels = [overview_level(steps)]
     while 2 ** (levels[0] - LEVEL_STEP_BITS) >= MIN_LEVEL_STEPS:
         levels.insert(0, levels[0] - LEVEL_STEP_BITS)
     return levels
@@ -650,7 +641,7 @@ def _chunk_table(dataset: h5py.Dataset) -> np.ndarray:
 
 
 def _write_blocks(
-    values: np.ndarray, level0: h5py.Dataset, group: int, kind: str, ks
+    values: np.ndarray, rows_set: h5py.Dataset, group: int, kind: str, ks
 ) -> tuple[list[np.ndarray], np.ndarray, float]:
     """One group's rows in blocks, each to its own scales: its overview levels in uV, finest first,
     the blocks' scales, contact x block, and the rows' peak. Taken a span of steps at a time that
@@ -662,7 +653,7 @@ def _write_blocks(
     in_uv = [
         np.empty(
             (contacts, math.ceil(steps / 2**k)) + ((2,) if kind == "min_max" else ()),
-            values.dtype if kind == "min_max" else np.float64,
+            np.float64 if kind == "mean" else values.dtype,
         )
         for k in ks
     ]
@@ -678,11 +669,11 @@ def _write_blocks(
                 q, block_scales, block_peaks = quantize_block(rows[:, b : b + BLOCK_STEPS])
                 scales[:, (a + b) // BLOCK_STEPS] = block_scales
                 peak = max(peak, float(block_peaks.max()))
-                _write_chunks(level0, pool, group, a + b, q)
+                _write_chunks(rows_set, pool, group, a + b, q)
     return in_uv, scales, peak
 
 
-OVERVIEWS = {"min_max": min_max_level, "mean": mean_level}
+OVERVIEWS = {"min_max": min_max_level, "mean": mean_level, "value": lambda rows, k: rows}
 
 
 def _write_axis(
@@ -695,32 +686,37 @@ def _write_axis(
 ) -> dict:
     steps, groups, contacts = fields.values.shape
     ks = overview_levels(steps)
+    # A short run's only overview is its values
+    kind = "value" if ks == [0] else overview_kind
     name = f"lfp/{axis}"
-    levels: list[dict] = [{"step": 1, "kind": "value", "dataset": f"/{name}/level0"}]
-    overviews = []
-    if not ks:
-        level0 = h5.create_dataset(f"{name}/level0", (groups, contacts, steps), "<i2")
-    else:
-        block_steps = min(BLOCK_STEPS, steps)
-        level0 = h5.create_dataset(
-            f"{name}/level0",
-            (groups, contacts, steps),
-            "<i2",
-            chunks=(1, 1, block_steps),
-            compression="gzip",
-            compression_opts=DEFLATE_LEVEL,
-            shuffle=True,
-        )
-        levels[0] |= {
-            "chunks": f"/{name}/chunks",
-            "block_steps": block_steps,
-            "block_scales": f"/{name}/block_scales",
+    block_steps = min(BLOCK_STEPS, steps)
+    rows_set = h5.create_dataset(
+        f"{name}/rows",
+        (groups, contacts, steps),
+        "<i2",
+        chunks=(1, 1, block_steps),
+        compression="gzip",
+        compression_opts=DEFLATE_LEVEL,
+        shuffle=True,
+    )
+    levels: list[dict] = [
+        {
+            "step": 1,
+            "kind": "value",
+            "dataset": f"/{name}/rows",
+            "blocks": {
+                "chunks": f"/{name}/chunks",
+                "steps": block_steps,
+                "scales": f"/{name}/block_scales",
+            },
         }
-        for k in ks:
-            bins = math.ceil(steps / 2**k)
-            shape = (groups, contacts, bins) + ((2,) if overview_kind == "min_max" else ())
-            overviews.append(h5.create_dataset(f"{name}/level{k}", shape, "<i2"))
-            levels.append({"step": 2**k, "kind": overview_kind, "dataset": f"/{name}/level{k}"})
+    ]
+    overviews = []
+    for k in ks:
+        bins = math.ceil(steps / 2**k)
+        shape = (groups, contacts, bins) + ((2,) if kind == "min_max" else ())
+        overviews.append(h5.create_dataset(f"{name}/level{k}", shape, "<i2"))
+        levels.append({"step": 2**k, "kind": kind, "dataset": f"/{name}/level{k}"})
 
     shares, contact_shares = shares_of_total(fields.values, centred)
     scales, stats, spectra, block_scales = [], [], [], []
@@ -732,24 +728,16 @@ def _write_axis(
         psd, fine = welch(values, report.dt)
         band_psd, frequencies = log_bands(psd[0], fine)
         spectra.append(band_psd)
-        if not ks:
-            rows, scale = quantize(values)
-            scales.append(float(scale[0]))
-            level0[group] = rows[0]
-            continue
         # To the peak of the rows, not of the levels: a block read at this scale fits in int16
-        in_uv, group_block_scales, peak = _write_blocks(
-            values[:, 0], level0, group, overview_kind, ks
-        )
+        in_uv, group_block_scales, peak = _write_blocks(values[:, 0], rows_set, group, kind, ks)
         block_scales.append(group_block_scales)
         scale = float(_scales_of(peak))
         scales.append(scale)
         for overview, level in zip(overviews, in_uv, strict=True):
             overview[group] = _to_int16(level, scale)
 
-    if ks:
-        h5.create_dataset(f"{name}/chunks", data=_chunk_table(level0))
-        h5.create_dataset(f"{name}/block_scales", data=np.stack(block_scales))
+    h5.create_dataset(f"{name}/chunks", data=_chunk_table(rows_set))
+    h5.create_dataset(f"{name}/block_scales", data=np.stack(block_scales))
     h5.create_dataset(f"{name}/stats", data=np.stack(stats))
     h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
     h5.create_dataset(f"{name}/contact_shares", data=contact_shares)
@@ -843,11 +831,9 @@ def verify(h5_path: Path, index: dict) -> None:
                 raise AssertionError(f"{name} is not where the index says it is")
         for axis in index["axes"]:
             level0 = axis["levels"][0]
-            if "chunks" not in level0:
-                continue
             rows = _dataset(h5, level0["dataset"])
-            table = _dataset(h5, level0["chunks"])[:]
-            length = level0["block_steps"]
+            table = _dataset(h5, level0["blocks"]["chunks"])[:]
+            length = level0["blocks"]["steps"]
             last = table.shape[2] - 1
             for group, contact, block in np.ndindex(table.shape[:3]):
                 offset, size = table[group, contact, block].tolist()
