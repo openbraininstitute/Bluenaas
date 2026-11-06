@@ -39,6 +39,7 @@ from app.infrastructure.storage.lfp_summary import (
     BUILD_QUEUES,
     LIVE_STATUSES,
     MAX_REPORT_BYTES,
+    SummaryInfo,
     build_job_id,
     build_queue,
     enqueue_build,
@@ -331,6 +332,7 @@ def _regroup_if_readable(
     """Queue the build of a summary again, with its groups, where whoever asked for it first could
     not read its circuit and this user can. It is read as it is until the new one replaces it.
     """
+    # A failed one waits out its FAILED_BUILD_TTL, as a failed build does
     if any(
         get_queue(queue).fetch_job(build_job_id(epoch, report.id, queue, regroup=True))
         for queue in BUILD_QUEUES
@@ -366,10 +368,14 @@ def _regroup_if_readable(
     )
 
 
+def _ready(info: SummaryInfo) -> LfpSummaryStatus:
+    return LfpSummaryStatus(state=LfpSummaryState.READY, size=info.size, sha256=info.sha256)
+
+
 def _status_in_cache(epoch: str, asset_id: UUID) -> LfpSummaryStatus | None:
     directory = summary_dir(epoch, asset_id)
     if info := read_summary_info(directory):
-        return LfpSummaryStatus(state=LfpSummaryState.READY, size=info.size, sha256=info.sha256)
+        return _ready(info)
     if reason := read_no_summary_reason(directory):
         return LfpSummaryStatus(state=LfpSummaryState.REFUSED, reason=reason)
     return None
@@ -391,16 +397,17 @@ def _get_or_build_summary(
         return LfpSummaryStatus(state=LfpSummaryState.REFUSED, reason=NoSummaryReason.TOO_LARGE)
 
     epoch = ensure_epoch(CacheKind.LFP_SUMMARY)
-    info = read_summary_info(summary_dir(epoch, report.id))
-    if info is not None and info.groups_unavailable is not None:
-        _regroup_if_readable(
-            epoch,
-            result_id,
-            simulation_id,
-            report,
-            access_token=access_token,
-            project_context=project_context,
-        )
+    if info := read_summary_info(summary_dir(epoch, report.id)):
+        if info.groups_unavailable is not None:
+            _regroup_if_readable(
+                epoch,
+                result_id,
+                simulation_id,
+                report,
+                access_token=access_token,
+                project_context=project_context,
+            )
+        return _ready(info)
     if status := _status_in_cache(epoch, report.id):
         return status
 

@@ -31,11 +31,12 @@ SIGNING_KEYS_SECONDS = 10 * 60
 SIGNING_KEYS_REFRESH_SECONDS = 30
 
 
-def _key_id(token: str) -> str | None:
+def _holds_key(keys: jwk.JWKSet, token: str) -> bool:
     try:
-        return json_decode(base64url_decode(token.split(".")[0])).get("kid")
+        kid = json_decode(base64url_decode(token.split(".")[0])).get("kid")
     except Exception:
-        return None
+        return True
+    return kid is None or keys.get_key(kid) is not None
 
 
 class SigningKeys:
@@ -49,29 +50,27 @@ class SigningKeys:
         self._lock = threading.Lock()
 
     def for_token(self, token: str) -> jwk.JWKSet:
+        # Fetched outside the lock: while one request waits on Keycloak, the others use the keys held
         with self._lock:
-            now = time.monotonic()
-            if self._keys is not None and (
+            held, now = self._keys, time.monotonic()
+            if held is not None and (
                 now - self._tried_at <= SIGNING_KEYS_REFRESH_SECONDS
-                or (now - self._fetched_at <= SIGNING_KEYS_SECONDS and not self._lacks(token))
+                or (now - self._fetched_at <= SIGNING_KEYS_SECONDS and _holds_key(held, token))
             ):
-                return self._keys
+                return held
             self._tried_at = now
-            try:
-                keys = jwk.JWKSet()
-                for cert in kc_auth.certs()["keys"]:
-                    keys.add(jwk.JWK(**cert))
-            except Exception as ex:
-                if self._keys is None:
-                    raise
-                logger.warning(f"Keycloak's signing keys could not be fetched: {type(ex).__name__}")
-                return self._keys
+        try:
+            keys = jwk.JWKSet()
+            for cert in kc_auth.certs()["keys"]:
+                keys.add(jwk.JWK(**cert))
+        except Exception as ex:
+            if held is None:
+                raise
+            logger.warning(f"Keycloak's signing keys could not be fetched: {type(ex).__name__}")
+            return held
+        with self._lock:
             self._keys, self._fetched_at = keys, now
-            return keys
-
-    def _lacks(self, token: str) -> bool:
-        kid = _key_id(token)
-        return kid is not None and self._keys is not None and not self._keys.get_key(kid)
+        return keys
 
 
 signing_keys = SigningKeys()

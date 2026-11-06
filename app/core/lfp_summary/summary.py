@@ -25,7 +25,7 @@ differ on:
 import math
 import time
 import zlib
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -229,7 +229,7 @@ def _population(name: str, group: h5py.Group) -> _Population:
 
 
 def _cell_orders(
-    populations: list[_Population], contacts: int, labels_of: CellLabels
+    populations: list[_Population], labels_of: CellLabels, regular: bool
 ) -> tuple[dict[str, list[str]], dict[str, dict[str, _CellOrder]]]:
     """The groups of each axis the cells differ on, and the order of each population's cells for
     it. Only an axis every population has: its groups must add up to the total. None where the cells
@@ -238,7 +238,7 @@ def _cell_orders(
     """
     groups = {}
     orders: dict[str, dict[str, _CellOrder]] = {p.name: {} for p in populations}
-    if not all(p.is_regular(contacts) for p in populations):
+    if not regular:
         logger.warning("The cells of an LFP report are not in order, so it has no groups")
         return groups, orders
     labels = {p.name: labels_of(p.name, p.node_ids) for p in populations}
@@ -383,7 +383,8 @@ def sum_report(
             )
 
         labels_started = time.monotonic()
-        groups, orders = _cell_orders(populations, contacts, labels_of)
+        regular = all(p.is_regular(contacts) for p in populations)
+        groups, orders = _cell_orders(populations, labels_of, regular)
         logger.info(
             f"LFP report {label}: groups { ({a: len(g) for a, g in groups.items()}) }, found in"
             f" {duration(time.monotonic() - labels_started)}"
@@ -414,8 +415,7 @@ def sum_report(
         total=total,
         fields=fields,
         axes_left_out={axis: "memory" for axis in found if axis not in fields},
-        groupable=sum(p.cells for p in populations) > 1
-        and all(p.is_regular(contacts) for p in populations),
+        groupable=regular and sum(p.cells for p in populations) > 1,
     )
 
 
@@ -495,23 +495,36 @@ def welch(values: np.ndarray, dt_ms: float) -> tuple[np.ndarray, np.ndarray]:
 
 @dataclass
 class Centred:
-    """The total less its mean, steps x contacts, and its power at each contact: what each group's
-    field is set against.
+    """The total, steps x contacts, with its mean and its power at each contact: what each group's
+    field is set against. It is centred a block at a time, as a copy would take as much as the total.
     """
 
-    values: np.ndarray
+    total: np.ndarray
+    mean: np.ndarray
     power: np.ndarray
 
     @classmethod
     def of(cls, total: np.ndarray) -> "Centred":
-        values = total - total.mean(axis=0)
-        return cls(values, np.einsum("tc,tc->c", values, values))
+        centred = cls(total, total.mean(axis=0), np.zeros(total.shape[1]))
+        for _, block in centred.blocks():
+            centred.power += np.einsum("tc,tc->c", block, block)
+        return centred
+
+    def blocks(self) -> Iterator[tuple[int, np.ndarray]]:
+        steps, contacts = self.total.shape
+        rows = max(1, SHARE_BLOCK_BYTES // (8 * contacts))
+        for a in range(0, steps, rows):
+            yield a, self.total[a : a + rows] - self.mean
 
 
 def correlation(centred: Centred) -> np.ndarray:
     """Zero-lag Pearson correlation between contacts, as int16 / 32767."""
+    contacts = len(centred.power)
+    product = np.zeros((contacts, contacts))
+    for _, block in centred.blocks():
+        product += block.T @ block
     with np.errstate(divide="ignore", invalid="ignore"):
-        c = (centred.values.T @ centred.values) / np.sqrt(np.outer(centred.power, centred.power))
+        c = product / np.sqrt(np.outer(centred.power, centred.power))
     return np.round(np.clip(np.nan_to_num(c), -1, 1) * 32767).astype(np.int16)
 
 
@@ -540,12 +553,10 @@ def covariance_with_total(values: np.ndarray, centred: Centred) -> np.ndarray:
     """A group's field, steps x contacts, summed against the centred total at each contact. Its own
     mean needs no taking off, as the centred total sums to 0.
     """
-    steps, contacts = values.shape
-    rows = max(1, SHARE_BLOCK_BYTES // (8 * contacts))
-    covariance = np.zeros(contacts)
-    for a in range(0, steps, rows):
-        block = np.asarray(values[a : a + rows], np.float64)
-        covariance += np.einsum("tc,tc->c", block, centred.values[a : a + rows])
+    covariance = np.zeros(values.shape[1])
+    for a, total in centred.blocks():
+        block = np.asarray(values[a : a + len(total)], np.float64)
+        covariance += np.einsum("tc,tc->c", block, total)
     return covariance
 
 
