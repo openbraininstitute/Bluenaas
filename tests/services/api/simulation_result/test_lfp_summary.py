@@ -15,7 +15,11 @@ from rq.job import JobStatus
 
 from app.constants import READY_MARKER_FILE_NAME
 from app.core.exceptions import AppError
-from app.domains.simulation_result.lfp_summary import LfpSummaryState, NoSummaryReason
+from app.domains.simulation_result.lfp_summary import (
+    GroupsUnavailable,
+    LfpSummaryState,
+    NoSummaryReason,
+)
 from app.infrastructure.rq import JobQueue, get_queue
 from app.infrastructure.storage import lfp_summary as storage
 from app.infrastructure.storage.lfp_summary import (
@@ -46,7 +50,9 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         patcher = patch.object(service, "_is_lfp_report", return_value=True)
         self.is_lfp_report = patcher.start()
         self.addCleanup(patcher.stop)
-        patcher = patch.object(service, "_nodes_urls", return_value={"pop": NODES_URL})
+        patcher = patch.object(
+            service, "_nodes_urls", return_value=service.NodesFiles({"pop": NODES_URL})
+        )
         self.nodes_urls = patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -133,6 +139,8 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.assertEqual(job.kwargs["url"], URL)
         self.assertEqual(job.kwargs["size"], 100)
         self.assertEqual(job.kwargs["nodes"], {"pop": NODES_URL})
+        self.assertIsNone(job.kwargs["groups_unavailable"])
+        self.assertFalse(job.kwargs["regroup"])
         self.assertNotIn(NODES_URL, job.description)
         self.assertEqual(job.retries_left, 1)
         self.assertEqual(job.failure_ttl, FAILED_BUILD_TTL)
@@ -193,6 +201,78 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         status = self.status_of(report)
 
         self.assertEqual(status.state, LfpSummaryState.FAILED)
+
+    def test_the_job_says_why_there_are_no_groups(self):
+        self.nodes_urls.return_value = service.NodesFiles(
+            {}, GroupsUnavailable.CIRCUIT_NOT_READABLE
+        )
+        report = report_of(100)
+
+        self.status_of(report)
+
+        job = self.job_of(report, JobQueue.LOW)
+        self.assertEqual(job.kwargs["groups_unavailable"], "circuit_not_readable")
+
+    def ready_without_groups(self, report, why: GroupsUnavailable | None):
+        directory = self.summary_dir_of(report.id)
+        write_summary_info(directory, SummaryInfo(size=12, sha256="abc", groups_unavailable=why))
+        (directory / READY_MARKER_FILE_NAME).touch()
+
+    def regroup_job_of(self, report):
+        return get_queue(JobQueue.LOW).fetch_job(
+            build_job_id(self.epoch(), report.id, JobQueue.LOW, regroup=True)
+        )
+
+    def test_a_summary_without_groups_for_the_report_itself_is_left(self):
+        report = report_of(100)
+        self.ready_without_groups(report, None)
+
+        self.assertEqual(self.status_of(report).state, LfpSummaryState.READY)
+
+        self.nodes_urls.assert_not_called()
+
+    def test_a_user_who_can_read_the_circuit_has_the_groups_built(self):
+        report = report_of(100)
+        self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)
+
+        status = self.status_of(report)
+
+        self.assertEqual(status.state, LfpSummaryState.READY)
+        job = self.regroup_job_of(report)
+        self.assertTrue(job.kwargs["regroup"])
+        self.assertEqual(job.kwargs["nodes"], {"pop": NODES_URL})
+        self.assertEqual(job.kwargs["url"], URL)
+
+    def test_a_user_who_can_not_read_it_either_builds_nothing(self):
+        report = report_of(100)
+        self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        self.nodes_urls.return_value = service.NodesFiles(
+            {}, GroupsUnavailable.CIRCUIT_NOT_READABLE
+        )
+
+        self.assertEqual(self.status_of(report).state, LfpSummaryState.READY)
+
+        self.assertIsNone(self.regroup_job_of(report))
+
+    def test_the_circuit_is_not_asked_for_again_while_its_groups_are_built(self):
+        report = report_of(100)
+        self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        self.status_of(report)
+        # Failed too: it is kept, and tried again only once it has gone
+        self.regroup_job_of(report).set_status(JobStatus.FAILED)
+
+        self.status_of(report)
+
+        self.assertEqual(self.nodes_urls.call_count, 1)
+
+    def test_entitycore_failing_does_not_fail_a_summary_ready_to_read(self):
+        report = report_of(100)
+        self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        self.nodes_urls.side_effect = EntitySDKError("failed")
+
+        self.assertEqual(self.status_of(report).state, LfpSummaryState.READY)
+
+        self.assertIsNone(self.regroup_job_of(report))
 
     def test_a_new_format_version_is_built_again(self):
         report = report_of(100)
@@ -373,10 +453,13 @@ class TestNodesUrls(LfpSummaryTestCase):
         self.download_url = patcher.start()
         self.addCleanup(patcher.stop)
 
-    def urls(self):
+    def nodes(self):
         return service._nodes_urls(
             uuid4(), access_token="token", project_context=self.project_context
         )
+
+    def urls(self):
+        return self.nodes().urls
 
     def test_a_url_per_population_and_one_per_file(self):
         self.assertEqual(self.urls(), {"a": NODES_URL, "b": NODES_URL})
@@ -455,14 +538,37 @@ class TestNodesUrls(LfpSummaryTestCase):
     def test_a_circuit_config_that_is_not_there(self):
         self.client.download_content.side_effect = self.sdk_error(self.status_error(404))
 
-        self.assertEqual(self.urls(), {})
+        self.assertEqual(self.nodes(), service.NodesFiles({}))
+
+    def test_a_circuit_the_user_can_not_read(self):
+        for status in (403, 404):
+            with self.subTest(status=status):
+                self.client.get_entity.side_effect = [
+                    SimpleNamespace(entity_id=self.circuit.id),
+                    self.sdk_error(self.status_error(status)),
+                ]
+
+                self.assertEqual(
+                    self.nodes(),
+                    service.NodesFiles({}, GroupsUnavailable.CIRCUIT_NOT_READABLE),
+                )
+
+    def test_a_circuit_entitycore_fails_to_give_is_not_taken_for_unreadable(self):
+        self.client.get_entity.side_effect = [
+            SimpleNamespace(entity_id=self.circuit.id),
+            self.sdk_error(self.status_error(503)),
+        ]
+
+        with self.assertRaises(EntitySDKError):
+            self.nodes()
 
 
 class TestSummaryFile(LfpSummaryTestCase):
     def build(self, asset_id) -> str:
         directory = self.summary_dir_of(asset_id)
-        (directory / SUMMARY_FILE_NAME).write_bytes(b"summary")
-        write_summary_info(directory, SummaryInfo(size=7, sha256="abc"))
+        info = SummaryInfo(size=7, sha256="abc")
+        info.path(directory, SUMMARY_FILE_NAME).write_bytes(b"summary")
+        write_summary_info(directory, info)
         (directory / READY_MARKER_FILE_NAME).touch()
         return '"abc"'
 

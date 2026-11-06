@@ -23,7 +23,7 @@ from app.core.lfp_summary.summary import (
     verify,
     write_summary,
 )
-from app.domains.simulation_result.lfp_summary import NoSummaryReason
+from app.domains.simulation_result.lfp_summary import GroupsUnavailable, NoSummaryReason
 from app.infrastructure.rq import JobQueue
 from app.infrastructure.storage import write_atomically
 from app.infrastructure.storage.epoch import CacheKind, current_epoch
@@ -36,6 +36,7 @@ from app.infrastructure.storage.lfp_summary import (
     SUMMARY_FILE_NAME,
     SummaryInfo,
     enqueue_build,
+    read_summary_info,
     summary_dir,
     write_no_summary,
     write_summary_info,
@@ -49,6 +50,14 @@ def _is_settled(directory: Path) -> bool:
     return (directory / READY_MARKER_FILE_NAME).exists() or (
         directory / NO_SUMMARY_FILE_NAME
     ).exists()
+
+
+def _to_build(directory: Path, regroup: bool) -> bool:
+    """Whether the summary is still to be built, or, to `regroup`, is built without its groups."""
+    if not regroup:
+        return not _is_settled(directory)
+    info = read_summary_info(directory)
+    return info is not None and info.groups_unavailable is not None
 
 
 def _labels_from(nodes: dict[str, str]) -> CellLabels:
@@ -82,6 +91,7 @@ def _build(
     url: str,
     size: int,
     nodes: dict[str, str],
+    groups_unavailable: GroupsUnavailable | None,
 ) -> bool:
     """Build the summary, or leave the reason there is none. Returns whether it takes more memory
     than this queue's share but maybe not a larger one's.
@@ -114,6 +124,8 @@ def _build(
         tmp,
         version=FORMAT_VERSION,
         source={"asset_id": str(asset_id), "size": size},
+        # Not where the report itself can't have groups
+        groups_unavailable=groups_unavailable if report.groupable else None,
     )
     verify_started = time.monotonic()
     verify(tmp, index)
@@ -121,9 +133,15 @@ def _build(
     with tmp.open("rb") as f:
         sha256 = hashlib.file_digest(f, "sha256").hexdigest()
     summary_size = tmp.stat().st_size
-    os.replace(tmp, directory / SUMMARY_FILE_NAME)
-    write_atomically(directory / INDEX_FILE_NAME, json.dumps(index))
-    write_summary_info(directory, SummaryInfo(size=summary_size, sha256=sha256))
+    info = SummaryInfo(
+        size=summary_size,
+        sha256=sha256,
+        groups_unavailable=index["groups_unavailable"],
+    )
+    os.replace(tmp, info.path(directory, SUMMARY_FILE_NAME))
+    write_atomically(info.path(directory, INDEX_FILE_NAME), json.dumps(index))
+    # What makes it current, in place of any summary it replaces
+    write_summary_info(directory, info)
     (directory / READY_MARKER_FILE_NAME).touch()
     logger.info(
         f"LFP summary of {asset_id} built, {summary_size} bytes: written in"
@@ -142,8 +160,11 @@ def build_lfp_summary(
     url: str,
     size: int,
     nodes: dict[str, str],
+    groups_unavailable: GroupsUnavailable | None = None,
+    regroup: bool = False,
 ) -> None:
-    """Build the report's summary into the cache, unless it is there or another build holds it.
+    """Build the report's summary into the cache, unless it is there or another build holds it. To
+    `regroup`, build it again where it is there without its groups, which `nodes` now give.
 
     A build on `low` that would go over its worker's share of the memory is moved to `4cpu-16gb`.
     """
@@ -154,7 +175,7 @@ def build_lfp_summary(
 
     directory = summary_dir(epoch, asset_id)
     directory.mkdir(parents=True, exist_ok=True)
-    if _is_settled(directory):
+    if not _to_build(directory, regroup):
         return
 
     expires_at = url_expires_at(url)
@@ -176,8 +197,15 @@ def build_lfp_summary(
         return
 
     try:
-        too_large = not _is_settled(directory) and _build(
-            asset_id, directory, queue=queue, job_id=job_id, url=url, size=size, nodes=nodes
+        too_large = _to_build(directory, regroup) and _build(
+            asset_id,
+            directory,
+            queue=queue,
+            job_id=job_id,
+            url=url,
+            size=size,
+            nodes=nodes,
+            groups_unavailable=groups_unavailable,
         )
     finally:
         lock.release()
@@ -185,5 +213,12 @@ def build_lfp_summary(
     if too_large:
         # Queued once the lock is free, so the larger build doesn't find it held
         enqueue_build(
-            JobQueue.CPU4_MEM16, epoch=epoch, asset_id=asset_id, url=url, size=size, nodes=nodes
+            JobQueue.CPU4_MEM16,
+            epoch=epoch,
+            asset_id=asset_id,
+            url=url,
+            size=size,
+            nodes=nodes,
+            groups_unavailable=groups_unavailable,
+            regroup=regroup,
         )

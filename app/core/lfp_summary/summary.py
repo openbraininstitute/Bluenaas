@@ -138,6 +138,8 @@ class SummedReport:
     fields: dict[str, GroupFields]
     # The axes the cells differ on that were not summed, and why
     axes_left_out: dict[str, str] = field(default_factory=dict)
+    # Whether its cells could be grouped, given their labels: two or more, in order
+    groupable: bool = False
 
 
 @dataclass
@@ -412,6 +414,8 @@ def sum_report(
         total=total,
         fields=fields,
         axes_left_out={axis: "memory" for axis in found if axis not in fields},
+        groupable=sum(p.cells for p in populations) > 1
+        and all(p.is_regular(contacts) for p in populations),
     )
 
 

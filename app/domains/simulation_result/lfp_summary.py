@@ -18,6 +18,15 @@ class NoSummaryReason(StrEnum):
     UNREADABLE = "unreadable"
 
 
+class GroupsUnavailable(StrEnum):
+    """Why a summary has no groups, where that is not down to the report. Its groups are built once a
+    user who can read what it needs asks for it.
+    """
+
+    # The simulation's circuit, or the simulation, could not be read by whoever asked first
+    CIRCUIT_NOT_READABLE = "circuit_not_readable"
+
+
 class LfpSummaryStatus(BaseModel):
     state: LfpSummaryState
     # Of a ready summary

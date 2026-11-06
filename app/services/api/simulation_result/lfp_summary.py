@@ -1,6 +1,7 @@
 import json
 import posixpath
 import re
+from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import PurePosixPath
 from uuid import UUID
@@ -22,6 +23,7 @@ from app.config.settings import settings
 from app.constants import CIRCUIT_CONFIG_NAME
 from app.core.exceptions import AppError
 from app.domains.simulation_result.lfp_summary import (
+    GroupsUnavailable,
     LfpSummaryState,
     LfpSummaryStatus,
     NoSummaryReason,
@@ -174,22 +176,46 @@ def _may_pass(ex: Exception) -> bool:
     return isinstance(cause, RequestError)
 
 
-def _nodes_urls(
-    simulation_id: UUID, *, access_token: str, project_context: ProjectContext
-) -> dict[str, str]:
-    """A presigned URL of each population's nodes file. None where there are none to find: the
-    report is still summarised, without its cells' groups, as a simulation of something other than a
-    circuit has none. Raises where they could not be asked for just now, as a summary without groups
-    would stay in the cache.
+@dataclass(frozen=True)
+class NodesFiles:
+    """A presigned URL of each population's nodes file, and why there are none where that may not be
+    so for another user.
     """
-    client = user_client(access_token, project_context)
+
+    urls: dict[str, str]
+    unavailable: GroupsUnavailable | None = None
+
+
+def _simulated_circuit(client, simulation_id: UUID) -> Circuit | None:
+    """The circuit the simulation is of, None where the user can't read it. entitycore answers so for
+    a circuit the user may not read as for none, as for a simulation of something else.
+    """
     try:
         simulation = get_entity_or_not_found(
             client, simulation_id, Simulation, message="Simulation not found"
         )
-        circuit = get_entity_or_not_found(
+        return get_entity_or_not_found(
             client, simulation.entity_id, Circuit, message="Circuit not found"
         )
+    except AppError:
+        return None
+
+
+def _nodes_urls(
+    simulation_id: UUID, *, access_token: str, project_context: ProjectContext
+) -> NodesFiles:
+    """A presigned URL of each population's nodes file. None where there are none to find: the
+    report is still summarised, without its cells' groups, as a simulation of something other than a
+    circuit has none. Where the circuit can't be read it says so, for a user who can read it to have
+    the groups built. Raises where they could not be asked for just now, as a summary without groups
+    would stay in the cache.
+    """
+    client = user_client(access_token, project_context)
+    try:
+        circuit = _simulated_circuit(client, simulation_id)
+        if circuit is None:
+            logger.info(f"No cell groups for simulation {simulation_id}: its circuit can't be read")
+            return NodesFiles({}, GroupsUnavailable.CIRCUIT_NOT_READABLE)
         asset = next(
             (
                 a
@@ -200,7 +226,7 @@ def _nodes_urls(
         )
         if asset is None:
             logger.info(f"No cell groups for simulation {simulation_id}: no circuit directory")
-            return {}
+            return NodesFiles({})
         config = client.download_content(
             entity_id=circuit.id,
             entity_type=Circuit,
@@ -230,8 +256,55 @@ def _nodes_urls(
         if _may_pass(ex):
             raise
         logger.info(f"No cell groups for simulation {simulation_id}: {type(ex).__name__}")
-        return {}
-    return {population: urls[path] for population, path in files.items()}
+        return NodesFiles({})
+    return NodesFiles({population: urls[path] for population, path in files.items()})
+
+
+def _regroup_if_readable(
+    epoch: str,
+    result_id: UUID,
+    simulation_id: UUID,
+    report: Asset,
+    *,
+    access_token: str,
+    project_context: ProjectContext,
+) -> None:
+    """Queue the build of a summary again, with its groups, where whoever asked for it first could
+    not read its circuit and this user can. It is read as it is until the new one replaces it.
+    """
+    if any(
+        get_queue(queue).fetch_job(build_job_id(epoch, report.id, queue, regroup=True))
+        for queue in BUILD_QUEUES
+    ):
+        return
+    try:
+        nodes = _nodes_urls(
+            simulation_id, access_token=access_token, project_context=project_context
+        )
+        if not nodes.urls:
+            return
+        url = _download_url(
+            SimulationResult,
+            result_id,
+            report.id,
+            access_token=access_token,
+            project_context=project_context,
+        )
+    except (AppError, EntitySDKError) as ex:
+        # The summary is there to read meanwhile, so this is no reason to fail its status
+        logger.info(
+            f"The groups of the LFP report {report.id} can't be asked for: {type(ex).__name__}"
+        )
+        return
+    enqueue_build(
+        build_queue(report.size),
+        epoch=epoch,
+        asset_id=report.id,
+        url=url,
+        size=report.size,
+        nodes=nodes.urls,
+        regroup=True,
+    )
 
 
 def _status_in_cache(epoch: str, asset_id: UUID) -> LfpSummaryStatus | None:
@@ -259,6 +332,16 @@ def _get_or_build_summary(
         return LfpSummaryStatus(state=LfpSummaryState.REFUSED, reason=NoSummaryReason.TOO_LARGE)
 
     epoch = ensure_epoch(CacheKind.LFP_SUMMARY)
+    info = read_summary_info(summary_dir(epoch, report.id))
+    if info is not None and info.groups_unavailable is not None:
+        _regroup_if_readable(
+            epoch,
+            result_id,
+            simulation_id,
+            report,
+            access_token=access_token,
+            project_context=project_context,
+        )
     if status := _status_in_cache(epoch, report.id):
         return status
 
@@ -291,21 +374,22 @@ def _get_or_build_summary(
             state=LfpSummaryState.REFUSED, reason=NoSummaryReason.NOT_LFP_REPORT
         )
 
+    url = _download_url(
+        SimulationResult,
+        result_id,
+        report.id,
+        access_token=access_token,
+        project_context=project_context,
+    )
+    nodes = _nodes_urls(simulation_id, access_token=access_token, project_context=project_context)
     enqueue_build(
         build_queue(report.size),
         epoch=epoch,
         asset_id=report.id,
-        url=_download_url(
-            SimulationResult,
-            result_id,
-            report.id,
-            access_token=access_token,
-            project_context=project_context,
-        ),
+        url=url,
         size=report.size,
-        nodes=_nodes_urls(
-            simulation_id, access_token=access_token, project_context=project_context
-        ),
+        nodes=nodes.urls,
+        groups_unavailable=nodes.unavailable,
     )
     return LfpSummaryStatus(state=LfpSummaryState.BUILDING)
 
@@ -348,7 +432,7 @@ def _summary_file_response(
     if not _matches(if_match, etag):
         return Response(status_code=HTTPStatus.PRECONDITION_FAILED)
     return FileResponse(
-        directory / name,
+        info.path(directory, name),
         media_type=media_type,
         headers={"ETag": etag, "Cache-Control": "private, no-cache"},
     )

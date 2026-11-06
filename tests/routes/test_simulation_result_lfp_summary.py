@@ -69,9 +69,10 @@ class TestLfpSummaryRoutes(LfpSummaryTestCase):
     def build(self) -> str:
         directory = self.summary_dir_of(self.report.id)
         sha256 = hashlib.sha256(CONTENT).hexdigest()
-        (directory / SUMMARY_FILE_NAME).write_bytes(CONTENT)
-        (directory / INDEX_FILE_NAME).write_text(json.dumps(INDEX))
-        write_summary_info(directory, SummaryInfo(size=len(CONTENT), sha256=sha256))
+        info = SummaryInfo(size=len(CONTENT), sha256=sha256)
+        info.path(directory, SUMMARY_FILE_NAME).write_bytes(CONTENT)
+        info.path(directory, INDEX_FILE_NAME).write_text(json.dumps(INDEX))
+        write_summary_info(directory, info)
         (directory / READY_MARKER_FILE_NAME).touch()
         return sha256
 

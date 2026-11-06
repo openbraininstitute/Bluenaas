@@ -5,6 +5,11 @@ Its directory holds the summary and its index once `.ready` is there, or `.no-su
 reason it never will. A new format version is a new directory, so summaries of the previous one are
 built again.
 
+The summary and its index are named by the summary's hash, and its info says which are current. A
+build that replaces a summary, to give it the groups it was built without, so only has to write the
+info: a reader of the one replaced goes on with its files, by their ETag, and they are left until the
+cache is cleared.
+
 Nothing here imports the worker's dependencies: the API runs the failure callback of a build whose
 worker died, when it cleans up the registry of started jobs.
 """
@@ -24,7 +29,7 @@ from rq.job import Job, JobStatus
 from app.config.settings import settings
 from app.constants import DIR_LOCK_FILE_NAME, MAX_JOB_TIMEOUT, READY_MARKER_FILE_NAME
 from app.context import cid_var
-from app.domains.simulation_result.lfp_summary import NoSummaryReason
+from app.domains.simulation_result.lfp_summary import GroupsUnavailable, NoSummaryReason
 from app.infrastructure.redis import redis_client
 from app.infrastructure.rq import JobQueue, get_queue
 from app.infrastructure.storage import uuid_subpath, write_atomically
@@ -64,6 +69,12 @@ LIVE_STATUSES = frozenset(
 class SummaryInfo:
     size: int
     sha256: str
+    groups_unavailable: GroupsUnavailable | None = None
+
+    def path(self, directory: Path, name: str) -> Path:
+        """The file of this summary of the kind `name` is of."""
+        stem, _, suffix = name.rpartition(".")
+        return directory / f"{stem}.{self.sha256[:16]}.{suffix}"
 
 
 def summary_dir(epoch: str, asset_id: UUID) -> Path:
@@ -108,8 +119,9 @@ def write_no_summary(directory: Path, reason: NoSummaryReason, details: str) -> 
     )
 
 
-def build_job_id(epoch: str, asset_id: UUID, queue: JobQueue) -> str:
-    return f"lfp-summary-{epoch}-v{FORMAT_VERSION}-{asset_id}-{queue.value}"
+def build_job_id(epoch: str, asset_id: UUID, queue: JobQueue, *, regroup: bool = False) -> str:
+    job_id = f"lfp-summary-{epoch}-v{FORMAT_VERSION}-{asset_id}-{queue.value}"
+    return f"{job_id}-regroup" if regroup else job_id
 
 
 def build_queue(report_bytes: int) -> JobQueue:
@@ -142,13 +154,17 @@ def enqueue_build(
     url: str,
     size: int,
     nodes: dict[str, str],
+    groups_unavailable: GroupsUnavailable | None = None,
+    regroup: bool = False,
 ) -> Job | None:
     """Queue the build of the report at `url`, a presigned URL that is read by range, unless a job
     of the same id is already queued or running. `nodes` holds the same for each population's nodes
-    file, for its cells' groups. Returns the job queued, None if there was one already.
+    file, for its cells' groups, and `groups_unavailable` why there are none where that is not down
+    to the report. A build to `regroup` replaces a summary built without its groups. Returns the job
+    queued, None if there was one already.
     """
     rq_queue = get_queue(queue)
-    job_id = build_job_id(epoch, asset_id, queue)
+    job_id = build_job_id(epoch, asset_id, queue, regroup=regroup)
 
     # Else a request could delete the job another one has just queued in place of a finished one
     guard = f"lfp-summary:enqueue:{job_id}"
@@ -176,6 +192,8 @@ def enqueue_build(
                 "url": url,
                 "size": size,
                 "nodes": nodes,
+                "groups_unavailable": groups_unavailable,
+                "regroup": regroup,
             },
             job_timeout=MAX_JOB_TIMEOUT,
             retry=Retry(max=1),

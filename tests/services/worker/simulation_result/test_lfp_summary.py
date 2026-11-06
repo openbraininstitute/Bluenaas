@@ -16,7 +16,7 @@ from loguru import logger
 from app.constants import DIR_LOCK_FILE_NAME, READY_MARKER_FILE_NAME
 from app.core.lfp_summary.ranges import NoSuchFileError, RangeReadError
 from app.core.lfp_summary.summary import verify
-from app.domains.simulation_result.lfp_summary import NoSummaryReason
+from app.domains.simulation_result.lfp_summary import GroupsUnavailable, NoSummaryReason
 from app.infrastructure.rq import JobQueue, get_queue
 from app.infrastructure.storage.epoch import CacheKind, rotate_epoch
 from app.infrastructure.storage.lfp_summary import (
@@ -24,7 +24,9 @@ from app.infrastructure.storage.lfp_summary import (
     NO_SUMMARY_FILE_NAME,
     SUMMARY_FILE_NAME,
     SUMMARY_INFO_FILE_NAME,
+    SummaryInfo,
     build_job_id,
+    read_summary_info,
     summary_dir,
 )
 from app.services.worker.simulation_result import lfp_summary as service
@@ -71,20 +73,29 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         queue: JobQueue = JobQueue.LOW,
         url: str = URL,
         nodes: dict[str, str] | None = None,
+        groups_unavailable: GroupsUnavailable | None = None,
+        regroup: bool = False,
     ):
         epoch = epoch or self.epoch()
         service.build_lfp_summary(
             self.asset_id,
             epoch=epoch,
             queue=queue,
-            job_id=build_job_id(epoch, self.asset_id, queue),
+            job_id=build_job_id(epoch, self.asset_id, queue, regroup=regroup),
             url=url,
             size=self.report.stat().st_size,
             nodes=nodes or {},
+            groups_unavailable=groups_unavailable,
+            regroup=regroup,
         )
 
     def directory(self) -> Path:
         return summary_dir(self.epoch(), self.asset_id)
+
+    def info(self) -> SummaryInfo:
+        info = read_summary_info(self.directory())
+        assert info is not None
+        return info
 
     def test_a_build_writes_the_summary_its_index_and_info_then_ready(self):
         self.run_build()
@@ -92,21 +103,73 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         directory = self.directory()
         self.assertEqual(self.urls, [URL])
         self.assertTrue((directory / READY_MARKER_FILE_NAME).exists())
-        summary = (directory / SUMMARY_FILE_NAME).read_bytes()
+        info = self.info()
+        summary = info.path(directory, SUMMARY_FILE_NAME).read_bytes()
+        sha256 = hashlib.sha256(summary).hexdigest()
         self.assertEqual(
             json.loads((directory / SUMMARY_INFO_FILE_NAME).read_text()),
-            {
-                "size": len(summary),
-                "sha256": hashlib.sha256(summary).hexdigest(),
-            },
+            {"size": len(summary), "sha256": sha256, "groups_unavailable": None},
         )
-        index = json.loads((directory / INDEX_FILE_NAME).read_text())
+        self.assertEqual(info.path(directory, SUMMARY_FILE_NAME).name, f"summary.{sha256[:16]}.h5")
+        index = json.loads(info.path(directory, INDEX_FILE_NAME).read_text())
         self.assertEqual(index["source"]["asset_id"], str(self.asset_id))
-        verify(directory / SUMMARY_FILE_NAME, index)
+        verify(info.path(directory, SUMMARY_FILE_NAME), index)
         self.assertEqual(list(directory.glob("*.tmp")), [])
 
     def index(self) -> dict:
-        return json.loads((self.directory() / INDEX_FILE_NAME).read_text())
+        return json.loads(self.info().path(self.directory(), INDEX_FILE_NAME).read_text())
+
+    def test_a_circuit_that_could_not_be_read_is_said_why_there_are_no_groups(self):
+        self.run_build(groups_unavailable=GroupsUnavailable.CIRCUIT_NOT_READABLE)
+
+        self.assertEqual(self.index()["groups_unavailable"], "circuit_not_readable")
+        self.assertEqual(self.info().groups_unavailable, "circuit_not_readable")
+
+    def test_a_report_that_could_have_no_groups_is_not_said_to_lack_them(self):
+        write_report(self.report, cells=1)
+
+        self.run_build(groups_unavailable=GroupsUnavailable.CIRCUIT_NOT_READABLE)
+
+        self.assertIsNone(self.index()["groups_unavailable"])
+        self.assertIsNone(self.info().groups_unavailable)
+
+    def test_a_summary_without_its_groups_is_replaced_by_one_with_them(self):
+        self.run_build(groups_unavailable=GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        before = self.info()
+
+        self.run_build(nodes={"pop": NODES_URL}, regroup=True)
+
+        after = self.info()
+        directory = self.directory()
+        self.assertNotEqual(after.sha256, before.sha256)
+        self.assertIsNone(after.groups_unavailable)
+        self.assertEqual([a["name"] for a in self.index()["axes"]], ["total", "mtype"])
+        verify(after.path(directory, SUMMARY_FILE_NAME), self.index())
+        # Whoever reads the one replaced goes on with it
+        self.assertTrue(before.path(directory, SUMMARY_FILE_NAME).exists())
+        self.assertTrue(before.path(directory, INDEX_FILE_NAME).exists())
+
+    def test_a_regroup_leaves_a_summary_with_its_groups_and_builds_none(self):
+        self.run_build(nodes={"pop": NODES_URL})
+
+        self.run_build(nodes={"pop": NODES_URL}, regroup=True)
+        with self.subTest("nothing built"):
+            self.assertEqual(self.urls, [URL, NODES_URL])
+
+        self.asset_id = uuid4()
+        self.run_build(nodes={"pop": NODES_URL}, regroup=True)
+        self.assertIsNone(read_summary_info(self.directory()))
+
+    def test_a_regroup_moved_to_the_larger_queue_stays_one(self):
+        self.run_build(groups_unavailable=GroupsUnavailable.CIRCUIT_NOT_READABLE)
+
+        with patch.object(service, "memory_limit", return_value=1):
+            self.run_build(nodes={"pop": NODES_URL}, regroup=True)
+
+        job = get_queue(JobQueue.CPU4_MEM16).fetch_job(
+            build_job_id(self.epoch(), self.asset_id, JobQueue.CPU4_MEM16, regroup=True)
+        )
+        self.assertTrue(job.kwargs["regroup"])
 
     def test_the_cells_groups_come_from_the_nodes_file(self):
         self.run_build(nodes={"pop": NODES_URL})
