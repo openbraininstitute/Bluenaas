@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import FileResponse, Response
 
 from app.domains.simulation_result.lfp_summary import LfpSummaryStatus
@@ -24,9 +24,10 @@ async def request_lfp_summary(
     asset: UUID,
     project_context: ProjectContextDep,
     auth: UserAuthDep,
+    background: BackgroundTasks,
 ) -> LfpSummaryStatus:
     return await get_lfp_summary_status(
-        result_id, asset, auth=auth, project_context=project_context
+        result_id, asset, auth=auth, project_context=project_context, background=background
     )
 
 

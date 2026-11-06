@@ -130,19 +130,28 @@ def _build(
     verify_started = time.monotonic()
     verify(tmp, index)
     verified = time.monotonic()
+    index_text = json.dumps(index)
     with tmp.open("rb") as f:
-        sha256 = hashlib.file_digest(f, "sha256").hexdigest()
+        digest = hashlib.file_digest(f, "sha256")
+    # Of the index too, the ETag of both: a regroup that finds no groups writes the same h5
+    digest.update(index_text.encode())
+    sha256 = digest.hexdigest()
     summary_size = tmp.stat().st_size
     info = SummaryInfo(
         size=summary_size,
         sha256=sha256,
         groups_unavailable=index["groups_unavailable"],
     )
+    replaced = read_summary_info(directory)
     os.replace(tmp, info.path(directory, SUMMARY_FILE_NAME))
-    write_atomically(info.path(directory, INDEX_FILE_NAME), json.dumps(index))
+    write_atomically(info.path(directory, INDEX_FILE_NAME), index_text)
     # What makes it current, in place of any summary it replaces
     write_summary_info(directory, info)
     (directory / READY_MARKER_FILE_NAME).touch()
+    if replaced is not None and replaced.sha256[:16] != sha256[:16]:
+        # A reader of it is answered 412 and reads this one; one reading it now has it open
+        for name in (SUMMARY_FILE_NAME, INDEX_FILE_NAME):
+            replaced.path(directory, name).unlink(missing_ok=True)
     logger.info(
         f"LFP summary of {asset_id} built, {summary_size} bytes: written in"
         f" {duration(verify_started - write_started)}, verified in"

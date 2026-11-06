@@ -68,6 +68,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
                 report,
                 access_token="token",
                 project_context=self.project_context,
+                later=lambda task: task(),
             ).result()
 
     def job_of(self, report, queue: JobQueue):
@@ -266,6 +267,25 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.status_of(report)
 
         self.assertEqual(self.nodes_urls.call_count, 1)
+
+    def test_a_regroup_that_finished_does_not_hold_back_another(self):
+        report = report_of(100)
+        self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        self.status_of(report)
+        self.regroup_job_of(report).set_status(JobStatus.FINISHED)
+
+        self.status_of(report)
+
+        self.assertEqual(self.nodes_urls.call_count, 2)
+
+    def test_a_circuit_that_can_be_read_but_has_no_groups_has_the_summary_built_again(self):
+        report = report_of(100)
+        self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        self.nodes_urls.return_value = service.NodesFiles({})
+
+        self.status_of(report)
+
+        self.assertEqual(self.regroup_job_of(report).kwargs["nodes"], {})
 
     def test_entitycore_failing_does_not_fail_a_summary_ready_to_read(self):
         report = report_of(100)

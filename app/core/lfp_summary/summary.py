@@ -510,9 +510,10 @@ class Centred:
             centred.power += np.einsum("tc,tc->c", block, block)
         return centred
 
-    def blocks(self) -> Iterator[tuple[int, np.ndarray]]:
+    def blocks(self, fields: int = 1) -> Iterator[tuple[int, np.ndarray]]:
+        """Blocks of steps of the centred total, as many as `fields` of them take SHARE_BLOCK_BYTES."""
         steps, contacts = self.total.shape
-        rows = max(1, SHARE_BLOCK_BYTES // (8 * contacts))
+        rows = max(1, SHARE_BLOCK_BYTES // (8 * contacts * fields))
         for a in range(0, steps, rows):
             yield a, self.total[a : a + rows] - self.mean
 
@@ -550,27 +551,30 @@ def log_bands(psd: np.ndarray, frequencies: np.ndarray) -> tuple[np.ndarray, np.
 
 
 def covariance_with_total(values: np.ndarray, centred: Centred) -> np.ndarray:
-    """A group's field, steps x contacts, summed against the centred total at each contact. Its own
-    mean needs no taking off, as the centred total sums to 0.
+    """Each group's field, steps x groups x contacts, summed against the centred total at each
+    contact: groups x contacts. A group's own mean needs no taking off, as the centred total sums to
+    0. In one pass for all the groups, as each pass centres the total again.
     """
-    covariance = np.zeros(values.shape[1])
-    for a, total in centred.blocks():
+    _, groups, contacts = values.shape
+    covariance = np.zeros((groups, contacts))
+    for a, total in centred.blocks(groups):
         block = np.asarray(values[a : a + len(total)], np.float64)
-        covariance += np.einsum("tc,tc->c", block, total)
+        covariance += np.einsum("tgc,tc->gc", block, total)
     return covariance
 
 
-def shares_of_total(values: np.ndarray, centred: Centred) -> tuple[float, np.ndarray]:
-    """How much of the total's variance a group's field accounts for, over all contacts and at each.
-    The groups' shares add up to 1, and one working against the rest has a negative share. A contact
-    with no variance gives none.
+def shares_of_total(values: np.ndarray, centred: Centred) -> tuple[list[float], np.ndarray]:
+    """How much of the total's variance each group's field accounts for, over all contacts and at
+    each. The groups' shares add up to 1, and one working against the rest has a negative share. A
+    contact with no variance gives none.
     """
     covariance = covariance_with_total(values, centred)
     power = float(centred.power.sum())
     at_contacts = np.divide(
         covariance, centred.power, out=np.zeros_like(covariance), where=centred.power > 0
     )
-    return (float(covariance.sum()) / power if power else 0.0), at_contacts.astype(np.float32)
+    shares = [float(c) / power if power else 0.0 for c in covariance.sum(axis=1)]
+    return shares, at_contacts.astype(np.float32)
 
 
 def deflated_row(row: np.ndarray) -> bytes:
@@ -635,16 +639,14 @@ def _write_axis(
         levels[0]["chunks"] = f"/{name}/chunks"
         levels.append({"step": 2**k, "kind": overview_kind, "dataset": f"/{name}/level{k}"})
 
-    scales, shares, contact_shares, stats, spectra = [], [], [], [], []
+    shares, contact_shares = shares_of_total(fields.values, centred)
+    scales, stats, spectra = [], [], []
     frequencies = np.zeros(0)
     for group in range(groups):
         # One group at a time: a segment of the spectra over all of them could take tens of GB
         values = fields.values[:, group : group + 1, :]
         rows, scale = quantize(values)
         scales.append(float(scale[0]))
-        share, at_contacts = shares_of_total(values[:, 0, :], centred)
-        shares.append(share)
-        contact_shares.append(at_contacts)
         stats.append(contact_stats(values, report.start, report.dt)[0])
         psd, fine = welch(values, report.dt)
         band_psd, frequencies = log_bands(psd[0], fine)
@@ -659,7 +661,7 @@ def _write_axis(
         h5.create_dataset(f"{name}/chunks", data=_chunk_table(level0))
     h5.create_dataset(f"{name}/stats", data=np.stack(stats))
     h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
-    h5.create_dataset(f"{name}/contact_shares", data=np.stack(contact_shares))
+    h5.create_dataset(f"{name}/contact_shares", data=contact_shares)
     return {
         "name": axis,
         "groups": fields.groups,

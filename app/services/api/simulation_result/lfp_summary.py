@@ -5,7 +5,9 @@ import re
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from http import HTTPStatus
 from pathlib import PurePosixPath
 from uuid import UUID
@@ -19,6 +21,7 @@ from entitysdk.models.core import Identifiable
 from entitysdk.route import get_assets_endpoint
 from entitysdk.types import AssetLabel
 from entitysdk.utils.http import HTTPStatusError, RequestError
+from fastapi import BackgroundTasks
 from fastapi.responses import FileResponse, Response
 from loguru import logger
 from rq.job import JobStatus
@@ -58,6 +61,8 @@ LFP_REPORT_LABELS = frozenset({AssetLabel.lfp_report, AssetLabel.voltage_report}
 # requests, and each would ask entitycore again.
 ACCESS_SECONDS = 60
 ACCESS_ENTRIES = 4096
+
+IN_HAND = LIVE_STATUSES | {JobStatus.FAILED}
 
 
 def _not_found(message: str) -> AppError:
@@ -332,17 +337,19 @@ def _regroup_if_readable(
     """Queue the build of a summary again, with its groups, where whoever asked for it first could
     not read its circuit and this user can. It is read as it is until the new one replaces it.
     """
-    # A failed one waits out its FAILED_BUILD_TTL, as a failed build does
-    if any(
-        get_queue(queue).fetch_job(build_job_id(epoch, report.id, queue, regroup=True))
-        for queue in BUILD_QUEUES
-    ):
-        return
+    clean_up_abandoned_jobs(BUILD_QUEUES)
+    for queue in BUILD_QUEUES:
+        job = get_queue(queue).fetch_job(build_job_id(epoch, report.id, queue, regroup=True))
+        # A failed one waits out its FAILED_BUILD_TTL, as a failed build does
+        if job is not None and job.get_status(refresh=False) in IN_HAND:
+            return
     try:
         nodes = _nodes_urls(
             simulation_id, access_token=access_token, project_context=project_context
         )
-        if not nodes.urls:
+        # Built again where the circuit can be read but has no groups to give, for the summary to
+        # stop saying they'd come
+        if nodes.unavailable is not None:
             return
         url = _download_url(
             SimulationResult,
@@ -388,6 +395,7 @@ def _get_or_build_summary(
     *,
     access_token: str,
     project_context: ProjectContext,
+    later: Callable[[Callable[[], None]], None],
 ) -> LfpSummaryStatus:
     if report.label not in LFP_REPORT_LABELS or report.is_directory:
         return LfpSummaryStatus(
@@ -399,13 +407,17 @@ def _get_or_build_summary(
     epoch = ensure_epoch(CacheKind.LFP_SUMMARY)
     if info := read_summary_info(summary_dir(epoch, report.id)):
         if info.groups_unavailable is not None:
-            _regroup_if_readable(
-                epoch,
-                result_id,
-                simulation_id,
-                report,
-                access_token=access_token,
-                project_context=project_context,
+            # Once the status is answered, as the summary is read as it is meanwhile
+            later(
+                partial(
+                    _regroup_if_readable,
+                    epoch,
+                    result_id,
+                    simulation_id,
+                    report,
+                    access_token=access_token,
+                    project_context=project_context,
+                )
             )
         return _ready(info)
     if status := _status_in_cache(epoch, report.id):
@@ -461,7 +473,12 @@ def _get_or_build_summary(
 
 
 async def get_lfp_summary_status(
-    result_id: UUID, asset_id: UUID, *, auth: Auth, project_context: ProjectContext
+    result_id: UUID,
+    asset_id: UUID,
+    *,
+    auth: Auth,
+    project_context: ProjectContext,
+    background: BackgroundTasks,
 ) -> LfpSummaryStatus:
     """The state of the report's summary. A build is queued if the summary is not built yet."""
     result, report = await run_async(
@@ -474,6 +491,7 @@ async def get_lfp_summary_status(
             report,
             access_token=auth.access_token,
             project_context=project_context,
+            later=background.add_task,
         )
     )
 

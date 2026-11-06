@@ -105,7 +105,8 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         self.assertTrue((directory / READY_MARKER_FILE_NAME).exists())
         info = self.info()
         summary = info.path(directory, SUMMARY_FILE_NAME).read_bytes()
-        sha256 = hashlib.sha256(summary).hexdigest()
+        index_bytes = info.path(directory, INDEX_FILE_NAME).read_bytes()
+        sha256 = hashlib.sha256(summary + index_bytes).hexdigest()
         self.assertEqual(
             json.loads((directory / SUMMARY_INFO_FILE_NAME).read_text()),
             {"size": len(summary), "sha256": sha256, "groups_unavailable": None},
@@ -145,9 +146,20 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         self.assertIsNone(after.groups_unavailable)
         self.assertEqual([a["name"] for a in self.index()["axes"]], ["total", "mtype"])
         verify(after.path(directory, SUMMARY_FILE_NAME), self.index())
-        # Whoever reads the one replaced goes on with it
-        self.assertTrue(before.path(directory, SUMMARY_FILE_NAME).exists())
-        self.assertTrue(before.path(directory, INDEX_FILE_NAME).exists())
+        # Whoever reads the one replaced is answered 412 by its ETag
+        self.assertFalse(before.path(directory, SUMMARY_FILE_NAME).exists())
+        self.assertFalse(before.path(directory, INDEX_FILE_NAME).exists())
+
+    def test_a_regroup_of_a_circuit_with_no_groups_to_give_is_a_new_summary(self):
+        self.run_build(groups_unavailable=GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        before = self.info()
+
+        self.run_build(regroup=True)
+
+        # A new ETag, for a reader of the one before to read the new index
+        self.assertNotEqual(self.info().sha256, before.sha256)
+        self.assertIsNone(self.info().groups_unavailable)
+        self.assertIsNone(self.index()["groups_unavailable"])
 
     def test_a_regroup_leaves_a_summary_with_its_groups_and_builds_none(self):
         self.run_build(nodes={"pop": NODES_URL})

@@ -7,8 +7,8 @@ built again.
 
 The summary and its index are named by the summary's hash, and its info says which are current. A
 build that replaces a summary, to give it the groups it was built without, so only has to write the
-info: a reader of the one replaced goes on with its files, by their ETag, and they are left until the
-cache is cleared.
+info, and never writes over a file being read. A reader of the one replaced is answered 412 by its
+ETag, and reads the new one; the replaced files are then deleted.
 
 Nothing here imports the worker's dependencies: the API runs the failure callback of a build whose
 worker died, when it cleans up the registry of started jobs.
