@@ -255,6 +255,16 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.assertEqual(job.kwargs["nodes"], {"pop": NODES_URL})
         self.assertEqual(job.kwargs["url"], URL)
 
+    def test_a_summed_report_is_not_grouped_by_one_who_can_read_its_circuit(self):
+        report = report_of(100)
+        self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        self.is_lfp_report.return_value = service.LfpReport(summed=True)
+
+        self.assertEqual(self.status_of(report).state, LfpSummaryState.READY)
+
+        self.nodes_urls.assert_not_called()
+        self.assertIsNone(self.regroup_job_of(report))
+
     def test_a_user_who_can_not_read_it_either_builds_nothing(self):
         report = report_of(100)
         self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)

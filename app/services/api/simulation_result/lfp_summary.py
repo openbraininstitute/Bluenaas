@@ -370,6 +370,12 @@ def _regroup_if_readable(
         if job is not None and job.get_status(refresh=False) in IN_HAND:
             return
     try:
+        # A summed one has no cells to group, whoever can read its circuit
+        lfp = _lfp_report(
+            simulation_id, report, access_token=access_token, project_context=project_context
+        )
+        if lfp is None or lfp.summed:
+            return
         nodes = _nodes_urls(
             simulation_id, access_token=access_token, project_context=project_context
         )
