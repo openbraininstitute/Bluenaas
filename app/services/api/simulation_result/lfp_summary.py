@@ -136,14 +136,19 @@ def _get_report(
     return result, asset
 
 
-def _is_lfp_report(
-    simulation_id: UUID, report: Asset, *, access_token: str, project_context: ProjectContext
-) -> bool:
-    """An LFP report by its label, or a voltage report whose entry in the simulation's SONATA
-    config, found by its file's name, is of type `lfp`, as the web app reads it.
+@dataclass
+class LfpReport:
+    """What a simulation's config says of its LFP report. A summed one holds each population's
+    sum over its cells, so it has none to group.
     """
-    if report.label == AssetLabel.lfp_report:
-        return True
+
+    summed: bool
+
+
+def _report_entry(
+    simulation_id: UUID, report: Asset, *, access_token: str, project_context: ProjectContext
+) -> dict | None:
+    """The report's entry in the simulation's SONATA config, found by its file's name."""
     client = user_client(access_token, project_context)
     simulation = get_entity_or_not_found(
         client, simulation_id, Simulation, message="Simulation not found"
@@ -153,7 +158,7 @@ def _is_lfp_report(
         None,
     )
     if config is None:
-        return False
+        return None
     content = client.download_content(
         entity_id=simulation_id, entity_type=Simulation, asset_id=config.id
     )
@@ -161,8 +166,29 @@ def _is_lfp_report(
     try:
         entry = json.loads(content)["reports"].get(stem)
     except (ValueError, KeyError, TypeError, AttributeError):
-        return False
-    return isinstance(entry, dict) and entry.get("type") == "lfp"
+        return None
+    return entry if isinstance(entry, dict) else None
+
+
+def _lfp_report(
+    simulation_id: UUID, report: Asset, *, access_token: str, project_context: ProjectContext
+) -> LfpReport | None:
+    """An LFP report by its label, or a voltage report whose entry in the simulation's SONATA
+    config is of type `lfp`, as the web app reads it. None where it is not one.
+    """
+    labelled = report.label == AssetLabel.lfp_report
+    try:
+        entry = _report_entry(
+            simulation_id, report, access_token=access_token, project_context=project_context
+        )
+    except (AppError, EntitySDKError) as ex:
+        # One labelled so is an LFP report whatever its config, which is only read for its method
+        if not labelled or _may_pass(ex):
+            raise
+        entry = None
+    if not labelled and (entry is None or entry.get("type") != "lfp"):
+        return None
+    return LfpReport(summed=entry is not None and entry.get("method") == "sum")
 
 
 def _no_download_url() -> AppError:
@@ -445,9 +471,10 @@ def _get_or_build_summary(
     if failed:
         return LfpSummaryStatus(state=LfpSummaryState.FAILED)
 
-    if not _is_lfp_report(
+    lfp = _lfp_report(
         simulation_id, report, access_token=access_token, project_context=project_context
-    ):
+    )
+    if lfp is None:
         return LfpSummaryStatus(
             state=LfpSummaryState.REFUSED, reason=NoSummaryReason.NOT_LFP_REPORT
         )
@@ -459,7 +486,11 @@ def _get_or_build_summary(
         access_token=access_token,
         project_context=project_context,
     )
-    nodes = _nodes_urls(simulation_id, access_token=access_token, project_context=project_context)
+    nodes = (
+        NodesFiles({})
+        if lfp.summed
+        else _nodes_urls(simulation_id, access_token=access_token, project_context=project_context)
+    )
     enqueue_build(
         build_queue(report.size),
         epoch=epoch,

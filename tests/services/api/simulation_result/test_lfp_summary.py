@@ -49,7 +49,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         patcher = patch.object(service, "_download_url", return_value=URL)
         self.download_url = patcher.start()
         self.addCleanup(patcher.stop)
-        patcher = patch.object(service, "_is_lfp_report", return_value=True)
+        patcher = patch.object(service, "_lfp_report", return_value=service.LfpReport(False))
         self.is_lfp_report = patcher.start()
         self.addCleanup(patcher.stop)
         patcher = patch.object(
@@ -164,7 +164,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.assertEqual(self.download_url.call_count, 1)
 
     def test_a_voltage_report_that_is_no_lfp_is_refused(self):
-        self.is_lfp_report.return_value = False
+        self.is_lfp_report.return_value = None
 
         status = self.status_of(report_of(100, AssetLabel.voltage_report))
 
@@ -204,6 +204,15 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         status = self.status_of(report)
 
         self.assertEqual(status.state, LfpSummaryState.FAILED)
+
+    def test_a_summed_report_is_built_without_its_cells_groups(self):
+        self.is_lfp_report.return_value = service.LfpReport(summed=True)
+        report = report_of(100)
+
+        self.status_of(report)
+
+        self.nodes_urls.assert_not_called()
+        self.assertEqual(self.job_of(report, JobQueue.LOW).kwargs["nodes"], {})
 
     def test_the_job_says_why_there_are_no_groups(self):
         self.nodes_urls.return_value = service.NodesFiles(
@@ -382,13 +391,16 @@ class TestIsLfpReport(LfpSummaryTestCase):
         return self.is_lfp_with(report, json.dumps({"reports": reports}).encode(), config)
 
     def is_lfp_with(self, report, content: bytes, config: bool = True) -> bool:
+        return self.lfp_report_with(report, content, config) is not None
+
+    def lfp_report_with(self, report, content: bytes, config: bool = True):
         client = MagicMock()
         config_asset = SimpleNamespace(id=uuid4(), label=AssetLabel.sonata_simulation_config)
         simulation = SimpleNamespace(assets=[config_asset] if config else [])
         client.get_entity.side_effect = [simulation]
         client.download_content.return_value = content
         with patch.object(service, "user_client", return_value=client):
-            return service._is_lfp_report(
+            return service._lfp_report(
                 uuid4(), report, access_token="token", project_context=self.project_context
             )
 
@@ -417,6 +429,28 @@ class TestIsLfpReport(LfpSummaryTestCase):
 
     def test_a_simulation_without_a_config(self):
         self.assertFalse(self.is_lfp(self.voltage_report("lfp.h5"), {}, config=False))
+
+    def test_a_summed_report_by_its_method(self):
+        for report, entry, summed in [
+            (self.voltage_report("lfp.h5"), {"type": "lfp", "method": "sum"}, True),
+            (self.voltage_report("lfp.h5"), {"type": "lfp", "method": "by_cell"}, False),
+            (self.voltage_report("lfp.h5"), {"type": "lfp"}, False),
+            (SimpleNamespace(label=AssetLabel.lfp_report, path="lfp.h5"), {"method": "sum"}, True),
+        ]:
+            with self.subTest(entry=entry):
+                content = json.dumps({"reports": {"lfp": entry}}).encode()
+                self.assertEqual(self.lfp_report_with(report, content), service.LfpReport(summed))
+
+    def test_an_lfp_report_by_its_label_whose_simulation_is_not_found(self):
+        client = MagicMock()
+        client.get_entity.side_effect = AppError(
+            message="no", error_code=None, http_status_code=HTTPStatus.NOT_FOUND
+        )
+        with patch.object(service, "user_client", return_value=client):
+            lfp = service._lfp_report(
+                uuid4(), report_of(100), access_token="token", project_context=self.project_context
+            )
+        self.assertEqual(lfp, service.LfpReport(summed=False))
 
 
 class TestDownloadUrl(LfpSummaryTestCase):
