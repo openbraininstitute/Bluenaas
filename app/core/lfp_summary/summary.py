@@ -6,13 +6,17 @@ slice with an HTTP Range request and no HDF5 library. It is made for the browser
 Each axis is written alike: "total", with its one group, and each of GROUP_COLUMNS the report's cells
 differ on:
   /lfp/{axis}/level0     int16  group x contact x step, value = raw * scale[group] uV. Past
-                                MAX_OVERVIEW_STEPS it is in chunks of one contact's row, shuffled and
-                                deflated, not listed in the index's datasets, and these two are added:
-  /lfp/{axis}/chunks     uint64 group x contact x 2, each chunk's byte offset and size in the file
-  /lfp/{axis}/level{k}   int16  the overview, over the 2**k steps that bring it under
-                                MAX_OVERVIEW_STEPS bins. The total's is group x contact x bin x 2, the
-                                min and the max. A group's is group x contact x bin, the mean: means of
-                                groups add up, as min and max don't
+                                MAX_OVERVIEW_STEPS it is in chunks of BLOCK_STEPS of one contact's row,
+                                the last one padded with zeros, each shuffled and deflated, value =
+                                raw * block_scales[group, contact, block] uV. Then it is not listed in the
+                                index's datasets, and these two are added:
+  /lfp/{axis}/chunks     uint64 group x contact x block x 2, each chunk's byte offset and size in the file
+  /lfp/{axis}/block_scales float32 group x contact x block
+  /lfp/{axis}/level{k}   int16  an overview, value = raw * scale[group] uV, over bins of 2**k steps: the
+                                coarsest under MAX_OVERVIEW_STEPS bins, and finer ones at a quarter of the
+                                steps each, down to MIN_LEVEL_STEPS. The total's are group x contact x bin
+                                x 2, the min and the max. A group's are group x contact x bin, the mean:
+                                means of groups add up, as min and max don't
   /lfp/{axis}/stats      float32 group x contact x len(STATS)
   /lfp/{axis}/psd        float32 group x contact x frequency, Welch, uV^2/Hz, the means over PSD_BANDS
                                 bands
@@ -39,6 +43,11 @@ from app.core.lfp_summary.ranges import RangeFile, ReadRange
 from app.domains.simulation_result.lfp_summary import NoSummaryReason
 
 MAX_OVERVIEW_STEPS = 2048
+# An overview level's bins are 4 times the next finer one's, the finest at least this many steps
+LEVEL_STEP_BITS = 2
+MIN_LEVEL_STEPS = 16
+# Full-resolution rows are cut in blocks of this many steps, a power of two, so a window is read alone
+BLOCK_STEPS = 1 << 16
 STATS = ["min", "max", "ptp", "rms", "mean", "trough_ms"]
 WELCH_SEGMENT = 256
 # Else the index's frequencies and the spectra grow with the run
@@ -435,6 +444,17 @@ def overview_level(steps: int) -> int:
     return k
 
 
+def overview_levels(steps: int) -> list[int]:
+    """The k of each overview level, finest first: none where every step is under the size."""
+    k = overview_level(steps)
+    if k == 0:
+        return []
+    levels = [k]
+    while 2 ** (levels[0] - LEVEL_STEP_BITS) >= MIN_LEVEL_STEPS:
+        levels.insert(0, levels[0] - LEVEL_STEP_BITS)
+    return levels
+
+
 def min_max_level(level0: np.ndarray, k: int) -> np.ndarray:
     """The min and max of each 2**k steps of contact x step, a last shorter bin as it comes."""
     starts = np.arange(0, level0.shape[-1], 2**k)
@@ -533,8 +553,7 @@ def mean_level(level0: np.ndarray, k: int) -> np.ndarray:
     """The mean of each 2**k steps of contact x step, a last shorter bin as it comes."""
     starts = np.arange(0, level0.shape[-1], 2**k)
     counts = np.diff(np.r_[starts, level0.shape[-1]])
-    summed = np.add.reduceat(level0, starts, axis=-1, dtype=np.int64)
-    return np.round(summed / counts).astype(np.int16)
+    return np.add.reduceat(level0, starts, axis=-1, dtype=np.float64) / counts
 
 
 def log_bands(psd: np.ndarray, frequencies: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -583,24 +602,68 @@ def deflated_row(row: np.ndarray) -> bytes:
     return zlib.compress(shuffled.tobytes(), DEFLATE_LEVEL)
 
 
-def _write_chunks(dataset: h5py.Dataset, group: int, rows: np.ndarray) -> None:
+def quantize_block(block: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """int16 with one scale per contact: contact x step -> the same, and the scales as float32."""
+    peak = np.abs(block).max(axis=1)
+    scales = np.where(peak > 0, peak / 32767, 1.0).astype(np.float32)
+    q = np.clip(np.round(block / scales[:, None].astype(np.float64)), -32767, 32767)
+    return q.astype(np.int16), scales
+
+
+def _block_steps(steps: int) -> int:
+    return min(BLOCK_STEPS, steps)
+
+
+def _write_chunks(
+    dataset: h5py.Dataset, pool: ThreadPoolExecutor, group: int, start: int, rows: np.ndarray
+) -> None:
     # Written deflated, or HDF5 would keep a row that doesn't shrink as it is and flag it in the
-    # chunk's filter mask, for the browser to tell apart
-    with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
-        for contact, chunk in enumerate(pool.map(deflated_row, rows)):
-            dataset.id.write_direct_chunk((group, contact, 0), chunk, 0)
+    # chunk's filter mask, for the browser to tell apart. A last block is padded to the chunk's
+    # length, as HDF5 stores an edge chunk whole.
+    length = _block_steps(dataset.shape[-1])
+    if rows.shape[1] < length:
+        rows = np.pad(rows, ((0, 0), (0, length - rows.shape[1])))
+    for contact, chunk in enumerate(pool.map(deflated_row, rows)):
+        dataset.id.write_direct_chunk((group, contact, start), chunk, 0)
 
 
 def _chunk_table(dataset: h5py.Dataset) -> np.ndarray:
-    groups, contacts, _ = dataset.shape
-    table = np.zeros((groups, contacts, 2), np.uint64)
+    groups, contacts, steps = dataset.shape
+    length = _block_steps(steps)
+    table = np.zeros((groups, contacts, math.ceil(steps / length), 2), np.uint64)
 
     def note(chunk) -> None:
-        group, contact, _ = chunk.chunk_offset
-        table[group, contact] = chunk.byte_offset, chunk.size
+        group, contact, start = chunk.chunk_offset
+        table[group, contact, start // length] = chunk.byte_offset, chunk.size
 
     dataset.id.chunk_iter(note)
     return table
+
+
+def _write_blocks(
+    values: np.ndarray, level0: h5py.Dataset, block_scales: np.ndarray, group: int, kind: str, ks
+) -> tuple[list[np.ndarray], float]:
+    """One group's rows in blocks, each to its own scales, its overview levels in uV, finest first,
+    and its peak. Taken a span of steps at a time that holds whole blocks and whole bins of every
+    level.
+    """
+    steps, contacts = values.shape
+    span = max(BLOCK_STEPS, 2 ** ks[-1])
+    levels = []
+    peak = 0.0
+    with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
+        for a in range(0, steps, span):
+            rows = np.asarray(values[a : a + span], np.float64).T
+            peak = max(peak, float(np.abs(rows).max()))
+            levels.append([OVERVIEWS[kind](rows, k) for k in ks])
+            for b in range(0, rows.shape[1], BLOCK_STEPS):
+                q, scales = quantize_block(rows[:, b : b + BLOCK_STEPS])
+                block_scales[group, :, (a + b) // BLOCK_STEPS] = scales
+                _write_chunks(level0, pool, group, a + b, q)
+    in_uv = [
+        np.concatenate([span_levels[j] for span_levels in levels], axis=1) for j in range(len(ks))
+    ]
+    return in_uv, peak
 
 
 OVERVIEWS = {"min_max": min_max_level, "mean": mean_level}
@@ -615,29 +678,33 @@ def _write_axis(
     overview_kind: str,
 ) -> dict:
     steps, groups, contacts = fields.values.shape
-    k = overview_level(steps)
+    ks = overview_levels(steps)
     name = f"lfp/{axis}"
     levels: list[dict] = [{"step": 1, "kind": "value", "dataset": f"/{name}/level0"}]
-    overview = None
-    if k == 0:
+    overviews = []
+    block_scales = np.zeros((groups, contacts, math.ceil(steps / BLOCK_STEPS)), np.float32)
+    if not ks:
         level0 = h5.create_dataset(f"{name}/level0", (groups, contacts, steps), "<i2")
     else:
         level0 = h5.create_dataset(
             f"{name}/level0",
             (groups, contacts, steps),
             "<i2",
-            chunks=(1, 1, steps),
+            chunks=(1, 1, _block_steps(steps)),
             compression="gzip",
             compression_opts=DEFLATE_LEVEL,
             shuffle=True,
         )
-        bins = math.ceil(steps / 2**k)
-        shape = (
-            (groups, contacts, bins, 2) if overview_kind == "min_max" else (groups, contacts, bins)
-        )
-        overview = h5.create_dataset(f"{name}/level{k}", shape, "<i2")
-        levels[0]["chunks"] = f"/{name}/chunks"
-        levels.append({"step": 2**k, "kind": overview_kind, "dataset": f"/{name}/level{k}"})
+        levels[0] |= {
+            "chunks": f"/{name}/chunks",
+            "block_steps": _block_steps(steps),
+            "block_scales": f"/{name}/block_scales",
+        }
+        for k in ks:
+            bins = math.ceil(steps / 2**k)
+            shape = (groups, contacts, bins) + ((2,) if overview_kind == "min_max" else ())
+            overviews.append(h5.create_dataset(f"{name}/level{k}", shape, "<i2"))
+            levels.append({"step": 2**k, "kind": overview_kind, "dataset": f"/{name}/level{k}"})
 
     shares, contact_shares = shares_of_total(fields.values, centred)
     scales, stats, spectra = [], [], []
@@ -645,20 +712,25 @@ def _write_axis(
     for group in range(groups):
         # One group at a time: a segment of the spectra over all of them could take tens of GB
         values = fields.values[:, group : group + 1, :]
-        rows, scale = quantize(values)
-        scales.append(float(scale[0]))
         stats.append(contact_stats(values, report.start, report.dt)[0])
         psd, fine = welch(values, report.dt)
         band_psd, frequencies = log_bands(psd[0], fine)
         spectra.append(band_psd)
-        if overview is None:
+        if not ks:
+            rows, scale = quantize(values)
+            scales.append(float(scale[0]))
             level0[group] = rows[0]
-        else:
-            _write_chunks(level0, group, rows[0])
-            overview[group] = OVERVIEWS[overview_kind](rows[0], k)
+            continue
+        # To the peak of the rows, not of the levels: a block read at this scale fits in int16
+        in_uv, peak = _write_blocks(values[:, 0], level0, block_scales, group, overview_kind, ks)
+        scale = peak / 32767 if peak > 0 else 1.0
+        scales.append(scale)
+        for overview, level in zip(overviews, in_uv, strict=True):
+            overview[group] = np.clip(np.round(level / scale), -32767, 32767).astype(np.int16)
 
-    if overview is not None:
+    if ks:
         h5.create_dataset(f"{name}/chunks", data=_chunk_table(level0))
+        h5.create_dataset(f"{name}/block_scales", data=block_scales)
     h5.create_dataset(f"{name}/stats", data=np.stack(stats))
     h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
     h5.create_dataset(f"{name}/contact_shares", data=contact_shares)
@@ -755,8 +827,13 @@ def verify(h5_path: Path, index: dict) -> None:
                 continue
             rows = _dataset(h5, level0["dataset"])
             table = _dataset(h5, level0["chunks"])[:]
-            for group, contact in np.ndindex(table.shape[:2]):
-                offset, size = table[group, contact].tolist()
-                row = _inflated_row(raw[offset : offset + size].tobytes())
-                if not np.array_equal(row, rows[group, contact]):
-                    raise AssertionError(f"{axis['name']} row {group}, {contact} is not there")
+            length = level0["block_steps"]
+            for group, contact, block in np.ndindex(table.shape[:3]):
+                offset, size = table[group, contact, block].tolist()
+                a = block * length
+                row = rows[group, contact, a : a + length]
+                read = _inflated_row(raw[offset : offset + size].tobytes())
+                if not np.array_equal(read[: len(row)], row) or read[len(row) :].any():
+                    raise AssertionError(
+                        f"{axis['name']} row {group}, {contact} block {block} is not there"
+                    )

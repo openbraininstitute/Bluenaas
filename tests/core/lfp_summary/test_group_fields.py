@@ -346,6 +346,8 @@ class TestWriteGroupFields(unittest.TestCase):
                     "kind": "value",
                     "dataset": "/lfp/mtype/level0",
                     "chunks": "/lfp/mtype/chunks",
+                    "block_steps": MAX_OVERVIEW_STEPS * 4,
+                    "block_scales": "/lfp/mtype/block_scales",
                 },
                 {"step": 4, "kind": "mean", "dataset": "/lfp/mtype/level2"},
             ],
@@ -354,14 +356,18 @@ class TestWriteGroupFields(unittest.TestCase):
         self.assertEqual(
             index["datasets"]["/lfp/mtype/level2"]["shape"], [2, 3, MAX_OVERVIEW_STEPS]
         )
-        self.assertEqual(index["datasets"]["/lfp/mtype/chunks"]["shape"], [2, 3, 2])
+        self.assertEqual(index["datasets"]["/lfp/mtype/chunks"]["shape"], [2, 3, 1, 2])
         self.assertEqual(index["datasets"]["/lfp/mtype/chunks"]["dtype"], "<u8")
+        self.assertEqual(index["datasets"]["/lfp/mtype/block_scales"]["shape"], [2, 3, 1])
         with h5py.File(self.h5_path, "r") as h5:
             self.assertEqual(h5["lfp/mtype/level0"].chunks, (1, 1, MAX_OVERVIEW_STEPS * 4))
             row = h5["lfp/mtype/level0"][1, 2]
             means = h5["lfp/mtype/level2"][1, 2]
+            row_scale = h5["lfp/mtype/block_scales"][1, 2, 0]
+        np.testing.assert_allclose(row * row_scale, values[:, 1, 2], atol=row_scale)
         scale = axis["scales"][1]
-        np.testing.assert_allclose(row * scale, values[:, 1, 2], atol=scale)
+        # The rows' peak, not the means', so a block brought to it fits in int16
+        self.assertAlmostEqual(scale * 32767, float(np.abs(values[:, 1]).max()), places=3)
         np.testing.assert_allclose(
             means * scale, values[:, 1, 2].reshape(-1, 4).mean(1), atol=scale
         )
