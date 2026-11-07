@@ -12,6 +12,7 @@ from app.core.lfp_summary import summary
 from app.core.lfp_summary.summary import (
     MAX_OVERVIEW_STEPS,
     TILE_BINS,
+    undo_residuals,
     STATS,
     SummedReport,
     WELCH_MAX_SEGMENT,
@@ -283,6 +284,7 @@ class TestWriteSummary(unittest.TestCase):
                         "chunks": "/lfp/total/chunks",
                         "steps": 50,
                         "scales": "/lfp/total/block_scales",
+                        "predictors": "/lfp/total/block_predictors",
                     },
                 },
                 {
@@ -317,6 +319,7 @@ class TestWriteSummary(unittest.TestCase):
                         "chunks": "/lfp/total/chunks",
                         "steps": MAX_OVERVIEW_STEPS * 2 + 1,
                         "scales": "/lfp/total/block_scales",
+                        "predictors": "/lfp/total/block_predictors",
                     },
                 },
                 {
@@ -332,7 +335,12 @@ class TestWriteSummary(unittest.TestCase):
         self.assertEqual(index["datasets"]["/lfp/total/level2_chunks"]["shape"], [1, 3, 1, 2])
         verify(h5_path, index)
         with h5py.File(h5_path, "r") as h5:
-            rows = h5["lfp/total/rows"][0] * h5["lfp/total/block_scales"][0]
+            orders = h5["lfp/total/block_predictors"][0, :, 0]
+            residuals = h5["lfp/total/rows"][0]
+            stored = np.stack(
+                [undo_residuals(r, o) for r, o in zip(residuals, orders, strict=True)]
+            )
+            rows = stored * h5["lfp/total/block_scales"][0]
             overview = h5["lfp/total/level2"][0]
         np.testing.assert_allclose(rows.T, expected, atol=np.abs(expected).max() / 32767)
         scale = index["axes"][0]["scales"][0]
@@ -363,12 +371,40 @@ class TestWriteSummary(unittest.TestCase):
         self.assertEqual(index["datasets"]["/lfp/total/chunks"]["shape"], [1, 3, 17, 2])
         verify(h5_path, index)
         with h5py.File(h5_path, "r") as h5:
-            rows = h5["lfp/total/rows"][0]
+            residuals = h5["lfp/total/rows"][0]
             block_scales = h5["lfp/total/block_scales"][0]
+            orders = h5["lfp/total/block_predictors"][0]
         # The viewer brings every block to the group's scale: finer is bytes it throws away
         scale = index["axes"][0]["scales"][0]
         np.testing.assert_array_equal(block_scales, np.full((3, 17), scale, np.float32))
-        np.testing.assert_allclose(rows * scale, total.T, atol=scale * 0.51)
+        for block in range(17):
+            a = block * 256
+            for contact in range(3):
+                padded = np.zeros(256, np.int16)
+                stored = residuals[contact, a : a + 256]
+                padded[: len(stored)] = stored
+                row = undo_residuals(padded, int(orders[contact, block]))[: len(stored)]
+                np.testing.assert_allclose(
+                    row * scale, total[a : a + 256, contact], atol=scale * 0.51
+                )
+
+    def test_a_smooth_row_is_stored_as_its_residuals_and_noise_as_its_values(self):
+        steps = MAX_OVERVIEW_STEPS * 4
+        rng = np.random.default_rng(3)
+        total = np.stack([100 * np.sin(np.arange(steps) / 200), rng.normal(0, 30, steps)], axis=1)
+        report = SummedReport(populations=["pop"], start=0.0, dt=0.025, total=total, fields={})
+        h5_path = self.dir / "summary.h5"
+        index = write_summary(report, h5_path, version=2, source={})
+
+        verify(h5_path, index)
+        with h5py.File(h5_path, "r") as h5:
+            orders = h5["lfp/total/block_predictors"][0, :, 0]
+            residuals = h5["lfp/total/rows"][0]
+        self.assertEqual(orders.tolist(), [2, 0])
+        scale = index["axes"][0]["scales"][0]
+        np.testing.assert_allclose(
+            undo_residuals(residuals[0], 2) * scale, total[:, 0], atol=scale * 0.51
+        )
 
     def test_levels_from_the_finest_to_the_coarsest(self):
         steps = MAX_OVERVIEW_STEPS * 64

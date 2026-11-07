@@ -8,11 +8,16 @@ differ on:
   /lfp/{axis}/rows       int16  group x contact x step, in chunks of BLOCK_STEPS of one contact's row
                                 (or the whole row, where shorter), the last one padded with zeros, each
                                 shuffled and deflated, value = raw * block_scales[group, contact, block]
-                                uV, each block at its group's scale. Not listed in the index's datasets,
-                                as a chunked dataset has no one offset: its chunks are found by
+                                uV, each block at its group's scale. Each block holds its residuals of
+                                the order in block_predictors: 0 the values, 1 each less the one before
+                                (the first less 0), 2 that again, over the padded block, wrapping as
+                                int16 does; added up as many times, they are the values. Not listed in
+                                the index's datasets, as a chunked dataset has no one offset: its chunks
+                                are found by
   /lfp/{axis}/chunks     uint64 group x contact x block x 2, each chunk's byte offset and size in the file
   /lfp/{axis}/block_scales float32 group x contact x block: the group's scale, as the viewer brings
                                 every block to it
+  /lfp/{axis}/block_predictors uint8 group x contact x block, whichever order deflates smallest
   /lfp/{axis}/level{k}   int16  an overview, value = raw * scale[group] uV, over bins of 2**k steps: the
                                 coarsest under MAX_OVERVIEW_STEPS bins, and finer ones at a quarter of the
                                 steps each, down to MIN_LEVEL_STEPS. A run of MAX_OVERVIEW_STEPS or fewer
@@ -62,6 +67,8 @@ WELCH_MAX_SEGMENT = 1 << 16
 PSD_BANDS = 128
 
 DEFLATE_LEVEL = 6
+# A block of rows is stored as its residuals of the order, under this, that deflate smallest
+PREDICTOR_ORDERS = 3
 DEFLATES_AT_ONCE = 4
 
 # The report is read in blocks of rows of about this size, this many at once
@@ -609,19 +616,49 @@ def deflated_row(row: np.ndarray) -> bytes:
     return zlib.compress(shuffled.tobytes(), DEFLATE_LEVEL)
 
 
+def residuals(row: np.ndarray, order: int) -> np.ndarray:
+    """Each value less the one before, `order` times over, in int16 as it wraps."""
+    for _ in range(order):
+        row = np.diff(row, prepend=np.int16(0))
+    return row
+
+
+def undo_residuals(row: np.ndarray, order: int) -> np.ndarray:
+    for _ in range(order):
+        row = np.cumsum(row, dtype=np.int16)
+    return row
+
+
+def predicted_row(row: np.ndarray) -> tuple[int, bytes]:
+    """A row as the residuals of the order that deflate smallest: the order, and the chunk."""
+    chunks = [deflated_row(residuals(row, order)) for order in range(PREDICTOR_ORDERS)]
+    order = min(range(PREDICTOR_ORDERS), key=lambda o: len(chunks[o]))
+    return order, chunks[order]
+
+
 def _write_chunks(
-    dataset: h5py.Dataset, pool: ThreadPoolExecutor, group: int, start: int, rows: np.ndarray
-) -> None:
+    dataset: h5py.Dataset,
+    pool: ThreadPoolExecutor,
+    group: int,
+    start: int,
+    rows: np.ndarray,
+    predicted: bool = False,
+) -> list[int]:
+    """Each contact's chunk at `start`; the order of its residuals, if `predicted`."""
     # Written deflated, or HDF5 would keep a row that doesn't shrink as it is and flag it in the
     # chunk's filter mask, for the browser to tell apart. A last block is padded to the chunk's
-    # length, as HDF5 stores an edge chunk whole.
+    # length, as HDF5 stores an edge chunk whole, and predicted with its padding.
     assert dataset.chunks
     length = dataset.chunks[2]
     if rows.shape[1] < length:
         rows = np.pad(rows, ((0, 0), (0, length - rows.shape[1])) + ((0, 0),) * (rows.ndim - 2))
     within = (0,) * (rows.ndim - 2)
-    for contact, chunk in enumerate(pool.map(deflated_row, rows)):
+    encode = predicted_row if predicted else lambda row: (0, deflated_row(row))
+    orders = []
+    for contact, (order, chunk) in enumerate(pool.map(encode, rows)):
         dataset.id.write_direct_chunk((group, contact, start, *within), chunk, 0)
+        orders.append(order)
+    return orders
 
 
 def _chunked(h5: h5py.File, path: str, shape: tuple[int, ...], length: int) -> h5py.Dataset:
@@ -653,9 +690,10 @@ def _chunk_table(dataset: h5py.Dataset) -> np.ndarray:
 
 def _write_blocks(
     values: np.ndarray, rows_set: h5py.Dataset, group: int, kind: str, ks, scale: float
-) -> list[np.ndarray]:
-    """One group's rows in blocks at its scale: its overview levels in uV, finest first. Taken a
-    span of steps at a time that holds whole blocks and whole bins of every level.
+) -> tuple[list[np.ndarray], np.ndarray]:
+    """One group's rows in blocks at its scale: its overview levels in uV, finest first, and each
+    block's order of prediction, contact x block. Taken a span of steps at a time that holds whole
+    blocks and whole bins of every level.
     """
     steps, contacts = values.shape
     span = max(BLOCK_STEPS, 2 ** ks[-1])
@@ -667,6 +705,7 @@ def _write_blocks(
         )
         for k in ks
     ]
+    orders = np.empty((contacts, math.ceil(steps / BLOCK_STEPS)), np.uint8)
     with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
         for a in range(0, steps, span):
             rows = np.ascontiguousarray(values[a : a + span].T)
@@ -675,8 +714,9 @@ def _write_blocks(
                 level[:, a >> k : (a >> k) + binned.shape[1]] = binned
             for b in range(0, rows.shape[1], BLOCK_STEPS):
                 q = _to_int16(rows[:, b : b + BLOCK_STEPS], scale)
-                _write_chunks(rows_set, pool, group, a + b, q)
-    return in_uv
+                block = (a + b) // BLOCK_STEPS
+                orders[:, block] = _write_chunks(rows_set, pool, group, a + b, q, predicted=True)
+    return in_uv, orders
 
 
 OVERVIEWS = {"min_max": min_max_level, "mean": mean_level, "value": lambda rows, k: rows}
@@ -706,6 +746,7 @@ def _write_axis(
                 "chunks": f"/{name}/chunks",
                 "steps": block_steps,
                 "scales": f"/{name}/block_scales",
+                "predictors": f"/{name}/block_predictors",
             },
         }
     ]
@@ -725,7 +766,7 @@ def _write_axis(
         )
 
     shares, contact_shares = shares_of_total(fields.values, centred)
-    scales, stats, spectra, block_scales = [], [], [], []
+    scales, stats, spectra, block_scales, block_predictors = [], [], [], [], []
     frequencies = np.zeros(0)
     for group in range(groups):
         # One group at a time: a segment of the spectra over all of them could take tens of GB
@@ -737,7 +778,8 @@ def _write_axis(
         # To the peak of the rows, not of the levels'. As float32, so the block scales are the same
         peak = max(float(values.max()), -float(values.min()))
         scale = float(np.float32(_scales_of(peak)))
-        in_uv = _write_blocks(values[:, 0], rows_set, group, kind, ks, scale)
+        in_uv, orders = _write_blocks(values[:, 0], rows_set, group, kind, ks, scale)
+        block_predictors.append(orders)
         block_scales.append(np.full((contacts, math.ceil(steps / block_steps)), scale, np.float32))
         scales.append(scale)
         with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
@@ -751,6 +793,7 @@ def _write_axis(
     for k, overview in zip(ks, overviews, strict=True):
         h5.create_dataset(f"{name}/level{k}_chunks", data=_chunk_table(overview))
     h5.create_dataset(f"{name}/block_scales", data=np.stack(block_scales))
+    h5.create_dataset(f"{name}/block_predictors", data=np.stack(block_predictors))
     h5.create_dataset(f"{name}/stats", data=np.stack(stats))
     h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
     h5.create_dataset(f"{name}/contact_shares", data=contact_shares)
@@ -832,7 +875,7 @@ def _inflated_row(chunk: bytes) -> np.ndarray:
 def verify(h5_path: Path, index: dict) -> None:
     """Every dataset read as raw bytes at its offset equals the dataset; every chunk of the rows and
     of the overview levels of a group's field is where its table says; and the first contact's, and
-    every contact's last, undone as a browser does, equal the dataset, the padding zero.
+    every contact's last, undone as a browser does, prediction too, are the values, the padding zero.
     """
     raw = np.memmap(h5_path, dtype=np.uint8, mode="r")
     with h5py.File(h5_path, "r") as h5:
@@ -847,6 +890,8 @@ def verify(h5_path: Path, index: dict) -> None:
                 chunked = _dataset(h5, level["dataset"])
                 table = _dataset(h5, level["blocks"]["chunks"])[:]
                 length = level["blocks"]["steps"]
+                predictors = level["blocks"].get("predictors")
+                orders = _dataset(h5, predictors)[:] if predictors else np.zeros(table.shape[:3])
                 within = (0,) * (chunked.ndim - 3)
                 last = table.shape[2] - 1
                 for group, contact, block in np.ndindex(table.shape[:3]):
@@ -855,9 +900,13 @@ def verify(h5_path: Path, index: dict) -> None:
                     chunk = raw[offset : offset + size].tobytes()
                     there = chunked.id.read_direct_chunk((group, contact, a, *within))[1] == chunk
                     if there and (contact == 0 or block == last):
-                        row = chunked[group, contact, a : a + length].ravel()
+                        stored = chunked[group, contact, a : a + length].ravel()
                         read = _inflated_row(chunk)
-                        there = np.array_equal(read[: len(row)], row) and not read[len(row) :].any()
+                        values = undo_residuals(read, int(orders[group, contact, block]))
+                        there = (
+                            np.array_equal(read[: len(stored)], stored)
+                            and not values[len(stored) :].any()
+                        )
                     if not there:
                         raise AssertionError(
                             f"{level['dataset']} {group}, {contact} block {block} is not there"

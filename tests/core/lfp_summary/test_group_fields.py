@@ -19,6 +19,9 @@ from app.core.lfp_summary.summary import (
     OverMemoryError,
     SummedReport,
     deflated_row,
+    predicted_row,
+    residuals,
+    undo_residuals,
     log_bands,
     mean_level,
     peak_bytes,
@@ -293,6 +296,26 @@ class TestTheNumbers(unittest.TestCase):
         self.assertTrue((np.diff(centres) > 0).all())
         self.assertLessEqual(centres[-1], 4096)
 
+    def test_residuals_add_back_up_to_the_row_where_they_wrap(self):
+        # 32767 to -32767 is a step of -65534, which wraps to 2 as int16
+        row = np.array([32767, -32767, 0, 5, -3, 32767], np.int16)
+
+        for order in range(3):
+            np.testing.assert_array_equal(undo_residuals(residuals(row, order), order), row)
+        self.assertEqual(residuals(row, 1)[1], 2)
+
+    def test_a_row_takes_the_order_that_deflates_smallest(self):
+        steps = np.arange(4096)
+        smooth = np.round(20000 * np.sin(steps / 300)).astype(np.int16)
+        noise = np.random.default_rng(0).integers(-30000, 30000, 4096).astype(np.int16)
+
+        self.assertEqual(predicted_row(smooth)[0], 2)
+        self.assertEqual(predicted_row(noise)[0], 0)
+        order, chunk = predicted_row(smooth)
+        shuffled = np.frombuffer(zlib.decompress(chunk), np.uint8)
+        stored = shuffled.reshape(2, -1).T.ravel().view("<i2")
+        np.testing.assert_array_equal(undo_residuals(stored, order), smooth)
+
     def test_a_deflated_row_is_what_hdf5_filters_undo(self):
         row = np.array([1, -2, 300, -32768, 32767], np.int16)
 
@@ -349,6 +372,7 @@ class TestWriteGroupFields(unittest.TestCase):
                         "chunks": "/lfp/mtype/chunks",
                         "steps": MAX_OVERVIEW_STEPS * 4,
                         "scales": "/lfp/mtype/block_scales",
+                        "predictors": "/lfp/mtype/block_predictors",
                     },
                 },
                 {
@@ -366,7 +390,8 @@ class TestWriteGroupFields(unittest.TestCase):
         self.assertEqual(index["datasets"]["/lfp/mtype/block_scales"]["shape"], [2, 3, 1])
         with h5py.File(self.h5_path, "r") as h5:
             self.assertEqual(h5["lfp/mtype/rows"].chunks, (1, 1, MAX_OVERVIEW_STEPS * 4))
-            row = h5["lfp/mtype/rows"][1, 2]
+            order = h5["lfp/mtype/block_predictors"][1, 2, 0]
+            row = undo_residuals(h5["lfp/mtype/rows"][1, 2], int(order))
             means = h5["lfp/mtype/level2"][1, 2]
             row_scale = h5["lfp/mtype/block_scales"][1, 2, 0]
         scale = axis["scales"][1]
@@ -393,6 +418,7 @@ class TestWriteGroupFields(unittest.TestCase):
                         "chunks": "/lfp/mtype/chunks",
                         "steps": 50,
                         "scales": "/lfp/mtype/block_scales",
+                        "predictors": "/lfp/mtype/block_predictors",
                     },
                 },
                 {
@@ -408,7 +434,8 @@ class TestWriteGroupFields(unittest.TestCase):
         verify(self.h5_path, index)
         with h5py.File(self.h5_path, "r") as h5:
             row = h5["lfp/mtype/level0"][0, 1]
-            block = h5["lfp/mtype/rows"][0, 1]
+            order = h5["lfp/mtype/block_predictors"][0, 1, 0]
+            block = undo_residuals(h5["lfp/mtype/rows"][0, 1], int(order))
             block_scale = h5["lfp/mtype/block_scales"][0, 1, 0]
         scale = axis["scales"][0]
         self.assertEqual(block_scale, np.float32(scale))
