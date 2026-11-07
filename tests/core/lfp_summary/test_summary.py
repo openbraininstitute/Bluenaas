@@ -11,6 +11,7 @@ import numpy as np
 from app.core.lfp_summary import summary
 from app.core.lfp_summary.summary import (
     MAX_OVERVIEW_STEPS,
+    TILE_BINS,
     STATS,
     SummedReport,
     WELCH_MAX_SEGMENT,
@@ -284,7 +285,12 @@ class TestWriteSummary(unittest.TestCase):
                         "scales": "/lfp/total/block_scales",
                     },
                 },
-                {"step": 1, "kind": "value", "dataset": "/lfp/total/level0"},
+                {
+                    "step": 1,
+                    "kind": "value",
+                    "dataset": "/lfp/total/level0",
+                    "blocks": {"chunks": "/lfp/total/level0_chunks", "steps": 50},
+                },
             ],
         )
 
@@ -313,11 +319,17 @@ class TestWriteSummary(unittest.TestCase):
                         "scales": "/lfp/total/block_scales",
                     },
                 },
-                {"step": 4, "kind": "min_max", "dataset": "/lfp/total/level2"},
+                {
+                    "step": 4,
+                    "kind": "min_max",
+                    "dataset": "/lfp/total/level2",
+                    "blocks": {"chunks": "/lfp/total/level2_chunks", "steps": 1025},
+                },
             ],
         )
         self.assertNotIn("/lfp/total/rows", index["datasets"])
-        self.assertEqual(index["datasets"]["/lfp/total/level2"]["shape"], [1, 3, 1025, 2])
+        self.assertNotIn("/lfp/total/level2", index["datasets"])
+        self.assertEqual(index["datasets"]["/lfp/total/level2_chunks"]["shape"], [1, 3, 1, 2])
         verify(h5_path, index)
         with h5py.File(h5_path, "r") as h5:
             rows = h5["lfp/total/rows"][0] * h5["lfp/total/block_scales"][0]
@@ -364,7 +376,9 @@ class TestWriteSummary(unittest.TestCase):
 
         levels = index["axes"][0]["levels"]
         self.assertEqual([level["step"] for level in levels], [1, 16, 64])
-        self.assertEqual(index["datasets"]["/lfp/total/level4"]["shape"], [1, 2, steps // 16, 2])
+        self.assertEqual([level["blocks"]["steps"] for level in levels[1:]], [TILE_BINS, 2048])
+        # 8,192 bins of 16 steps in two tiles
+        self.assertEqual(index["datasets"]["/lfp/total/level4_chunks"]["shape"], [1, 2, 2, 2])
         verify(h5_path, index)
         scale = index["axes"][0]["scales"][0]
         with h5py.File(h5_path, "r") as h5:
@@ -375,6 +389,22 @@ class TestWriteSummary(unittest.TestCase):
                 np.testing.assert_allclose(stored[..., 0], binned.min(-1), atol=scale)
                 np.testing.assert_allclose(stored[..., 1], binned.max(-1), atol=scale)
         self.assertAlmostEqual(scale * 32767, np.abs(total).max(), places=3)
+
+    def test_a_level_past_a_tile_has_its_last_one_padded(self):
+        # Bins of 32 steps: 4,098 of them, a tile and 2
+        steps = MAX_OVERVIEW_STEPS * 64 + 48
+        total, h5_path, index = self.written(steps, contacts=2)
+
+        level = index["axes"][0]["levels"][1]
+        self.assertEqual((level["step"], level["blocks"]["steps"]), (32, TILE_BINS))
+        self.assertEqual(index["datasets"]["/lfp/total/level5_chunks"]["shape"], [1, 2, 2, 2])
+        verify(h5_path, index)
+        scale = index["axes"][0]["scales"][0]
+        with h5py.File(h5_path, "r") as h5:
+            stored = h5["lfp/total/level5"][0, 1] * scale
+        np.testing.assert_allclose(
+            stored[-1], [total[-16:, 1].min(), total[-16:, 1].max()], atol=scale
+        )
 
     def test_a_span_holds_bins_coarser_than_a_block(self):
         steps = MAX_OVERVIEW_STEPS * 64

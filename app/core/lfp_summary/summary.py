@@ -18,7 +18,10 @@ differ on:
                                 steps each, down to MIN_LEVEL_STEPS. A run of MAX_OVERVIEW_STEPS or fewer
                                 has just level0, its values, group x contact x step. Else the total's are
                                 group x contact x bin x 2, the min and the max, and a group's group x
-                                contact x bin, the mean: means of groups add up, as min and max don't
+                                contact x bin, the mean: means of groups add up, as min and max don't.
+                                In chunks of TILE_BINS bins of one contact's (or all of them, where
+                                fewer), as the rows are, found by
+  /lfp/{axis}/level{k}_chunks uint64 group x contact x tile x 2
   /lfp/{axis}/stats      float32 group x contact x len(STATS)
   /lfp/{axis}/psd        float32 group x contact x frequency, Welch, uV^2/Hz, the means over PSD_BANDS
                                 bands
@@ -50,6 +53,8 @@ LEVEL_STEP_BITS = 2
 MIN_LEVEL_STEPS = 16
 # Full-resolution rows are cut in blocks of this many steps, a power of two, so a window is read alone
 BLOCK_STEPS = 1 << 16
+# An overview level's bins are cut in tiles of this many, the unit a window of them is read in
+TILE_BINS = 4096
 STATS = ["min", "max", "ptp", "rms", "mean", "trough_ms"]
 WELCH_SEGMENT = 256
 # Else the index's frequencies and the spectra grow with the run
@@ -611,21 +616,35 @@ def _write_chunks(
     # chunk's filter mask, for the browser to tell apart. A last block is padded to the chunk's
     # length, as HDF5 stores an edge chunk whole.
     assert dataset.chunks
-    length = dataset.chunks[-1]
+    length = dataset.chunks[2]
     if rows.shape[1] < length:
-        rows = np.pad(rows, ((0, 0), (0, length - rows.shape[1])))
+        rows = np.pad(rows, ((0, 0), (0, length - rows.shape[1])) + ((0, 0),) * (rows.ndim - 2))
+    within = (0,) * (rows.ndim - 2)
     for contact, chunk in enumerate(pool.map(deflated_row, rows)):
-        dataset.id.write_direct_chunk((group, contact, start), chunk, 0)
+        dataset.id.write_direct_chunk((group, contact, start, *within), chunk, 0)
+
+
+def _chunked(h5: h5py.File, path: str, shape: tuple[int, ...], length: int) -> h5py.Dataset:
+    """An int16 dataset in chunks of `length` along its third axis, one group's contact's each."""
+    return h5.create_dataset(
+        path,
+        shape,
+        "<i2",
+        chunks=(1, 1, length, *shape[3:]),
+        compression="gzip",
+        compression_opts=DEFLATE_LEVEL,
+        shuffle=True,
+    )
 
 
 def _chunk_table(dataset: h5py.Dataset) -> np.ndarray:
-    groups, contacts, steps = dataset.shape
+    groups, contacts, steps = dataset.shape[:3]
     assert dataset.chunks
-    length = dataset.chunks[-1]
+    length = dataset.chunks[2]
     table = np.zeros((groups, contacts, math.ceil(steps / length), 2), np.uint64)
 
     def note(chunk) -> None:
-        group, contact, start = chunk.chunk_offset
+        group, contact, start = chunk.chunk_offset[:3]
         table[group, contact, start // length] = chunk.byte_offset, chunk.size
 
     dataset.id.chunk_iter(note)
@@ -677,15 +696,7 @@ def _write_axis(
     kind = "value" if ks == [0] else overview_kind
     name = f"lfp/{axis}"
     block_steps = min(BLOCK_STEPS, steps)
-    rows_set = h5.create_dataset(
-        f"{name}/rows",
-        (groups, contacts, steps),
-        "<i2",
-        chunks=(1, 1, block_steps),
-        compression="gzip",
-        compression_opts=DEFLATE_LEVEL,
-        shuffle=True,
-    )
+    rows_set = _chunked(h5, f"{name}/rows", (groups, contacts, steps), block_steps)
     levels: list[dict] = [
         {
             "step": 1,
@@ -702,8 +713,16 @@ def _write_axis(
     for k in ks:
         bins = math.ceil(steps / 2**k)
         shape = (groups, contacts, bins) + ((2,) if kind == "min_max" else ())
-        overviews.append(h5.create_dataset(f"{name}/level{k}", shape, "<i2"))
-        levels.append({"step": 2**k, "kind": kind, "dataset": f"/{name}/level{k}"})
+        tile = min(TILE_BINS, bins)
+        overviews.append(_chunked(h5, f"{name}/level{k}", shape, tile))
+        levels.append(
+            {
+                "step": 2**k,
+                "kind": kind,
+                "dataset": f"/{name}/level{k}",
+                "blocks": {"chunks": f"/{name}/level{k}_chunks", "steps": tile},
+            }
+        )
 
     shares, contact_shares = shares_of_total(fields.values, centred)
     scales, stats, spectra, block_scales = [], [], [], []
@@ -721,10 +740,16 @@ def _write_axis(
         in_uv = _write_blocks(values[:, 0], rows_set, group, kind, ks, scale)
         block_scales.append(np.full((contacts, math.ceil(steps / block_steps)), scale, np.float32))
         scales.append(scale)
-        for overview, level in zip(overviews, in_uv, strict=True):
-            overview[group] = _to_int16(level, scale)
+        with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
+            for overview, level in zip(overviews, in_uv, strict=True):
+                q = _to_int16(level, scale)
+                assert overview.chunks
+                for t in range(0, q.shape[1], overview.chunks[2]):
+                    _write_chunks(overview, pool, group, t, q[:, t : t + overview.chunks[2]])
 
     h5.create_dataset(f"{name}/chunks", data=_chunk_table(rows_set))
+    for k, overview in zip(ks, overviews, strict=True):
+        h5.create_dataset(f"{name}/level{k}_chunks", data=_chunk_table(overview))
     h5.create_dataset(f"{name}/block_scales", data=np.stack(block_scales))
     h5.create_dataset(f"{name}/stats", data=np.stack(stats))
     h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
@@ -805,9 +830,9 @@ def _inflated_row(chunk: bytes) -> np.ndarray:
 
 
 def verify(h5_path: Path, index: dict) -> None:
-    """Every dataset read as raw bytes at its offset equals the dataset; every chunk of the rows of
-    a group's field is where its table says; and the first contact's, and every contact's last,
-    undone as a browser does, equal the rows, the padding zero.
+    """Every dataset read as raw bytes at its offset equals the dataset; every chunk of the rows and
+    of the overview levels of a group's field is where its table says; and the first contact's, and
+    every contact's last, undone as a browser does, equal the dataset, the padding zero.
     """
     raw = np.memmap(h5_path, dtype=np.uint8, mode="r")
     with h5py.File(h5_path, "r") as h5:
@@ -818,21 +843,22 @@ def verify(h5_path: Path, index: dict) -> None:
             if not np.array_equal(view, _dataset(h5, name)[:]):
                 raise AssertionError(f"{name} is not where the index says it is")
         for axis in index["axes"]:
-            level0 = axis["levels"][0]
-            rows = _dataset(h5, level0["dataset"])
-            table = _dataset(h5, level0["blocks"]["chunks"])[:]
-            length = level0["blocks"]["steps"]
-            last = table.shape[2] - 1
-            for group, contact, block in np.ndindex(table.shape[:3]):
-                offset, size = table[group, contact, block].tolist()
-                a = block * length
-                chunk = raw[offset : offset + size].tobytes()
-                there = rows.id.read_direct_chunk((group, contact, a))[1] == chunk
-                if there and (contact == 0 or block == last):
-                    row = rows[group, contact, a : a + length]
-                    read = _inflated_row(chunk)
-                    there = np.array_equal(read[: len(row)], row) and not read[len(row) :].any()
-                if not there:
-                    raise AssertionError(
-                        f"{axis['name']} row {group}, {contact} block {block} is not there"
-                    )
+            for level in axis["levels"]:
+                chunked = _dataset(h5, level["dataset"])
+                table = _dataset(h5, level["blocks"]["chunks"])[:]
+                length = level["blocks"]["steps"]
+                within = (0,) * (chunked.ndim - 3)
+                last = table.shape[2] - 1
+                for group, contact, block in np.ndindex(table.shape[:3]):
+                    offset, size = table[group, contact, block].tolist()
+                    a = block * length
+                    chunk = raw[offset : offset + size].tobytes()
+                    there = chunked.id.read_direct_chunk((group, contact, a, *within))[1] == chunk
+                    if there and (contact == 0 or block == last):
+                        row = chunked[group, contact, a : a + length].ravel()
+                        read = _inflated_row(chunk)
+                        there = np.array_equal(read[: len(row)], row) and not read[len(row) :].any()
+                    if not there:
+                        raise AssertionError(
+                            f"{level['dataset']} {group}, {contact} block {block} is not there"
+                        )

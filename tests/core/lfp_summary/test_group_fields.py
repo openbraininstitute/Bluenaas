@@ -351,13 +351,16 @@ class TestWriteGroupFields(unittest.TestCase):
                         "scales": "/lfp/mtype/block_scales",
                     },
                 },
-                {"step": 4, "kind": "mean", "dataset": "/lfp/mtype/level2"},
+                {
+                    "step": 4,
+                    "kind": "mean",
+                    "dataset": "/lfp/mtype/level2",
+                    "blocks": {"chunks": "/lfp/mtype/level2_chunks", "steps": MAX_OVERVIEW_STEPS},
+                },
             ],
         )
         self.assertNotIn("/lfp/mtype/rows", index["datasets"])
-        self.assertEqual(
-            index["datasets"]["/lfp/mtype/level2"]["shape"], [2, 3, MAX_OVERVIEW_STEPS]
-        )
+        self.assertEqual(index["datasets"]["/lfp/mtype/level2_chunks"]["shape"], [2, 3, 1, 2])
         self.assertEqual(index["datasets"]["/lfp/mtype/chunks"]["shape"], [2, 3, 1, 2])
         self.assertEqual(index["datasets"]["/lfp/mtype/chunks"]["dtype"], "<u8")
         self.assertEqual(index["datasets"]["/lfp/mtype/block_scales"]["shape"], [2, 3, 1])
@@ -392,10 +395,15 @@ class TestWriteGroupFields(unittest.TestCase):
                         "scales": "/lfp/mtype/block_scales",
                     },
                 },
-                {"step": 1, "kind": "value", "dataset": "/lfp/mtype/level0"},
+                {
+                    "step": 1,
+                    "kind": "value",
+                    "dataset": "/lfp/mtype/level0",
+                    "blocks": {"chunks": "/lfp/mtype/level0_chunks", "steps": 50},
+                },
             ],
         )
-        self.assertEqual(index["datasets"]["/lfp/mtype/level0"]["shape"], [2, 3, 50])
+        self.assertEqual(index["datasets"]["/lfp/mtype/level0_chunks"]["shape"], [2, 3, 1, 2])
         self.assertEqual(index["datasets"]["/lfp/mtype/chunks"]["shape"], [2, 3, 1, 2])
         verify(self.h5_path, index)
         with h5py.File(self.h5_path, "r") as h5:
