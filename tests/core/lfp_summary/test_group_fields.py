@@ -366,8 +366,9 @@ class TestWriteGroupFields(unittest.TestCase):
             row = h5["lfp/mtype/rows"][1, 2]
             means = h5["lfp/mtype/level2"][1, 2]
             row_scale = h5["lfp/mtype/block_scales"][1, 2, 0]
-        np.testing.assert_allclose(row * row_scale, values[:, 1, 2], atol=row_scale)
         scale = axis["scales"][1]
+        self.assertEqual(row_scale, np.float32(scale))
+        np.testing.assert_allclose(row * scale, values[:, 1, 2], atol=scale)
         # The rows' peak, not the means', so a block brought to it fits in int16
         self.assertAlmostEqual(scale * 32767, float(np.abs(values[:, 1]).max()), places=3)
         np.testing.assert_allclose(
@@ -402,8 +403,9 @@ class TestWriteGroupFields(unittest.TestCase):
             block = h5["lfp/mtype/rows"][0, 1]
             block_scale = h5["lfp/mtype/block_scales"][0, 1, 0]
         scale = axis["scales"][0]
+        self.assertEqual(block_scale, np.float32(scale))
         np.testing.assert_allclose(row * scale, values[:, 0, 1], atol=scale)
-        np.testing.assert_allclose(block * block_scale, values[:, 0, 1], atol=block_scale)
+        np.testing.assert_array_equal(block, row)
 
     def test_a_silent_group_is_written_and_read_back(self):
         values = np.zeros((MAX_OVERVIEW_STEPS * 2, 2, 2), np.float32)

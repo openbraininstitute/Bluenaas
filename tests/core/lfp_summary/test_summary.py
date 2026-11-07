@@ -333,7 +333,7 @@ class TestWriteSummary(unittest.TestCase):
     def written(self, steps: int, contacts: int = 3, block_steps: int = summary.BLOCK_STEPS):
         rng = np.random.default_rng(2)
         t = np.arange(steps)[:, None]
-        # Louder over time, so each block has a scale of its own
+        # Louder over time, so a block's peak is not the run's
         total = rng.normal(0, 1, (steps, contacts)) * (1 + t / 100) + np.arange(contacts)
         report = SummedReport(populations=["pop"], start=0.0, dt=0.025, total=total, fields={})
         h5_path = self.dir / "summary.h5"
@@ -341,7 +341,7 @@ class TestWriteSummary(unittest.TestCase):
             index = write_summary(report, h5_path, version=2, source={})
         return total, h5_path, index
 
-    def test_rows_in_blocks_each_to_its_own_scales(self):
+    def test_rows_in_blocks_at_the_group_scale(self):
         steps = MAX_OVERVIEW_STEPS * 2 + 1
         total, h5_path, index = self.written(steps, block_steps=256)
 
@@ -353,13 +353,10 @@ class TestWriteSummary(unittest.TestCase):
         with h5py.File(h5_path, "r") as h5:
             rows = h5["lfp/total/rows"][0]
             block_scales = h5["lfp/total/block_scales"][0]
-        self.assertGreater(block_scales[0, 15], block_scales[0, 0] * 2)
-        for block in range(17):
-            a, b = block * 256, min(steps, (block + 1) * 256)
-            scale = block_scales[:, block : block + 1]
-            np.testing.assert_allclose(
-                rows[:, a:b] * scale, total[a:b].T, atol=float(scale.max()) * 0.51
-            )
+        # The viewer brings every block to the group's scale: finer is bytes it throws away
+        scale = index["axes"][0]["scales"][0]
+        np.testing.assert_array_equal(block_scales, np.full((3, 17), scale, np.float32))
+        np.testing.assert_allclose(rows * scale, total.T, atol=scale * 0.51)
 
     def test_levels_from_the_finest_to_the_coarsest(self):
         steps = MAX_OVERVIEW_STEPS * 64

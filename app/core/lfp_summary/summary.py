@@ -8,10 +8,11 @@ differ on:
   /lfp/{axis}/rows       int16  group x contact x step, in chunks of BLOCK_STEPS of one contact's row
                                 (or the whole row, where shorter), the last one padded with zeros, each
                                 shuffled and deflated, value = raw * block_scales[group, contact, block]
-                                uV. Not listed in the index's datasets, as a chunked dataset has no one
-                                offset: its chunks are found by
+                                uV, each block at its group's scale. Not listed in the index's datasets,
+                                as a chunked dataset has no one offset: its chunks are found by
   /lfp/{axis}/chunks     uint64 group x contact x block x 2, each chunk's byte offset and size in the file
-  /lfp/{axis}/block_scales float32 group x contact x block
+  /lfp/{axis}/block_scales float32 group x contact x block: the group's scale, as the viewer brings
+                                every block to it
   /lfp/{axis}/level{k}   int16  an overview, value = raw * scale[group] uV, over bins of 2**k steps: the
                                 coarsest under MAX_OVERVIEW_STEPS bins, and finer ones at a quarter of the
                                 steps each, down to MIN_LEVEL_STEPS. A run of MAX_OVERVIEW_STEPS or fewer
@@ -603,15 +604,6 @@ def deflated_row(row: np.ndarray) -> bytes:
     return zlib.compress(shuffled.tobytes(), DEFLATE_LEVEL)
 
 
-def quantize_block(block: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """int16 with one scale per contact: contact x step -> the same, the scales as float32, and
-    the peaks.
-    """
-    peak = np.abs(block).max(axis=1).astype(np.float64)
-    scales = _scales_of(peak).astype(np.float32)
-    return _to_int16(block, scales[:, None].astype(np.float64)), scales, peak
-
-
 def _write_chunks(
     dataset: h5py.Dataset, pool: ThreadPoolExecutor, group: int, start: int, rows: np.ndarray
 ) -> None:
@@ -641,11 +633,10 @@ def _chunk_table(dataset: h5py.Dataset) -> np.ndarray:
 
 
 def _write_blocks(
-    values: np.ndarray, rows_set: h5py.Dataset, group: int, kind: str, ks
-) -> tuple[list[np.ndarray], np.ndarray, float]:
-    """One group's rows in blocks, each to its own scales: its overview levels in uV, finest first,
-    the blocks' scales, contact x block, and the rows' peak. Taken a span of steps at a time that
-    holds whole blocks and whole bins of every level.
+    values: np.ndarray, rows_set: h5py.Dataset, group: int, kind: str, ks, scale: float
+) -> list[np.ndarray]:
+    """One group's rows in blocks at its scale: its overview levels in uV, finest first. Taken a
+    span of steps at a time that holds whole blocks and whole bins of every level.
     """
     steps, contacts = values.shape
     span = max(BLOCK_STEPS, 2 ** ks[-1])
@@ -657,8 +648,6 @@ def _write_blocks(
         )
         for k in ks
     ]
-    scales = np.empty((contacts, math.ceil(steps / BLOCK_STEPS)), np.float32)
-    peak = 0.0
     with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
         for a in range(0, steps, span):
             rows = np.ascontiguousarray(values[a : a + span].T)
@@ -666,11 +655,9 @@ def _write_blocks(
                 binned = OVERVIEWS[kind](rows, k)
                 level[:, a >> k : (a >> k) + binned.shape[1]] = binned
             for b in range(0, rows.shape[1], BLOCK_STEPS):
-                q, block_scales, block_peaks = quantize_block(rows[:, b : b + BLOCK_STEPS])
-                scales[:, (a + b) // BLOCK_STEPS] = block_scales
-                peak = max(peak, float(block_peaks.max()))
+                q = _to_int16(rows[:, b : b + BLOCK_STEPS], scale)
                 _write_chunks(rows_set, pool, group, a + b, q)
-    return in_uv, scales, peak
+    return in_uv
 
 
 OVERVIEWS = {"min_max": min_max_level, "mean": mean_level, "value": lambda rows, k: rows}
@@ -728,10 +715,11 @@ def _write_axis(
         psd, fine = welch(values, report.dt)
         band_psd, frequencies = log_bands(psd[0], fine)
         spectra.append(band_psd)
-        # To the peak of the rows, not of the levels: a block read at this scale fits in int16
-        in_uv, group_block_scales, peak = _write_blocks(values[:, 0], rows_set, group, kind, ks)
-        block_scales.append(group_block_scales)
-        scale = float(_scales_of(peak))
+        # To the peak of the rows, not of the levels'. As float32, so the block scales are the same
+        peak = max(float(values.max()), -float(values.min()))
+        scale = float(np.float32(_scales_of(peak)))
+        in_uv = _write_blocks(values[:, 0], rows_set, group, kind, ks, scale)
+        block_scales.append(np.full((contacts, math.ceil(steps / block_steps)), scale, np.float32))
         scales.append(scale)
         for overview, level in zip(overviews, in_uv, strict=True):
             overview[group] = _to_int16(level, scale)
