@@ -7,16 +7,15 @@ Each axis is written alike: "total", with its one group, and each of GROUP_COLUM
 differ on:
   /lfp/{axis}/rows       int16  group x contact x step, in chunks of BLOCK_STEPS of one contact's row
                                 (or the whole row, where shorter), the last one padded with zeros, each
-                                shuffled and deflated, value = raw * block_scales[group, contact, block]
-                                uV, each block at its group's scale. Each block holds its residuals of
+                                shuffled and deflated, value = raw * scale[group] uV (or raw *
+                                block_scales[group, contact, block], where a writer that can't know the
+                                peak up front gives them; this one doesn't). Each block holds its residuals of
                                 the order in block_predictors: 0 the values, 1 each less the one before
                                 (the first less 0), 2 that again, over the padded block, wrapping as
                                 int16 does; added up as many times, they are the values. Not listed in
                                 the index's datasets, as a chunked dataset has no one offset: its chunks
                                 are found by
   /lfp/{axis}/chunks     uint64 group x contact x block x 2, each chunk's byte offset and size in the file
-  /lfp/{axis}/block_scales float32 group x contact x block: the group's scale, as the viewer brings
-                                every block to it
   /lfp/{axis}/block_predictors uint8 group x contact x block, whichever order deflates smallest
   /lfp/{axis}/level{k}   int16  an overview, value = raw * scale[group] uV, over bins of 2**k steps: the
                                 coarsest under MAX_OVERVIEW_STEPS bins, and finer ones at a quarter of the
@@ -442,12 +441,12 @@ def sum_report(
     )
 
 
-def _scales_of(peak: np.ndarray | float) -> np.ndarray:
-    return np.where(peak > 0, peak / 32767, 1.0)
+def _scale_of(peak: float) -> float:
+    return peak / 32767 if peak > 0 else 1.0
 
 
-def _to_int16(values: np.ndarray, scales: np.ndarray | float) -> np.ndarray:
-    q = np.divide(values, scales, dtype=np.float64)
+def _to_int16(values: np.ndarray, scale: float) -> np.ndarray:
+    q = np.divide(values, scale, dtype=np.float64)
     np.round(q, out=q)
     np.clip(q, -32767, 32767, out=q)
     return q.astype(np.int16)
@@ -631,9 +630,16 @@ def undo_residuals(row: np.ndarray, order: int) -> np.ndarray:
 
 def predicted_row(row: np.ndarray) -> tuple[int, bytes]:
     """A row as the residuals of the order that deflate smallest: the order, and the chunk."""
-    chunks = [deflated_row(residuals(row, order)) for order in range(PREDICTOR_ORDERS)]
+    candidates = [row]
+    for _ in range(1, PREDICTOR_ORDERS):
+        candidates.append(residuals(candidates[-1], 1))
+    chunks = [deflated_row(candidate) for candidate in candidates]
     order = min(range(PREDICTOR_ORDERS), key=lambda o: len(chunks[o]))
     return order, chunks[order]
+
+
+def unpredicted_row(row: np.ndarray) -> tuple[int, bytes]:
+    return 0, deflated_row(row)
 
 
 def _write_chunks(
@@ -641,23 +647,28 @@ def _write_chunks(
     pool: ThreadPoolExecutor,
     group: int,
     start: int,
-    rows: np.ndarray,
-    predicted: bool = False,
-) -> list[int]:
-    """Each contact's chunk at `start`; the order of its residuals, if `predicted`."""
+    values: np.ndarray,
+    scale: float,
+    encode: Callable[[np.ndarray], tuple[int, bytes]] = unpredicted_row,
+) -> np.ndarray:
+    """Contacts' values from `start` in uV, chunk by chunk, to the group's scale: each chunk's
+    order of prediction, contact x chunk.
+    """
     # Written deflated, or HDF5 would keep a row that doesn't shrink as it is and flag it in the
     # chunk's filter mask, for the browser to tell apart. A last block is padded to the chunk's
     # length, as HDF5 stores an edge chunk whole, and predicted with its padding.
     assert dataset.chunks
     length = dataset.chunks[2]
-    if rows.shape[1] < length:
-        rows = np.pad(rows, ((0, 0), (0, length - rows.shape[1])) + ((0, 0),) * (rows.ndim - 2))
-    within = (0,) * (rows.ndim - 2)
-    encode = predicted_row if predicted else lambda row: (0, deflated_row(row))
-    orders = []
-    for contact, (order, chunk) in enumerate(pool.map(encode, rows)):
-        dataset.id.write_direct_chunk((group, contact, start, *within), chunk, 0)
-        orders.append(order)
+    within = (0,) * (values.ndim - 2)
+    orders = np.empty((values.shape[0], math.ceil(values.shape[1] / length)), np.uint8)
+    for c, a in enumerate(range(0, values.shape[1], length)):
+        rows = _to_int16(values[:, a : a + length], scale)
+        if rows.shape[1] < length:
+            pad = ((0, 0), (0, length - rows.shape[1])) + ((0, 0),) * len(within)
+            rows = np.pad(rows, pad)
+        for contact, (order, chunk) in enumerate(pool.map(encode, rows)):
+            dataset.id.write_direct_chunk((group, contact, start + a, *within), chunk, 0)
+            orders[contact, c] = order
     return orders
 
 
@@ -689,7 +700,13 @@ def _chunk_table(dataset: h5py.Dataset) -> np.ndarray:
 
 
 def _write_blocks(
-    values: np.ndarray, rows_set: h5py.Dataset, group: int, kind: str, ks, scale: float
+    values: np.ndarray,
+    rows_set: h5py.Dataset,
+    pool: ThreadPoolExecutor,
+    group: int,
+    kind: str,
+    ks,
+    scale: float,
 ) -> tuple[list[np.ndarray], np.ndarray]:
     """One group's rows in blocks at its scale: its overview levels in uV, finest first, and each
     block's order of prediction, contact x block. Taken a span of steps at a time that holds whole
@@ -705,18 +722,14 @@ def _write_blocks(
         )
         for k in ks
     ]
-    orders = np.empty((contacts, math.ceil(steps / BLOCK_STEPS)), np.uint8)
-    with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
-        for a in range(0, steps, span):
-            rows = np.ascontiguousarray(values[a : a + span].T)
-            for level, k in zip(in_uv, ks, strict=True):
-                binned = OVERVIEWS[kind](rows, k)
-                level[:, a >> k : (a >> k) + binned.shape[1]] = binned
-            for b in range(0, rows.shape[1], BLOCK_STEPS):
-                q = _to_int16(rows[:, b : b + BLOCK_STEPS], scale)
-                block = (a + b) // BLOCK_STEPS
-                orders[:, block] = _write_chunks(rows_set, pool, group, a + b, q, predicted=True)
-    return in_uv, orders
+    orders = []
+    for a in range(0, steps, span):
+        rows = np.ascontiguousarray(values[a : a + span].T)
+        for level, k in zip(in_uv, ks, strict=True):
+            binned = OVERVIEWS[kind](rows, k)
+            level[:, a >> k : (a >> k) + binned.shape[1]] = binned
+        orders.append(_write_chunks(rows_set, pool, group, a, rows, scale, predicted_row))
+    return in_uv, np.concatenate(orders, axis=1)
 
 
 OVERVIEWS = {"min_max": min_max_level, "mean": mean_level, "value": lambda rows, k: rows}
@@ -745,7 +758,6 @@ def _write_axis(
             "blocks": {
                 "chunks": f"/{name}/chunks",
                 "steps": block_steps,
-                "scales": f"/{name}/block_scales",
                 "predictors": f"/{name}/block_predictors",
             },
         }
@@ -766,33 +778,27 @@ def _write_axis(
         )
 
     shares, contact_shares = shares_of_total(fields.values, centred)
-    scales, stats, spectra, block_scales, block_predictors = [], [], [], [], []
+    scales, stats, spectra, block_predictors = [], [], [], []
     frequencies = np.zeros(0)
-    for group in range(groups):
-        # One group at a time: a segment of the spectra over all of them could take tens of GB
-        values = fields.values[:, group : group + 1, :]
-        stats.append(contact_stats(values, report.start, report.dt)[0])
-        psd, fine = welch(values, report.dt)
-        band_psd, frequencies = log_bands(psd[0], fine)
-        spectra.append(band_psd)
-        # To the peak of the rows, not of the levels'. As float32, so the block scales are the same
-        peak = max(float(values.max()), -float(values.min()))
-        scale = float(np.float32(_scales_of(peak)))
-        in_uv, orders = _write_blocks(values[:, 0], rows_set, group, kind, ks, scale)
-        block_predictors.append(orders)
-        block_scales.append(np.full((contacts, math.ceil(steps / block_steps)), scale, np.float32))
-        scales.append(scale)
-        with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
+    with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
+        for group in range(groups):
+            # One group at a time: a segment of the spectra over all of them could take tens of GB
+            values = fields.values[:, group : group + 1, :]
+            stats.append(contact_stats(values, report.start, report.dt)[0])
+            psd, fine = welch(values, report.dt)
+            band_psd, frequencies = log_bands(psd[0], fine)
+            spectra.append(band_psd)
+            # To the peak of the rows, not of the levels', from their min and max
+            scale = _scale_of(max(float(stats[-1][:, 1].max()), -float(stats[-1][:, 0].min())))
+            scales.append(scale)
+            in_uv, orders = _write_blocks(values[:, 0], rows_set, pool, group, kind, ks, scale)
+            block_predictors.append(orders)
             for overview, level in zip(overviews, in_uv, strict=True):
-                q = _to_int16(level, scale)
-                assert overview.chunks
-                for t in range(0, q.shape[1], overview.chunks[2]):
-                    _write_chunks(overview, pool, group, t, q[:, t : t + overview.chunks[2]])
+                _write_chunks(overview, pool, group, 0, level, scale)
 
     h5.create_dataset(f"{name}/chunks", data=_chunk_table(rows_set))
     for k, overview in zip(ks, overviews, strict=True):
         h5.create_dataset(f"{name}/level{k}_chunks", data=_chunk_table(overview))
-    h5.create_dataset(f"{name}/block_scales", data=np.stack(block_scales))
     h5.create_dataset(f"{name}/block_predictors", data=np.stack(block_predictors))
     h5.create_dataset(f"{name}/stats", data=np.stack(stats))
     h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
@@ -891,7 +897,7 @@ def verify(h5_path: Path, index: dict) -> None:
                 table = _dataset(h5, level["blocks"]["chunks"])[:]
                 length = level["blocks"]["steps"]
                 predictors = level["blocks"].get("predictors")
-                orders = _dataset(h5, predictors)[:] if predictors else np.zeros(table.shape[:3])
+                orders = _dataset(h5, predictors)[:] if predictors else None
                 within = (0,) * (chunked.ndim - 3)
                 last = table.shape[2] - 1
                 for group, contact, block in np.ndindex(table.shape[:3]):
@@ -902,7 +908,8 @@ def verify(h5_path: Path, index: dict) -> None:
                     if there and (contact == 0 or block == last):
                         stored = chunked[group, contact, a : a + length].ravel()
                         read = _inflated_row(chunk)
-                        values = undo_residuals(read, int(orders[group, contact, block]))
+                        order = 0 if orders is None else int(orders[group, contact, block])
+                        values = undo_residuals(read, order)
                         there = (
                             np.array_equal(read[: len(stored)], stored)
                             and not values[len(stored) :].any()

@@ -18,6 +18,7 @@ from app.core.lfp_summary.summary import (
     GroupFields,
     OverMemoryError,
     SummedReport,
+    _inflated_row,
     deflated_row,
     predicted_row,
     residuals,
@@ -312,9 +313,7 @@ class TestTheNumbers(unittest.TestCase):
         self.assertEqual(predicted_row(smooth)[0], 2)
         self.assertEqual(predicted_row(noise)[0], 0)
         order, chunk = predicted_row(smooth)
-        shuffled = np.frombuffer(zlib.decompress(chunk), np.uint8)
-        stored = shuffled.reshape(2, -1).T.ravel().view("<i2")
-        np.testing.assert_array_equal(undo_residuals(stored, order), smooth)
+        np.testing.assert_array_equal(undo_residuals(_inflated_row(chunk), order), smooth)
 
     def test_a_deflated_row_is_what_hdf5_filters_undo(self):
         row = np.array([1, -2, 300, -32768, 32767], np.int16)
@@ -371,7 +370,6 @@ class TestWriteGroupFields(unittest.TestCase):
                     "blocks": {
                         "chunks": "/lfp/mtype/chunks",
                         "steps": MAX_OVERVIEW_STEPS * 4,
-                        "scales": "/lfp/mtype/block_scales",
                         "predictors": "/lfp/mtype/block_predictors",
                     },
                 },
@@ -387,15 +385,13 @@ class TestWriteGroupFields(unittest.TestCase):
         self.assertEqual(index["datasets"]["/lfp/mtype/level2_chunks"]["shape"], [2, 3, 1, 2])
         self.assertEqual(index["datasets"]["/lfp/mtype/chunks"]["shape"], [2, 3, 1, 2])
         self.assertEqual(index["datasets"]["/lfp/mtype/chunks"]["dtype"], "<u8")
-        self.assertEqual(index["datasets"]["/lfp/mtype/block_scales"]["shape"], [2, 3, 1])
+        self.assertNotIn("/lfp/mtype/block_scales", index["datasets"])
         with h5py.File(self.h5_path, "r") as h5:
             self.assertEqual(h5["lfp/mtype/rows"].chunks, (1, 1, MAX_OVERVIEW_STEPS * 4))
             order = h5["lfp/mtype/block_predictors"][1, 2, 0]
             row = undo_residuals(h5["lfp/mtype/rows"][1, 2], int(order))
             means = h5["lfp/mtype/level2"][1, 2]
-            row_scale = h5["lfp/mtype/block_scales"][1, 2, 0]
         scale = axis["scales"][1]
-        self.assertEqual(row_scale, np.float32(scale))
         np.testing.assert_allclose(row * scale, values[:, 1, 2], atol=scale)
         # The rows' peak, not the means', so a block brought to it fits in int16
         self.assertAlmostEqual(scale * 32767, float(np.abs(values[:, 1]).max()), places=3)
@@ -417,7 +413,6 @@ class TestWriteGroupFields(unittest.TestCase):
                     "blocks": {
                         "chunks": "/lfp/mtype/chunks",
                         "steps": 50,
-                        "scales": "/lfp/mtype/block_scales",
                         "predictors": "/lfp/mtype/block_predictors",
                     },
                 },
@@ -436,9 +431,7 @@ class TestWriteGroupFields(unittest.TestCase):
             row = h5["lfp/mtype/level0"][0, 1]
             order = h5["lfp/mtype/block_predictors"][0, 1, 0]
             block = undo_residuals(h5["lfp/mtype/rows"][0, 1], int(order))
-            block_scale = h5["lfp/mtype/block_scales"][0, 1, 0]
         scale = axis["scales"][0]
-        self.assertEqual(block_scale, np.float32(scale))
         np.testing.assert_allclose(row * scale, values[:, 0, 1], atol=scale)
         np.testing.assert_array_equal(block, row)
 

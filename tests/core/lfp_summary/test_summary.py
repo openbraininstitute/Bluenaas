@@ -283,7 +283,6 @@ class TestWriteSummary(unittest.TestCase):
                     "blocks": {
                         "chunks": "/lfp/total/chunks",
                         "steps": 50,
-                        "scales": "/lfp/total/block_scales",
                         "predictors": "/lfp/total/block_predictors",
                     },
                 },
@@ -318,7 +317,6 @@ class TestWriteSummary(unittest.TestCase):
                     "blocks": {
                         "chunks": "/lfp/total/chunks",
                         "steps": MAX_OVERVIEW_STEPS * 2 + 1,
-                        "scales": "/lfp/total/block_scales",
                         "predictors": "/lfp/total/block_predictors",
                     },
                 },
@@ -340,7 +338,7 @@ class TestWriteSummary(unittest.TestCase):
             stored = np.stack(
                 [undo_residuals(r, o) for r, o in zip(residuals, orders, strict=True)]
             )
-            rows = stored * h5["lfp/total/block_scales"][0]
+            rows = stored * index["axes"][0]["scales"][0]
             overview = h5["lfp/total/level2"][0]
         np.testing.assert_allclose(rows.T, expected, atol=np.abs(expected).max() / 32767)
         scale = index["axes"][0]["scales"][0]
@@ -372,11 +370,11 @@ class TestWriteSummary(unittest.TestCase):
         verify(h5_path, index)
         with h5py.File(h5_path, "r") as h5:
             residuals = h5["lfp/total/rows"][0]
-            block_scales = h5["lfp/total/block_scales"][0]
             orders = h5["lfp/total/block_predictors"][0]
-        # The viewer brings every block to the group's scale: finer is bytes it throws away
+            # No scales of their own: the viewer brings every block to the group's, finer is bytes
+            # it throws away
+            self.assertNotIn("block_scales", h5["lfp/total"])
         scale = index["axes"][0]["scales"][0]
-        np.testing.assert_array_equal(block_scales, np.full((3, 17), scale, np.float32))
         for block in range(17):
             a = block * 256
             for contact in range(3):
