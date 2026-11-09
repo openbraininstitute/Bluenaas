@@ -40,8 +40,8 @@ def _holds_key(keys: jwk.JWKSet, token: str) -> bool:
 
 
 class SigningKeys:
-    """Keycloak's keys that tokens are signed with, fetched once in a while rather than for every
-    request.
+    """Keycloak's keys that tokens are signed with, fetched again after SIGNING_KEYS_SECONDS or for
+    a token of a key it doesn't hold, and at most every SIGNING_KEYS_REFRESH_SECONDS.
     """
 
     def __init__(self):

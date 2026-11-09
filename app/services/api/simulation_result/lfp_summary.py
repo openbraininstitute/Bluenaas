@@ -70,8 +70,8 @@ def _not_found(message: str) -> AppError:
 
 
 class AccessFound:
-    """The reports users were found to have access to lately, by their token and project, as
-    entitycore answers. Access taken away is seen once the entry is gone.
+    """The reports users were found to have access to in the last ACCESS_SECONDS, by their token and
+    project, as entitycore answers. Access taken away is seen once the entry is gone.
     """
 
     def __init__(self):
@@ -258,7 +258,9 @@ def nodes_files(config: dict) -> dict[str, str]:
 
 
 def _may_pass(ex: Exception) -> bool:
-    """Whether entitycore failed to answer, and so may yet, rather than having nothing to give."""
+    """Whether entitycore failed to answer, with a server error or none, and so may yet. A client
+    error such as a 404 says it has nothing to give.
+    """
     if isinstance(ex, AppError):
         return ex.http_status_code != HTTPStatus.NOT_FOUND
     cause = ex.__cause__

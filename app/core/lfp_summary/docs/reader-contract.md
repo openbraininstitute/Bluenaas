@@ -24,7 +24,7 @@ The LFP viewer reads summaries in TypeScript, in core-web-app's `src/features/lf
   - The viewer opens on the coarsest level, read whole for every contact, so it must stay small: 2,048 bins at most.
   - For a window, it draws the coarsest level with a bin a pixel or more, else the full rows.
 - **The total as the first axis, with one group.** It holds the correlation.
-- **A group's overview as means.** Several groups chosen together are drawn as their sum, added up from their means. Min and max would not add up.
+- **A group's overview as means.** Several groups chosen together are drawn as their sum, added up from their means.
 - **The stats columns found by name,** in the index's `stats`. A column the viewer does not know is not shown.
 - **`multipart/byteranges` answers.** The viewer reads a view's ranges in one request, so with one check of the user's access.
   - Ranges that touch or overlap are merged first.

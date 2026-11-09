@@ -28,7 +28,7 @@ def cell_labels(
             column = columns.get(name)
             if not isinstance(column, h5py.Dataset):
                 continue
-            # Text columns are usually indices into their library
+            # SONATA stores most text columns as indices into their @library
             library = columns.get(f"@library/{name}")
             values = column[:][node_ids]
             labels[name] = (

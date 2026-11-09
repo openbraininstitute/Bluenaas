@@ -430,7 +430,7 @@ def overview_level(steps: int) -> int:
 
 
 def overview_levels(steps: int) -> list[int]:
-    """The k of each overview level, finest first: just 0, the values, where they are under the size."""
+    """The k of each overview level, finest first: only 0, the values, for a run of MAX_OVERVIEW_STEPS or fewer."""
     levels = [overview_level(steps)]
     while 2 ** (levels[0] - LEVEL_STEP_BITS) >= MIN_LEVEL_STEPS:
         levels.insert(0, levels[0] - LEVEL_STEP_BITS)

@@ -9,7 +9,7 @@ It holds the total field, and the field of each group of cells by m-type, e-type
 - per contact, the statistics, the Welch spectrum in up to 128 bands, and each group's share of the total's variance;
 - the correlation of the total between contacts.
 
-A report of 151 GB is a summary of 195.4 MB.
+The 151 GB report in [Sizes and times](#sizes-and-times) has a summary of 195.4 MB.
 
 ## Who writes and reads it
 
@@ -65,7 +65,7 @@ In Bluenaas, the first time a viewer asks for it. The routes, under `/simulation
 - **`GET`** serves the h5, 206 for a `Range`, `multipart/byteranges` for several. **`GET …/index`** serves the index.
   - Both have the summary's SHA-256 digest as their `ETag`, and answer 412 to an `If-Match` that is not the current summary's.
   - Neither queues a build.
-- All three check that the user can read the result and the report first: the cache is shared by everyone. A user's access is kept 60 s, by their token and the project.
+- All three check that the user can read the result and the report first, as one cache serves every user. A user's access is kept 60 s, by their token and the project.
 
 A report is summarised where its asset is labelled `lfp_report`, or `voltage_report` with an entry in the simulation's SONATA config of type `lfp`.
 
@@ -122,7 +122,7 @@ A build that fails is retried once, then reported `failed` for an hour. A build 
 | A block as residuals of order 0, 1 or 2 | LFP is smooth, so differences deflate smaller. The order is picked per block, whichever deflates smallest |
 | Overviews at 4 times the steps, coarsest under 2,048 bins | Any zoom has a level with about one bin a pixel. The coarsest is read whole when the viewer opens |
 | Levels in tiles of 4,096 bins | A zoom reads only the tiles in view |
-| The total's levels as min and max, a group's as means | Min and max keep the total's peaks. Means of groups add up to the mean of their sum, so the viewer can add groups. Min and max don't add up |
+| The total's levels as min and max, a group's as means | Min and max keep the total's peaks, but don't add up across groups. Means do, so the viewer can add groups |
 | Chunk tables | A chunked dataset has no one offset, and HDF5's own index of chunks needs a library to read |
 | Every chunk written deflated | HDF5 stores a chunk that doesn't shrink raw and flags it, which the browser would have to tell apart |
 | Files named by their hash | A rebuild never writes over a file being read. A reader of the old one learns of it by the 412 |
