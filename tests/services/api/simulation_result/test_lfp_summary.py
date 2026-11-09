@@ -779,9 +779,23 @@ class TestSummaryFile(LfpSummaryTestCase):
         info = service.read_summary_info(directory)
         info.path(directory, SUMMARY_FILE_NAME).unlink()
 
-        with patch.object(service, "read_summary_info", return_value=info):
+        replaced = SummaryInfo(size=7, sha256="new")
+
+        with patch.object(service, "read_summary_info", side_effect=[info, replaced]):
             response = service._summary_file_response(
                 asset_id, SUMMARY_FILE_NAME, "application/x-hdf5", etag
             )
 
         self.assertEqual(response.status_code, HTTPStatus.PRECONDITION_FAILED)
+
+    def test_a_file_missing_from_the_summary_still_in_place(self):
+        asset_id = uuid4()
+        etag = self.build(asset_id)
+        directory = self.summary_dir_of(asset_id)
+        info = service.read_summary_info(directory)
+        info.path(directory, SUMMARY_FILE_NAME).unlink()
+
+        with self.assertRaises(AppError) as caught:
+            service._summary_file_response(asset_id, SUMMARY_FILE_NAME, "application/x-hdf5", etag)
+
+        self.assertEqual(caught.exception.http_status_code, HTTPStatus.INTERNAL_SERVER_ERROR)

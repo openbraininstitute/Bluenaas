@@ -596,7 +596,15 @@ def _summary_file_response(
         stat = path.stat()
     except FileNotFoundError:
         # Replaced by a regroup since `info` was read: the status gives the new one
-        return Response(status_code=HTTPStatus.PRECONDITION_FAILED)
+        now = read_summary_info(directory)
+        if now is None or now.sha256 != info.sha256:
+            return Response(status_code=HTTPStatus.PRECONDITION_FAILED)
+        # Else the viewer would read the status, find this one, and ask again without end
+        raise AppError(
+            message="The report's LFP summary is missing its files",
+            error_code=None,
+            http_status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+        ) from None
     return FileResponse(
         path,
         stat_result=stat,
