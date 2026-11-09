@@ -177,7 +177,7 @@ Order 1 keeps each value less the one before. Order 2 does that again. The write
   - its segment is a quarter of the run as a power of two, at least 256 steps and at most 2^16, and at most the run;
   - averaged over 128 bands of equal width on a log axis above 0 Hz, a band with no frequency left out, so there may be fewer;
   - `psd_frequencies` are each band's mean frequency;
-  - a spectrum of 129 frequencies or fewer is kept whole, 0 Hz included.
+  - a spectrum of 129 frequencies or fewer is kept as it is, without its 0 Hz.
 - **`contact_shares`** are a group's covariance with the centred total over the total's variance at each contact.
   - A contact's groups add up to 1.
   - A group working against the rest has a negative share.

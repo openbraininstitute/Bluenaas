@@ -275,14 +275,14 @@ class TestTheNumbers(unittest.TestCase):
 
         np.testing.assert_array_equal(mean_level(rows, 1), [[2, 15, 7]])
 
-    def test_a_short_spectrum_is_left_as_it_is(self):
+    def test_a_short_spectrum_loses_only_its_0_hz(self):
         frequencies = np.arange(PSD_BANDS + 1.0)
-        psd = np.ones((2, PSD_BANDS + 1), np.float32)
+        psd = np.arange(2 * (PSD_BANDS + 1), dtype=np.float32).reshape(2, -1)
 
         bands, centres = log_bands(psd, frequencies)
 
-        self.assertIs(bands, psd)
-        self.assertIs(centres, frequencies)
+        np.testing.assert_array_equal(bands, psd[:, 1:])
+        np.testing.assert_array_equal(centres, frequencies[1:])
 
     def test_bands_keep_the_level_of_a_flat_spectrum(self):
         frequencies = np.arange(4097.0)

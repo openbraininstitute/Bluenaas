@@ -541,7 +541,7 @@ def mean_level(level0: np.ndarray, k: int) -> np.ndarray:
 def log_bands(psd: np.ndarray, frequencies: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """A spectrum's means over PSD_BANDS bands of equal width on a log axis, 0 Hz left out."""
     if len(frequencies) <= PSD_BANDS + 1:
-        return psd, frequencies
+        return psd[..., 1:], frequencies[1:]
     above_zero = frequencies[1:]
     edges = np.geomspace(above_zero[0], above_zero[-1], PSD_BANDS + 1)
     bands = np.minimum(np.searchsorted(edges, above_zero, side="right") - 1, PSD_BANDS - 1)
