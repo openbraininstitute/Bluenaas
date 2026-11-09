@@ -18,7 +18,7 @@ flowchart LR
     report["LFP report<br/>presigned URL"] --> build["summary.sum_report<br/>summary.write_summary"]
     nodes["Nodes files<br/>presigned URLs"] --> build
     build --> cache[("summary.h5<br/>index.json")]
-    cache --> api["GET /simulation-result/{id}/lfp-summary<br/>range reads"]
+    cache --> api["GET /simulation-result/…/lfp-summary<br/>range reads"]
     api --> viewer["LFP viewer in the browser"]
 ```
 
@@ -59,7 +59,7 @@ In Bluenaas, the first time a viewer asks for it. The routes, under `/simulation
 
 - **`POST`** gives the summary's state, and queues a build where there is neither a summary nor a build. The states are:
   - `ready`, with `size` and `sha256`;
-  - `building`, with `queue_position`;
+  - `building`, with `queue_position` once the build is found in its queue;
   - `refused`, with `reason`: `not_lfp_report`, `too_large` or `unreadable`;
   - `failed`.
 - **`GET`** serves the h5, 206 for a `Range`, `multipart/byteranges` for several. **`GET …/index`** serves the index.
@@ -135,7 +135,7 @@ On the 151 GB report: 216 contacts, 30,000 steps at 10 kHz, 27 fields (the total
 | What | Measured |
 | --- | --- |
 | Summary | 195.4 MB, against 293.6 MB with the blocks unpredicted and the levels contiguous |
-| Build, locally | 54 min at 47 MB/s, 6.0 GiB of memory at most |
+| Build, locally | 54 min at 47 MB/s, 6.0 GiB of memory at most, by the writer before blocks were predicted |
 | The groups added up | Within 0.08 µV of the total, against an RMS of 105.7 µV |
 | A view's 64 rows, on staging | About 1 s in one request, against 12.6 s with a request a row |
 

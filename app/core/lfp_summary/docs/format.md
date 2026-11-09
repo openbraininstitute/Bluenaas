@@ -158,7 +158,7 @@ Order 1 keeps each value less the one before. Order 2 does that again. The write
 - **Which levels.**
   - The coarsest is the smallest k at which N / 2^k comes to 2,048 bins or fewer.
   - Finer ones follow at k − 2, k − 4 and so on, while 2^k is 16 steps or more.
-  - A run of 2,048 steps or fewer has one overview, `level0`, its values, of kind `value`.
+  - A run of 2,048 steps or fewer has one overview, `level0`, its values, of kind `value`. Its index then has two levels of `step` 1, the rows and `level0`, as an axis always has the rows and an overview.
 - **A bin** is 2^k steps from step 0, and the last is shorter where N doesn't divide.
   - `min_max` holds its min and its max.
   - `mean` holds its mean, worked out in float64.
@@ -198,4 +198,4 @@ So that summaries already written keep being read, and readers already deployed 
 | Version | Change |
 | --- | --- |
 | 1 | Bluenaas#195. Every dataset contiguous and uncompressed: the total alone, its rows whole as `level0`, overviews of min and max at half the steps each, and the float32 total in V under `/report` |
-| 2 | The groups' fields, `shares`, `contact_shares`, `axes_left_out` and `groups_unavailable`. Rows in blocks of 2^16 steps with their orders, levels in tiles, both found by chunk tables. No `/report` |
+| 2 | The groups' fields, `shares`, `contact_shares`, `axes_left_out` and `groups_unavailable`. Rows in blocks of 2^16 steps with their orders, levels at 4 times the steps each in tiles, both found by chunk tables. Spectra in up to 128 log bands. The correlation at `/lfp/total/correlation`, 1 × C × C, named by the total's `correlation`. No `/report` |
