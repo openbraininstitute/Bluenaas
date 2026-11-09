@@ -82,7 +82,10 @@ class Expiring[T]:
     def get(self, key: tuple) -> T | None:
         with self._lock:
             entry = self._kept.get(key)
-            if entry is None or entry[0] < time.monotonic():
+            if entry is None:
+                return None
+            if entry[0] < time.monotonic():
+                del self._kept[key]
                 return None
             return entry[1]
 

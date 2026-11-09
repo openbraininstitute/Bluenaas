@@ -415,6 +415,16 @@ class TestGetReport(LfpSummaryTestCase):
 
         self.assertEqual(self.get_entity.call_count, 2)
 
+    def test_an_old_entry_is_dropped_once_read(self):
+        kept = service.Expiring()
+        kept.add(("a",), 1, 1)
+
+        later = time.monotonic() + 2
+        with patch.object(service.time, "monotonic", return_value=later):
+            self.assertIsNone(kept.get(("a",)))
+
+        self.assertEqual(len(kept._kept), 0)
+
     def test_not_kept_past_the_token(self):
         self.get(auth=self.auth(expires_in=-1))
         self.get(auth=self.auth(expires_in=-1))
