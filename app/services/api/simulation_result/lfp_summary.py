@@ -354,6 +354,15 @@ def _nodes_urls(
     return NodesFiles({population: urls[path] for population, path in files.items()})
 
 
+def _nodes_of(
+    lfp: LfpReport, simulation_id: UUID, *, access_token: str, project_context: ProjectContext
+) -> NodesFiles:
+    # A summed one has no cells to group, whoever can read its circuit
+    if lfp.summed:
+        return NodesFiles({})
+    return _nodes_urls(simulation_id, access_token=access_token, project_context=project_context)
+
+
 def _regroup_if_readable(
     epoch: str,
     result_id: UUID,
@@ -365,7 +374,7 @@ def _regroup_if_readable(
 ) -> None:
     """Queue the build of a summary again, with its groups, where whoever asked for it first could
     not read its circuit and this user can. It is read as it is until the new one replaces it. A
-    user's answer is kept for REGROUP_CHECK_SECONDS, unless entitycore failed to give it.
+    user who can't is remembered for REGROUP_CHECK_SECONDS, unless entitycore failed to answer.
     """
     key = _user_key(access_token, project_context, report.id)
     if regroup_checked.get(key):
@@ -375,10 +384,9 @@ def _regroup_if_readable(
         job = get_queue(queue).fetch_job(build_job_id(epoch, report.id, queue, regroup=True))
         # A failed one waits out its FAILED_BUILD_TTL, as a failed build does
         if job is not None and job.get_status(refresh=False) in IN_HAND:
-            regroup_checked.add(key, True, REGROUP_CHECK_SECONDS)
             return
     try:
-        _queue_regroup(
+        queued = _queue_regroup(
             epoch,
             result_id,
             simulation_id,
@@ -393,7 +401,10 @@ def _regroup_if_readable(
         )
         if _may_pass(ex):
             return
-    regroup_checked.add(key, True, REGROUP_CHECK_SECONDS)
+        queued = False
+    # Not one who had it queued: a job that ends without building is queued again at the next poll
+    if not queued:
+        regroup_checked.add(key, True, REGROUP_CHECK_SECONDS)
 
 
 def _queue_regroup(
@@ -404,16 +415,18 @@ def _queue_regroup(
     *,
     access_token: str,
     project_context: ProjectContext,
-) -> None:
-    # The circuit first, as most users who can't read it are answered with that alone
-    nodes = _nodes_urls(simulation_id, access_token=access_token, project_context=project_context)
-    if nodes.unavailable is not None:
-        return
+) -> bool:
+    """Whether the regroup was queued: not where the user can't read the circuit."""
     lfp = _lfp_report(
         simulation_id, report, access_token=access_token, project_context=project_context
     )
     if lfp is None:
-        return
+        return False
+    nodes = _nodes_of(
+        lfp, simulation_id, access_token=access_token, project_context=project_context
+    )
+    if nodes.unavailable is not None:
+        return False
     url = _download_url(
         SimulationResult,
         result_id,
@@ -429,9 +442,10 @@ def _queue_regroup(
         asset_id=report.id,
         url=url,
         size=report.size,
-        nodes={} if lfp.summed else nodes.urls,
+        nodes=nodes.urls,
         regroup=True,
     )
+    return True
 
 
 def _ready(info: SummaryInfo) -> LfpSummaryStatus:
@@ -519,10 +533,8 @@ def _get_or_build_summary(
         access_token=access_token,
         project_context=project_context,
     )
-    nodes = (
-        NodesFiles({})
-        if lfp.summed
-        else _nodes_urls(simulation_id, access_token=access_token, project_context=project_context)
+    nodes = _nodes_of(
+        lfp, simulation_id, access_token=access_token, project_context=project_context
     )
     enqueue_build(
         build_queue(report.size),

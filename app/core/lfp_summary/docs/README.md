@@ -108,7 +108,7 @@ A build that fails is retried once, then reported `failed` for an hour. A build 
 - **A circuit the first reader can't read.**
   - The summary is built without groups, with `groups_unavailable: "circuit_not_readable"`.
   - The next `POST` by someone who can read the circuit queues a `regroup` build, and the summary is read as it is meanwhile. A summed report is built again without groups, for the flag to go.
-  - Each user's answer is kept for `REGROUP_CHECK_SECONDS` (5 minutes), unless entitycore failed to give it, so a poll asks entitycore at most that often per user.
+  - A user who can't read the circuit is remembered for `REGROUP_CHECK_SECONDS` (5 minutes) by each API process, which asks entitycore again for that user no sooner. An entitycore failure isn't remembered.
   - The new summary's files are written under its own hash, then `summary.json` points at them, and the old ones are deleted.
   - A viewer holding the old `ETag`, or reading a file deleted since, gets 412 and asks for the status again. The viewer asks every minute while `groups_unavailable` is set.
 

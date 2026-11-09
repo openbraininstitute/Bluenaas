@@ -257,13 +257,17 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.assertEqual(job.kwargs["nodes"], {"pop": NODES_URL})
         self.assertEqual(job.kwargs["url"], URL)
 
-    def test_a_summed_report_is_built_again_without_groups_by_one_who_can_read_its_circuit(self):
+    def test_a_summed_report_is_built_again_without_groups_whoever_can_read_its_circuit(self):
         report = report_of(100)
         self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)
         self.is_lfp_report.return_value = service.LfpReport(summed=True)
+        self.nodes_urls.return_value = service.NodesFiles(
+            {}, GroupsUnavailable.CIRCUIT_NOT_READABLE
+        )
 
         self.assertEqual(self.status_of(report).state, LfpSummaryState.READY)
 
+        self.nodes_urls.assert_not_called()
         self.assertEqual(self.regroup_job_of(report).kwargs["nodes"], {})
 
     def test_a_user_who_can_not_read_it_either_builds_nothing(self):
@@ -275,7 +279,6 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
 
         self.assertEqual(self.status_of(report).state, LfpSummaryState.READY)
 
-        self.is_lfp_report.assert_not_called()
         self.assertIsNone(self.regroup_job_of(report))
 
     def test_a_user_who_can_not_read_it_is_not_asked_again_for_a_while(self):
@@ -316,7 +319,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         # Failed too: it is kept, and tried again only once it has gone
         self.regroup_job_of(report).set_status(JobStatus.FAILED)
 
-        self.status_of(report, token="another")
+        self.status_of(report)
 
         self.assertEqual(self.nodes_urls.call_count, 1)
 
@@ -326,7 +329,8 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.status_of(report)
         self.regroup_job_of(report).set_status(JobStatus.FINISHED)
 
-        self.status_of(report, token="another")
+        # The same user: one who had it queued is not taken for one who can't
+        self.status_of(report)
 
         self.assertEqual(self.nodes_urls.call_count, 2)
 
