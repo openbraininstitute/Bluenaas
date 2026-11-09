@@ -375,6 +375,7 @@ def _regroup_if_readable(
         job = get_queue(queue).fetch_job(build_job_id(epoch, report.id, queue, regroup=True))
         # A failed one waits out its FAILED_BUILD_TTL, as a failed build does
         if job is not None and job.get_status(refresh=False) in IN_HAND:
+            regroup_checked.add(key, True, REGROUP_CHECK_SECONDS)
             return
     try:
         _queue_regroup(
