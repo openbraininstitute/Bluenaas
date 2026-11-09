@@ -1,38 +1,7 @@
 """The summary of a SONATA LFP report, per-cell or summed, in the format the web app's viewer reads.
 
-The summary is one HDF5 file plus a JSON index of its datasets' byte offsets, so a browser reads any
-slice with an HTTP Range request and no HDF5 library. It is made for the browser alone.
-
-Each axis is written alike: "total", with its one group, and each of GROUP_COLUMNS the report's cells
-differ on:
-  /lfp/{axis}/rows       int16  group x contact x step, in chunks of BLOCK_STEPS of one contact's row
-                                (or the whole row, where shorter), the last one padded with zeros, each
-                                shuffled and deflated, value = raw * scale[group] uV (or raw *
-                                block_scales[group, contact, block], where a writer that can't know the
-                                peak up front gives them; this one doesn't). Each block holds its residuals of
-                                the order in block_predictors: 0 the values, 1 each less the one before
-                                (the first less 0), 2 that again, over the padded block, wrapping as
-                                int16 does; added up as many times, they are the values. Not listed in
-                                the index's datasets, as a chunked dataset has no one offset: its chunks
-                                are found by
-  /lfp/{axis}/chunks     uint64 group x contact x block x 2, each chunk's byte offset and size in the file
-  /lfp/{axis}/block_predictors uint8 group x contact x block, whichever order deflates smallest
-  /lfp/{axis}/level{k}   int16  an overview, value = raw * scale[group] uV, over bins of 2**k steps: the
-                                coarsest under MAX_OVERVIEW_STEPS bins, and finer ones at a quarter of the
-                                steps each, down to MIN_LEVEL_STEPS. A run of MAX_OVERVIEW_STEPS or fewer
-                                has just level0, its values, group x contact x step. Else the total's are
-                                group x contact x bin x 2, the min and the max, and a group's group x
-                                contact x bin, the mean: means of groups add up, as min and max don't.
-                                In chunks of TILE_BINS bins of one contact's (or all of them, where
-                                fewer), as the rows are, found by
-  /lfp/{axis}/level{k}_chunks uint64 group x contact x tile x 2
-  /lfp/{axis}/stats      float32 group x contact x len(STATS)
-  /lfp/{axis}/psd        float32 group x contact x frequency, Welch, uV^2/Hz, the means over PSD_BANDS
-                                bands
-  /lfp/{axis}/contact_shares float32 group x contact, the part of the total's variance at each
-                                contact a group makes. They add up to 1 at a contact, as the
-                                index's `shares` over all of them do
-  /lfp/total/correlation int16  group x contact x contact, value = raw / 32767
+One HDF5 file plus a JSON index of its datasets' byte offsets, so a browser reads any slice with an
+HTTP Range request and no HDF5 library. The format is specified in docs/format.md.
 """
 
 import math
