@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 from http import HTTPStatus as status
 from typing import Annotated
 
@@ -8,6 +10,8 @@ from fastapi.security import (
     HTTPBearer,
     OAuth2AuthorizationCodeBearer,
 )
+from jwcrypto import jwk
+from jwcrypto.common import base64url_decode, json_decode
 from loguru import logger
 
 from app.config.settings import settings
@@ -19,6 +23,57 @@ from app.infrastructure.kc.config import kc_auth
 auth_header: HTTPBearer | OAuth2AuthorizationCodeBearer = HTTPBearer(auto_error=False)
 
 KC_SUBJECT: str = f"service-account-{settings.KC_CLIENT_ID}"
+
+# How long Keycloak's signing keys are kept. A key it starts signing with is fetched when first seen.
+SIGNING_KEYS_SECONDS = 10 * 60
+# How often they are fetched again, at most: anyone can send a token of any key, and Keycloak may be
+# down, when the keys held are used meanwhile
+SIGNING_KEYS_REFRESH_SECONDS = 30
+
+
+def _holds_key(keys: jwk.JWKSet, token: str) -> bool:
+    try:
+        kid = json_decode(base64url_decode(token.split(".")[0])).get("kid")
+    except Exception:
+        return True
+    return kid is None or keys.get_key(kid) is not None
+
+
+class SigningKeys:
+    """Keycloak's keys that tokens are signed with, fetched again after SIGNING_KEYS_SECONDS or for
+    a token of a key it doesn't hold, and at most every SIGNING_KEYS_REFRESH_SECONDS.
+    """
+
+    def __init__(self):
+        self._keys: jwk.JWKSet | None = None
+        self._fetched_at = self._tried_at = 0.0
+        self._lock = threading.Lock()
+
+    def for_token(self, token: str) -> jwk.JWKSet:
+        # Fetched outside the lock: while one request waits on Keycloak, the others use the keys held
+        with self._lock:
+            held, now = self._keys, time.monotonic()
+            if held is not None and (
+                now - self._tried_at <= SIGNING_KEYS_REFRESH_SECONDS
+                or (now - self._fetched_at <= SIGNING_KEYS_SECONDS and _holds_key(held, token))
+            ):
+                return held
+            self._tried_at = now
+        try:
+            keys = jwk.JWKSet()
+            for cert in kc_auth.certs()["keys"]:
+                keys.add(jwk.JWK(**cert))
+        except Exception as ex:
+            if held is None:
+                raise
+            logger.warning(f"Keycloak's signing keys could not be fetched: {type(ex).__name__}")
+            return held
+        with self._lock:
+            self._keys, self._fetched_at = keys, now
+        return keys
+
+
+signing_keys = SigningKeys()
 
 
 def get_public_key() -> str:
@@ -33,7 +88,9 @@ def verify_jwt(
 ) -> Auth:
     try:
         access_token = header.credentials
-        decoded_token_dict = kc_auth.decode_token(token=access_token, validate=True)
+        decoded_token_dict = kc_auth.decode_token(
+            token=access_token, validate=True, key=signing_keys.for_token(access_token)
+        )
         decoded_token = DecodedKeycloakToken.model_validate(decoded_token_dict)
         return Auth(
             access_token=access_token,

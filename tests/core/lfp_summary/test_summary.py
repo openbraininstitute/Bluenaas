@@ -11,12 +11,18 @@ import numpy as np
 from app.core.lfp_summary import summary
 from app.core.lfp_summary.summary import (
     MAX_OVERVIEW_STEPS,
+    TILE_BINS,
+    undo_residuals,
     STATS,
+    SummedReport,
     WELCH_MAX_SEGMENT,
+    Centred,
     NotSummarisableError,
     OverMemoryError,
     contact_stats,
     correlation,
+    overview_level,
+    overview_levels,
     peak_bytes,
     sum_report,
     verify,
@@ -215,11 +221,23 @@ class TestTheNumbers(unittest.TestCase):
         self.assertAlmostEqual(float(stats["rms"]), np.sqrt(14 / 4), places=5)
         self.assertEqual(stats["trough_ms"], 10.5)
 
+    def test_the_overview_level_is_where_the_bins_get_under_the_size(self):
+        self.assertEqual(overview_level(MAX_OVERVIEW_STEPS), 0)
+        self.assertEqual(overview_level(MAX_OVERVIEW_STEPS + 1), 1)
+        self.assertEqual(overview_level(30_000), 4)
+
+    def test_finer_levels_at_a_quarter_of_the_steps_down_to_the_least(self):
+        self.assertEqual(overview_levels(MAX_OVERVIEW_STEPS), [0])
+        self.assertEqual(overview_levels(MAX_OVERVIEW_STEPS * 2 + 1), [2])
+        self.assertEqual(overview_levels(30_000), [4])
+        # 300 contacts at 40 kHz for 100 s: bins of 32 to 2,048 steps
+        self.assertEqual(overview_levels(4_000_000), [5, 7, 9, 11])
+
     def test_correlation(self):
         a = np.array([1.0, -1.0, 2.0, -2.0])
         total = np.stack([a, -a, 2 * a, np.zeros(4)], axis=1)
 
-        c = correlation(total)
+        c = correlation(Centred.of(total))
 
         self.assertEqual(list(c[0, :3]), [32767, -32767, 32767])
         # A silent contact has no correlation to give
@@ -254,9 +272,27 @@ class TestWriteSummary(unittest.TestCase):
         self.assertEqual(index["time"], {"start": 0.0, "dt": 0.1, "steps": 50})
         self.assertEqual(index["contacts"], 3)
         self.assertEqual([a["name"] for a in index["axes"]], ["total"])
+        # The rows in one block, and the values themselves for the overview
         self.assertEqual(
             index["axes"][0]["levels"],
-            [{"step": 1, "kind": "value", "dataset": "/lfp/total/level0"}],
+            [
+                {
+                    "step": 1,
+                    "kind": "value",
+                    "dataset": "/lfp/total/rows",
+                    "blocks": {
+                        "chunks": "/lfp/total/chunks",
+                        "steps": 50,
+                        "predictors": "/lfp/total/block_predictors",
+                    },
+                },
+                {
+                    "step": 1,
+                    "kind": "value",
+                    "dataset": "/lfp/total/level0",
+                    "blocks": {"chunks": "/lfp/total/level0_chunks", "steps": 50},
+                },
+            ],
         )
 
     def test_level0_is_the_total_to_its_scale(self):
@@ -267,20 +303,173 @@ class TestWriteSummary(unittest.TestCase):
         scale = index["axes"][0]["scales"][0]
         np.testing.assert_allclose(level0.T * scale, expected, atol=scale)
 
-    def test_min_max_levels_over_the_overview_size(self):
-        _, h5_path, index = self.summarise(steps=MAX_OVERVIEW_STEPS * 2 + 1)
+    def test_a_long_run_has_its_rows_in_chunks_and_one_level_of_min_and_max(self):
+        expected, h5_path, index = self.summarise(steps=MAX_OVERVIEW_STEPS * 2 + 1)
 
-        # 2,049 bins after one halving, 1,025 after two
-        levels = index["axes"][0]["levels"]
-        self.assertEqual([level["step"] for level in levels], [1, 2, 4])
-        self.assertEqual(index["datasets"]["/lfp/total/level2"]["shape"], [1, 3, 1025, 2])
+        # 2,049 bins of 2 steps are too many, 1,025 of 4 are not
+        self.assertEqual(
+            index["axes"][0]["levels"],
+            [
+                {
+                    "step": 1,
+                    "kind": "value",
+                    "dataset": "/lfp/total/rows",
+                    "blocks": {
+                        "chunks": "/lfp/total/chunks",
+                        "steps": MAX_OVERVIEW_STEPS * 2 + 1,
+                        "predictors": "/lfp/total/block_predictors",
+                    },
+                },
+                {
+                    "step": 4,
+                    "kind": "min_max",
+                    "dataset": "/lfp/total/level2",
+                    "blocks": {"chunks": "/lfp/total/level2_chunks", "steps": 1025},
+                },
+            ],
+        )
+        self.assertNotIn("/lfp/total/rows", index["datasets"])
+        self.assertNotIn("/lfp/total/level2", index["datasets"])
+        self.assertEqual(index["datasets"]["/lfp/total/level2_chunks"]["shape"], [1, 3, 1, 2])
+        verify(h5_path, index)
+        with h5py.File(h5_path, "r") as h5:
+            orders = h5["lfp/total/block_predictors"][0, :, 0]
+            residuals = h5["lfp/total/rows"][0]
+            stored = np.stack(
+                [undo_residuals(r, o) for r, o in zip(residuals, orders, strict=True)]
+            )
+            rows = stored * index["axes"][0]["scales"][0]
+            overview = h5["lfp/total/level2"][0]
+        np.testing.assert_allclose(rows.T, expected, atol=np.abs(expected).max() / 32767)
+        scale = index["axes"][0]["scales"][0]
+        np.testing.assert_allclose(
+            overview[1, 1] * scale, [expected[4:8, 1].min(), expected[4:8, 1].max()], atol=scale
+        )
+        # The last bin is the one step left over
+        np.testing.assert_allclose(overview[2, -1] * scale, [expected[-1, 2]] * 2, atol=scale)
+
+    def written(self, steps: int, contacts: int = 3, block_steps: int = summary.BLOCK_STEPS):
+        rng = np.random.default_rng(2)
+        t = np.arange(steps)[:, None]
+        # Louder over time, so a block's peak is not the run's
+        total = rng.normal(0, 1, (steps, contacts)) * (1 + t / 100) + np.arange(contacts)
+        report = SummedReport(populations=["pop"], start=0.0, dt=0.025, total=total, fields={})
+        h5_path = self.dir / "summary.h5"
+        with patch.object(summary, "BLOCK_STEPS", block_steps):
+            index = write_summary(report, h5_path, version=2, source={})
+        return total, h5_path, index
+
+    def test_rows_in_blocks_at_the_group_scale(self):
+        steps = MAX_OVERVIEW_STEPS * 2 + 1
+        total, h5_path, index = self.written(steps, block_steps=256)
+
+        level0 = index["axes"][0]["levels"][0]
+        self.assertEqual(level0["blocks"]["steps"], 256)
+        # 17 blocks, the last of one step, padded with zeros
+        self.assertEqual(index["datasets"]["/lfp/total/chunks"]["shape"], [1, 3, 17, 2])
+        verify(h5_path, index)
+        with h5py.File(h5_path, "r") as h5:
+            residuals = h5["lfp/total/rows"][0]
+            orders = h5["lfp/total/block_predictors"][0]
+            # No scales of their own: the viewer brings every block to the group's, finer is bytes
+            # it throws away
+            self.assertNotIn("block_scales", h5["lfp/total"])
+        scale = index["axes"][0]["scales"][0]
+        for block in range(17):
+            a = block * 256
+            for contact in range(3):
+                padded = np.zeros(256, np.int16)
+                stored = residuals[contact, a : a + 256]
+                padded[: len(stored)] = stored
+                row = undo_residuals(padded, int(orders[contact, block]))[: len(stored)]
+                np.testing.assert_allclose(
+                    row * scale, total[a : a + 256, contact], atol=scale * 0.51
+                )
+
+    def test_a_block_taken_at_the_wrong_order_does_not_verify(self):
+        steps = MAX_OVERVIEW_STEPS * 4
+        total = 100 * np.sin(np.arange(steps) / 200)[:, None] * np.ones(2)
+        report = SummedReport(populations=["pop"], start=0.0, dt=0.025, total=total, fields={})
+        h5_path = self.dir / "summary.h5"
+        index = write_summary(report, h5_path, version=2, source={})
         verify(h5_path, index)
 
-    def test_the_total_for_sonata_readers(self):
-        expected, h5_path, _ = self.summarise(steps=50)
+        with h5py.File(h5_path, "r+") as h5:
+            orders = h5["lfp/total/block_predictors"]
+            orders[0, 0, 0] = 1 if orders[0, 0, 0] != 1 else 2
 
+        with self.assertRaisesRegex(AssertionError, "not its overview"):
+            verify(h5_path, index)
+
+    def test_a_smooth_row_is_stored_as_its_residuals_and_noise_as_its_values(self):
+        steps = MAX_OVERVIEW_STEPS * 4
+        rng = np.random.default_rng(3)
+        total = np.stack([100 * np.sin(np.arange(steps) / 200), rng.normal(0, 30, steps)], axis=1)
+        report = SummedReport(populations=["pop"], start=0.0, dt=0.025, total=total, fields={})
+        h5_path = self.dir / "summary.h5"
+        index = write_summary(report, h5_path, version=2, source={})
+
+        verify(h5_path, index)
         with h5py.File(h5_path, "r") as h5:
-            g = h5["report/pop"]
-            np.testing.assert_allclose(g["data"][:], expected / 1e6, rtol=1e-6)
-            self.assertEqual(list(g["mapping/node_ids"][:]), [0])
-            self.assertEqual(list(g["mapping/index_pointers"][:]), [0, 3])
+            orders = h5["lfp/total/block_predictors"][0, :, 0]
+            residuals = h5["lfp/total/rows"][0]
+        self.assertEqual(orders.tolist(), [2, 0])
+        scale = index["axes"][0]["scales"][0]
+        np.testing.assert_allclose(
+            undo_residuals(residuals[0], 2) * scale, total[:, 0], atol=scale * 0.51
+        )
+
+    def test_levels_from_the_finest_to_the_coarsest(self):
+        steps = MAX_OVERVIEW_STEPS * 64
+        total, h5_path, index = self.written(steps, contacts=2)
+
+        levels = index["axes"][0]["levels"]
+        self.assertEqual([level["step"] for level in levels], [1, 16, 64])
+        self.assertEqual([level["blocks"]["steps"] for level in levels[1:]], [TILE_BINS, 2048])
+        # 8,192 bins of 16 steps in two tiles
+        self.assertEqual(index["datasets"]["/lfp/total/level4_chunks"]["shape"], [1, 2, 2, 2])
+        verify(h5_path, index)
+        scale = index["axes"][0]["scales"][0]
+        with h5py.File(h5_path, "r") as h5:
+            for level in levels[1:]:
+                step = level["step"]
+                stored = h5[level["dataset"]][0] * scale
+                binned = total.T.reshape(2, -1, step)
+                np.testing.assert_allclose(stored[..., 0], binned.min(-1), atol=scale)
+                np.testing.assert_allclose(stored[..., 1], binned.max(-1), atol=scale)
+        self.assertAlmostEqual(scale * 32767, np.abs(total).max(), places=3)
+
+    def test_a_level_past_a_tile_has_its_last_one_padded(self):
+        # Bins of 32 steps: 4,098 of them, a tile and 2
+        steps = MAX_OVERVIEW_STEPS * 64 + 48
+        total, h5_path, index = self.written(steps, contacts=2)
+
+        level = index["axes"][0]["levels"][1]
+        self.assertEqual((level["step"], level["blocks"]["steps"]), (32, TILE_BINS))
+        self.assertEqual(index["datasets"]["/lfp/total/level5_chunks"]["shape"], [1, 2, 2, 2])
+        verify(h5_path, index)
+        scale = index["axes"][0]["scales"][0]
+        with h5py.File(h5_path, "r") as h5:
+            stored = h5["lfp/total/level5"][0, 1] * scale
+        np.testing.assert_allclose(
+            stored[-1], [total[-16:, 1].min(), total[-16:, 1].max()], atol=scale
+        )
+
+    def test_a_span_holds_bins_coarser_than_a_block(self):
+        steps = MAX_OVERVIEW_STEPS * 64
+        total, h5_path, index = self.written(steps, contacts=1, block_steps=32)
+
+        verify(h5_path, index)
+        scale = index["axes"][0]["scales"][0]
+        with h5py.File(h5_path, "r") as h5:
+            coarsest = h5["lfp/total/level6"][0, 0] * scale
+        np.testing.assert_allclose(coarsest[:, 1], total[:, 0].reshape(-1, 64).max(1), atol=scale)
+
+    def test_the_correlation_is_on_the_total_alone(self):
+        _, h5_path, index = self.summarise(steps=50)
+
+        stored = index["axes"][0]["correlation"]
+        self.assertEqual(index["datasets"][stored["dataset"]]["shape"], [1, 3, 3])
+        self.assertNotIn("correlation", index)
+        with h5py.File(h5_path, "r") as h5:
+            self.assertEqual(round(h5[stored["dataset"]][0, 1, 1] * stored["scale"], 3), 1)

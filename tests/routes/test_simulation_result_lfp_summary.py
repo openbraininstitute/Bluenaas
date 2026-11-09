@@ -69,9 +69,10 @@ class TestLfpSummaryRoutes(LfpSummaryTestCase):
     def build(self) -> str:
         directory = self.summary_dir_of(self.report.id)
         sha256 = hashlib.sha256(CONTENT).hexdigest()
-        (directory / SUMMARY_FILE_NAME).write_bytes(CONTENT)
-        (directory / INDEX_FILE_NAME).write_text(json.dumps(INDEX))
-        write_summary_info(directory, SummaryInfo(size=len(CONTENT), sha256=sha256))
+        info = SummaryInfo(size=len(CONTENT), sha256=sha256)
+        info.path(directory, SUMMARY_FILE_NAME).write_bytes(CONTENT)
+        info.path(directory, INDEX_FILE_NAME).write_text(json.dumps(INDEX))
+        write_summary_info(directory, info)
         (directory / READY_MARKER_FILE_NAME).touch()
         return sha256
 
@@ -136,6 +137,38 @@ class TestLfpSummaryRoutes(LfpSummaryTestCase):
         self.assertEqual(response.content, CONTENT[40:50])
         self.assertEqual(response.headers["content-range"], f"bytes 40-49/{len(CONTENT)}")
         self.assertEqual(response.headers["etag"], f'"{sha256}"')
+
+    def test_get_several_ranges_with_one_check_of_access(self):
+        sha256 = self.build()
+
+        response = self.client.get(
+            self.url(),
+            headers={**self.headers, "Range": "bytes=60-69, 40-49", "If-Match": f'"{sha256}"'},
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.PARTIAL_CONTENT)
+        self.assertTrue(response.headers["content-type"].startswith("multipart/byteranges;"))
+        for start in (40, 60):
+            part = f"Content-Range: bytes {start}-{start + 9}/{len(CONTENT)}\r\n\r\n".encode()
+            self.assertIn(part + CONTENT[start : start + 10], response.content)
+        self.get_report.assert_called_once()
+
+    def test_a_reader_asks_for_at_most_100_ranges_at_once(self):
+        sha256 = self.build()
+
+        def answer(ranges: int):
+            return self.client.get(
+                self.url(),
+                headers={
+                    **self.headers,
+                    "Range": "bytes=" + ",".join(["0-0"] * ranges),
+                    "If-Match": f'"{sha256}"',
+                },
+            )
+
+        self.assertEqual(answer(100).status_code, HTTPStatus.PARTIAL_CONTENT)
+        # Past that the whole file is sent: the viewer refuses it, and so splits its reads
+        self.assertEqual(answer(101).status_code, HTTPStatus.OK)
 
     def test_get_of_another_summary_than_the_one_built(self):
         self.build()

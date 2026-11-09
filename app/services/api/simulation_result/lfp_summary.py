@@ -1,21 +1,36 @@
+import hashlib
 import json
+import posixpath
 import re
+import threading
+import time
+from collections import OrderedDict
+from collections.abc import Callable
+from dataclasses import dataclass
+from functools import partial
 from http import HTTPStatus
 from pathlib import PurePosixPath
 from uuid import UUID
 
 import httpx
 from entitysdk.common import ProjectContext
-from entitysdk.models import Simulation, SimulationResult
+from entitysdk.exception import EntitySDKError
+from entitysdk.models import Circuit, Simulation, SimulationResult
 from entitysdk.models.asset import Asset
+from entitysdk.models.core import Identifiable
 from entitysdk.route import get_assets_endpoint
 from entitysdk.types import AssetLabel
+from entitysdk.utils.http import HTTPStatusError, RequestError
+from fastapi import BackgroundTasks
 from fastapi.responses import FileResponse, Response
+from loguru import logger
 from rq.job import JobStatus
 
 from app.config.settings import settings
+from app.constants import CIRCUIT_CONFIG_NAME
 from app.core.exceptions import AppError
 from app.domains.simulation_result.lfp_summary import (
+    GroupsUnavailable,
     LfpSummaryState,
     LfpSummaryStatus,
     NoSummaryReason,
@@ -27,6 +42,7 @@ from app.infrastructure.storage.lfp_summary import (
     BUILD_QUEUES,
     LIVE_STATUSES,
     MAX_REPORT_BYTES,
+    SummaryInfo,
     build_job_id,
     build_queue,
     enqueue_build,
@@ -41,8 +57,63 @@ from app.utils.asyncio import run_async
 LFP_REPORT_LABELS = frozenset({AssetLabel.lfp_report, AssetLabel.voltage_report})
 
 
+# How long a user's access to a report is taken as found, at most. A viewer reads a summary in many
+# requests, and each would ask entitycore again.
+ACCESS_SECONDS = 60
+# How long a user's answer to whether a summary's groups can be built is kept. The viewer asks for
+# the status every minute while they are missing, and each would ask entitycore again.
+REGROUP_CHECK_SECONDS = 300
+KEPT_ENTRIES = 4096
+
+IN_HAND = LIVE_STATUSES | {JobStatus.FAILED}
+
+
 def _not_found(message: str) -> AppError:
     return AppError(message=message, error_code=None, http_status_code=HTTPStatus.NOT_FOUND)
+
+
+class Expiring[T]:
+    """Values kept for some seconds each, the least recently added dropped past KEPT_ENTRIES."""
+
+    def __init__(self):
+        self._kept: OrderedDict[tuple, tuple[float, T]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key: tuple) -> T | None:
+        with self._lock:
+            entry = self._kept.get(key)
+            if entry is None:
+                return None
+            if entry[0] < time.monotonic():
+                del self._kept[key]
+                return None
+            return entry[1]
+
+    def add(self, key: tuple, value: T, seconds: float) -> None:
+        if seconds <= 0:
+            return
+        with self._lock:
+            self._kept[key] = (time.monotonic() + seconds, value)
+            self._kept.move_to_end(key)
+            while len(self._kept) > KEPT_ENTRIES:
+                self._kept.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._kept.clear()
+
+
+def _user_key(access_token: str, project_context: ProjectContext, *ids: UUID) -> tuple:
+    token = hashlib.sha256(access_token.encode()).hexdigest()
+    return (token, project_context.project_id, project_context.virtual_lab_id, *ids)
+
+
+# The reports users were found to have access to in the last ACCESS_SECONDS, as entitycore answers.
+# Access taken away is seen once the entry is gone.
+access_found: Expiring[tuple[SimulationResult, Asset]] = Expiring()
+# The summaries users were found unable to have grouped, or had queued to be, in the last
+# REGROUP_CHECK_SECONDS
+regroup_checked: Expiring[bool] = Expiring()
 
 
 def _get_report(
@@ -51,6 +122,9 @@ def _get_report(
     """The result and its report asset, as the user may see them. The cache is shared by
     everyone, so it is only read for a report the user has access to.
     """
+    key = _user_key(auth.access_token, project_context, result_id, asset_id)
+    if found := access_found.get(key):
+        return found
     result = get_entity_or_not_found(
         user_client(auth.access_token, project_context),
         result_id,
@@ -60,17 +134,25 @@ def _get_report(
     asset = next((a for a in result.assets or [] if a.id == asset_id), None)
     if asset is None:
         raise _not_found("The simulation result has no such asset")
+    access_found.add(
+        key, (result, asset), min(ACCESS_SECONDS, auth.decoded_token.exp - time.time())
+    )
     return result, asset
 
 
-def _is_lfp_report(
-    simulation_id: UUID, report: Asset, *, access_token: str, project_context: ProjectContext
-) -> bool:
-    """An LFP report by its label, or a voltage report whose entry in the simulation's SONATA
-    config, found by its file's name, is of type `lfp`, as the web app reads it.
+@dataclass
+class LfpReport:
+    """What a simulation's config says of its LFP report. A summed one holds each population's
+    sum over its cells, so it has none to group.
     """
-    if report.label == AssetLabel.lfp_report:
-        return True
+
+    summed: bool
+
+
+def _report_entry(
+    simulation_id: UUID, report: Asset, *, access_token: str, project_context: ProjectContext
+) -> dict | None:
+    """The report's entry in the simulation's SONATA config, found by its file's name."""
     client = user_client(access_token, project_context)
     simulation = get_entity_or_not_found(
         client, simulation_id, Simulation, message="Simulation not found"
@@ -80,7 +162,7 @@ def _is_lfp_report(
         None,
     )
     if config is None:
-        return False
+        return None
     content = client.download_content(
         entity_id=simulation_id, entity_type=Simulation, asset_id=config.id
     )
@@ -88,8 +170,29 @@ def _is_lfp_report(
     try:
         entry = json.loads(content)["reports"].get(stem)
     except (ValueError, KeyError, TypeError, AttributeError):
-        return False
-    return isinstance(entry, dict) and entry.get("type") == "lfp"
+        return None
+    return entry if isinstance(entry, dict) else None
+
+
+def _lfp_report(
+    simulation_id: UUID, report: Asset, *, access_token: str, project_context: ProjectContext
+) -> LfpReport | None:
+    """An LFP report by its label, or a voltage report whose entry in the simulation's SONATA
+    config is of type `lfp`, as the web app reads it. None where it is not one.
+    """
+    labelled = report.label == AssetLabel.lfp_report
+    try:
+        entry = _report_entry(
+            simulation_id, report, access_token=access_token, project_context=project_context
+        )
+    except (AppError, EntitySDKError) as ex:
+        # One labelled so is an LFP report whatever its config, which is only read for its method
+        if not labelled or _may_pass(ex):
+            raise
+        entry = None
+    if not labelled and (entry is None or entry.get("type") != "lfp"):
+        return None
+    return LfpReport(summed=entry is not None and entry.get("method") == "sum")
 
 
 def _no_download_url() -> AppError:
@@ -101,15 +204,21 @@ def _no_download_url() -> AppError:
 
 
 def _download_url(
-    result_id: UUID, asset_id: UUID, *, access_token: str, project_context: ProjectContext
+    entity_type: type[Identifiable],
+    entity_id: UUID,
+    asset_id: UUID,
+    *,
+    access_token: str,
+    project_context: ProjectContext,
+    asset_path: str | None = None,
 ) -> str:
     """The presigned URL entitycore redirects the asset's download to, which the job reads by range
     without a token of the user's.
     """
     endpoint = get_assets_endpoint(
         api_url=str(settings.ENTITYCORE_URI),
-        entity_type=SimulationResult,
-        entity_id=result_id,
+        entity_type=entity_type,
+        entity_id=entity_id,
         asset_id=asset_id,
     )
     headers = {
@@ -118,19 +227,238 @@ def _download_url(
     }
     if project_context.virtual_lab_id:
         headers["virtual-lab-id"] = str(project_context.virtual_lab_id)
+    params = {"asset_path": asset_path} if asset_path else None
     try:
-        response = httpx.get(f"{endpoint}/download", headers=headers, timeout=30)
+        response = httpx.get(f"{endpoint}/download", headers=headers, params=params, timeout=30)
     except httpx.TransportError as ex:
         raise _no_download_url() from ex
+    if response.status_code == HTTPStatus.NOT_FOUND:
+        raise _not_found("The asset has no such file")
     if not response.is_redirect or "location" not in response.headers:
         raise _no_download_url()
     return response.headers["location"]
 
 
+def _expand_manifest(path: str, manifest: dict) -> str:
+    for _ in range(len(manifest) + 1):
+        path = re.sub(r"\$\w+", lambda m: str(manifest.get(m.group(), m.group())), path)
+    return path
+
+
+def nodes_files(config: dict) -> dict[str, str]:
+    """Where each population's nodes file lies within the circuit's directory asset, by its SONATA
+    config. Virtual populations are left out, as they report no field, and any file not inside it.
+    """
+    manifest = config.get("manifest", {})
+    files = {}
+    for network in config["networks"]["nodes"]:
+        path = posixpath.normpath(_expand_manifest(network["nodes_file"], manifest))
+        if posixpath.isabs(path) or path.startswith((".", "$")):
+            continue
+        for population, properties in network["populations"].items():
+            if properties.get("type") != "virtual":
+                files[population] = path
+    return files
+
+
+def _may_pass(ex: Exception) -> bool:
+    """Whether entitycore failed to answer, with a server error or none, and so may yet. A client
+    error such as a 404 says it has nothing to give.
+    """
+    if isinstance(ex, AppError):
+        return ex.http_status_code != HTTPStatus.NOT_FOUND
+    cause = ex.__cause__
+    if isinstance(cause, HTTPStatusError):
+        return cause.response.status_code >= HTTPStatus.INTERNAL_SERVER_ERROR
+    return isinstance(cause, RequestError)
+
+
+@dataclass(frozen=True)
+class NodesFiles:
+    """A presigned URL of each population's nodes file, and why there are none where that may not be
+    so for another user.
+    """
+
+    urls: dict[str, str]
+    unavailable: GroupsUnavailable | None = None
+
+
+def _simulated_circuit(client, simulation_id: UUID) -> Circuit | None:
+    """The circuit the simulation is of, None where the user can't read it. entitycore answers so for
+    a circuit the user may not read as for none, as for a simulation of something else.
+    """
+    try:
+        simulation = get_entity_or_not_found(
+            client, simulation_id, Simulation, message="Simulation not found"
+        )
+        return get_entity_or_not_found(
+            client, simulation.entity_id, Circuit, message="Circuit not found"
+        )
+    except AppError:
+        return None
+
+
+def _nodes_urls(
+    simulation_id: UUID, *, access_token: str, project_context: ProjectContext
+) -> NodesFiles:
+    """A presigned URL of each population's nodes file. None where there are none to find: the
+    report is still summarised, without its cells' groups, as a simulation of something other than a
+    circuit has none. Where the circuit can't be read it says so, for a user who can read it to have
+    the groups built. Raises where they could not be asked for just now, as a summary without groups
+    would stay in the cache.
+    """
+    client = user_client(access_token, project_context)
+    try:
+        circuit = _simulated_circuit(client, simulation_id)
+        if circuit is None:
+            logger.info(f"No cell groups for simulation {simulation_id}: its circuit can't be read")
+            return NodesFiles({}, GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        asset = next(
+            (
+                a
+                for a in circuit.assets or []
+                if a.label == AssetLabel.sonata_circuit and a.is_directory
+            ),
+            None,
+        )
+        if asset is None:
+            logger.info(f"No cell groups for simulation {simulation_id}: no circuit directory")
+            return NodesFiles({})
+        config = client.download_content(
+            entity_id=circuit.id,
+            entity_type=Circuit,
+            asset_id=asset.id,
+            asset_path=CIRCUIT_CONFIG_NAME,
+        )
+        files = nodes_files(json.loads(config))
+        urls = {
+            path: _download_url(
+                Circuit,
+                circuit.id,
+                asset.id,
+                access_token=access_token,
+                project_context=project_context,
+                asset_path=path,
+            )
+            for path in set(files.values())
+        }
+    except (
+        AppError,
+        EntitySDKError,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+    ) as ex:
+        if _may_pass(ex):
+            raise
+        logger.info(f"No cell groups for simulation {simulation_id}: {type(ex).__name__}")
+        return NodesFiles({})
+    return NodesFiles({population: urls[path] for population, path in files.items()})
+
+
+def _nodes_of(
+    lfp: LfpReport, simulation_id: UUID, *, access_token: str, project_context: ProjectContext
+) -> NodesFiles:
+    # A summed one has no cells to group, whoever can read its circuit
+    if lfp.summed:
+        return NodesFiles({})
+    return _nodes_urls(simulation_id, access_token=access_token, project_context=project_context)
+
+
+def _regroup_if_readable(
+    epoch: str,
+    result_id: UUID,
+    simulation_id: UUID,
+    report: Asset,
+    *,
+    access_token: str,
+    project_context: ProjectContext,
+) -> None:
+    """Queue the build of a summary again, with its groups, where whoever asked for it first could
+    not read its circuit and this user can. It is read as it is until the new one replaces it. A
+    user who can't is remembered for REGROUP_CHECK_SECONDS, unless entitycore failed to answer.
+    """
+    key = _user_key(access_token, project_context, report.id)
+    if regroup_checked.get(key):
+        return
+    clean_up_abandoned_jobs(BUILD_QUEUES)
+    for queue in BUILD_QUEUES:
+        job = get_queue(queue).fetch_job(build_job_id(epoch, report.id, queue, regroup=True))
+        # A failed one waits out its FAILED_BUILD_TTL, as a failed build does
+        if job is not None and job.get_status(refresh=False) in IN_HAND:
+            return
+    try:
+        queued = _queue_regroup(
+            epoch,
+            result_id,
+            simulation_id,
+            report,
+            access_token=access_token,
+            project_context=project_context,
+        )
+    except (AppError, EntitySDKError) as ex:
+        # The summary is there to read meanwhile, so this is no reason to fail its status
+        logger.info(
+            f"The groups of the LFP report {report.id} can't be asked for: {type(ex).__name__}"
+        )
+        if _may_pass(ex):
+            return
+        queued = False
+    # Not one who had it queued: a job that ends without building is queued again at the next poll
+    if not queued:
+        regroup_checked.add(key, True, REGROUP_CHECK_SECONDS)
+
+
+def _queue_regroup(
+    epoch: str,
+    result_id: UUID,
+    simulation_id: UUID,
+    report: Asset,
+    *,
+    access_token: str,
+    project_context: ProjectContext,
+) -> bool:
+    """Whether the regroup was queued: not where the user can't read the circuit."""
+    lfp = _lfp_report(
+        simulation_id, report, access_token=access_token, project_context=project_context
+    )
+    if lfp is None:
+        return False
+    nodes = _nodes_of(
+        lfp, simulation_id, access_token=access_token, project_context=project_context
+    )
+    if nodes.unavailable is not None:
+        return False
+    url = _download_url(
+        SimulationResult,
+        result_id,
+        report.id,
+        access_token=access_token,
+        project_context=project_context,
+    )
+    # Built again where there are no groups to give, a summed report's included, for the summary
+    # to stop saying they'd come
+    enqueue_build(
+        build_queue(report.size),
+        epoch=epoch,
+        asset_id=report.id,
+        url=url,
+        size=report.size,
+        nodes=nodes.urls,
+        regroup=True,
+    )
+    return True
+
+
+def _ready(info: SummaryInfo) -> LfpSummaryStatus:
+    return LfpSummaryStatus(state=LfpSummaryState.READY, size=info.size, sha256=info.sha256)
+
+
 def _status_in_cache(epoch: str, asset_id: UUID) -> LfpSummaryStatus | None:
     directory = summary_dir(epoch, asset_id)
     if info := read_summary_info(directory):
-        return LfpSummaryStatus(state=LfpSummaryState.READY, size=info.size, sha256=info.sha256)
+        return _ready(info)
     if reason := read_no_summary_reason(directory):
         return LfpSummaryStatus(state=LfpSummaryState.REFUSED, reason=reason)
     return None
@@ -143,6 +471,7 @@ def _get_or_build_summary(
     *,
     access_token: str,
     project_context: ProjectContext,
+    later: Callable[[Callable[[], None]], None],
 ) -> LfpSummaryStatus:
     if report.label not in LFP_REPORT_LABELS or report.is_directory:
         return LfpSummaryStatus(
@@ -152,6 +481,21 @@ def _get_or_build_summary(
         return LfpSummaryStatus(state=LfpSummaryState.REFUSED, reason=NoSummaryReason.TOO_LARGE)
 
     epoch = ensure_epoch(CacheKind.LFP_SUMMARY)
+    if info := read_summary_info(summary_dir(epoch, report.id)):
+        if info.groups_unavailable is not None:
+            # Once the status is answered, as the summary is read as it is meanwhile
+            later(
+                partial(
+                    _regroup_if_readable,
+                    epoch,
+                    result_id,
+                    simulation_id,
+                    report,
+                    access_token=access_token,
+                    project_context=project_context,
+                )
+            )
+        return _ready(info)
     if status := _status_in_cache(epoch, report.id):
         return status
 
@@ -177,27 +521,43 @@ def _get_or_build_summary(
     if failed:
         return LfpSummaryStatus(state=LfpSummaryState.FAILED)
 
-    if not _is_lfp_report(
+    lfp = _lfp_report(
         simulation_id, report, access_token=access_token, project_context=project_context
-    ):
+    )
+    if lfp is None:
         return LfpSummaryStatus(
             state=LfpSummaryState.REFUSED, reason=NoSummaryReason.NOT_LFP_REPORT
         )
 
+    url = _download_url(
+        SimulationResult,
+        result_id,
+        report.id,
+        access_token=access_token,
+        project_context=project_context,
+    )
+    nodes = _nodes_of(
+        lfp, simulation_id, access_token=access_token, project_context=project_context
+    )
     enqueue_build(
         build_queue(report.size),
         epoch=epoch,
         asset_id=report.id,
-        url=_download_url(
-            result_id, report.id, access_token=access_token, project_context=project_context
-        ),
+        url=url,
         size=report.size,
+        nodes=nodes.urls,
+        groups_unavailable=nodes.unavailable,
     )
     return LfpSummaryStatus(state=LfpSummaryState.BUILDING)
 
 
 async def get_lfp_summary_status(
-    result_id: UUID, asset_id: UUID, *, auth: Auth, project_context: ProjectContext
+    result_id: UUID,
+    asset_id: UUID,
+    *,
+    auth: Auth,
+    project_context: ProjectContext,
+    background: BackgroundTasks,
 ) -> LfpSummaryStatus:
     """The state of the report's summary. A build is queued if the summary is not built yet."""
     result, report = await run_async(
@@ -210,6 +570,7 @@ async def get_lfp_summary_status(
             report,
             access_token=auth.access_token,
             project_context=project_context,
+            later=background.add_task,
         )
     )
 
@@ -233,8 +594,23 @@ def _summary_file_response(
     # Not an AppError: this is how a reader learns of a rebuild, and those are logged as errors.
     if not _matches(if_match, etag):
         return Response(status_code=HTTPStatus.PRECONDITION_FAILED)
+    path = info.path(directory, name)
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        # Replaced by a regroup since `info` was read: the status gives the new one
+        now = read_summary_info(directory)
+        if now is None or now.sha256 != info.sha256:
+            return Response(status_code=HTTPStatus.PRECONDITION_FAILED)
+        # Else the viewer would read the status, find this one, and ask again without end
+        raise AppError(
+            message="The report's LFP summary is missing its files",
+            error_code=None,
+            http_status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+        ) from None
     return FileResponse(
-        directory / name,
+        path,
+        stat_result=stat,
         media_type=media_type,
         headers={"ETag": etag, "Cache-Control": "private, no-cache"},
     )

@@ -29,6 +29,10 @@ class RangeReadError(Exception):
     pass
 
 
+class NoSuchFileError(RangeReadError):
+    pass
+
+
 def url_expires_at(url: str) -> float | None:
     """When a presigned S3 URL expires, in seconds since the epoch. None for another URL."""
     query = {key: values[0] for key, values in parse_qs(urlsplit(url).query).items()}
@@ -58,6 +62,17 @@ class HttpRanges:
 
     def __exit__(self, *_) -> None:
         self.client.close()
+
+    def size(self) -> int:
+        """The file's size in bytes, for a URL no one has told it of."""
+        with self.client.stream("GET", self.url, headers={"Range": "bytes=0-0"}) as response:
+            status = response.status_code
+            content_range = response.headers.get("Content-Range", "")
+        if status == HTTPStatus.NOT_FOUND:
+            raise NoSuchFileError("The size of a file that is not there was asked for")
+        if status != HTTPStatus.PARTIAL_CONTENT or "/" not in content_range:
+            raise RangeReadError(f"The size of a file was answered with {status}")
+        return int(content_range.rsplit("/", 1)[1])
 
     def read(self, offset: int, length: int) -> bytes:
         headers = {"Range": f"bytes={offset}-{offset + length - 1}"}

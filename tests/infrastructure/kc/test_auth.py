@@ -1,13 +1,96 @@
+import json
 import os
 import unittest
 from http import HTTPStatus
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 os.environ.setdefault("ACCOUNTING_DISABLED", "1")
 
+from jwcrypto import jwk
+from jwcrypto.common import base64url_encode, json_encode
+
 from app.core.exceptions import AppError
 from app.domains.auth import Auth, DecodedKeycloakToken
-from app.infrastructure.kc.auth import verify_admin, verify_jwt
+from app.infrastructure.kc import auth
+from app.infrastructure.kc.auth import (
+    SIGNING_KEYS_REFRESH_SECONDS,
+    SIGNING_KEYS_SECONDS,
+    SigningKeys,
+    verify_admin,
+    verify_jwt,
+)
+
+
+def key_of(kid: str) -> dict:
+    return json.loads(jwk.JWK.generate(kty="oct", size=256, kid=kid).export())
+
+
+def token_of(kid: str) -> str:
+    return f"{base64url_encode(json_encode({'alg': 'HS256', 'kid': kid}))}.e30.sig"
+
+
+class TestSigningKeys(unittest.TestCase):
+    def setUp(self):
+        patcher = patch.object(auth, "kc_auth")
+        self.kc_auth = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.kc_auth.certs.return_value = {"keys": [key_of("a")]}
+        self.now = 1000.0
+        patcher = patch.object(auth.time, "monotonic", side_effect=lambda: self.now)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.keys = SigningKeys()
+
+    def test_fetched_once_for_many_tokens(self):
+        for _ in range(5):
+            keys = self.keys.for_token(token_of("a"))
+
+        self.assertEqual(self.kc_auth.certs.call_count, 1)
+        self.assertIsNotNone(keys.get_key("a"))
+
+    def test_fetched_again_once_they_are_old(self):
+        self.keys.for_token(token_of("a"))
+
+        self.now += SIGNING_KEYS_SECONDS + 1
+        self.keys.for_token(token_of("a"))
+
+        self.assertEqual(self.kc_auth.certs.call_count, 2)
+
+    def test_a_new_key_is_fetched_when_first_seen_but_not_for_every_token(self):
+        self.keys.for_token(token_of("a"))
+        self.now += SIGNING_KEYS_REFRESH_SECONDS + 1
+        self.kc_auth.certs.return_value = {"keys": [key_of("a"), key_of("b")]}
+
+        keys = self.keys.for_token(token_of("b"))
+        for _ in range(5):
+            self.keys.for_token(token_of("c"))
+
+        self.assertIsNotNone(keys.get_key("b"))
+        self.assertEqual(self.kc_auth.certs.call_count, 2)
+
+    def test_the_keys_held_are_used_while_keycloak_can_not_give_them(self):
+        held = self.keys.for_token(token_of("a"))
+        self.now += SIGNING_KEYS_SECONDS + 1
+        self.kc_auth.certs.side_effect = ConnectionError("down")
+
+        for _ in range(5):
+            self.assertIs(self.keys.for_token(token_of("a")), held)
+
+        self.assertEqual(self.kc_auth.certs.call_count, 2)
+        self.now += SIGNING_KEYS_REFRESH_SECONDS + 1
+        self.kc_auth.certs.side_effect = None
+        self.assertIsNot(self.keys.for_token(token_of("a")), held)
+
+    def test_no_keys_to_use_is_a_failure(self):
+        self.kc_auth.certs.side_effect = ConnectionError("down")
+
+        with self.assertRaises(ConnectionError):
+            self.keys.for_token(token_of("a"))
+
+    def test_a_token_that_is_no_jwt_is_left_to_fail_its_decoding(self):
+        self.keys.for_token("not a token")
+
+        self.assertEqual(self.kc_auth.certs.call_count, 1)
 
 
 class TestVerifyJWT(unittest.TestCase):
@@ -31,7 +114,9 @@ class TestVerifyJWT(unittest.TestCase):
         self.assertEqual(result.access_token, "valid-token")
         self.assertEqual(result.decoded_token.sub, "user-123")
         self.assertEqual(result.decoded_token.email, "test@example.com")
-        mock_kc_auth.decode_token.assert_called_once_with(token="valid-token", validate=True)
+        mock_kc_auth.decode_token.assert_called_once_with(
+            token="valid-token", validate=True, key=ANY
+        )
 
     @patch("app.infrastructure.kc.auth.logger")
     @patch("app.infrastructure.kc.auth.kc_auth")
