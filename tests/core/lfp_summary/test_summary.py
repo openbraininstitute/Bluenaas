@@ -386,6 +386,21 @@ class TestWriteSummary(unittest.TestCase):
                     row * scale, total[a : a + 256, contact], atol=scale * 0.51
                 )
 
+    def test_a_block_taken_at_the_wrong_order_does_not_verify(self):
+        steps = MAX_OVERVIEW_STEPS * 4
+        total = 100 * np.sin(np.arange(steps) / 200)[:, None] * np.ones(2)
+        report = SummedReport(populations=["pop"], start=0.0, dt=0.025, total=total, fields={})
+        h5_path = self.dir / "summary.h5"
+        index = write_summary(report, h5_path, version=2, source={})
+        verify(h5_path, index)
+
+        with h5py.File(h5_path, "r+") as h5:
+            orders = h5["lfp/total/block_predictors"]
+            orders[0, 0, 0] = 1 if orders[0, 0, 0] != 1 else 2
+
+        with self.assertRaisesRegex(AssertionError, "not its overview"):
+            verify(h5_path, index)
+
     def test_a_smooth_row_is_stored_as_its_residuals_and_noise_as_its_values(self):
         steps = MAX_OVERVIEW_STEPS * 4
         rng = np.random.default_rng(3)

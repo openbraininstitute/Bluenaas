@@ -878,10 +878,34 @@ def _inflated_row(chunk: bytes) -> np.ndarray:
     return bytes_.reshape(2, -1).T.ravel().view("<i2")
 
 
+def _rows_add_up_to_the_overview(h5: h5py.File, raw: np.ndarray, axis: dict) -> None:
+    """Each group's first contact's row, as a browser reads it, its blocks' residuals added back up
+    by their orders, binned as the finest overview level is: within an int16 step of it, as each
+    rounds the same values once. A block at the wrong order is far off."""
+    rows, finest = axis["levels"][0], axis["levels"][1]
+    table = _dataset(h5, rows["blocks"]["chunks"])[:]
+    predictors = rows["blocks"].get("predictors")
+    orders = _dataset(h5, predictors)[:] if predictors else np.zeros(table.shape[:3], np.uint8)
+    steps = _dataset(h5, rows["dataset"]).shape[2]
+    k = int(finest["step"]).bit_length() - 1
+    for group, scale in enumerate(axis["scales"]):
+        blocks = []
+        for block in range(table.shape[2]):
+            offset, size = table[group, 0, block].tolist()
+            residuals = _inflated_row(raw[offset : offset + size].tobytes())
+            blocks.append(undo_residuals(residuals, int(orders[group, 0, block])))
+        row = np.concatenate(blocks)[:steps] * scale
+        binned = OVERVIEWS[finest["kind"]](row[None], k)[0]
+        stored = _dataset(h5, finest["dataset"])[group, 0] * scale
+        if np.abs(binned - stored).max() > scale * 1.01:
+            raise AssertionError(f"{axis['name']} group {group}: its rows are not its overview")
+
+
 def verify(h5_path: Path, index: dict) -> None:
     """Every dataset read as raw bytes at its offset equals the dataset; every chunk of the rows and
-    of the overview levels of a group's field is where its table says; and the first contact's, and
-    every contact's last, undone as a browser does, prediction too, are the values, the padding zero.
+    of the overview levels of a group's field is where its table says; the first contact's, and
+    every contact's last, inflated as a browser does, are what HDF5 reads, and their padding comes
+    back zero; and the first contact's rows add up to its overview.
     """
     raw = np.memmap(h5_path, dtype=np.uint8, mode="r")
     with h5py.File(h5_path, "r") as h5:
@@ -918,3 +942,4 @@ def verify(h5_path: Path, index: dict) -> None:
                         raise AssertionError(
                             f"{level['dataset']} {group}, {contact} block {block} is not there"
                         )
+            _rows_add_up_to_the_overview(h5, raw, axis)
