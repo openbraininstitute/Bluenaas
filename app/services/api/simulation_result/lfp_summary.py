@@ -60,7 +60,10 @@ LFP_REPORT_LABELS = frozenset({AssetLabel.lfp_report, AssetLabel.voltage_report}
 # How long a user's access to a report is taken as found, at most. A viewer reads a summary in many
 # requests, and each would ask entitycore again.
 ACCESS_SECONDS = 60
-ACCESS_ENTRIES = 4096
+# How long a user's answer to whether a summary's groups can be built is kept. The viewer asks for
+# the status every minute while they are missing, and each would ask entitycore again.
+REGROUP_CHECK_SECONDS = 300
+KEPT_ENTRIES = 4096
 
 IN_HAND = LIVE_STATUSES | {JobStatus.FAILED}
 
@@ -69,49 +72,45 @@ def _not_found(message: str) -> AppError:
     return AppError(message=message, error_code=None, http_status_code=HTTPStatus.NOT_FOUND)
 
 
-class AccessFound:
-    """The reports users were found to have access to in the last ACCESS_SECONDS, by their token and
-    project, as entitycore answers. Access taken away is seen once the entry is gone.
-    """
+class Expiring[T]:
+    """Values kept for some seconds each, the least recently added dropped past KEPT_ENTRIES."""
 
     def __init__(self):
-        self._found: OrderedDict[tuple, tuple[float, SimulationResult, Asset]] = OrderedDict()
+        self._kept: OrderedDict[tuple, tuple[float, T]] = OrderedDict()
         self._lock = threading.Lock()
 
-    @staticmethod
-    def key(result_id: UUID, asset_id: UUID, auth: Auth, project_context: ProjectContext) -> tuple:
-        token = hashlib.sha256(auth.access_token.encode()).hexdigest()
-        return (
-            token,
-            project_context.project_id,
-            project_context.virtual_lab_id,
-            result_id,
-            asset_id,
-        )
-
-    def get(self, key: tuple) -> tuple[SimulationResult, Asset] | None:
+    def get(self, key: tuple) -> T | None:
         with self._lock:
-            entry = self._found.get(key)
+            entry = self._kept.get(key)
             if entry is None or entry[0] < time.monotonic():
                 return None
-            return entry[1], entry[2]
+            return entry[1]
 
-    def add(self, key: tuple, found: tuple[SimulationResult, Asset], token_expires_at: int) -> None:
-        seconds = min(ACCESS_SECONDS, token_expires_at - time.time())
+    def add(self, key: tuple, value: T, seconds: float) -> None:
         if seconds <= 0:
             return
         with self._lock:
-            self._found[key] = (time.monotonic() + seconds, *found)
-            self._found.move_to_end(key)
-            while len(self._found) > ACCESS_ENTRIES:
-                self._found.popitem(last=False)
+            self._kept[key] = (time.monotonic() + seconds, value)
+            self._kept.move_to_end(key)
+            while len(self._kept) > KEPT_ENTRIES:
+                self._kept.popitem(last=False)
 
     def clear(self) -> None:
         with self._lock:
-            self._found.clear()
+            self._kept.clear()
 
 
-access_found = AccessFound()
+def _user_key(access_token: str, project_context: ProjectContext, *ids: UUID) -> tuple:
+    token = hashlib.sha256(access_token.encode()).hexdigest()
+    return (token, project_context.project_id, project_context.virtual_lab_id, *ids)
+
+
+# The reports users were found to have access to in the last ACCESS_SECONDS, as entitycore answers.
+# Access taken away is seen once the entry is gone.
+access_found: Expiring[tuple[SimulationResult, Asset]] = Expiring()
+# The summaries users were found unable to have grouped, or had queued to be, in the last
+# REGROUP_CHECK_SECONDS
+regroup_checked: Expiring[bool] = Expiring()
 
 
 def _get_report(
@@ -120,7 +119,7 @@ def _get_report(
     """The result and its report asset, as the user may see them. The cache is shared by
     everyone, so it is only read for a report the user has access to.
     """
-    key = AccessFound.key(result_id, asset_id, auth, project_context)
+    key = _user_key(auth.access_token, project_context, result_id, asset_id)
     if found := access_found.get(key):
         return found
     result = get_entity_or_not_found(
@@ -132,7 +131,9 @@ def _get_report(
     asset = next((a for a in result.assets or [] if a.id == asset_id), None)
     if asset is None:
         raise _not_found("The simulation result has no such asset")
-    access_found.add(key, (result, asset), auth.decoded_token.exp)
+    access_found.add(
+        key, (result, asset), min(ACCESS_SECONDS, auth.decoded_token.exp - time.time())
+    )
     return result, asset
 
 
@@ -363,8 +364,12 @@ def _regroup_if_readable(
     project_context: ProjectContext,
 ) -> None:
     """Queue the build of a summary again, with its groups, where whoever asked for it first could
-    not read its circuit and this user can. It is read as it is until the new one replaces it.
+    not read its circuit and this user can. It is read as it is until the new one replaces it. A
+    user's answer is kept for REGROUP_CHECK_SECONDS, unless entitycore failed to give it.
     """
+    key = _user_key(access_token, project_context, report.id)
+    if regroup_checked.get(key):
+        return
     clean_up_abandoned_jobs(BUILD_QUEUES)
     for queue in BUILD_QUEUES:
         job = get_queue(queue).fetch_job(build_job_id(epoch, report.id, queue, regroup=True))
@@ -372,23 +377,11 @@ def _regroup_if_readable(
         if job is not None and job.get_status(refresh=False) in IN_HAND:
             return
     try:
-        # A summed one has no cells to group, whoever can read its circuit
-        lfp = _lfp_report(
-            simulation_id, report, access_token=access_token, project_context=project_context
-        )
-        if lfp is None or lfp.summed:
-            return
-        nodes = _nodes_urls(
-            simulation_id, access_token=access_token, project_context=project_context
-        )
-        # Built again where the circuit can be read but has no groups to give, for the summary to
-        # stop saying they'd come
-        if nodes.unavailable is not None:
-            return
-        url = _download_url(
-            SimulationResult,
+        _queue_regroup(
+            epoch,
             result_id,
-            report.id,
+            simulation_id,
+            report,
             access_token=access_token,
             project_context=project_context,
         )
@@ -397,14 +390,45 @@ def _regroup_if_readable(
         logger.info(
             f"The groups of the LFP report {report.id} can't be asked for: {type(ex).__name__}"
         )
+        if _may_pass(ex):
+            return
+    regroup_checked.add(key, True, REGROUP_CHECK_SECONDS)
+
+
+def _queue_regroup(
+    epoch: str,
+    result_id: UUID,
+    simulation_id: UUID,
+    report: Asset,
+    *,
+    access_token: str,
+    project_context: ProjectContext,
+) -> None:
+    # The circuit first, as most users who can't read it are answered with that alone
+    nodes = _nodes_urls(simulation_id, access_token=access_token, project_context=project_context)
+    if nodes.unavailable is not None:
         return
+    lfp = _lfp_report(
+        simulation_id, report, access_token=access_token, project_context=project_context
+    )
+    if lfp is None:
+        return
+    url = _download_url(
+        SimulationResult,
+        result_id,
+        report.id,
+        access_token=access_token,
+        project_context=project_context,
+    )
+    # Built again where there are no groups to give, a summed report's included, for the summary
+    # to stop saying they'd come
     enqueue_build(
         build_queue(report.size),
         epoch=epoch,
         asset_id=report.id,
         url=url,
         size=report.size,
-        nodes=nodes.urls,
+        nodes={} if lfp.summed else nodes.urls,
         regroup=True,
     )
 

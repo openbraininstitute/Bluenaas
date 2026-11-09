@@ -45,6 +45,8 @@ NODES_URL = "https://bucket.s3/nodes.h5?signature"
 class TestLfpSummaryStatus(LfpSummaryTestCase):
     def setUp(self):
         super().setUp()
+        service.regroup_checked.clear()
+        self.addCleanup(service.regroup_checked.clear)
         self.result_id = uuid4()
         patcher = patch.object(service, "_download_url", return_value=URL)
         self.download_url = patcher.start()
@@ -58,7 +60,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.nodes_urls = patcher.start()
         self.addCleanup(patcher.stop)
 
-    def status_of(self, report):
+    def status_of(self, report, token: str = "token"):
         # In a thread, as the route runs it
         with ThreadPoolExecutor(1) as pool:
             return pool.submit(
@@ -66,7 +68,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
                 self.result_id,
                 uuid4(),
                 report,
-                access_token="token",
+                access_token=token,
                 project_context=self.project_context,
                 later=lambda task: task(),
             ).result()
@@ -255,15 +257,14 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.assertEqual(job.kwargs["nodes"], {"pop": NODES_URL})
         self.assertEqual(job.kwargs["url"], URL)
 
-    def test_a_summed_report_is_not_grouped_by_one_who_can_read_its_circuit(self):
+    def test_a_summed_report_is_built_again_without_groups_by_one_who_can_read_its_circuit(self):
         report = report_of(100)
         self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)
         self.is_lfp_report.return_value = service.LfpReport(summed=True)
 
         self.assertEqual(self.status_of(report).state, LfpSummaryState.READY)
 
-        self.nodes_urls.assert_not_called()
-        self.assertIsNone(self.regroup_job_of(report))
+        self.assertEqual(self.regroup_job_of(report).kwargs["nodes"], {})
 
     def test_a_user_who_can_not_read_it_either_builds_nothing(self):
         report = report_of(100)
@@ -274,7 +275,39 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
 
         self.assertEqual(self.status_of(report).state, LfpSummaryState.READY)
 
+        self.is_lfp_report.assert_not_called()
         self.assertIsNone(self.regroup_job_of(report))
+
+    def test_a_user_who_can_not_read_it_is_not_asked_again_for_a_while(self):
+        report = report_of(100)
+        self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        self.nodes_urls.return_value = service.NodesFiles(
+            {}, GroupsUnavailable.CIRCUIT_NOT_READABLE
+        )
+
+        self.status_of(report)
+        self.status_of(report)
+        self.assertEqual(self.nodes_urls.call_count, 1)
+
+        self.status_of(report, token="another")
+        self.assertEqual(self.nodes_urls.call_count, 2)
+
+        later = time.monotonic() + service.REGROUP_CHECK_SECONDS + 1
+        with patch.object(service.time, "monotonic", return_value=later):
+            self.status_of(report)
+        self.assertEqual(self.nodes_urls.call_count, 3)
+
+    def test_entitycore_not_answering_is_asked_again_at_the_next_poll(self):
+        report = report_of(100)
+        self.ready_without_groups(report, GroupsUnavailable.CIRCUIT_NOT_READABLE)
+        self.nodes_urls.side_effect = AppError(
+            message="no", error_code=None, http_status_code=HTTPStatus.BAD_GATEWAY
+        )
+
+        self.status_of(report)
+        self.status_of(report)
+
+        self.assertEqual(self.nodes_urls.call_count, 2)
 
     def test_the_circuit_is_not_asked_for_again_while_its_groups_are_built(self):
         report = report_of(100)
@@ -283,7 +316,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         # Failed too: it is kept, and tried again only once it has gone
         self.regroup_job_of(report).set_status(JobStatus.FAILED)
 
-        self.status_of(report)
+        self.status_of(report, token="another")
 
         self.assertEqual(self.nodes_urls.call_count, 1)
 
@@ -293,7 +326,7 @@ class TestLfpSummaryStatus(LfpSummaryTestCase):
         self.status_of(report)
         self.regroup_job_of(report).set_status(JobStatus.FINISHED)
 
-        self.status_of(report)
+        self.status_of(report, token="another")
 
         self.assertEqual(self.nodes_urls.call_count, 2)
 
