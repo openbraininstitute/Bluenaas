@@ -734,3 +734,17 @@ class TestSummaryFile(LfpSummaryTestCase):
             service._summary_file_response(uuid4(), SUMMARY_FILE_NAME, "application/x-hdf5", None)
 
         self.assertEqual(caught.exception.http_status_code, HTTPStatus.NOT_FOUND)
+
+    def test_a_file_replaced_since_its_info_was_read(self):
+        asset_id = uuid4()
+        etag = self.build(asset_id)
+        directory = self.summary_dir_of(asset_id)
+        info = service.read_summary_info(directory)
+        info.path(directory, SUMMARY_FILE_NAME).unlink()
+
+        with patch.object(service, "read_summary_info", return_value=info):
+            response = service._summary_file_response(
+                asset_id, SUMMARY_FILE_NAME, "application/x-hdf5", etag
+            )
+
+        self.assertEqual(response.status_code, HTTPStatus.PRECONDITION_FAILED)

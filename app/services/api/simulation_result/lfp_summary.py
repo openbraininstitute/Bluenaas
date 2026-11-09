@@ -554,8 +554,15 @@ def _summary_file_response(
     # Not an AppError: this is how a reader learns of a rebuild, and those are logged as errors.
     if not _matches(if_match, etag):
         return Response(status_code=HTTPStatus.PRECONDITION_FAILED)
+    path = info.path(directory, name)
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        # Replaced by a regroup since `info` was read: the status gives the new one
+        return Response(status_code=HTTPStatus.PRECONDITION_FAILED)
     return FileResponse(
-        info.path(directory, name),
+        path,
+        stat_result=stat,
         media_type=media_type,
         headers={"ETag": etag, "Cache-Control": "private, no-cache"},
     )
