@@ -1,13 +1,15 @@
 from http import HTTPStatus
 from unittest import TestCase
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+import httpx2
 from entitysdk.exception import EntitySDKError
 from entitysdk.models import Circuit
 from entitysdk.utils.http import HTTPStatusError
 
 from app.core.exceptions import AppError
+from app.services.api import entitycore
 from app.services.api.entitycore import get_entity_or_not_found
 
 
@@ -38,3 +40,19 @@ class TestGetEntityOrNotFound(TestCase):
     def test_other_errors_are_raised_as_they_are(self):
         with self.assertRaises(EntitySDKError):
             self.get_with(_http_error(HTTPStatus.BAD_GATEWAY))
+
+
+class TestSharedHttpClient(TestCase):
+    def test_a_cookie_set_for_one_user_is_not_sent_with_another_users_request(self):
+        sent = []
+
+        def answer(request):
+            sent.append(request.headers.get("cookie"))
+            return httpx2.Response(200, headers={"set-cookie": "AWSALB=abc; Path=/"})
+
+        client = entitycore._http_client
+        with patch.object(client, "_transport", httpx2.MockTransport(answer)):
+            client.get("https://entitycore.test/a", headers={"authorization": "Bearer a"})
+            client.get("https://entitycore.test/b", headers={"authorization": "Bearer b"})
+
+        self.assertEqual(sent, [None, None])

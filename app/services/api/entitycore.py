@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from http.cookiejar import CookieJar, DefaultCookiePolicy
 from uuid import UUID
 
 from entitysdk import Client
@@ -11,8 +12,9 @@ from app.config.settings import settings
 from app.core.exceptions import AppError
 
 
-# Shared by every user's client, so that a request to entitycore reuses a connection
-_http_client = HTTPClient()
+# Shared by every user's client, so that a request to entitycore reuses a connection. No cookies,
+# or one user's would go with another's request
+_http_client = HTTPClient(cookies=CookieJar(policy=DefaultCookiePolicy(allowed_domains=[])))
 
 
 def user_client(access_token: str, project_context: ProjectContext) -> Client:
