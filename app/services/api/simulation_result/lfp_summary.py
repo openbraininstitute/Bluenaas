@@ -575,19 +575,8 @@ async def get_lfp_summary_file(
     build.
     """
 
-    asked = time.perf_counter()
-
     def response() -> Response:
-        started, started_cpu = time.perf_counter(), time.thread_time()
         _get_report(result_id, asset_id, auth=auth, project_context=project_context)
-        access, access_cpu = time.perf_counter() - started, time.thread_time() - started_cpu
-        answer = _summary_file_response(asset_id, name, media_type, if_match)
-        # For how a read's time is spent to be seen from outside: waiting for a thread, then on
-        # checking the user's access, of which this much is this process's own work
-        answer.headers["Server-Timing"] = (
-            f"queued;dur={1000 * (started - asked):.1f}, access;dur={1000 * access:.1f}, "
-            f"access-cpu;dur={1000 * access_cpu:.1f}"
-        )
-        return answer
+        return _summary_file_response(asset_id, name, media_type, if_match)
 
     return await run_async(response)
