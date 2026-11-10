@@ -18,11 +18,13 @@ from app.core.lfp_summary.summary import (
     GroupFields,
     OverMemoryError,
     SummedReport,
-    _inflated_row,
+    _decoded_chunk,
     deflated_row,
     predicted_row,
     residuals,
     undo_residuals,
+    unzigzag,
+    zigzag,
     log_bands,
     mean_level,
     peak_bytes,
@@ -30,7 +32,7 @@ from app.core.lfp_summary.summary import (
     verify,
     write_summary,
 )
-from tests.core.lfp_summary.utils import local_reader, write_nodes, write_report
+from tests.core.lfp_summary.utils import decoded, local_reader, write_nodes, write_report
 
 
 def labels_from(columns: dict[str, dict[str, np.ndarray]]):
@@ -305,6 +307,14 @@ class TestTheNumbers(unittest.TestCase):
             np.testing.assert_array_equal(undo_residuals(residuals(row, order), order), row)
         self.assertEqual(residuals(row, 1)[1], 2)
 
+    def test_a_min_max_tile_is_taken_flat_at_every_order(self):
+        pairs = np.array([[-3, 4], [-1, 6], [0, 9]], np.int16)
+
+        for order in range(3):
+            stored = undo_residuals(residuals(pairs, order), order)
+            self.assertEqual(stored.shape, (6,))
+            np.testing.assert_array_equal(stored, pairs.ravel())
+
     def test_a_row_takes_the_order_that_deflates_smallest(self):
         steps = np.arange(4096)
         smooth = np.round(20000 * np.sin(steps / 300)).astype(np.int16)
@@ -313,18 +323,44 @@ class TestTheNumbers(unittest.TestCase):
         self.assertEqual(predicted_row(smooth)[0], 2)
         self.assertEqual(predicted_row(noise)[0], 0)
         order, chunk = predicted_row(smooth)
-        np.testing.assert_array_equal(undo_residuals(_inflated_row(chunk), order), smooth)
+        np.testing.assert_array_equal(_decoded_chunk(chunk, order), smooth)
 
     def test_a_deflated_row_is_what_hdf5_filters_undo(self):
         row = np.array([1, -2, 300, -32768, 32767], np.int16)
 
         shuffled = np.frombuffer(zlib.decompress(deflated_row(row)), np.uint8)
 
-        # Low bytes first, then high bytes
-        np.testing.assert_array_equal(
-            shuffled.reshape(2, -1).T.ravel().view("<i2"),
-            row,
-        )
+        # Low bytes first, then high bytes, of the zigzag codes
+        codes = shuffled.reshape(2, -1).T.ravel().view("<u2")
+        self.assertEqual(codes.tolist(), [2, 3, 600, 65535, 65534])
+        np.testing.assert_array_equal(unzigzag(codes), row)
+
+    def test_zigzag_codes_every_int16_and_back(self):
+        every = np.arange(-32768, 32768).astype(np.int16)
+
+        codes = zigzag(every)
+
+        self.assertEqual(codes.dtype, np.dtype("<u2"))
+        self.assertEqual(sorted(codes.tolist()), list(range(65536)))
+        ends = zigzag(np.array([0, -1, 1, 32767, -32768], np.int16))
+        self.assertEqual(ends.tolist(), [0, 1, 2, 65534, 65535])
+        np.testing.assert_array_equal(unzigzag(codes), every)
+
+    def test_residuals_that_wrap_survive_the_zigzag(self):
+        row = np.array([32767, -32767, -32768, 32767, 0, -32768], np.int16)
+
+        for order in range(3):
+            chunk = deflated_row(residuals(row, order))
+            read = _decoded_chunk(chunk, order)
+            np.testing.assert_array_equal(read, row)
+
+    def test_a_smooth_row_deflates_a_tenth_smaller_than_in_format_2(self):
+        smooth = np.round(20000 * np.sin(np.arange(4096) / 300)).astype(np.int16)
+        order, chunk = predicted_row(smooth)
+        before = np.frombuffer(residuals(smooth, order).astype("<i2").tobytes(), np.uint8)
+        format_2 = zlib.compress(before.reshape(-1, 2).T.tobytes(), 6)
+
+        self.assertLessEqual(len(chunk), 0.9 * len(format_2))
 
 
 class TestWriteGroupFields(unittest.TestCase):
@@ -344,7 +380,7 @@ class TestWriteGroupFields(unittest.TestCase):
             total=values.sum(1, dtype=np.float64),
             fields={"mtype": GroupFields(["A", "B"], values)},
         )
-        index = write_summary(report, self.h5_path, version=2, source={"asset_id": "a"})
+        index = write_summary(report, self.h5_path, version=1, source={"asset_id": "a"})
         return values, index
 
     def axis(self, index) -> dict:
@@ -377,7 +413,11 @@ class TestWriteGroupFields(unittest.TestCase):
                     "step": 4,
                     "kind": "mean",
                     "dataset": "/lfp/mtype/level2",
-                    "blocks": {"chunks": "/lfp/mtype/level2_chunks", "steps": MAX_OVERVIEW_STEPS},
+                    "blocks": {
+                        "chunks": "/lfp/mtype/level2_chunks",
+                        "steps": MAX_OVERVIEW_STEPS,
+                        "predictors": "/lfp/mtype/level2_predictors",
+                    },
                 },
             ],
         )
@@ -388,9 +428,8 @@ class TestWriteGroupFields(unittest.TestCase):
         self.assertNotIn("/lfp/mtype/block_scales", index["datasets"])
         with h5py.File(self.h5_path, "r") as h5:
             self.assertEqual(h5["lfp/mtype/rows"].chunks, (1, 1, MAX_OVERVIEW_STEPS * 4))
-            order = h5["lfp/mtype/block_predictors"][1, 2, 0]
-            row = undo_residuals(h5["lfp/mtype/rows"][1, 2], int(order))
-            means = h5["lfp/mtype/level2"][1, 2]
+            row = decoded(h5, axis["levels"][0], 1, 2)
+            means = decoded(h5, axis["levels"][1], 1, 2)
         scale = axis["scales"][1]
         np.testing.assert_allclose(row * scale, values[:, 1, 2], atol=scale)
         # The rows' peak, not the means', so a block brought to it fits in int16
@@ -420,7 +459,11 @@ class TestWriteGroupFields(unittest.TestCase):
                     "step": 1,
                     "kind": "value",
                     "dataset": "/lfp/mtype/level0",
-                    "blocks": {"chunks": "/lfp/mtype/level0_chunks", "steps": 50},
+                    "blocks": {
+                        "chunks": "/lfp/mtype/level0_chunks",
+                        "steps": 50,
+                        "predictors": "/lfp/mtype/level0_predictors",
+                    },
                 },
             ],
         )
@@ -428,9 +471,13 @@ class TestWriteGroupFields(unittest.TestCase):
         self.assertEqual(index["datasets"]["/lfp/mtype/chunks"]["shape"], [2, 3, 1, 2])
         verify(self.h5_path, index)
         with h5py.File(self.h5_path, "r") as h5:
-            row = h5["lfp/mtype/level0"][0, 1]
-            order = h5["lfp/mtype/block_predictors"][0, 1, 0]
-            block = undo_residuals(h5["lfp/mtype/rows"][0, 1], int(order))
+            row = decoded(h5, axis["levels"][1], 0, 1)
+            block = decoded(h5, axis["levels"][0], 0, 1)
+            # A short run's one tile is its one block, at the same order
+            self.assertEqual(
+                h5["lfp/mtype/level0_predictors"][0, 1].tolist(),
+                h5["lfp/mtype/block_predictors"][0, 1].tolist(),
+            )
         scale = axis["scales"][0]
         np.testing.assert_allclose(row * scale, values[:, 0, 1], atol=scale)
         np.testing.assert_array_equal(block, row)
@@ -446,7 +493,7 @@ class TestWriteGroupFields(unittest.TestCase):
             fields={"mtype": GroupFields(["A", "B"], values)},
         )
 
-        index = write_summary(report, self.h5_path, version=2, source={})
+        index = write_summary(report, self.h5_path, version=1, source={})
 
         verify(self.h5_path, index)
 
@@ -508,7 +555,7 @@ class TestWriteGroupFields(unittest.TestCase):
             fields={"mtype": GroupFields(["A", "B"], values)},
         )
 
-        write_summary(report, self.h5_path, version=2, source={})
+        write_summary(report, self.h5_path, version=1, source={})
 
         with h5py.File(self.h5_path, "r") as h5:
             np.testing.assert_allclose(
@@ -526,13 +573,13 @@ class TestWriteGroupFields(unittest.TestCase):
         )
 
         index = write_summary(
-            report, self.h5_path, version=2, source={}, groups_unavailable="circuit_not_readable"
+            report, self.h5_path, version=1, source={}, groups_unavailable="circuit_not_readable"
         )
 
         self.assertEqual(index["axes_left_out"], {"mtype": "memory"})
         self.assertEqual(index["groups_unavailable"], "circuit_not_readable")
         self.assertIsNone(
-            write_summary(report, self.dir / "other.h5", version=2, source={})["groups_unavailable"]
+            write_summary(report, self.dir / "other.h5", version=1, source={})["groups_unavailable"]
         )
 
     def test_no_copy_of_the_report(self):

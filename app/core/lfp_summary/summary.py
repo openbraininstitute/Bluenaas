@@ -34,7 +34,11 @@ WELCH_SEGMENT = 256
 WELCH_MAX_SEGMENT = 1 << 16
 PSD_BANDS = 128
 
-DEFLATE_LEVEL = 6
+# The strategy is what counts: run-length matches only, about 15 times faster than level 6's search
+# and smaller on zigzag codes
+DEFLATE_LEVEL = 9
+DEFLATE_MEM_LEVEL = 9
+DEFLATE_STRATEGY = zlib.Z_RLE
 # A block of rows is stored as its residuals of the order, under this, that deflate smallest
 PREDICTOR_ORDERS = 3
 DEFLATES_AT_ONCE = 4
@@ -578,37 +582,54 @@ def shares_of_total(values: np.ndarray, centred: Centred) -> tuple[list[float], 
     return shares, at_contacts.astype(np.float32)
 
 
+def zigzag(values: np.ndarray) -> np.ndarray:
+    """int16 as uint16 codes with the sign in the lowest bit: 0, -1, 1, -2 … are 0, 1, 2, 3 …"""
+    v = values.astype(np.int32)
+    return ((v << 1) ^ (v >> 15)).astype("<u2")
+
+
+def unzigzag(codes: np.ndarray) -> np.ndarray:
+    z = codes.astype(np.int32)
+    return ((z >> 1) ^ -(z & 1)).astype(np.int16)
+
+
 def deflated_row(row: np.ndarray) -> bytes:
-    """A row of int16 as HDF5's shuffle and deflate filters leave it."""
-    shuffled = np.frombuffer(row.astype("<i2").tobytes(), np.uint8).reshape(-1, 2).T
-    return zlib.compress(shuffled.tobytes(), DEFLATE_LEVEL)
+    """A chunk's int16 values as zigzag codes, as HDF5's shuffle and deflate filters leave them:
+    one zlib stream, each byte plane in a deflate block of its own.
+    """
+    planes = np.frombuffer(zigzag(row).tobytes(), np.uint8).reshape(-1, 2).T
+    z = zlib.compressobj(
+        DEFLATE_LEVEL, zlib.DEFLATED, zlib.MAX_WBITS, DEFLATE_MEM_LEVEL, DEFLATE_STRATEGY
+    )
+    low = z.compress(planes[0].tobytes()) + z.flush(zlib.Z_BLOCK)
+    return low + z.compress(planes[1].tobytes()) + z.flush()
 
 
 def residuals(row: np.ndarray, order: int) -> np.ndarray:
-    """Each value less the one before, `order` times over, in int16 as it wraps."""
+    """Each value less the one before along the flat chunk, `order` times over, in int16 as it
+    wraps: a min/max tile's run min, max, min, max …
+    """
+    row = row.ravel()
     for _ in range(order):
         row = np.diff(row, prepend=np.int16(0))
     return row
 
 
 def undo_residuals(row: np.ndarray, order: int) -> np.ndarray:
+    row = row.ravel()
     for _ in range(order):
         row = np.cumsum(row, dtype=np.int16)
     return row
 
 
 def predicted_row(row: np.ndarray) -> tuple[int, bytes]:
-    """A row as the residuals of the order that deflate smallest: the order, and the chunk."""
+    """A chunk as the residuals of the order that deflate smallest: the order, and the chunk."""
     candidates = [row]
     for _ in range(1, PREDICTOR_ORDERS):
         candidates.append(residuals(candidates[-1], 1))
     chunks = [deflated_row(candidate) for candidate in candidates]
     order = min(range(PREDICTOR_ORDERS), key=lambda o: len(chunks[o]))
     return order, chunks[order]
-
-
-def unpredicted_row(row: np.ndarray) -> tuple[int, bytes]:
-    return 0, deflated_row(row)
 
 
 def _write_chunks(
@@ -618,7 +639,6 @@ def _write_chunks(
     start: int,
     values: np.ndarray,
     scale: float,
-    encode: Callable[[np.ndarray], tuple[int, bytes]] = unpredicted_row,
 ) -> np.ndarray:
     """Contacts' values from `start` in uV, chunk by chunk, to the group's scale: each chunk's
     order of prediction, contact x chunk.
@@ -635,18 +655,20 @@ def _write_chunks(
         if rows.shape[1] < length:
             pad = ((0, 0), (0, length - rows.shape[1])) + ((0, 0),) * len(within)
             rows = np.pad(rows, pad)
-        for contact, (order, chunk) in enumerate(pool.map(encode, rows)):
+        for contact, (order, chunk) in enumerate(pool.map(predicted_row, rows)):
             dataset.id.write_direct_chunk((group, contact, start + a, *within), chunk, 0)
             orders[contact, c] = order
     return orders
 
 
 def _chunked(h5: h5py.File, path: str, shape: tuple[int, ...], length: int) -> h5py.Dataset:
-    """An int16 dataset in chunks of `length` along its third axis, one group's contact's each."""
+    """A dataset of zigzag codes in chunks of `length` along its third axis, one group's contact's
+    each.
+    """
     return h5.create_dataset(
         path,
         shape,
-        "<i2",
+        "<u2",
         chunks=(1, 1, length, *shape[3:]),
         compression="gzip",
         compression_opts=DEFLATE_LEVEL,
@@ -697,7 +719,7 @@ def _write_blocks(
         for level, k in zip(in_uv, ks, strict=True):
             binned = OVERVIEWS[kind](rows, k)
             level[:, a >> k : (a >> k) + binned.shape[1]] = binned
-        orders.append(_write_chunks(rows_set, pool, group, a, rows, scale, predicted_row))
+        orders.append(_write_chunks(rows_set, pool, group, a, rows, scale))
     return in_uv, np.concatenate(orders, axis=1)
 
 
@@ -742,12 +764,17 @@ def _write_axis(
                 "step": 2**k,
                 "kind": kind,
                 "dataset": f"/{name}/level{k}",
-                "blocks": {"chunks": f"/{name}/level{k}_chunks", "steps": tile},
+                "blocks": {
+                    "chunks": f"/{name}/level{k}_chunks",
+                    "steps": tile,
+                    "predictors": f"/{name}/level{k}_predictors",
+                },
             }
         )
 
     shares, contact_shares = shares_of_total(fields.values, centred)
     scales, stats, spectra, block_predictors = [], [], [], []
+    tile_predictors: list[list[np.ndarray]] = [[] for _ in ks]
     frequencies = np.zeros(0)
     with ThreadPoolExecutor(DEFLATES_AT_ONCE) as pool:
         for group in range(groups):
@@ -762,12 +789,13 @@ def _write_axis(
             scales.append(scale)
             in_uv, orders = _write_blocks(values[:, 0], rows_set, pool, group, kind, ks, scale)
             block_predictors.append(orders)
-            for overview, level in zip(overviews, in_uv, strict=True):
-                _write_chunks(overview, pool, group, 0, level, scale)
+            for overview, level, kept in zip(overviews, in_uv, tile_predictors, strict=True):
+                kept.append(_write_chunks(overview, pool, group, 0, level, scale))
 
     h5.create_dataset(f"{name}/chunks", data=_chunk_table(rows_set))
-    for k, overview in zip(ks, overviews, strict=True):
+    for k, overview, kept in zip(ks, overviews, tile_predictors, strict=True):
         h5.create_dataset(f"{name}/level{k}_chunks", data=_chunk_table(overview))
+        h5.create_dataset(f"{name}/level{k}_predictors", data=np.stack(kept))
     h5.create_dataset(f"{name}/block_predictors", data=np.stack(block_predictors))
     h5.create_dataset(f"{name}/stats", data=np.stack(stats))
     h5.create_dataset(f"{name}/psd", data=np.stack(spectra))
@@ -842,39 +870,52 @@ def write_summary(
 
 
 def _inflated_row(chunk: bytes) -> np.ndarray:
-    """What a browser does to a chunk: deflate undone, then shuffle."""
+    """What a browser does to a chunk: deflate undone, then shuffle. Its zigzag codes."""
     bytes_ = np.frombuffer(zlib.decompress(chunk), np.uint8)
-    return bytes_.reshape(2, -1).T.ravel().view("<i2")
+    return bytes_.reshape(2, -1).T.ravel().view("<u2")
+
+
+def _decoded_chunk(chunk: bytes, order: int) -> np.ndarray:
+    """A chunk's values, flat, as a browser reads them: inflated, unshuffled, unzigzagged and its
+    residuals added back up."""
+    return undo_residuals(unzigzag(_inflated_row(chunk)), order)
+
+
+def _decoded_level(h5: h5py.File, raw: np.ndarray, level: dict, group: int, contact: int):
+    """A contact's row of a level as a browser reads it: each chunk inflated, unzigzagged and its
+    residuals added back up by its order, the padding cut.
+    """
+    shape = _dataset(h5, level["dataset"]).shape[2:]
+    table = _dataset(h5, level["blocks"]["chunks"])[group, contact].tolist()
+    orders = _dataset(h5, level["blocks"]["predictors"])[group, contact].tolist()
+    blocks = [
+        _decoded_chunk(raw[offset : offset + size].tobytes(), order)
+        for (offset, size), order in zip(table, orders, strict=True)
+    ]
+    return np.concatenate(blocks)[: math.prod(shape)].reshape(shape)
 
 
 def _rows_add_up_to_the_overview(h5: h5py.File, raw: np.ndarray, axis: dict) -> None:
-    """Each group's first contact's row, as a browser reads it, its blocks' residuals added back up
-    by their orders, binned as the finest overview level is: within an int16 step of it, as each
-    rounds the same values once. A block at the wrong order is far off."""
-    rows, finest = axis["levels"][0], axis["levels"][1]
-    table = _dataset(h5, rows["blocks"]["chunks"])[:]
-    predictors = rows["blocks"].get("predictors")
-    orders = _dataset(h5, predictors)[:] if predictors else np.zeros(table.shape[:3], np.uint8)
-    steps = _dataset(h5, rows["dataset"]).shape[2]
-    k = int(finest["step"]).bit_length() - 1
+    """Each group's first contact's row, as a browser reads it, binned as each overview level is:
+    within an int16 step of that level read as a browser does, as each rounds the same values once.
+    A block or tile at the wrong order is far off."""
     for group, scale in enumerate(axis["scales"]):
-        blocks = []
-        for block in range(table.shape[2]):
-            offset, size = table[group, 0, block].tolist()
-            residuals = _inflated_row(raw[offset : offset + size].tobytes())
-            blocks.append(undo_residuals(residuals, int(orders[group, 0, block])))
-        row = np.concatenate(blocks)[:steps] * scale
-        binned = OVERVIEWS[finest["kind"]](row[None], k)[0]
-        stored = _dataset(h5, finest["dataset"])[group, 0] * scale
-        if np.abs(binned - stored).max() > scale * 1.01:
-            raise AssertionError(f"{axis['name']} group {group}: its rows are not its overview")
+        row = _decoded_level(h5, raw, axis["levels"][0], group, 0) * scale
+        for level in axis["levels"][1:]:
+            k = int(level["step"]).bit_length() - 1
+            binned = OVERVIEWS[level["kind"]](row[None], k)[0]
+            stored = _decoded_level(h5, raw, level, group, 0) * scale
+            if np.abs(binned - stored).max() > scale * 1.01:
+                raise AssertionError(
+                    f"{axis['name']} group {group}: its rows are not {level['dataset']}"
+                )
 
 
 def verify(h5_path: Path, index: dict) -> None:
     """Every dataset read as raw bytes at its offset equals the dataset; every chunk of the rows and
     of the overview levels of a group's field is where its table says; the first contact's, and
     every contact's last, inflated as a browser does, are what HDF5 reads, and their padding comes
-    back zero; and the first contact's rows add up to its overview.
+    back zero; and the first contact's rows add up to each of its overviews.
     """
     raw = np.memmap(h5_path, dtype=np.uint8, mode="r")
     with h5py.File(h5_path, "r") as h5:
@@ -889,8 +930,7 @@ def verify(h5_path: Path, index: dict) -> None:
                 chunked = _dataset(h5, level["dataset"])
                 table = _dataset(h5, level["blocks"]["chunks"])[:]
                 length = level["blocks"]["steps"]
-                predictors = level["blocks"].get("predictors")
-                orders = _dataset(h5, predictors)[:] if predictors else None
+                orders = _dataset(h5, level["blocks"]["predictors"])[:]
                 within = (0,) * (chunked.ndim - 3)
                 last = table.shape[2] - 1
                 for group, contact, block in np.ndindex(table.shape[:3]):
@@ -901,8 +941,8 @@ def verify(h5_path: Path, index: dict) -> None:
                     if there and (contact == 0 or block == last):
                         stored = chunked[group, contact, a : a + length].ravel()
                         read = _inflated_row(chunk)
-                        order = 0 if orders is None else int(orders[group, contact, block])
-                        values = undo_residuals(read, order)
+                        order = int(orders[group, contact, block])
+                        values = undo_residuals(unzigzag(read), order)
                         there = (
                             np.array_equal(read[: len(stored)], stored)
                             and not values[len(stored) :].any()
