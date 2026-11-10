@@ -6,7 +6,7 @@ The LFP viewer reads summaries in TypeScript, in core-web-app's `src/features/lf
 
 | A summary that | Why |
 | --- | --- |
-| Has an index whose `format` is not `"lfp-summary"`, or whose `version` is not 2 | Not a summary, or one it would misread |
+| Has an index whose `format` is not `"lfp-summary"`, or whose `version` is not 1 | Not a summary, or one it would misread |
 | Has an index missing a field it requires, or with one of the wrong kind | A malformed index. Among these: no axis, an axis with no group, fewer than two levels, a `kind` other than `value`, `mean` or `min_max`, a `dtype` other than `<i2`, `<f4`, `<u8` or `\|u1` |
 | Is answered other than 206 to a range request | The whole file would be downloaded: the request is cancelled |
 | Is answered without the bytes asked for | Cut short |
@@ -17,8 +17,9 @@ The LFP viewer reads summaries in TypeScript, in core-web-app's `src/features/lf
 
 - **Unknown fields of the index are ignored.** The index's schema strips what it does not name. A new field must therefore be one a reader may do without, as [Growing the format](format.md#growing-the-format) asks.
 - **Contiguous datasets in C order at their `offset`.** A group's slice of a dataset, `[group]`, is one range. A chunk table is read so, a group at a time.
-- **Every chunk deflated, as a standard zlib stream, with the shuffle.** The viewer inflates through the browser's own `DecompressionStream('deflate')` and undoes the shuffle for 2-byte items. It does not read HDF5's filter mask, so a chunk stored raw would be misread.
-- **The padding at the end of a row's last block.** The viewer cuts a block to its steps before adding its residuals back up. A predictor that looks ahead would be undone wrong.
+- **Every chunk deflated, as a standard zlib stream, with the shuffle.** The viewer inflates through the browser's own `DecompressionStream('deflate')` and undoes the shuffle for 2-byte items, then the zigzag. It does not read HDF5's filter mask, so a chunk stored raw would be misread.
+- **The padding at the end of a row's last block, and of a level's last tile.** The viewer cuts a block or tile to its steps or bins before adding its residuals back up. A predictor that looks ahead would be undone wrong.
+- **A tile's residuals along the flat tile.** For a `min_max` tile that is min, max, min, max …, the order the viewer adds them back up in.
 - **One `blocks.steps` for every block of a level,** and `ceil(steps / step)` bins in a level.
 - **The levels' order.** The rows come first, and the overviews finest to coarsest.
   - The viewer opens on the coarsest level, read whole for every contact, so it must stay small: 2,048 bins at most.
