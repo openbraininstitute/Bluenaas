@@ -4,6 +4,7 @@ import h5py
 import numpy as np
 
 from app.core.lfp_summary.ranges import ReadRange
+from app.core.lfp_summary.summary import undo_residuals, unzigzag
 
 
 def write_report(
@@ -33,6 +34,20 @@ def write_report(
             g["mapping/time"] = np.array([0.0, steps * 0.1, 0.1])
             total += data.reshape(steps, cells, contacts).sum(1, dtype=np.float64) * scale
     return total
+
+
+def decoded(h5: h5py.File, level: dict, group: int, contact: int) -> np.ndarray:
+    """A group's contact's row of the index's level, as h5py reads it, decoded: block by block,
+    unzigzagged and its residuals added back up by its order, along the flat block.
+    """
+    codes = h5[level["dataset"]][group, contact]
+    orders = h5[level["blocks"]["predictors"]][group, contact]
+    steps = level["blocks"]["steps"]
+    blocks = [
+        undo_residuals(unzigzag(codes[b * steps : (b + 1) * steps]), int(order))
+        for b, order in enumerate(orders)
+    ]
+    return np.concatenate(blocks).reshape(codes.shape)
 
 
 def local_reader(path: Path) -> tuple[ReadRange, int]:

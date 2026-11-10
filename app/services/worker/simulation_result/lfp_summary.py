@@ -35,6 +35,7 @@ from app.infrastructure.storage.lfp_summary import (
     READ_BYTES_PER_SECOND,
     SUMMARY_FILE_NAME,
     SummaryInfo,
+    build_job_id,
     enqueue_build,
     read_summary_info,
     summary_dir,
@@ -180,6 +181,11 @@ def build_lfp_summary(
     if current_epoch(CacheKind.LFP_SUMMARY) != epoch:
         # The next request for the summary queues it in the new epoch
         logger.info("The LFP summary cache was cleared since the build was queued")
+        return
+    if job_id != build_job_id(epoch, asset_id, queue, regroup=regroup):
+        # Queued for another format, before a deploy: its leftovers would be looked for there, and
+        # the next request queues it for this one
+        logger.info(f"The LFP summary build {job_id} is for another format than {FORMAT_VERSION}")
         return
 
     directory = summary_dir(epoch, asset_id)

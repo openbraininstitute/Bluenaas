@@ -36,7 +36,7 @@ from app.infrastructure.storage import uuid_subpath, write_atomically
 from app.infrastructure.storage.epoch import CacheKind, epoch_dir_name
 from app.job import JobFn
 
-FORMAT_VERSION = 2
+FORMAT_VERSION = 1
 
 SUMMARY_FILE_NAME = "summary.h5"
 INDEX_FILE_NAME = "index.json"
@@ -77,13 +77,15 @@ class SummaryInfo:
         return directory / f"{stem}.{self.sha256[:16]}.{suffix}"
 
 
-def summary_dir(epoch: str, asset_id: UUID) -> Path:
-    """The report's directory in the given epoch of the cache. Not created."""
+def summary_dir(epoch: str, asset_id: UUID, version: int | None = None) -> Path:
+    """The report's directory in the given epoch of the cache, for a format, by default this one.
+    Not created.
+    """
     return (
         settings.STORAGE_PATH
         / CacheKind.LFP_SUMMARY.value
         / epoch_dir_name(epoch)
-        / f"v{FORMAT_VERSION}"
+        / f"v{FORMAT_VERSION if version is None else version}"
         / uuid_subpath(asset_id)
     )
 
@@ -124,6 +126,13 @@ def build_job_id(epoch: str, asset_id: UUID, queue: JobQueue, *, regroup: bool =
     return f"{job_id}-regroup" if regroup else job_id
 
 
+def _build_version(job_id: str, epoch: str) -> int:
+    """The format a build job writes, from its id: one queued before a deploy writes the one before.
+    This one's, where the id doesn't say."""
+    version = job_id.removeprefix(f"lfp-summary-{epoch}-v").split("-", 1)[0]
+    return int(version) if version.isdigit() else FORMAT_VERSION
+
+
 def build_queue(report_bytes: int) -> JobQueue:
     return JobQueue.LOW if report_bytes <= SMALL_REPORT_BYTES else JobQueue.CPU4_MEM16
 
@@ -135,7 +144,9 @@ def remove_build_leftovers(job: Job, connection, exc_type, exc_value, traceback)
     up the started jobs after the worker died.
     """
     try:
-        directory = summary_dir(job.kwargs["epoch"], UUID(str(job.kwargs["asset_id"])))
+        epoch = job.kwargs["epoch"]
+        version = _build_version(job.id, epoch)
+        directory = summary_dir(epoch, UUID(str(job.kwargs["asset_id"])), version)
         for path in [directory / DIR_LOCK_FILE_NAME, *directory.glob("*.tmp")]:
             with suppress(FileNotFoundError):
                 os.unlink(path)

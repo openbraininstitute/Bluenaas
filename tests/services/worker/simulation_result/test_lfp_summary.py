@@ -25,9 +25,11 @@ from app.infrastructure.storage.lfp_summary import (
     SUMMARY_FILE_NAME,
     SUMMARY_INFO_FILE_NAME,
     SummaryInfo,
+    FORMAT_VERSION,
     build_job_id,
     enqueue_build,
     read_summary_info,
+    remove_build_leftovers,
     summary_dir,
 )
 from app.job.handlers.simulation_result import lfp_summary as handler
@@ -98,6 +100,23 @@ class TestBuildLfpSummary(LfpSummaryTestCase):
         info = read_summary_info(self.directory())
         assert info is not None
         return info
+
+    def test_a_build_queued_for_another_format_builds_nothing(self):
+        epoch = self.epoch()
+        job_id = build_job_id(epoch, self.asset_id, JobQueue.LOW)
+
+        service.build_lfp_summary(
+            self.asset_id,
+            epoch=epoch,
+            queue=JobQueue.LOW,
+            job_id=job_id.replace(f"-v{FORMAT_VERSION}-", f"-v{FORMAT_VERSION - 1}-"),
+            url=URL,
+            size=self.report.stat().st_size,
+            nodes={},
+        )
+
+        self.assertEqual(self.urls, [])
+        self.assertFalse(self.directory().exists())
 
     def test_a_build_writes_the_summary_its_index_and_info_then_ready(self):
         self.run_build()
@@ -366,3 +385,27 @@ class TestBuildJob(LfpSummaryTestCase):
         self.assertEqual(kwargs["queue"], JobQueue.LOW)
         self.assertEqual(kwargs["groups_unavailable"], GroupsUnavailable.CIRCUIT_NOT_READABLE)
         self.assertTrue(kwargs["regroup"])
+
+    def test_a_failed_build_removes_what_its_own_format_left(self):
+        epoch = self.epoch()
+        asset_id = uuid4()
+        kwargs = {"epoch": epoch, "asset_id": asset_id}
+        job = SimpleNamespace(id=build_job_id(epoch, asset_id, JobQueue.LOW), kwargs=kwargs)
+        before = SimpleNamespace(
+            id=job.id.replace(f"-v{FORMAT_VERSION}-", f"-v{FORMAT_VERSION - 1}-"), kwargs=kwargs
+        )
+        directories = [
+            summary_dir(epoch, asset_id, v) for v in (FORMAT_VERSION - 1, FORMAT_VERSION)
+        ]
+        for directory in directories:
+            directory.mkdir(parents=True)
+            (directory / DIR_LOCK_FILE_NAME).touch()
+            (directory / "summary.h5.tmp").touch()
+
+        # A build queued before a deploy, failed by a process after it
+        remove_build_leftovers(before, None, RuntimeError, RuntimeError("lost"), None)
+
+        self.assertEqual(list(directories[0].iterdir()), [])
+        self.assertEqual(len(list(directories[1].iterdir())), 2)
+        remove_build_leftovers(job, None, RuntimeError, RuntimeError("lost"), None)
+        self.assertEqual(list(directories[1].iterdir()), [])

@@ -4,12 +4,12 @@ A summary holds a simulation's LFP report in the form the web app's LFP viewer r
 
 It holds the total field, and the field of each group of cells by m-type, e-type, synapse class, layer and region:
 
-- full rows in int16, in blocks of 2^16 steps;
+- full rows at int16 precision, in blocks of 2^16 steps;
 - overview levels at 4 times the steps of the one below, in tiles of 4,096 bins;
 - per contact, the statistics, the Welch spectrum in up to 128 bands, and each group's share of the total's variance;
 - the correlation of the total between contacts.
 
-The 151 GB report in [Sizes and times](#sizes-and-times) has a summary of 195.4 MB.
+The 151 GB report in [Sizes and times](#sizes-and-times) has a summary of 162.2 MB.
 
 ## Who writes and reads it
 
@@ -26,7 +26,7 @@ flowchart LR
   - `nodes.cell_labels` gives each cell's group, from its population's nodes file.
   - `summary.verify` reads the file back as a browser does before the summary is kept.
 - **Read by** the LFP viewer in core-web-app: `src/features/lfp-viewer/summary.ts` reads the format, `use-lfp-summary.ts` fetches it.
-- **Read back in Python** with h5py, the blocks' residuals added back up:
+- **Read back in Python** with h5py, each block or tile unzigzagged and its residuals added back up:
 
   ```python
   import json
@@ -34,16 +34,28 @@ flowchart LR
   import h5py
   import numpy as np
 
-  from app.core.lfp_summary.summary import undo_residuals
+  from app.core.lfp_summary.summary import undo_residuals, unzigzag
 
   index = json.load(open("index.json"))
   total = index["axes"][0]
-  steps = total["levels"][0]["blocks"]["steps"]
+
+
+  def read(h5, level, contact):
+      """A contact's row of a level, rows or tiles, at the group's scale."""
+      codes = h5[level["dataset"][1:]][0, contact]
+      orders = h5[level["blocks"]["predictors"][1:]][0, contact]
+      steps = level["blocks"]["steps"]
+      # Along the flat block: a min/max tile's min, max, min, max …
+      blocks = [
+          undo_residuals(unzigzag(codes[b * steps : (b + 1) * steps]), o)
+          for b, o in enumerate(orders)
+      ]
+      return np.concatenate(blocks).reshape(codes.shape) * total["scales"][0]
+
+
   with h5py.File("summary.h5") as h5:
-      stored = h5["lfp/total/rows"][0, 3]
-      orders = h5["lfp/total/block_predictors"][0, 3]
-  blocks = [undo_residuals(stored[b * steps : (b + 1) * steps], o) for b, o in enumerate(orders)]
-  row = np.concatenate(blocks) * total["scales"][0]  # contact 3's total, in µV
+      row = read(h5, total["levels"][0], 3)  # contact 3's total, in µV
+      overview = read(h5, total["levels"][-1], 3)  # its coarsest min and max, bins × 2
   ```
 
 ## The pages
@@ -120,7 +132,9 @@ A build that fails is retried once, then reported `failed` for an hour. A build 
 | The index a file of its own | The browser reads it whole first, and it gives every slice's place without reading the h5's metadata |
 | int16, at a scale per group | Half the bytes of float32. A step is 1/32767 of the group's peak, 0.01 µV at a peak of 300 µV |
 | Rows in blocks of 2^16 steps | A view at full resolution reads only the blocks in its window. A short run is one block |
-| A block as residuals of order 0, 1 or 2 | LFP is smooth, so differences deflate smaller. The order is picked per block, whichever deflates smallest |
+| A block as residuals of order 0, 1 or 2 | LFP is smooth, so differences deflate smaller. The order is picked per block and tile, whichever deflates smallest |
+| Residuals as zigzag codes | In two's complement a small negative residual's high byte is 0xFF, so its sign lands in both byte planes. As a zigzag code its high byte is 0, and the sign is the low bit |
+| Each byte plane its own deflate block, with `Z_RLE` | The planes differ, low bytes busy and high bytes mostly 0, so each gets its own Huffman tables. Run-length matches deflate the codes smaller than level 6's search, and about 15 times faster |
 | Overviews at 4 times the steps, coarsest under 2,048 bins | Any zoom has a level with about one bin a pixel. The coarsest is read whole when the viewer opens |
 | Levels in tiles of 4,096 bins | A zoom reads only the tiles in view |
 | The total's levels as min and max, a group's as means | Min and max keep the total's peaks, but don't add up across groups. Means do, so the viewer can add groups |
@@ -135,7 +149,8 @@ On the 151 GB report: 216 contacts, 30,000 steps at 10 kHz, 27 fields (the total
 
 | What | Measured |
 | --- | --- |
-| Summary | 195.4 MB, against 293.6 MB with the blocks unpredicted and the levels contiguous |
+| Summary | 162.2 MB, written from the values of a draft's summary (195.4 MB) until staging builds it. 293.6 MB with the blocks unpredicted and the levels contiguous |
+| Writing it, locally | 4.8 s from its values in memory, every dataset of all 27 fields |
 | Build, locally | 54 min at 47 MB/s, 6.0 GiB of memory at most, by the writer before blocks were predicted |
 | The groups added up | Within 0.08 µV of the total, against an RMS of 105.7 µV |
 | A view's 64 rows, on staging | About 1 s in one request, against 12.6 s with a request a row |

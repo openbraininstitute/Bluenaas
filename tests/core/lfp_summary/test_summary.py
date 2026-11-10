@@ -1,4 +1,5 @@
 import json
+import math
 import shutil
 import tempfile
 import unittest
@@ -12,7 +13,7 @@ from app.core.lfp_summary import summary
 from app.core.lfp_summary.summary import (
     MAX_OVERVIEW_STEPS,
     TILE_BINS,
-    undo_residuals,
+    _decoded_chunk,
     STATS,
     SummedReport,
     WELCH_MAX_SEGMENT,
@@ -30,7 +31,7 @@ from app.core.lfp_summary.summary import (
     write_summary,
 )
 from app.domains.simulation_result.lfp_summary import NoSummaryReason
-from tests.core.lfp_summary.utils import local_reader, write_report
+from tests.core.lfp_summary.utils import decoded, local_reader, write_report
 
 
 class TestSumReport(unittest.TestCase):
@@ -290,7 +291,11 @@ class TestWriteSummary(unittest.TestCase):
                     "step": 1,
                     "kind": "value",
                     "dataset": "/lfp/total/level0",
-                    "blocks": {"chunks": "/lfp/total/level0_chunks", "steps": 50},
+                    "blocks": {
+                        "chunks": "/lfp/total/level0_chunks",
+                        "steps": 50,
+                        "predictors": "/lfp/total/level0_predictors",
+                    },
                 },
             ],
         )
@@ -299,7 +304,7 @@ class TestWriteSummary(unittest.TestCase):
         expected, h5_path, index = self.summarise(steps=50)
 
         with h5py.File(h5_path, "r") as h5:
-            level0 = h5["lfp/total/level0"][0]
+            level0 = np.stack([decoded(h5, index["axes"][0]["levels"][1], 0, c) for c in range(3)])
         scale = index["axes"][0]["scales"][0]
         np.testing.assert_allclose(level0.T * scale, expected, atol=scale)
 
@@ -324,7 +329,11 @@ class TestWriteSummary(unittest.TestCase):
                     "step": 4,
                     "kind": "min_max",
                     "dataset": "/lfp/total/level2",
-                    "blocks": {"chunks": "/lfp/total/level2_chunks", "steps": 1025},
+                    "blocks": {
+                        "chunks": "/lfp/total/level2_chunks",
+                        "steps": 1025,
+                        "predictors": "/lfp/total/level2_predictors",
+                    },
                 },
             ],
         )
@@ -333,13 +342,10 @@ class TestWriteSummary(unittest.TestCase):
         self.assertEqual(index["datasets"]["/lfp/total/level2_chunks"]["shape"], [1, 3, 1, 2])
         verify(h5_path, index)
         with h5py.File(h5_path, "r") as h5:
-            orders = h5["lfp/total/block_predictors"][0, :, 0]
-            residuals = h5["lfp/total/rows"][0]
-            stored = np.stack(
-                [undo_residuals(r, o) for r, o in zip(residuals, orders, strict=True)]
-            )
-            rows = stored * index["axes"][0]["scales"][0]
-            overview = h5["lfp/total/level2"][0]
+            levels = index["axes"][0]["levels"]
+            rows = np.stack([decoded(h5, levels[0], 0, c) for c in range(3)])
+            rows = rows * index["axes"][0]["scales"][0]
+            overview = np.stack([decoded(h5, levels[1], 0, c) for c in range(3)])
         np.testing.assert_allclose(rows.T, expected, atol=np.abs(expected).max() / 32767)
         scale = index["axes"][0]["scales"][0]
         np.testing.assert_allclose(
@@ -356,7 +362,7 @@ class TestWriteSummary(unittest.TestCase):
         report = SummedReport(populations=["pop"], start=0.0, dt=0.025, total=total, fields={})
         h5_path = self.dir / "summary.h5"
         with patch.object(summary, "BLOCK_STEPS", block_steps):
-            index = write_summary(report, h5_path, version=2, source={})
+            index = write_summary(report, h5_path, version=1, source={})
         return total, h5_path, index
 
     def test_rows_in_blocks_at_the_group_scale(self):
@@ -369,37 +375,71 @@ class TestWriteSummary(unittest.TestCase):
         self.assertEqual(index["datasets"]["/lfp/total/chunks"]["shape"], [1, 3, 17, 2])
         verify(h5_path, index)
         with h5py.File(h5_path, "r") as h5:
-            residuals = h5["lfp/total/rows"][0]
-            orders = h5["lfp/total/block_predictors"][0]
+            rows = np.stack([decoded(h5, level0, 0, c) for c in range(3)])
             # No scales of their own: the viewer brings every block to the group's, finer is bytes
             # it throws away
             self.assertNotIn("block_scales", h5["lfp/total"])
         scale = index["axes"][0]["scales"][0]
-        for block in range(17):
-            a = block * 256
-            for contact in range(3):
-                padded = np.zeros(256, np.int16)
-                stored = residuals[contact, a : a + 256]
-                padded[: len(stored)] = stored
-                row = undo_residuals(padded, int(orders[contact, block]))[: len(stored)]
-                np.testing.assert_allclose(
-                    row * scale, total[a : a + 256, contact], atol=scale * 0.51
-                )
+        np.testing.assert_allclose(rows.T * scale, total, atol=scale * 0.51)
 
     def test_a_block_taken_at_the_wrong_order_does_not_verify(self):
         steps = MAX_OVERVIEW_STEPS * 4
         total = 100 * np.sin(np.arange(steps) / 200)[:, None] * np.ones(2)
         report = SummedReport(populations=["pop"], start=0.0, dt=0.025, total=total, fields={})
         h5_path = self.dir / "summary.h5"
-        index = write_summary(report, h5_path, version=2, source={})
+        index = write_summary(report, h5_path, version=1, source={})
         verify(h5_path, index)
 
         with h5py.File(h5_path, "r+") as h5:
             orders = h5["lfp/total/block_predictors"]
             orders[0, 0, 0] = 1 if orders[0, 0, 0] != 1 else 2
 
-        with self.assertRaisesRegex(AssertionError, "not its overview"):
+        with self.assertRaisesRegex(AssertionError, "its rows are not"):
             verify(h5_path, index)
+
+    def test_a_coarsest_tile_taken_at_the_wrong_order_does_not_verify(self):
+        steps = MAX_OVERVIEW_STEPS * 64
+        total = 100 * np.sin(np.arange(steps) / 2000)[:, None] * np.ones(2)
+        report = SummedReport(populations=["pop"], start=0.0, dt=0.025, total=total, fields={})
+        h5_path = self.dir / "summary.h5"
+        index = write_summary(report, h5_path, version=1, source={})
+        verify(h5_path, index)
+        levels = index["axes"][0]["levels"]
+        self.assertGreater(len(levels), 2)
+
+        with h5py.File(h5_path, "r+") as h5:
+            orders = h5[levels[-1]["blocks"]["predictors"]]
+            orders[0, 0, 0] = 1 if orders[0, 0, 0] != 1 else 2
+
+        with self.assertRaisesRegex(AssertionError, f"its rows are not {levels[-1]['dataset']}"):
+            verify(h5_path, index)
+
+    def test_a_last_min_max_tile_is_predicted_along_the_flat_tile_with_its_padding(self):
+        # The finest level's bins in a tile and 3,000 more: a slow wave with noise on it, so a bin's
+        # max sits about a step above its min, the run order 1 fits
+        steps = MAX_OVERVIEW_STEPS * 64 + 3000 * 32
+        noise = np.random.default_rng(4).normal(0, 100, steps)
+        total = (3000 * np.sin(np.arange(steps) / 3000) + noise)[:, None] * np.ones(2)
+        report = SummedReport(populations=["pop"], start=0.0, dt=0.025, total=total, fields={})
+        h5_path = self.dir / "summary.h5"
+        index = write_summary(report, h5_path, version=1, source={})
+        verify(h5_path, index)
+        finest = index["axes"][0]["levels"][1]
+        bins = math.ceil(len(total) / finest["step"]) - TILE_BINS
+        self.assertEqual((finest["kind"], finest["blocks"]["steps"]), ("min_max", TILE_BINS))
+
+        with h5py.File(h5_path, "r") as h5:
+            order = int(h5[finest["blocks"]["predictors"]][0, 0, 1])
+            level = h5[finest["dataset"]]
+            chunk = level.id.read_direct_chunk((0, 0, TILE_BINS, 0))[1]
+            pairs = decoded(h5, finest, 0, 0)[TILE_BINS:]
+        self.assertEqual(order, 1)
+        flat = _decoded_chunk(chunk, order)
+        np.testing.assert_array_equal(flat[: bins * 2], pairs.ravel())
+        self.assertFalse(flat[bins * 2 :].any())
+        last = total[(len(total) - 1) // finest["step"] * finest["step"] :, 0]
+        scale = index["axes"][0]["scales"][0]
+        np.testing.assert_allclose(pairs[-1] * scale, [last.min(), last.max()], atol=scale)
 
     def test_a_smooth_row_is_stored_as_its_residuals_and_noise_as_its_values(self):
         steps = MAX_OVERVIEW_STEPS * 4
@@ -407,17 +447,15 @@ class TestWriteSummary(unittest.TestCase):
         total = np.stack([100 * np.sin(np.arange(steps) / 200), rng.normal(0, 30, steps)], axis=1)
         report = SummedReport(populations=["pop"], start=0.0, dt=0.025, total=total, fields={})
         h5_path = self.dir / "summary.h5"
-        index = write_summary(report, h5_path, version=2, source={})
+        index = write_summary(report, h5_path, version=1, source={})
 
         verify(h5_path, index)
         with h5py.File(h5_path, "r") as h5:
             orders = h5["lfp/total/block_predictors"][0, :, 0]
-            residuals = h5["lfp/total/rows"][0]
+            row = decoded(h5, index["axes"][0]["levels"][0], 0, 0)
         self.assertEqual(orders.tolist(), [2, 0])
         scale = index["axes"][0]["scales"][0]
-        np.testing.assert_allclose(
-            undo_residuals(residuals[0], 2) * scale, total[:, 0], atol=scale * 0.51
-        )
+        np.testing.assert_allclose(row * scale, total[:, 0], atol=scale * 0.51)
 
     def test_levels_from_the_finest_to_the_coarsest(self):
         steps = MAX_OVERVIEW_STEPS * 64
@@ -433,7 +471,7 @@ class TestWriteSummary(unittest.TestCase):
         with h5py.File(h5_path, "r") as h5:
             for level in levels[1:]:
                 step = level["step"]
-                stored = h5[level["dataset"]][0] * scale
+                stored = np.stack([decoded(h5, level, 0, c) for c in range(2)]) * scale
                 binned = total.T.reshape(2, -1, step)
                 np.testing.assert_allclose(stored[..., 0], binned.min(-1), atol=scale)
                 np.testing.assert_allclose(stored[..., 1], binned.max(-1), atol=scale)
@@ -450,7 +488,7 @@ class TestWriteSummary(unittest.TestCase):
         verify(h5_path, index)
         scale = index["axes"][0]["scales"][0]
         with h5py.File(h5_path, "r") as h5:
-            stored = h5["lfp/total/level5"][0, 1] * scale
+            stored = decoded(h5, level, 0, 1) * scale
         np.testing.assert_allclose(
             stored[-1], [total[-16:, 1].min(), total[-16:, 1].max()], atol=scale
         )
@@ -462,7 +500,7 @@ class TestWriteSummary(unittest.TestCase):
         verify(h5_path, index)
         scale = index["axes"][0]["scales"][0]
         with h5py.File(h5_path, "r") as h5:
-            coarsest = h5["lfp/total/level6"][0, 0] * scale
+            coarsest = decoded(h5, index["axes"][0]["levels"][-1], 0, 0) * scale
         np.testing.assert_allclose(coarsest[:, 1], total[:, 0].reshape(-1, 64).max(1), atol=scale)
 
     def test_the_correlation_is_on_the_total_alone(self):

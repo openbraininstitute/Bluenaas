@@ -20,7 +20,7 @@ From a run of 100,000 steps at 0.1 ms, on 4 contacts, with two m-types, `dataset
 ```json
 {
   "format": "lfp-summary",
-  "version": 2,
+  "version": 1,
   "source": { "asset_id": "…", "size": 123456789 },
   "populations": ["S1nonbarrel_neurons"],
   "time": { "start": 0.0, "dt": 0.1, "steps": 100000 },
@@ -48,13 +48,21 @@ From a run of 100,000 steps at 0.1 ms, on 4 contacts, with two m-types, `dataset
           "step": 16,
           "kind": "min_max",
           "dataset": "/lfp/total/level4",
-          "blocks": { "chunks": "/lfp/total/level4_chunks", "steps": 4096 }
+          "blocks": {
+            "chunks": "/lfp/total/level4_chunks",
+            "steps": 4096,
+            "predictors": "/lfp/total/level4_predictors"
+          }
         },
         {
           "step": 64,
           "kind": "min_max",
           "dataset": "/lfp/total/level6",
-          "blocks": { "chunks": "/lfp/total/level6_chunks", "steps": 1563 }
+          "blocks": {
+            "chunks": "/lfp/total/level6_chunks",
+            "steps": 1563,
+            "predictors": "/lfp/total/level6_predictors"
+          }
         }
       ],
       "stats": "/lfp/total/stats",
@@ -87,7 +95,7 @@ From a run of 100,000 steps at 0.1 ms, on 4 contacts, with two m-types, `dataset
 
 | Field | Meaning |
 | --- | --- |
-| `format`, `version` | `"lfp-summary"`, 2 |
+| `format`, `version` | `"lfp-summary"`, 1 |
 | `source` | The report's asset id and size in bytes |
 | `populations` | The report's populations, in its order |
 | `time` | `start` and `dt` in ms, and the number of `steps` |
@@ -121,7 +129,7 @@ A level:
 | `dataset` | Its chunked dataset |
 | `blocks.chunks` | Its chunk table |
 | `blocks.steps` | Steps (for the rows) or bins (for an overview) a block holds |
-| `blocks.predictors` | The rows' only: the dataset of each block's order |
+| `blocks.predictors` | The dataset of each block's or tile's order |
 | `blocks.scales` | Optional: a dataset of each block's own scale, group × contact × block, float32, for a writer that can't know the peak up front. This writer doesn't write it |
 
 ## The datasets
@@ -130,11 +138,12 @@ For an axis of G groups, on C contacts, over N steps:
 
 | Dataset | Type | Shape | Content |
 | --- | --- | --- | --- |
-| `rows` | int16, chunked | G × C × N | The full rows, in blocks of `blocks.steps` (2^16, or N where shorter) of one contact, as residuals |
+| `rows` | uint16, chunked | G × C × N | The full rows, in blocks of `blocks.steps` (2^16, or N where shorter) of one contact, as zigzag codes of residuals |
 | `chunks` | uint64 | G × C × blocks × 2 | Each block's byte offset and size in the file |
-| `block_predictors` | uint8 | G × C × blocks | Each block's order: 0, 1 or 2 |
-| `level{k}` | int16, chunked | G × C × bins × 2 for `min_max`, G × C × bins otherwise | An overview of bins of 2^k steps, in tiles of `blocks.steps` bins of one contact |
+| `block_predictors` | uint8 | G × C × blocks | Each block of the rows' order: 0, 1 or 2 |
+| `level{k}` | uint16, chunked | G × C × bins × 2 for `min_max`, G × C × bins otherwise | An overview of bins of 2^k steps, in tiles of `blocks.steps` bins of one contact, as zigzag codes of residuals |
 | `level{k}_chunks` | uint64 | G × C × tiles × 2 | Each tile's byte offset and size |
+| `level{k}_predictors` | uint8 | G × C × tiles | Each tile's order: 0, 1 or 2 |
 | `stats` | float32 | G × C × 6 | The index's `stats`, from the rows in µV before they are rounded |
 | `psd` | float32 | G × C × frequencies | The Welch spectrum, µV²/Hz |
 | `contact_shares` | float32 | G × C | Each group's part of the total's variance at each contact |
@@ -145,13 +154,14 @@ For an axis of G groups, on C contacts, over N steps:
 A block of the rows, or a tile of a level, is one HDF5 chunk, written with `write_direct_chunk` and found by its table:
 
 1. Its `offset` and `size` at `[group, contact, block]` of the table.
-2. Its bytes inflated: a zlib stream, deflate at level 6.
-3. HDF5's shuffle undone, for 2-byte items. The first half of the bytes are the values' low bytes, the second half their high bytes. A tile of a `min_max` level holds its bins' min and max, one after the other.
-4. For a block of the rows, its residuals added back up, as many times as its order says: a running sum, wrapping as int16 does. The residuals were taken from 0 before the first value, over the whole block, padding included. A tile is order 0.
-5. The padding dropped: the last block of a row is padded with zeros to the full length, as HDF5 stores an edge chunk whole. Block b holds steps `b × blocks.steps` up to `(b + 1) × blocks.steps` or N. A running sum only looks back, so the padding may be dropped before step 4.
-6. Times the group's scale, in µV, or the block's own where `blocks.scales` gives one.
+2. Its bytes inflated: one zlib stream. The writer deflates at level 9 with run-length matches only (`Z_RLE`), and ends a deflate block between the two halves of step 3, so each has its own Huffman tables. Any inflate reads it.
+3. HDF5's shuffle undone, for 2-byte items. The first half of the bytes are the codes' low bytes, the second half their high bytes. A tile of a `min_max` level holds its bins' min and max, one after the other.
+4. The zigzag undone: a uint16 code z is the int16 `(z >> 1) ^ -(z & 1)`, so 0, 1, 2, 3 … are 0, −1, 1, −2 … A small residual of either sign has a small code, and its high byte is 0.
+5. Its residuals added back up, as many times as its order says: a running sum, wrapping as int16 does. The residuals were taken from 0 before the first value, along the flat block (for a `min_max` tile: min, max, min, max …), padding included.
+6. The padding dropped: the last block of a row, and the last tile of a level, is padded with zeros to the full length, as HDF5 stores an edge chunk whole. Block b holds steps `b × blocks.steps` up to `(b + 1) × blocks.steps` or N. A running sum only looks back, so the padding may be dropped before step 5.
+7. Times the group's scale, in µV, or the block's own where `blocks.scales` gives one.
 
-Order 1 keeps each value less the one before. Order 2 does that again. The writer tries all three for each block and keeps the one that deflates smallest.
+Order 1 keeps each value less the one before. Order 2 does that again. The writer tries all three for each block and tile and keeps the one that deflates smallest.
 
 ## The overview levels
 
@@ -197,5 +207,4 @@ So that summaries already written keep being read, and readers already deployed 
 
 | Version | Change |
 | --- | --- |
-| 1 | Bluenaas#195. Every dataset contiguous and uncompressed: the total alone, its rows whole as `level0`, overviews of min and max at half the steps each, and the float32 total in V under `/report` |
-| 2 | The groups' fields, `shares`, `contact_shares`, `axes_left_out` and `groups_unavailable`. Rows in blocks of 2^16 steps with their orders, levels at 4 times the steps each in tiles, both found by chunk tables. Spectra in up to 128 log bands. The correlation at `/lfp/total/correlation`, 1 × C × C, named by the total's `correlation`. No `/report` |
+| 1 | The first released. Drafts before it were built on staging only, two of them under the numbers 1 and 2, and staging's cache was cleared when this one was deployed |
