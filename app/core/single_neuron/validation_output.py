@@ -42,6 +42,8 @@ class ValidationOutput:
             name=val_dict["name"],
             passed=val_dict["passed"],
             validated_entity_id=self.model_id,
+            # entitycore rejects a null description, which entitysdk sends when unset.
+            description="",
         )
         registered = self.client.register_entity(
             entity=validation_result_entity,
